@@ -20,20 +20,20 @@ from nequip.ase import NequIPCalculator
 from e3nn.util.jit import script
 
 from autolearn import Dataset
-from .model import BaseModel
+from autolearn.base import BaseModel
 from autolearn.utils import prepare_dict
 
 
-def to_nequip_dataset(data, config):
+def to_nequip_dataset(atoms_list, config):
     _config = Config.from_dict(dict(config))
-    _config['chemical_symbols'] = Dataset(data).get_elements()
+    _config['chemical_symbols'] = Dataset(atoms_list).get_elements()
     type_mapper, _ = instantiate(
             TypeMapper,
             prefix='dataset',
             optional_args=_config,
             )
     ase_dataset = ASEDataset.from_atoms_list(
-            data,
+            atoms_list,
             extra_fixed_fields={'r_max': config['r_max']},
             type_mapper=type_mapper,
             )
@@ -42,7 +42,7 @@ def to_nequip_dataset(data, config):
 
 def get_train_electron(training_execution):
     device = training_execution.device
-    def train_barebones(nequip_model, dataset):
+    def train_barebones(nequip_model, training, validation):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -55,11 +55,11 @@ def get_train_electron(training_execution):
             check_code_version(nequip_config, add_to_config=True)
             _set_global_options(nequip_config)
             trainer = Trainer(model=None, **dict(nequip_config))
-            trainer.n_train = len(dataset.training)
-            trainer.n_val   = len(dataset.validation)
+            trainer.n_train = len(training)
+            trainer.n_val   = len(validation)
 
-            data_train    = to_nequip_dataset(dataset.training, nequip_config)
-            data_validate = to_nequip_dataset(dataset.validation, nequip_config)
+            data_train    = to_nequip_dataset(training.atoms_list, nequip_config)
+            data_validate = to_nequip_dataset(validation.atoms_list, nequip_config)
             trainer.set_dataset(data_train, data_validate)
             trainer.model = model
 
@@ -88,7 +88,7 @@ class NequIPModel(BaseModel):
                 self.config,
                 defaults=default_config,
                 )
-        ase_dataset = to_nequip_dataset(dataset.training, nequip_config)
+        ase_dataset = to_nequip_dataset(dataset.atoms_list, nequip_config)
         self.model = model_from_config(
                 nequip_config,
                 initialize=True,
@@ -154,10 +154,10 @@ class NequIPModel(BaseModel):
         return calculator
 
     @staticmethod
-    def train(nequip_model, training_execution, dataset):
+    def train(nequip_model, training_execution, training, validation):
         if nequip_model.model is None:
             print('initializing model ... ')
-            nequip_model.initialize(dataset)
+            nequip_model.initialize(training)
 
         train_electron = get_train_electron(training_execution)
-        return train_electron(nequip_model, dataset)
+        return train_electron(nequip_model, training, validation)

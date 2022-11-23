@@ -9,28 +9,14 @@ c = ct.get_config() # avoid creating a results dir each time tests are executed
 c['dispatcher']['results_dir'] = './'
 #ct.set_config(c)
 
-from ase import Atoms
-from ase.geometry import Cell
 from ase.data import chemical_symbols
 
 from autolearn import Dataset, TrainingExecution, ModelExecution
+from autolearn.base import BaseModel
 from autolearn.models import NequIPModel
 import autolearn.models._nequip
 
-
-def generate_dummy_data(natoms, nstates, number):
-    atoms = Atoms(
-            numbers=number * np.ones(natoms),
-            positions=np.random.uniform(0, 1, size=(natoms, 3)),
-            )
-    data = []
-    for i in range(nstates):
-        _atoms = atoms.copy()
-        _atoms.info['energy'] = np.random.uniform(0, 1)
-        _atoms.arrays['forces'] = np.random.uniform(0, 1, size=(natoms, 3))
-        _atoms.set_positions(np.random.uniform(0, 1, size=(natoms, 3)))
-        data.append(_atoms)
-    return data
+from utils import generate_dummy_data
 
 
 def test_nequip_config(tmp_path):
@@ -49,7 +35,6 @@ def test_nequip_train(tmp_path):
     n_train = 5
     n_val   = 1
     natoms  = 5
-    nstates = n_train + n_val
     atomic_number = 1
     config['chemical_symbols'] = chemical_symbols[atomic_number]
     config['n_train'] = n_train
@@ -58,17 +43,17 @@ def test_nequip_train(tmp_path):
     model = NequIPModel(config)
 
     # generate dummy data
-    data = generate_dummy_data(natoms, nstates, atomic_number)
-    dataset = Dataset(data[:n_train], data[n_train:])
+    training   = Dataset(generate_dummy_data(natoms, n_train, atomic_number))
+    validation = Dataset(generate_dummy_data(natoms, n_val,   atomic_number))
 
     # initialize and train
-    model.initialize(dataset)
+    model.initialize(training)
     training_execution = TrainingExecution()
     training_execution.device = 'cuda'
-    model = NequIPModel.train(model, training_execution, dataset)
+    model = NequIPModel.train(model, training_execution, training, validation)
 
     # continue training
-    model = NequIPModel.train(model, training_execution, dataset)
+    model = NequIPModel.train(model, training_execution, training, validation)
 
 
 def test_nequip_calculator(tmp_path):
@@ -88,12 +73,12 @@ def test_nequip_calculator(tmp_path):
     model = NequIPModel(config)
 
     # generate dummy data and initialize model
-    data = generate_dummy_data(natoms, nstates, atomic_number)
-    dataset = Dataset(data[:n_train], data[n_train:])
-    model.initialize(dataset)
+    training   = Dataset(generate_dummy_data(natoms, n_train, atomic_number))
+    validation = Dataset(generate_dummy_data(natoms, n_val,   atomic_number))
+    model.initialize(training)
 
     # get calculator
-    atoms = data[0]
+    atoms = training.atoms_list[0].copy()
     atoms.calc = model.get_calculator(
             'cpu',
             'float32',
@@ -111,34 +96,32 @@ def test_nequip_calculator(tmp_path):
     np.testing.assert_almost_equal(f0, f1, decimal=4)
 
 
-def test_evaluate_nequip(tmp_path):
+def test_model_evaluate(tmp_path):
     config_text = requests.get('https://raw.githubusercontent.com/mir-group/nequip/v0.5.5/configs/minimal.yaml').text
     config = yaml.load(config_text, Loader=yaml.FullLoader)
     config['root'] = str(tmp_path)
 
-    n_train = 10
-    n_val   = 0
+    n_train = 2
     natoms  = 5
-    nstates = n_train + n_val
     atomic_number = 1
-    data = generate_dummy_data(natoms, nstates, atomic_number)
-    dataset = Dataset(data[:n_train], data[n_train:])
+    training   = Dataset(generate_dummy_data(natoms, n_train, atomic_number))
+    model = NequIPModel(config)
+    model.initialize(training)
 
-    # initialize two different models
-    config['chemical_symbols'] = chemical_symbols[atomic_number]
-    config['n_train'] = n_train
-    config['n_val'] = n_val
-    config['seed'] = 1
-    pass
-    #model  = NequIPModel(config)
-    #model.initialize(dataset)
+    # generate test data
+    n_test = 5
+    test = Dataset(generate_dummy_data(natoms, n_test, atomic_number))
+    model_execution = ModelExecution()
+    test_evaluated = BaseModel.evaluate(test, model, model_execution)
 
-    #config['seed'] = 2
-    #model_ = NequIPModel(config)
-    #model_.initialize(dataset)
-
-    ## get calculator
-    #atoms = data[0]
-    #model_execution = ModelExecution() # on cpu
-    #atoms.calc = model.get_calculator(model_execution)
-    #atoms.get_potential_energy()
+    # double check using model calculator
+    index = -1
+    e0    = test_evaluated.atoms_list[index].info['energy']
+    atoms = training.atoms_list[0]
+    atoms.calc = model.get_calculator(
+            model_execution.device,
+            model_execution.dtype,
+            )
+    atoms.set_positions(test_evaluated.atoms_list[index].get_positions())
+    atoms.set_cell(test_evaluated.atoms_list[index].get_cell())
+    assert np.allclose(atoms.get_potential_energy(), e0)
