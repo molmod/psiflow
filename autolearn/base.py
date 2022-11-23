@@ -1,6 +1,7 @@
 import covalent as ct
 import torch
 import numpy as np
+from dataclasses import dataclass
 
 
 def get_evaluate_dataset_electron(model_execution):
@@ -57,31 +58,22 @@ class BaseReference:
         raise NotImplementedError
 
 
+@dataclass(frozen=True)
 class TrainingExecution:
-
-    def __init__(self, executor='local', device='cuda'):
-        self.executor = executor
-        self.device   = device
+    executor: str = 'local'
+    device  : str = 'cuda'
 
 
+@dataclass(frozen=True)
 class ModelExecution:
-
-    def __init__(
-            self,
-            executor='local',
-            device='cpu',
-            ncores=1,
-            dtype='float32',
-            ):
-        self.executor = executor
-        self.device   = device
-        self.ncores   = ncores
-        self.dtype    = dtype
+    executor: str = 'local'
+    device  : str = 'cpu'
+    ncores  : int = 1
+    dtype   : str = 'float32'
 
 
+@dataclass(frozen=True)
 class ReferenceExecution:
-
-    def __init__(self, executor='local', ncores=1):
-        self.executor = executor
-        self.device   = 'cpu'
-        self.ncores   = ncores
+    executor: str = 'local'
+    device  : str = 'cpu'
+    ncores  : int = 1

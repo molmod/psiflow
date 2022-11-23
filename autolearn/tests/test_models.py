@@ -48,8 +48,7 @@ def test_nequip_train(tmp_path):
 
     # initialize and train
     model.initialize(training)
-    training_execution = TrainingExecution()
-    training_execution.device = 'cuda'
+    training_execution = TrainingExecution(device='cuda')
     model = NequIPModel.train(model, training_execution, training, validation)
 
     # continue training
