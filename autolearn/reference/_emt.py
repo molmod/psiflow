@@ -7,7 +7,7 @@ from autolearn.base import BaseReference
 
 def get_evaluate_electron(reference_execution):
     def evaluate_barebones(atoms, reference):
-        atoms.calc = reference.get_calculator()
+        atoms.calc = EMT()
         atoms.info['energy']   = atoms.get_potential_energy()
         atoms.arrays['forces'] = atoms.get_forces()
         atoms.info['stress'] = atoms.get_stress(voigt=False)
@@ -18,9 +18,6 @@ def get_evaluate_electron(reference_execution):
 
 class EMTReference(BaseReference):
     """Implements an EMT calculator"""
-
-    def get_calculator(self):
-        return EMT()
 
     @staticmethod
     def evaluate(atoms, reference, reference_execution):

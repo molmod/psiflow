@@ -66,7 +66,7 @@ def get_train_electron(training_execution):
             # Store any updated config information in the trainer
             trainer.update_kwargs(nequip_config)
             trainer.train()
-        nequip_model.model = trainer.model.to('cpu')
+        kequip_model.model = trainer.model.to('cpu')
         return nequip_model
     return ct.electron(train_barebones, executor=training_execution.executor)
 

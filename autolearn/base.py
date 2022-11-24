@@ -1,3 +1,4 @@
+from typing import Optional, Callable
 import covalent as ct
 import torch
 import numpy as np
@@ -49,9 +50,6 @@ class BaseModel:
 class BaseReference:
     """Base class for a reference interaction potential"""
 
-    def get_calculator(self):
-        raise NotImplementedError
-
     @staticmethod
     def evaluate(atoms, reference, reference_execution):
         """Evaluates an atoms configuration and returns it as a covalent electron"""
@@ -74,6 +72,7 @@ class ModelExecution:
 
 @dataclass(frozen=True)
 class ReferenceExecution:
-    executor: str = 'local'
-    device  : str = 'cpu'
-    ncores  : int = 1
+    executor: str  = 'local'
+    ncores  : int  = 1
+    command : str  = 'cp2k.psmp' # default command for CP2K Reference
+    mpi     : Optional[Callable] = None # or callable, e.g: mpi(ncores) -> 'mpirun -np {ncores} '
