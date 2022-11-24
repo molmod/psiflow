@@ -43,8 +43,12 @@ def test_nequip_train(tmp_path):
     model = NequIPModel(config)
 
     # generate dummy data
-    training   = Dataset(generate_dummy_data(natoms, n_train, atomic_number))
-    validation = Dataset(generate_dummy_data(natoms, n_val,   atomic_number))
+    training   = Dataset.from_atoms_list(
+            generate_dummy_data(natoms, n_train, atomic_number),
+            )
+    validation = Dataset.from_atoms_list(
+            generate_dummy_data(natoms, n_val,   atomic_number),
+            )
 
     # initialize and train
     model.initialize(training)
@@ -72,12 +76,16 @@ def test_nequip_calculator(tmp_path):
     model = NequIPModel(config)
 
     # generate dummy data and initialize model
-    training   = Dataset(generate_dummy_data(natoms, n_train, atomic_number))
-    validation = Dataset(generate_dummy_data(natoms, n_val,   atomic_number))
+    training   = Dataset.from_atoms_list(
+            generate_dummy_data(natoms, n_train, atomic_number),
+            )
+    validation = Dataset.from_atoms_list(
+            generate_dummy_data(natoms, n_val,   atomic_number),
+            )
     model.initialize(training)
 
     # get calculator
-    atoms = training.atoms_list[0].copy()
+    atoms = training.as_atoms_list()[0].copy()
     atoms.calc = model.get_calculator(
             'cpu',
             'float32',
@@ -103,24 +111,28 @@ def test_model_evaluate(tmp_path):
     n_train = 2
     natoms  = 5
     atomic_number = 1
-    training   = Dataset(generate_dummy_data(natoms, n_train, atomic_number))
+    training   = Dataset.from_atoms_list(
+            generate_dummy_data(natoms, n_train, atomic_number),
+            )
     model = NequIPModel(config)
     model.initialize(training)
 
     # generate test data
     n_test = 5
-    test = Dataset(generate_dummy_data(natoms, n_test, atomic_number))
+    test = Dataset.from_atoms_list(
+            generate_dummy_data(natoms, n_test, atomic_number),
+            )
     model_execution = ModelExecution()
     test_evaluated = BaseModel.evaluate(test, model, model_execution)
 
     # double check using model calculator
     index = -1
-    e0    = test_evaluated.atoms_list[index].info['energy']
-    atoms = training.atoms_list[0]
+    e0    = test_evaluated.as_atoms_list()[index].info['energy']
+    atoms = training.as_atoms_list()[0]
     atoms.calc = model.get_calculator(
             model_execution.device,
             model_execution.dtype,
             )
-    atoms.set_positions(test_evaluated.atoms_list[index].get_positions())
-    atoms.set_cell(test_evaluated.atoms_list[index].get_cell())
+    atoms.set_positions(test_evaluated.as_atoms_list()[index].get_positions())
+    atoms.set_cell(test_evaluated.as_atoms_list()[index].get_cell())
     assert np.allclose(atoms.get_potential_energy(), e0)

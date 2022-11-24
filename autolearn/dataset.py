@@ -1,48 +1,83 @@
 import covalent as ct
 import numpy as np
 
-from ase.data import chemical_symbols
 
-from autolearn.utils import clear_label
+class Sample:
+    """Wrapper class for a sample in phase space"""
+    allowed_tags = [
+            'success',
+            'error',
+            'timeout',
+            'unphysical',
+            ]
+
+    def __init__(self, atoms):
+        _atoms = atoms.copy()
+        _atoms.calc = None
+
+        self.evaluated = (('energy' in _atoms.info.keys()) and
+                ('stress' in _atoms.info.keys()) and
+                ('forces' in _atoms.arrays.keys()))
+        self.tags  = _atoms.info.pop('tags', [])
+        self.atoms = _atoms
+        self.log   = None
+
+    def label(self, energy, forces, stress, log=None):
+        assert isinstance(energy, float)
+        assert forces.shape == (len(self.atoms), 3)
+        assert stress.shape == (3, 3)
+        self.evaluated = True
+        self.atoms.info['energy'] = energy
+        self.atoms.info['stress'] = stress
+        self.atoms.arrays['forces'] = forces
+        self.log = log
+
+    def tag(self, tag):
+        assert tag in Sample.allowed_tags
+        self.tags.append(tag)
+
+    def get_atoms():
+        _atoms = self.atoms.copy()
+        _atoms.info['tags'] = ' '.join(self.tags)
+        return _atoms
+
+    def clear(self):
+        self.tags = []
+        self.label(0.0, np.zeros((len(self.atoms), 3)), np.zeros((3, 3)))
+        self.evaluated = False
 
 
 class Dataset:
     """Base class for a dataset of atomic structures"""
 
-    def __init__(self, atoms_list=[]):
+    def __init__(self, samples=[]):
         """Constructor
 
         Arguments
         ---------
 
-        atoms_list : list of Atoms
-            list of atoms instances
+        samples : list of Sample objects
 
         """
-        # remove calc attribute to avoid confusion or pickling problems
-        for atoms in atoms_list:
-            atoms.calc = None
-        self.atoms_list = atoms_list
-
-    def get_elements(self):
-        numbers = self.get_numbers()
-        return [chemical_symbols[n] for n in numbers]
-
-    def get_numbers(self):
-        """Returns set of all atomic numbers that are present in the data"""
-        _all = [set(a.numbers) for a in self.atoms_list]
-        return sorted(list(set(b for a in _all for b in a)))
+        self.samples = samples
 
     def __len__(self):
-        return len(self.atoms_list)
+        return len(self.samples)
 
-    @staticmethod
-    @ct.electron(executor='local')
-    def clear_labels(dataset):
-        for atoms in dataset.atoms_list:
-            clear_label(atoms)
-        return dataset
+    def as_atoms_list(self):
+        return [sample.atoms for sample in self.samples]
 
-    @staticmethod
-    def label(dataset):
-        pass
+    def clear(self):
+        for sample in self.samples:
+            sample.clear()
+
+    @classmethod
+    def from_atoms_list(cls, atoms_list):
+        return cls([Sample(atoms) for atoms in atoms_list])
+
+    #@staticmethod
+    #@ct.electron(executor='local')
+    #def clear_labels(dataset):
+    #    for atoms in dataset.atoms_list:
+    #        clear_label(atoms)
+    #    return dataset

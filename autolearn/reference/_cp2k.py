@@ -1,7 +1,10 @@
+import glob
 import os
 import subprocess
 import tempfile
+import shlex
 from pathlib import Path
+import numpy as np
 import covalent as ct
 
 from pymatgen.io.cp2k.inputs import Cp2kInput, Keyword, KeywordList, Cell, \
@@ -56,14 +59,15 @@ def set_global_section(cp2k_input):
 
 
 def get_evaluate_electron(reference_execution):
-    ncores  = reference_execution.ncores
-    command = reference_execution.command
-    mpi     = reference_execution.mpi
+    ncores   = reference_execution.ncores
+    command  = reference_execution.command
+    mpi      = reference_execution.mpi
+    walltime = reference_execution.walltime
     command_list = []
     if mpi is not None:
         command_list += mpi(ncores)
     command_list.append(command)
-    def evaluate_barebones(atoms, reference):
+    def evaluate_barebones(sample, reference):
         with tempfile.TemporaryDirectory() as tmpdir:
             # write data files as required by cp2k
             filepaths = {}
@@ -77,7 +81,7 @@ def get_evaluate_electron(reference_execution):
                     )
             cp2k_input = insert_atoms_in_input(
                     cp2k_input,
-                    atoms,
+                    sample.atoms,
                     )
             cp2k_input = set_global_section(cp2k_input)
             path_input  = Path(tmpdir) / 'cp2k_input.txt'
@@ -87,33 +91,60 @@ def get_evaluate_electron(reference_execution):
             command_list.append('-i {}'.format(path_input))
             try:
                 result = subprocess.run(
-                        ' '.join(command_list),
+                        shlex.split(' '.join(command_list)), # proper splitting
                         env=dict(os.environ),
-                        shell=True,
+                        shell=False, # to be able to use timeout
                         capture_output=True,
                         text=True,
+                        timeout=walltime,
                         )
+                stdout = result.stdout
+                stderr = result.stderr
+                timeout = False
                 returncode = result.returncode
                 success = (returncode == 0)
             except subprocess.CalledProcessError as e:
+                stdout = result.stdout
+                stderr = result.stderr
+                timeout = False
                 returncode = 1
                 success = False
                 print(e)
-            print('success: {}\treturncode: {}'.format(success, returncode))
-            print(result.stdout)
-            print(result.stderr)
+            except subprocess.TimeoutExpired as e:
+                stdout = e.stdout.decode('utf-8') # no result variable in this case
+                stderr = e.stderr
+                timeout = True
+                returncode = 1
+                success = False
+                print(e)
+            print('success: {}\treturncode: {}\ttimeout: {}'.format(success, returncode, timeout))
+            print(stdout)
+            print(stderr)
             if success:
                 with open(path_output, 'w') as f:
-                    f.write(result.stdout)
+                    f.write(stdout)
                 out = Cp2kOutput(path_output)
                 out.parse_energies()
                 out.parse_forces()
                 out.parse_stresses()
-                atoms.info['energy'] = out.data['total_energy']
-                atoms.info['stress'] = out.data['stress_tensor']
-                atoms.arrays['forces'] = out.data['forces']
-                os.remove('_electron-RESTART.wfn')
-        return atoms
+                energy = out.data['total_energy'][0]
+                forces = np.array(out.data['forces'][0])
+                stress = np.array(out.data['stress_tensor'][0])
+                sample.label(
+                        energy,
+                        forces,
+                        stress,
+                        log=stdout,
+                        )
+                sample.tag('success')
+                for file in glob.glob('_electron-RESTART.wfn*'):
+                    os.remove(file) # include .wfn.bak-
+            else:
+                sample.tag('error')
+                if timeout:
+                    sample.tag('timeout')
+                sample.log = stdout
+        return sample
     return ct.electron(evaluate_barebones, executor=reference_execution.executor)
 
 
@@ -142,6 +173,6 @@ class CP2KReference(BaseReference):
         self.data = data
 
     @staticmethod
-    def evaluate(atoms, reference, reference_execution):
+    def evaluate(sample, reference, reference_execution):
         evaluate_electron = get_evaluate_electron(reference_execution)
-        return evaluate_electron(atoms, reference)
+        return evaluate_electron(sample, reference)

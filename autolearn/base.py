@@ -1,8 +1,10 @@
 from typing import Optional, Callable
+from dataclasses import dataclass
 import covalent as ct
 import torch
 import numpy as np
-from dataclasses import dataclass
+
+from ase.io import write
 
 
 def get_evaluate_dataset_electron(model_execution):
@@ -13,18 +15,19 @@ def get_evaluate_dataset_electron(model_execution):
         if device == 'cpu':
             torch.set_num_threads(ncores)
         if len(dataset) > 0:
-            atoms = dataset.atoms_list[0].copy()
+            atoms = dataset.as_atoms_list()[0].copy()
             atoms.calc = model.get_calculator(device, dtype)
-            for state in dataset.atoms_list:
-                atoms.set_positions(state.get_positions())
-                atoms.set_cell(state.get_cell())
-                state.info['energy']   = atoms.get_potential_energy()
-                state.arrays['forces'] = atoms.get_forces()
+            for sample in dataset.samples:
+                atoms.set_positions(sample.atoms.get_positions())
+                atoms.set_cell(sample.atoms.get_cell())
+                energy = atoms.get_potential_energy()
+                forces = atoms.get_forces()
                 try: # some models do not have stress support
-                    state.info['stress'] = atoms.get_stress(voigt=False)
+                    stress = atoms.get_stress(voigt=False)
                 except Exception as e:
                     print(e)
-                    state.info['stress'] = np.zeros((3, 3))
+                    stress = np.zeros((3, 3))
+                sample.label(energy, forces, stress, log=None)
         return dataset
     return ct.electron(evaluate_dataset_barebones, executor=model_execution.executor)
 
@@ -51,8 +54,8 @@ class BaseReference:
     """Base class for a reference interaction potential"""
 
     @staticmethod
-    def evaluate(atoms, reference, reference_execution):
-        """Evaluates an atoms configuration and returns it as a covalent electron"""
+    def evaluate(sample, reference, reference_execution):
+        """Evaluates and labels a sample and returns it as a covalent electron"""
         raise NotImplementedError
 
 
@@ -72,7 +75,8 @@ class ModelExecution:
 
 @dataclass(frozen=True)
 class ReferenceExecution:
-    executor: str  = 'local'
-    ncores  : int  = 1
-    command : str  = 'cp2k.psmp' # default command for CP2K Reference
-    mpi     : Optional[Callable] = None # or callable, e.g: mpi(ncores) -> 'mpirun -np {ncores} '
+    executor : str  = 'local'
+    ncores   : int  = 1
+    command  : str  = 'cp2k.psmp' # default command for CP2K Reference
+    mpi      : Optional[Callable] = None # or callable, e.g: mpi(ncores) -> 'mpirun -np {ncores} '
+    walltime : int  = 3600 # timeout in seconds

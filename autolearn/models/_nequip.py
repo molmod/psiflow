@@ -21,12 +21,12 @@ from e3nn.util.jit import script
 
 from autolearn import Dataset
 from autolearn.base import BaseModel
-from autolearn.utils import prepare_dict
+from autolearn.utils import get_elements
 
 
 def to_nequip_dataset(atoms_list, config):
     _config = Config.from_dict(dict(config))
-    _config['chemical_symbols'] = Dataset(atoms_list).get_elements()
+    _config['chemical_symbols'] = get_elements(atoms_list)
     type_mapper, _ = instantiate(
             TypeMapper,
             prefix='dataset',
@@ -58,15 +58,15 @@ def get_train_electron(training_execution):
             trainer.n_train = len(training)
             trainer.n_val   = len(validation)
 
-            data_train    = to_nequip_dataset(training.atoms_list, nequip_config)
-            data_validate = to_nequip_dataset(validation.atoms_list, nequip_config)
+            data_train    = to_nequip_dataset(training.as_atoms_list(), nequip_config)
+            data_validate = to_nequip_dataset(validation.as_atoms_list(), nequip_config)
             trainer.set_dataset(data_train, data_validate)
             trainer.model = model
 
             # Store any updated config information in the trainer
             trainer.update_kwargs(nequip_config)
             trainer.train()
-        kequip_model.model = trainer.model.to('cpu')
+        nequip_model.model = trainer.model.to('cpu')
         return nequip_model
     return ct.electron(train_barebones, executor=training_execution.executor)
 
@@ -88,7 +88,7 @@ class NequIPModel(BaseModel):
                 self.config,
                 defaults=default_config,
                 )
-        ase_dataset = to_nequip_dataset(dataset.atoms_list, nequip_config)
+        ase_dataset = to_nequip_dataset(dataset.as_atoms_list(), nequip_config)
         self.model = model_from_config(
                 nequip_config,
                 initialize=True,

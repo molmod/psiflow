@@ -6,8 +6,7 @@ from ase import Atoms
 from pymatgen.io.cp2k.inputs import Cp2kInput
 
 from autolearn.reference import EMTReference, CP2KReference
-from autolearn import ReferenceExecution
-from autolearn.utils import clear_label
+from autolearn import ReferenceExecution, Sample
 from autolearn.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
 
@@ -48,15 +47,15 @@ sample_input = """
 def test_reference_emt(tmp_path):
     atoms_list = generate_emt_cu_data(a=3.6, nstates=1)
     atoms = atoms_list[0]
-    e0 = atoms.info['energy']
+    e0 = atoms.info.pop('energy')
 
     reference = EMTReference() # redo computation via EMTReference
     reference_execution = ReferenceExecution()
-    clear_label(atoms)
-    assert atoms.info['energy'] == 0.0
-    atoms = EMTReference.evaluate(atoms, reference, reference_execution)
-    assert np.allclose(e0, atoms.info['energy'])
-    assert atoms.calc is None
+    sample = Sample(atoms)
+    assert not sample.evaluated
+    assert len(sample.tags) == 0
+    sample = EMTReference.evaluate(sample, reference, reference_execution)
+    assert np.allclose(e0, sample.atoms.info['energy'])
 
 
 def test_cp2k_insert_filepaths(tmp_path):
@@ -194,10 +193,17 @@ def test_cp2k_success(tmp_path):
             mpi=lambda x: ['mpirun', f' -np {x}'],
             )
     reference = CP2KReference(cp2k_input, data)
-    atoms = CP2KReference.evaluate(atoms, reference, reference_execution)
-    assert 'energy' in atoms.info.keys()
-    assert 'stress' in atoms.info.keys()
-    assert 'forces' in atoms.arrays.keys()
+    sample = CP2KReference.evaluate(
+            Sample(atoms),
+            reference,
+            reference_execution,
+            )
+    assert 'success' in sample.tags
+    assert sample.evaluated
+    assert 'energy' in sample.atoms.info.keys()
+    assert 'stress' in sample.atoms.info.keys()
+    assert 'forces' in sample.atoms.arrays.keys()
+    assert sample.log is not None
 
 
 def test_cp2k_failure(tmp_path):
@@ -285,7 +291,107 @@ def test_cp2k_failure(tmp_path):
             mpi=lambda x: ['mpirun', f' -np {x}'],
             )
     reference = CP2KReference(cp2k_input, data)
-    atoms = CP2KReference.evaluate(atoms, reference, reference_execution)
-    assert 'energy' not in atoms.info.keys()
-    assert 'stress' not in atoms.info.keys()
-    assert 'forces' not in atoms.arrays.keys()
+    sample = CP2KReference.evaluate(
+            Sample(atoms),
+            reference,
+            reference_execution,
+            )
+    assert 'error' in sample.tags
+    assert sample.log is not None
+
+
+def test_cp2k_timeout(tmp_path):
+    basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH').text
+    dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
+    potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
+    data = {
+            'BASIS_SET_FILE_NAME': basis,
+            'POTENTIAL_FILE_NAME': potential,
+            'PARAMETER_FILE_NAME': dftd3,
+            }
+    cp2k_input = """
+&FORCE_EVAL
+   METHOD Quickstep
+   STRESS_TENSOR ANALYTICAL
+   &DFT
+      UKS  F
+      MULTIPLICITY  1
+      BASIS_SET_FILE_NAME  dummy
+      POTENTIAL_FILE_NAME  dummy
+      &SCF
+         MAX_SCF  10
+         MAX_DIIS  8
+         EPS_SCF  1.0E-01
+         SCF_GUESS  RESTART
+         &OT
+            MINIMIZER  CG
+            PRECONDITIONER  FULL_SINGLE_INVERSE
+         &END OT
+         &OUTER_SCF T
+            MAX_SCF  10
+            EPS_SCF  1.0E-01
+         &END OUTER_SCF
+      &END SCF
+      &QS
+         METHOD  GPW
+         EPS_DEFAULT  1.0E-4
+         EXTRAPOLATION  USE_GUESS
+      &END QS
+      &MGRID
+         REL_CUTOFF [Ry]  60.0
+         NGRIDS  5
+         CUTOFF [Ry] 200
+      &END MGRID
+      &XC
+         DENSITY_CUTOFF   1.0E-10
+         GRADIENT_CUTOFF  1.0E-10
+         TAU_CUTOFF       1.0E-10
+         &XC_FUNCTIONAL PBE
+         &END XC_FUNCTIONAL
+         &VDW_POTENTIAL
+            POTENTIAL_TYPE  PAIR_POTENTIAL
+            &PAIR_POTENTIAL
+               TYPE  DFTD3(BJ)
+               PARAMETER_FILE_NAME  parameter
+               REFERENCE_FUNCTIONAL PBE
+               R_CUTOFF  25
+            &END PAIR_POTENTIAL
+         &END VDW_POTENTIAL
+      &END XC
+   &END DFT
+   &SUBSYS
+      &KIND H
+         ELEMENT  H
+         BASIS_SET DZVP-MOLOPT-PBE-GTH-q1
+         POTENTIAL GTH-PBE-q1
+      &END KIND
+   &END SUBSYS
+   &PRINT
+      &STRESS_TENSOR ON
+      &END STRESS_TENSOR
+      &FORCES
+      &END FORCES
+   &END PRINT
+&END FORCE_EVAL
+"""
+    atoms = Atoms(
+            numbers=np.ones(2),
+            cell=3.5 * np.eye(3),
+            positions=np.array([[0, 0, 0], [1, 0, 0]]),
+            pbc=True,
+            )
+    reference_execution = ReferenceExecution(
+            ncores=6,
+            mpi=lambda x: ['mpirun', f' -np {x}'],
+            walltime=10,
+            )
+    reference = CP2KReference(cp2k_input, data)
+    sample = CP2KReference.evaluate(
+            Sample(atoms),
+            reference,
+            reference_execution,
+            )
+    assert 'error' in sample.tags
+    assert 'timeout' in sample.tags
+    assert not sample.evaluated
+    assert sample.log is not None
