@@ -12,7 +12,6 @@ c['dispatcher']['results_dir'] = './'
 from ase.data import chemical_symbols
 
 from autolearn import Dataset, TrainingExecution, ModelExecution
-from autolearn.base import BaseModel
 from autolearn.models import NequIPModel
 import autolearn.models._nequip
 
@@ -53,10 +52,8 @@ def test_nequip_train(tmp_path):
     # initialize and train
     model.initialize(training)
     training_execution = TrainingExecution(device='cuda')
-    model = NequIPModel.train(model, training_execution, training, validation)
-
-    # continue training
-    model = NequIPModel.train(model, training_execution, training, validation)
+    model = model.train(training, validation, training_execution)
+    model = model.train(training, validation, training_execution) # continue
 
 
 def test_nequip_calculator(tmp_path):
@@ -123,7 +120,7 @@ def test_model_evaluate(tmp_path):
             generate_dummy_data(natoms, n_test, atomic_number),
             )
     model_execution = ModelExecution()
-    test_evaluated = BaseModel.evaluate(test, model, model_execution)
+    test_evaluated = model.evaluate(test, model_execution)
 
     # double check using model calculator
     index = -1

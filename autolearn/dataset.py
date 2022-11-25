@@ -8,7 +8,7 @@ class Sample:
             'success',
             'error',
             'timeout',
-            'unphysical',
+            'unsafe',
             ]
 
     def __init__(self, atoms):

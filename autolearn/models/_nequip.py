@@ -40,37 +40,6 @@ def to_nequip_dataset(atoms_list, config):
     return ase_dataset
 
 
-def get_train_electron(training_execution):
-    device = training_execution.device
-    def train_barebones(nequip_model, training, validation):
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            nequip_config_dict = nequip_model.nequip_config
-            nequip_config_dict['device'] = device
-            nequip_config_dict['root'] = tmpdir
-            nequip_config = Config.from_dict(nequip_config_dict)
-            model = nequip_model.model.to(device)
-
-            check_code_version(nequip_config, add_to_config=True)
-            _set_global_options(nequip_config)
-            trainer = Trainer(model=None, **dict(nequip_config))
-            trainer.n_train = len(training)
-            trainer.n_val   = len(validation)
-
-            data_train    = to_nequip_dataset(training.as_atoms_list(), nequip_config)
-            data_validate = to_nequip_dataset(validation.as_atoms_list(), nequip_config)
-            trainer.set_dataset(data_train, data_validate)
-            trainer.model = model
-
-            # Store any updated config information in the trainer
-            trainer.update_kwargs(nequip_config)
-            trainer.train()
-        nequip_model.model = trainer.model.to('cpu')
-        return nequip_model
-    return ct.electron(train_barebones, executor=training_execution.executor)
-
-
 class NequIPModel(BaseModel):
     """Model wrapper for NequIP"""
 
@@ -153,11 +122,39 @@ class NequIPModel(BaseModel):
                     )
         return calculator
 
-    @staticmethod
-    def train(nequip_model, training_execution, training, validation):
-        if nequip_model.model is None:
+    def train(self, training, validation, training_execution):
+        if self.model is None:
             print('initializing model ... ')
-            nequip_model.initialize(training)
+            self.initialize(training)
+        device = training_execution.device
+        def train_barebones(nequip_model, training, validation):
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            with tempfile.TemporaryDirectory() as tmpdir:
+                nequip_config_dict = nequip_model.nequip_config
+                nequip_config_dict['device'] = device
+                nequip_config_dict['root'] = tmpdir
+                nequip_config = Config.from_dict(nequip_config_dict)
+                model = nequip_model.model.to(device)
 
-        train_electron = get_train_electron(training_execution)
-        return train_electron(nequip_model, training, validation)
+                check_code_version(nequip_config, add_to_config=True)
+                _set_global_options(nequip_config)
+                trainer = Trainer(model=None, **dict(nequip_config))
+                trainer.n_train = len(training)
+                trainer.n_val   = len(validation)
+
+                data_train    = to_nequip_dataset(training.as_atoms_list(), nequip_config)
+                data_validate = to_nequip_dataset(validation.as_atoms_list(), nequip_config)
+                trainer.set_dataset(data_train, data_validate)
+                trainer.model = model
+
+                # Store any updated config information in the trainer
+                trainer.update_kwargs(nequip_config)
+                trainer.train()
+            nequip_model.model = trainer.model.to('cpu')
+            return nequip_model
+        train_electron = ct.electron(
+                train_barebones,
+                executor=training_execution.executor,
+                )
+        return train_electron(self, training, validation)

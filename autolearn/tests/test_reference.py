@@ -54,7 +54,7 @@ def test_reference_emt(tmp_path):
     sample = Sample(atoms)
     assert not sample.evaluated
     assert len(sample.tags) == 0
-    sample = EMTReference.evaluate(sample, reference, reference_execution)
+    sample = reference.evaluate(sample, reference_execution)
     assert np.allclose(e0, sample.atoms.info['energy'])
 
 
@@ -193,9 +193,8 @@ def test_cp2k_success(tmp_path):
             mpi=lambda x: ['mpirun', f' -np {x}'],
             )
     reference = CP2KReference(cp2k_input, data)
-    sample = CP2KReference.evaluate(
+    sample = reference.evaluate(
             Sample(atoms),
-            reference,
             reference_execution,
             )
     assert 'success' in sample.tags
@@ -291,9 +290,8 @@ def test_cp2k_failure(tmp_path):
             mpi=lambda x: ['mpirun', f' -np {x}'],
             )
     reference = CP2KReference(cp2k_input, data)
-    sample = CP2KReference.evaluate(
+    sample = reference.evaluate(
             Sample(atoms),
-            reference,
             reference_execution,
             )
     assert 'error' in sample.tags
@@ -386,9 +384,8 @@ def test_cp2k_timeout(tmp_path):
             walltime=10,
             )
     reference = CP2KReference(cp2k_input, data)
-    sample = CP2KReference.evaluate(
+    sample = reference.evaluate(
             Sample(atoms),
-            reference,
             reference_execution,
             )
     assert 'error' in sample.tags
