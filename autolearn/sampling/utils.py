@@ -1,6 +1,10 @@
+import os
 import molmod
 import yaff
 import numpy as np
+
+from ase.geometry import Cell
+from ase import Atoms
 
 
 class ForceThresholdExceededException(Exception):
@@ -57,25 +61,22 @@ class ForcePartASE(yaff.pes.ForcePart):
                     )
 
 
-def create_forcefield(atoms, plumed_input=None):
-    """Creates force field from ASE atoms instance and optional PLUMED input"""
+def create_forcefield(atoms, force_threshold):
+    """Creates force field from ASE atoms instance"""
     system = yaff.System(
             numbers=atoms.get_atomic_numbers(),
             pos=atoms.get_positions() * molmod.units.angstrom,
             rvecs=atoms.get_cell() * molmod.units.angstrom,
             )
     system.set_standard_masses()
-    part_ase = ForcePartASE(system, atoms, calculator)
-    if plumed_input is not None:
-        pass
+    part_ase = ForcePartASE(system, atoms, force_threshold)
     return yaff.pes.ForceField(system, [part_ase])
 
 
-def DataHook(yaff.VerletHook):
+class DataHook(yaff.VerletHook):
 
     def __init__(self, start=0, step=1):
         super().__init__(start, step)
-        self.path_xyz = path_xyz
         self.atoms = None
         self.data = []
 
@@ -125,3 +126,19 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
         self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
         self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
         write(self.path_xyz, self.atoms, append=True)
+
+
+def try_manual_plumed_linking():
+    if 'PLUMED_KERNEL' not in os.environ.keys():
+        # try linking manually
+        if 'CONDA_PREFIX' in os.environ.keys(): # for conda environments
+            p = 'CONDA_PREFIX'
+        elif 'PREFIX' in os.environ.keys(): # for pip environments
+            p = 'PREFIX'
+        else:
+            print('failed to set plumed .so kernel')
+            pass
+        path = os.environ[p] + '/lib/libplumedKernel.so'
+        if os.path.exists(path):
+            os.environ['PLUMED_KERNEL'] = path
+            print('plumed kernel manually set at at : {}'.format(path))

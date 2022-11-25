@@ -64,6 +64,13 @@ class Dataset:
     def __len__(self):
         return len(self.samples)
 
+    def __iter__(self):
+        for sample in self.samples:
+            yield sample
+
+    def __getitem__(self, key):
+        return self.samples[key]
+
     def as_atoms_list(self):
         return [sample.atoms for sample in self.samples]
 

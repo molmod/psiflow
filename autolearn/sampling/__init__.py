@@ -1,1 +1,1 @@
-from .dynamic import DynamicWalker, DynamicParameters
+from .dynamic import DynamicWalker

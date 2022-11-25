@@ -1,15 +1,21 @@
+import os
+import tempfile
 from typing import Optional
 import numpy as np
 from dataclasses import dataclass
 from pathlib import Path
 from copy import deepcopy
+import torch
 import molmod
 import yaff
 import covalent as ct
 
 from autolearn.base import BaseWalker
 from .utils import ForcePartASE, DataHook, create_forcefield, \
-        ForceThresholdExceededException
+        ForceThresholdExceededException, try_manual_plumed_linking
+
+
+yaff.log.set_level(yaff.log.silent)
 
 
 @dataclass
@@ -32,9 +38,9 @@ class DynamicWalker(BaseWalker):
         start.clear()
         self.start = start
         self.state = deepcopy(start)
-        self.parameters = MDParameters(**kwargs)
+        self.parameters = DynamicParameters(**kwargs)
 
-    def proceed(self, model, model_execution):
+    def propagate(self, model, model_execution):
         """Propagates the walker in phase space using molecular dynamics"""
         device = model_execution.device
         ncores = model_execution.ncores
@@ -45,13 +51,26 @@ class DynamicWalker(BaseWalker):
             pars = walker.parameters
             atoms = walker.state.atoms.copy()
             atoms.calc = model.get_calculator(device, dtype)
-            forcefield = create_forcefield(atoms, pars.plumed_input)
+            forcefield = create_forcefield(atoms, pars.force_threshold)
 
             loghook  = yaff.VerletScreenLog(step=pars.step, start=0)
             datahook = DataHook(start=pars.start, step=pars.step)
             hooks = []
             hooks.append(loghook)
             hooks.append(datahook)
+            if pars.plumed_input is not None: # add bias if present
+                try_manual_plumed_linking()
+                with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
+                    f.write(pars.plumed_input)
+                part_plumed = yaff.external.ForcePartPlumed(
+                        forcefield.system,
+                        timestep=pars.timestep * molmod.units.femtosecond,
+                        restart=0,
+                        fn=f.name,
+                        #fn_log='plumed.log',
+                        )
+                forcefield.add_part(part_plumed)
+                hooks.append(part_plumed) # NECESSARY!!
 
             thermo = yaff.LangevinThermostat(
                     pars.temperature,
@@ -62,6 +81,10 @@ class DynamicWalker(BaseWalker):
                 hooks.append(thermo)
             else:
                 print('sampling NPT ensemble ...')
+                try: # some models do not have stress support; prevent NPT!
+                    stress = atoms.get_stress()
+                except Exception as e:
+                    raise ValueError('NPT requires stress support in model')
                 baro = yaff.LangevinBarostat(
                         forcefield,
                         pars.temperature,
@@ -81,9 +104,11 @@ class DynamicWalker(BaseWalker):
                     hooks=hooks,
                     temp0=pars.initial_temperature,
                     )
+            if pars.plumed_input is not None:
+                os.unlink(f.name) # plumed input file has to exist until here
             yaff.log.set_level(yaff.log.medium)
             try:
-                verlet.run(steps)
+                verlet.run(pars.steps)
             except ForceThresholdExceededException as e:
                 print(e)
                 print('tagging sample as unsafe')
