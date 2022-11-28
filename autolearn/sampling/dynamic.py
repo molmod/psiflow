@@ -11,8 +11,10 @@ import yaff
 import covalent as ct
 
 from autolearn.base import BaseWalker
+from autolearn.utils import try_manual_plumed_linking
+from autolearn import Bias
 from .utils import ForcePartASE, DataHook, create_forcefield, \
-        ForceThresholdExceededException, try_manual_plumed_linking
+        ForceThresholdExceededException
 
 
 yaff.log.set_level(yaff.log.silent)
@@ -28,7 +30,7 @@ class DynamicParameters: # container dataclass for simulation parameters
     pressure           : Optional[float] = None
     force_threshold    : float = 1e6 # no threshold by default
     initial_temperature: float = 600 # to mimick parallel tempering
-    plumed_input       : Optional[str] = None # optional bias configuration
+    bias               : Optional[Bias] = None
     seed               : int = 0 # seed for randomized initializations
 
 
@@ -61,16 +63,15 @@ class DynamicWalker(BaseWalker):
             hooks = []
             hooks.append(loghook)
             hooks.append(datahook)
-            if pars.plumed_input is not None: # add bias if present
+            if pars.bias is not None: # add bias if present
                 try_manual_plumed_linking()
-                with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
-                    f.write(pars.plumed_input)
+                pars.bias.stage() # create tempfile with input
                 part_plumed = yaff.external.ForcePartPlumed(
                         forcefield.system,
                         timestep=pars.timestep * molmod.units.femtosecond,
-                        restart=0,
-                        fn=f.name,
-                        fn_log='plumed.log',
+                        restart=1,
+                        fn=pars.bias.files['input'],
+                        fn_log=pars.bias.files['log'],
                         )
                 forcefield.add_part(part_plumed)
                 hooks.append(part_plumed) # NECESSARY!!
@@ -107,15 +108,19 @@ class DynamicWalker(BaseWalker):
                     hooks=hooks,
                     temp0=pars.initial_temperature,
                     )
-            if pars.plumed_input is not None:
-                os.unlink(f.name) # plumed input file has to exist until here
+            #if pars.plumed_input is not None:
+            #    os.unlink(f.name) # plumed input file has to exist until here
             yaff.log.set_level(yaff.log.medium)
             try:
                 verlet.run(pars.steps)
+                if pars.bias is not None:
+                    pars.bias.close()
             except ForceThresholdExceededException as e:
                 print(e)
                 print('tagging sample as unsafe')
                 sample.tag('unsafe')
+                if pars.bias is not None:
+                    pars.bias.close(reset=True)
             yaff.log.set_level(yaff.log.silent)
 
             # update walker state with last stored state 
@@ -129,12 +134,3 @@ class DynamicWalker(BaseWalker):
                 executor=model_execution.executor,
                 )
         return simulate_electron(self, model)
-
-    @ct.electron(executor='local')
-    def reset(self):
-        self.state = deepcopy(self.start)
-        return self
-
-    @ct.electron(executor='local')
-    def sample(self):
-        return self.state

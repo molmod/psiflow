@@ -31,7 +31,7 @@ def test_ensemble_dynamic(tmp_path):
             'start'              : 0,
             'temperature'        : 300,
             'pressure'           : None,
-            'plumed_input'       : None,
+            'bias'               : None,
             }
     walker = DynamicWalker(training[0], **kwargs)
     ensemble = Ensemble.from_walker(walker, nwalkers=5)

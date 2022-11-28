@@ -128,22 +128,6 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
         write(self.path_xyz, self.atoms, append=True)
 
 
-def try_manual_plumed_linking():
-    if 'PLUMED_KERNEL' not in os.environ.keys():
-        # try linking manually
-        if 'CONDA_PREFIX' in os.environ.keys(): # for conda environments
-            p = 'CONDA_PREFIX'
-        elif 'PREFIX' in os.environ.keys(): # for pip environments
-            p = 'PREFIX'
-        else:
-            print('failed to set plumed .so kernel')
-            pass
-        path = os.environ[p] + '/lib/libplumedKernel.so'
-        if os.path.exists(path):
-            os.environ['PLUMED_KERNEL'] = path
-            print('plumed kernel manually set at at : {}'.format(path))
-
-
 def apply_strain(strain, box0):
     """Applies a strain tensor to a reference box
 

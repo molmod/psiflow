@@ -50,4 +50,3 @@ class RandomWalker(BaseWalker):
                 executor='local',
                 )
         return propagate_electron(self)
-
