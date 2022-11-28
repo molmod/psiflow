@@ -142,3 +142,52 @@ def try_manual_plumed_linking():
         if os.path.exists(path):
             os.environ['PLUMED_KERNEL'] = path
             print('plumed kernel manually set at at : {}'.format(path))
+
+
+def apply_strain(strain, box0):
+    """Applies a strain tensor to a reference box
+
+    The resulting strained box matrix is obtained based on:
+
+        box = box0 @ sqrt(2 * strain + I)
+
+    where the second argument is computed based on a diagonalization of
+    2 * strain + I.
+
+    Parameters
+    ----------
+
+    strain : ndarray of shape (3, 3)
+        desired strain matrix
+
+    box0 : ndarray of shape (3, 3)
+        reference box matrix
+
+    """
+    assert np.allclose(strain, strain.T)
+    A = 2 * strain + np.eye(3)
+    values, vectors = np.linalg.eigh(A)
+    sqrtA = vectors @ np.sqrt(np.diag(values)) @ vectors.T
+    box = box0 @ sqrtA
+    return box
+
+
+def compute_strain(box, box0):
+    """Computes the strain of a given box with respect to a reference
+
+    The strain matrix is defined by the following expression
+
+        strain = 0.5 * (inv(box0) @ box @ box.T @ inv(box0).T - I)
+
+    Parameters
+    ----------
+
+    box : ndarray of shape (3, 3)
+        box matrix for which to compute the strain
+
+    box0 : ndarray of shape (3, 3)
+        reference box matrix
+
+    """
+    box0inv = np.linalg.inv(box0)
+    return 0.5 * (box0inv @ box @ box.T @ box0inv.T - np.eye(3))

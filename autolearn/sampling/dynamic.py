@@ -29,6 +29,7 @@ class DynamicParameters: # container dataclass for simulation parameters
     force_threshold    : float = 1e6 # no threshold by default
     initial_temperature: float = 600 # to mimick parallel tempering
     plumed_input       : Optional[str] = None # optional bias configuration
+    seed               : int = 0 # seed for randomized initializations
 
 
 class DynamicWalker(BaseWalker):
@@ -49,6 +50,8 @@ class DynamicWalker(BaseWalker):
             if device == 'cpu':
                 torch.set_num_threads(ncores)
             pars = walker.parameters
+            np.random.seed(pars.seed)
+            torch.manual_seed(pars.seed)
             atoms = walker.state.atoms.copy()
             atoms.calc = model.get_calculator(device, dtype)
             forcefield = create_forcefield(atoms, pars.force_threshold)
@@ -67,7 +70,7 @@ class DynamicWalker(BaseWalker):
                         timestep=pars.timestep * molmod.units.femtosecond,
                         restart=0,
                         fn=f.name,
-                        #fn_log='plumed.log',
+                        fn_log='plumed.log',
                         )
                 forcefield.add_part(part_plumed)
                 hooks.append(part_plumed) # NECESSARY!!
@@ -119,6 +122,7 @@ class DynamicWalker(BaseWalker):
             sample.atoms.set_positions(datahook.data[-1].get_positions())
             sample.atoms.set_cell(datahook.data[-1].get_cell())
             walker.state = sample
+            #os.unlink('plumed.log') # remove default log file
             return walker
         simulate_electron = ct.electron(
                 simulate_barebones,

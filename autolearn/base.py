@@ -57,14 +57,17 @@ class BaseReference:
 
 class BaseWalker:
 
-    def proceed(self, model, model_execution):
+    def propagate(self, model, model_execution):
         raise NotImplementedError
 
+    @ct.electron(executor='local')
     def reset(self):
-        raise NotImplementedError
+        self.state = deepcopy(self.start)
+        return self
 
-    def sample(self, model):
-        raise NotImplementedError
+    @ct.electron(executor='local')
+    def sample(self):
+        return self.state
 
 
 @dataclass(frozen=True)
