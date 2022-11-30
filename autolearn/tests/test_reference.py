@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import requests
 
@@ -190,7 +189,7 @@ def test_cp2k_success(tmp_path):
             pbc=True,
             )
     reference_execution = ReferenceExecution(
-            ncores=os.cpu_count() // 2, # avoid double counting due to HyperT
+            ncores=4, # avoid double counting due to HyperT
             mpi=lambda x: ['mpirun', f' -np {x}'],
             )
     reference = CP2KReference(cp2k_input, data)
@@ -287,7 +286,7 @@ def test_cp2k_failure(tmp_path):
             pbc=True,
             )
     reference_execution = ReferenceExecution(
-            ncores=os.cpu_count() // 2, # avoid double counting due to HyperT
+            ncores=4, # avoid double counting due to HyperT
             mpi=lambda x: ['mpirun', f' -np {x}'],
             )
     reference = CP2KReference(cp2k_input, data)
@@ -380,7 +379,7 @@ def test_cp2k_timeout(tmp_path):
             pbc=True,
             )
     reference_execution = ReferenceExecution(
-            ncores=os.cpu_count() // 2, # avoid double counting due to HyperT
+            ncores=4, # avoid double counting due to HyperT
             mpi=lambda x: ['mpirun', f' -np {x}'],
             walltime=10,
             )
