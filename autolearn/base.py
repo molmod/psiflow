@@ -6,6 +6,8 @@ import numpy as np
 
 from ase.io import write
 
+from autolearn import Dataset
+
 
 class BaseModel:
     """Base class for a trainable interaction potential"""
@@ -53,6 +55,11 @@ class BaseReference:
     def evaluate(self, sample, reference_execution):
         """Evaluates and labels a sample and returns it as a covalent electron"""
         raise NotImplementedError
+
+    @ct.electron
+    @ct.lattice
+    def evaluate_dataset(self, dataset, reference_execution):
+        return Dataset([self.evaluate(s, reference_execution) for s in dataset])
 
 
 class BaseWalker:

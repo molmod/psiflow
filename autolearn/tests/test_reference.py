@@ -1,12 +1,13 @@
 import numpy as np
 import requests
+from copy import deepcopy
 
 from ase import Atoms
 
 from pymatgen.io.cp2k.inputs import Cp2kInput
 
 from autolearn.reference import EMTReference, CP2KReference
-from autolearn import ReferenceExecution, Sample
+from autolearn import ReferenceExecution, Sample, Dataset
 from autolearn.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
 
@@ -56,6 +57,21 @@ def test_reference_emt(tmp_path):
     assert len(sample.tags) == 0
     sample = reference.evaluate(sample, reference_execution)
     assert np.allclose(e0, sample.atoms.info['energy'])
+
+    # evaluate dataset
+    dataset = Dataset.from_atoms_list(
+            generate_emt_cu_data(a=3.6, nstates=3),
+            )
+    dataset = reference.evaluate_dataset(dataset, reference_execution)
+    for i in range(len(dataset)):
+        sample = dataset[i]
+        assert sample.evaluated
+        assert 'success' in sample.tags
+        sample_ = deepcopy(sample)
+        sample_.clear()
+        assert not sample_.evaluated
+        sample_ = reference.evaluate(sample_, reference_execution)
+        assert np.allclose(sample.atoms.info['energy'], sample_.atoms.info['energy'])
 
 
 def test_cp2k_insert_filepaths(tmp_path):
