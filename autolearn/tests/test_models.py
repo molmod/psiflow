@@ -26,6 +26,7 @@ def test_nequip_config(tmp_path):
     #print(ct.get_config())
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')
 def test_nequip_train(tmp_path):
     config_text = requests.get('https://raw.githubusercontent.com/mir-group/nequip/v0.5.5/configs/minimal.yaml').text
     config = yaml.load(config_text, Loader=yaml.FullLoader)
