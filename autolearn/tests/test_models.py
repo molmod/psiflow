@@ -57,6 +57,7 @@ def test_nequip_train(tmp_path):
     model = model.train(training, validation, training_execution) # continue
 
 
+#@pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')
 def test_nequip_calculator(tmp_path):
     config_text = requests.get('https://raw.githubusercontent.com/mir-group/nequip/v0.5.5/configs/minimal.yaml').text
     config = yaml.load(config_text, Loader=yaml.FullLoader)
@@ -92,7 +93,7 @@ def test_nequip_calculator(tmp_path):
     f0 = atoms.get_forces()
     torch.set_default_dtype(torch.double)
     atoms.calc = model.get_calculator(
-            'cuda',
+            'cuda' if torch.cuda.is_available() else 'cpu',
             'float64',
             )
     e1 = atoms.get_potential_energy()
