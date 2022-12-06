@@ -1,17 +1,4 @@
 import os
-import covalent as ct
-
-from ase.data import chemical_symbols
-
-
-def get_numbers(atoms_list):
-    _all = [set(a.numbers) for a in atoms_list]
-    return sorted(list(set(b for a in _all for b in a)))
-
-
-def get_elements(atoms_list):
-    numbers = get_numbers(atoms_list)
-    return [chemical_symbols[n] for n in numbers]
 
 
 def try_manual_plumed_linking():
@@ -52,3 +39,8 @@ def get_bias_plumed(plumed_input):
                 bias = (key, cv)
                 found = True
     return bias
+
+
+def copy_file(inputs=[], outputs=[]):
+    import shutil
+    shutil.copyfile(inputs[0], outputs[0])
