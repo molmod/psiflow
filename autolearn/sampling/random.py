@@ -1,10 +1,33 @@
 from dataclasses import dataclass
-from copy import deepcopy
-import numpy as np
-import covalent as ct
 
-from autolearn.base import BaseWalker
-from .utils import apply_strain
+from parsl.app.app import python_app
+
+from autolearn.sampling import BaseWalker
+
+
+def random_perturbation(state, parameters):
+    import numpy as np
+    from autolearn.sampling.utils import apply_strain
+    np.random.seed(parameters.seed)
+    frac = state.positions @ np.linalg.inv(state.cell)
+    strain = np.random.uniform(
+            -parameters.amplitude_box,
+            parameters.amplitude_box,
+            size=(3, 3),
+            )
+    strain[0, 1] = strain[1, 0] # strain is symmetric
+    strain[0, 2] = strain[2, 0]
+    strain[1, 2] = strain[2, 1]
+    box = apply_strain(strain, state.cell)
+    positions = frac @ box
+    positions += np.random.uniform(
+            -parameters.amplitude_pos,
+            parameters.amplitude_pos,
+            size=state.positions.shape,
+            )
+    state.set_positions(positions)
+    state.set_cell(box)
+    return state
 
 
 @dataclass
@@ -15,38 +38,16 @@ class RandomParameters:
 
 
 class RandomWalker(BaseWalker):
+    parameters_cls = RandomParameters
 
-    def __init__(self, sample, **kwargs):
-        start = deepcopy(sample)
-        start.clear()
-        self.start = start
-        self.state = deepcopy(start)
-        self.parameters = RandomParameters(**kwargs)
-
-    def propagate(self, model, model_execution):
-        # model and model_execution are ignored here!
-        def propagate_barebones(walker):
-            np.random.seed(walker.parameters.seed)
-            frac = walker.start.atoms.positions @ np.linalg.inv(walker.start.atoms.cell)
-            strain = np.random.uniform(
-                    -walker.parameters.amplitude_box,
-                    walker.parameters.amplitude_box,
-                    size=(3, 3))
-            strain[0, 1] = strain[1, 0] # strain is symmetric
-            strain[0, 2] = strain[2, 0]
-            strain[1, 2] = strain[2, 1]
-            box = apply_strain(strain, walker.start.atoms.cell)
-            positions = frac @ box
-            positions += np.random.uniform(
-                    -walker.parameters.amplitude_pos,
-                    walker.parameters.amplitude_pos,
-                    size=walker.start.atoms.positions.shape,
-                    )
-            walker.state.atoms.set_positions(positions)
-            walker.state.atoms.set_cell(box)
-            return walker
-        propagate_electron = ct.electron(
-                propagate_barebones,
-                executor='local',
+    def propagate(self, model=None):
+        p_random_perturbation = python_app(
+                random_perturbation,
+                executors=[self.executor_label],
                 )
-        return propagate_electron(self)
+        self.state = p_random_perturbation(
+                self.state,
+                self.parameters,
+                )
+        self.tag = 'safe' # random perturbation always safe
+        return self.state

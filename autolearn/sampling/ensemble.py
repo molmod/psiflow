@@ -1,5 +1,4 @@
 from copy import deepcopy
-import covalent as ct
 
 from autolearn import Dataset
 
@@ -7,17 +6,15 @@ from autolearn import Dataset
 class Ensemble:
     """Wraps a set of walkers"""
 
-    def __init__(self, walkers):
+    def __init__(self, context, walkers):
+        self.context = context
         self.walkers = walkers
 
-    def propagate(self, model,  model_execution):
-        for i in range(self.nwalkers):
-            self.walkers[i] = self.walkers[i].propagate(model, model_execution)
-
-    @ct.electron
-    @ct.lattice
-    def sample(self):
-        return Dataset([w.sample() for w in self.walkers])
+    def propagate(self, model):
+        return Dataset(
+                self.context,
+                inputs=[w.propagate(model) for w in self.walkers],
+                )
 
     @property
     def nwalkers(self):
@@ -28,7 +25,7 @@ class Ensemble:
         """Initialize ensemble based on single walker"""
         walkers = []
         for i in range(nwalkers):
-            _walker = deepcopy(walker)
+            _walker = walker.copy()
             _walker.parameters.seed = i
             walkers.append(_walker)
-        return cls(walkers)
+        return cls(walker.context, walkers)

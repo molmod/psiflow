@@ -19,16 +19,3 @@ class BaseReference:
 
     def evaluate_dataset(self, dataset, reference_execution):
         return Dataset([self.evaluate(s, reference_execution) for s in dataset])
-
-
-class BaseWalker:
-
-    def propagate(self, model, model_execution):
-        raise NotImplementedError
-
-    def reset(self):
-        self.state = deepcopy(self.start)
-        return self
-
-    def sample(self):
-        return self.state

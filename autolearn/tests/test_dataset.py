@@ -17,9 +17,9 @@ def dataset(context, tmp_path):
 
 
 def test_dataset_empty(context, tmp_path):
-    dataset = Dataset(context, data=[])
+    dataset = Dataset(context, atoms_list=[])
     assert dataset.length().result() == 0
-    assert isinstance(dataset.future, DataFuture)
+    assert isinstance(dataset.data, DataFuture)
     path_xyz = tmp_path / 'test.xyz'
     dataset.save(path_xyz).result() # ensure the copy is executed before assert
     assert os.path.isfile(path_xyz)
@@ -27,13 +27,16 @@ def test_dataset_empty(context, tmp_path):
 
 def test_dataset_add(dataset):
     assert 20 == dataset.length().result()
-    new = dataset + dataset
+    new = Dataset.merge(dataset, dataset)
     assert 40 == new.length().result()
 
 
 def test_dataset_slice(dataset):
     part = dataset[:8]
     assert part.length().result() == 8
+    state = dataset[8]
+    data = Dataset(dataset.context, atoms_list=[state])
+    assert data.length().result() == 1
 
 
 def test_dataset_from_xyz(context, tmp_path):

@@ -1,111 +1,159 @@
+import os
 import tempfile
 
 from parsl.app.app import python_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
-from autolearn.execution import ModelExecutionDefinition
+from autolearn.execution import ModelExecutionDefinition, Container
 from autolearn.utils import copy_file
 
 
-def save_dataset(data, outputs=[]):
+def save_dataset(states, inputs=[], outputs=[]):
     from ase.io.extxyz import write_extxyz
+    if states is not None:
+        _data = states
+    else:
+        _data = inputs
     with open(outputs[0], 'w') as f:
-        write_extxyz(f, data)
+        write_extxyz(f, _data)
 
 
-def read_dataset(index=None, inputs=[]):
-    from ase.io.extxyz import read_extxyz
+def read_dataset(index, inputs=[], outputs=[]):
+    from ase.io.extxyz import read_extxyz, write_extxyz
     with open(inputs[0], 'r' ) as f:
-        if index is None:
-            data = list(read_extxyz(f, index=slice(None)))
-        elif isinstance(index, slice):
-            data = list(read_extxyz(f, index=index))
-        else:
-            data = list(read_extxyz(f, index=index))[0] # return as Atoms
+        data = list(read_extxyz(f, index=index))
+    if isinstance(index, int): # unpack list to single Atoms object
+        assert len(data) == 1
+        data = data[0]
+    if len(outputs) > 0: # save to file
+        with open(outputs[0], 'w') as f:
+            write_extxyz(f, data)
     return data
 
 
 def join_dataset(inputs=[], outputs=[]):
-    data_0 = read_dataset(inputs=[inputs[0]])
-    data_1 = read_dataset(inputs=[inputs[1]])
-    save_dataset(data_0 + data_1, outputs=[outputs[0]])
+    data = []
+    for i in range(len(inputs)):
+        data += read_dataset(slice(None), inputs=[inputs[i]]) # read all
+    save_dataset(data, outputs=[outputs[0]])
 
 
 def get_length_dataset(inputs=[]):
-    data = read_dataset(inputs=[inputs[0]])
+    data = read_dataset(slice(None), inputs=[inputs[0]])
     return len(data)
 
 
-class Dataset:
-    """Base class for a dataset of atomic structures"""
+def _new_xyz(context):
+    _, name = tempfile.mkstemp(
+            suffix='.xyz',
+            prefix='data_',
+            dir=context.path,
+            )
+    return name
 
-    def __init__(self, context, data=[]):
+
+class Dataset(Container):
+    """Container to represent a dataset of atomic structures"""
+
+    def __init__(self, context, atoms_list=[], data=None):
         """Constructor
 
         Arguments
         ---------
 
-        file : File or DataFuture object representing the dataset
+        context : ExecutionContext
+
+        atoms_list : list of Atoms objects
+
+        data : DataFuture
 
         """
-        self.context = context
-        p_save_dataset = python_app(
-                save_dataset,
-                executors=[self.executor_label],
-                )
-        self.future = p_save_dataset(
-                data,
-                outputs=[File(self.new_xyz())],
-                ).outputs[0]
+        super().__init__(context) # create apps
 
-    def new_xyz(self):
-        _, name = tempfile.mkstemp(
-                suffix='.xyz',
-                prefix='data_',
-                dir=self.context.path,
-                )
-        return name
+        if data is None: # generate new DataFuture
+            if isinstance(atoms_list, AppFuture):
+                states = atoms_list
+                inputs = []
+            else:
+                if (len(atoms_list) > 0) and isinstance(atoms_list[0], AppFuture):
+                    states = None
+                    inputs = atoms_list
+                else:
+                    states = atoms_list
+                    inputs = []
+            self.data = self.apps['save_dataset'](
+                    states,
+                    inputs=inputs,
+                    outputs=[File(str(_new_xyz(context)))],
+                    ).outputs[0]
+        else:
+            assert len(atoms_list) == 0 # do not allow additional atoms
+            assert (isinstance(data, DataFuture) or isinstance(data, File))
+            self.data = data
 
     def save(self, path_dataset):
-        p_copy_file = python_app(copy_file, executors=[self.executor_label])
-        return p_copy_file(inputs=[self.future], outputs=[File(str(path_dataset))])
-
-    def __add__(self, dataset):
-        dataset_sum = Dataset(self.context, data=[])
-        p_join_dataset = python_app(
-                join_dataset,
-                executors=[self.executor_label],
+        return self.apps['copy_dataset'](
+                inputs=[self.data],
+                outputs=[File(str(path_dataset))],
                 )
-        dataset_sum.future = p_join_dataset(
-                inputs=[self.future, dataset.future],
-                outputs=[File(dataset_sum.new_xyz())],
-                ).outputs[0]
-        return dataset_sum
-
-    @property
-    def executor_label(self):
-        return self.context[ModelExecutionDefinition].executor_label
 
     def length(self):
-        p_get_length_dataset = python_app(
-                get_length_dataset,
-                executors=[self.executor_label],
-                )
-        return p_get_length_dataset(inputs=[self.future])
+        return self.apps['length_dataset'](inputs=[self.data])
 
     def __getitem__(self, i):
-        p_read_dataset = python_app(
-                read_dataset,
-                executors=[self.executor_label],
-                )
-        data = p_read_dataset(index=i, inputs=[self.future])
         if isinstance(i, slice):
-            return Dataset(self.context, data)
+            data = self.apps['read_dataset'](
+                    index=i,
+                    inputs=[self.data],
+                    outputs=[File(_new_xyz(self.context))],
+                    ).outputs[0]
+            return Dataset(self.context, data=data)
         else:
-            return data # represents an AppFuture of an ase.Atoms instance
+            return self.apps['read_dataset'](
+                    index=i,
+                    inputs=[self.data],
+                    ) # represents an AppFuture of an ase.Atoms instance
 
     @classmethod
     def from_xyz(cls, context, path_xyz):
-        dataset = cls(context, data=[])
-        dataset.future = File(str(path_xyz))
-        return dataset
+        assert os.path.isfile(path_xyz) # needs to be locally accessible
+        return cls(context, data=File(str(path_xyz)))
+
+    @staticmethod
+    def merge(*datasets):
+        assert len(datasets) > 0
+        context = datasets[0].context
+        apps = Dataset.create_apps(context)
+        data = apps['join_dataset'](
+                inputs=[item.data for item in datasets],
+                outputs=[File(_new_xyz(context))],
+                ).outputs[0]
+        return Dataset(context, data=data)
+
+    @staticmethod
+    def create_apps(context):
+        executor_label = context[ModelExecutionDefinition].executor_label
+        apps = {}
+        apps['save_dataset'] = python_app(
+                save_dataset,
+                executors=[executor_label],
+                )
+        apps['read_dataset'] = python_app(
+                read_dataset,
+                executors=[executor_label],
+                )
+        apps['copy_dataset'] = python_app(
+                copy_file,
+                executors=[executor_label],
+                )
+        apps['join_dataset'] = python_app(
+                join_dataset,
+                executors=[executor_label],
+                )
+        apps['length_dataset'] = python_app(
+                get_length_dataset,
+                executors=[executor_label],
+                )
+        return apps

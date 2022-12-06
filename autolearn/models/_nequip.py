@@ -4,6 +4,7 @@ from parsl.data_provider.files import File
 from autolearn.models import BaseModel
 from autolearn.execution import ModelExecutionDefinition, \
         TrainingExecutionDefinition
+from autolearn.utils import copy_file
 
 
 def get_elements(data):
@@ -250,6 +251,10 @@ class NequIPModel(BaseModel):
                 inputs=[self.future, training.future, validation.future],
                 outputs=[File(self.new_model())],
                 ).outputs[0]
+
+    def save(self, path_model):
+        p_copy_file = python_app(copy_file, executors=[self.context[ModelExecutionDefinition].executor_label])
+        return p_copy_file(inputs=[self.future], outputs=[File(str(path_model))])
 
     @staticmethod
     def load_calculator(path_model, device, dtype):

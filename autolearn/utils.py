@@ -1,5 +1,18 @@
 import os
 
+from parsl.app.app import python_app
+
+
+@python_app
+def to_appfuture(x):
+    return x
+
+
+@python_app
+def to_datafuture(inputs=[], outputs=[]):
+    outputs[0] = inputs[0]
+    return None
+
 
 def try_manual_plumed_linking():
     if 'PLUMED_KERNEL' not in os.environ.keys():

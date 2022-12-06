@@ -1,4 +1,5 @@
 import pytest
+import os
 import numpy as np
 import torch
 from parsl.app.futures import DataFuture
@@ -42,7 +43,7 @@ def test_nequip_init_deploy_evaluate(context, nequip_config, dataset):
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')
-def test_nequip_train(context, nequip_config, dataset):
+def test_nequip_train(context, nequip_config, dataset, tmp_path):
     model = NequIPModel(context, nequip_config)
     training   = dataset[:-10]
     validation = dataset[-10:]
@@ -52,4 +53,7 @@ def test_nequip_train(context, nequip_config, dataset):
     model.deploy()
     model.evaluate(validation)
     # ensure everything is executed before closing context
-    validation.length().result()
+    path_model = tmp_path / 'model.pth'
+    model.save(path_model).result()
+    assert os.path.isfile(path_model)
+    #validation.length().result()

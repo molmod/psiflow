@@ -46,14 +46,7 @@ def context(request, tmpdir_factory):
         raise ValueError
     path = tempfile.mkdtemp()
     context = ExecutionContext(config, path=path)
-    if torch.cuda.is_available():
-        model_execution = ModelExecutionDefinition(
-                executor_label='gpu',
-                device='cuda',
-                dtype='float32',
-                )
-    else:
-        model_execution = ModelExecutionDefinition()
+    model_execution = ModelExecutionDefinition()
     context.register(model_execution)
     context.register(EMTExecutionDefinition())
     context.register(CP2KExecutionDefinition(mpi=lambda x: f'mpirun -np {x} '))

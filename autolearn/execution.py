@@ -10,11 +10,12 @@ class TrainingExecutionDefinition:
     device        : str = 'cuda'
     dtype         : str = 'float32'
 
+
 @dataclass(frozen=True)
 class ModelExecutionDefinition:
     executor_label: str = 'cpu_small'
     device        : str = 'cpu'
-    #ncores        : int = 1
+    ncores        : int = 1
     dtype         : str = 'float32'
 
 
@@ -51,3 +52,14 @@ class ExecutionContext:
         key = execution_definition.__class__
         assert key not in self.definitions.keys()
         self.definitions[key] = execution_definition
+
+
+class Container:
+
+    def __init__(self, context):
+        self.context = context
+        self.apps    = self.__class__.create_apps(context)
+
+    @staticmethod
+    def create_apps(context):
+        return {}
