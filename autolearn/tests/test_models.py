@@ -12,48 +12,53 @@ from nequip.ase import NequIPCalculator
 
 from autolearn import Dataset
 from autolearn.models import NequIPModel
+from autolearn.models._nequip import _load_nequip_calculator
 from autolearn.execution import ModelExecutionDefinition
 
 from common import context, nequip_config
 from test_dataset import dataset
 
 
-def test_nequip_init_deploy_evaluate(context, nequip_config, dataset):
-    model = NequIPModel(context, nequip_config)
-    model.initialize(dataset)
-    assert isinstance(model.future, DataFuture)
-    assert isinstance(model.future_config, AppFuture)
-    torch.load(model.future.result().filepath) # should work
+def test_nequip_init(context, nequip_config, dataset):
+    model = NequIPModel(context, nequip_config, dataset[:3])
+    assert isinstance(model.model_future, DataFuture)
+    assert isinstance(model.config_future, AppFuture)
+    assert model.deploy_future is None
+    torch.load(model.model_future.result().filepath) # should work
     model.deploy()
+    assert isinstance(model.deploy_future, DataFuture)
 
     # simple test
-    calculator = model.load_calculator(
-            path_model=model.future_deploy.result().filepath,
+    calculator = _load_nequip_calculator(
+            path_model=model.deploy_future.result().filepath,
             device=context[ModelExecutionDefinition].device,
             dtype=context[ModelExecutionDefinition].dtype,
             )
     assert calculator.device == context[ModelExecutionDefinition].device
-    model.evaluate(dataset) # overwrites dataset
-    with open(dataset.future.result(), 'r') as f:
-        data_evaluated = list(read_extxyz(f, index=slice(None)))
-    for atoms in data_evaluated:
-        assert 'energy_model' in atoms.info.keys()
-        assert 'stress_model' in atoms.info.keys()
-        assert 'forces_model' in atoms.arrays.keys()
+    #model.evaluate(dataset) # overwrites dataset
+    #with open(dataset.future.result(), 'r') as f:
+    #    data_evaluated = list(read_extxyz(f, index=slice(None)))
+    #for atoms in data_evaluated:
+    #    assert 'energy_model' in atoms.info.keys()
+    #    assert 'stress_model' in atoms.info.keys()
+    #    assert 'forces_model' in atoms.arrays.keys()
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')
 def test_nequip_train(context, nequip_config, dataset, tmp_path):
-    model = NequIPModel(context, nequip_config)
-    training   = dataset[:-10]
-    validation = dataset[-10:]
-    model.initialize(training)
+    training   = dataset[:-5]
+    validation = dataset[-5:]
+    model = NequIPModel(context, nequip_config, training)
     model.deploy()
+    errors0 = model.evaluate(validation).get_errors()
     model.train(training, validation)
+    assert model.deploy_future is None
     model.deploy()
-    model.evaluate(validation)
-    # ensure everything is executed before closing context
-    path_model = tmp_path / 'model.pth'
-    model.save(path_model).result()
-    assert os.path.isfile(path_model)
-    #validation.length().result()
+    errors1 = model.evaluate(validation).get_errors()
+    evaluated = model.evaluate(validation)
+    assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
+
+    # test saving
+    path_deployed = tmp_path / 'deployed.pth'
+    model.save_deployed(path_deployed).result()
+    assert os.path.isfile(path_deployed)

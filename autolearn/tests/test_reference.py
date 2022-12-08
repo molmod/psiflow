@@ -1,17 +1,13 @@
-import numpy as np
-import requests
-from copy import deepcopy
+from parsl.dataflow.futures import AppFuture
+from parsl.app.futures import DataFuture
 
 from ase import Atoms
 
-from pymatgen.io.cp2k.inputs import Cp2kInput
+from autolearn.reference import EMTReference
+from autolearn.dataset import Dataset
 
-from autolearn.reference import EMTReference, CP2KReference
-from autolearn import ReferenceExecution, Sample, Dataset
-from autolearn.reference._cp2k import insert_filepaths_in_input, \
-        insert_atoms_in_input
-
-from utils import generate_emt_cu_data
+from common import context
+from test_dataset import dataset
 
 
 sample_input = """
@@ -45,33 +41,16 @@ sample_input = """
 """
 
 
-def test_reference_emt(tmp_path):
-    atoms_list = generate_emt_cu_data(a=3.6, nstates=1)
-    atoms = atoms_list[0]
-    e0 = atoms.info.pop('energy')
+def test_reference_emt(context, dataset):
+    reference = EMTReference(context)
+    atoms = reference.evaluate(dataset[0])
+    assert isinstance(atoms, AppFuture)
+    assert isinstance(atoms.result(), Atoms)
 
-    reference = EMTReference() # redo computation via EMTReference
-    reference_execution = ReferenceExecution()
-    sample = Sample(atoms)
-    assert not sample.evaluated
-    assert len(sample.tags) == 0
-    sample = reference.evaluate(sample, reference_execution)
-    assert np.allclose(e0, sample.atoms.info['energy'])
-
-    # evaluate dataset
-    dataset = Dataset.from_atoms_list(
-            generate_emt_cu_data(a=3.6, nstates=3),
-            )
-    dataset = reference.evaluate_dataset(dataset, reference_execution)
-    for i in range(len(dataset)):
-        sample = dataset[i]
-        assert sample.evaluated
-        assert 'success' in sample.tags
-        sample_ = deepcopy(sample)
-        sample_.clear()
-        assert not sample_.evaluated
-        sample_ = reference.evaluate(sample_, reference_execution)
-        assert np.allclose(sample.atoms.info['energy'], sample_.atoms.info['energy'])
+    evaluated = reference.evaluate(dataset)
+    assert isinstance(evaluated, Dataset)
+    assert isinstance(evaluated.data_future, DataFuture)
+    assert evaluated.length().result() == dataset.length().result()
 
 
 def test_cp2k_insert_filepaths(tmp_path):

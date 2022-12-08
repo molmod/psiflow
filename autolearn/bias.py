@@ -2,7 +2,6 @@ import os
 import tempfile
 import yaff
 import molmod
-import covalent as ct
 import numpy as np
 
 from autolearn.utils import set_path_hills_plumed, get_bias_plumed

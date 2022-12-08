@@ -1,38 +1,26 @@
-import covalent as ct
+from parsl.app.app import python_app
 
-from ase.calculators.emt import EMT
+from autolearn.execution import ReferenceExecutionDefinition
+from autolearn.reference.base import BaseReference
 
-from autolearn.base import BaseReference
 
-
-def get_evaluate_electron(reference_execution):
-    def evaluate_barebones(sample, reference):
-        atoms = sample.atoms.copy()
-        atoms.calc = EMT()
-        energy = atoms.get_potential_energy()
-        forces = atoms.get_forces()
-        stress = atoms.get_stress(voigt=False)
-        sample.label(energy, forces, stress, log='')
-        sample.tag('success')
-        return sample
-    return ct.electron(evaluate_barebones, executor=reference_execution.executor)
+def evaluate_emt(atoms, parameters, inputs=[], outputs=[]):
+    from ase.calculators.emt import EMT
+    atoms.calc = EMT()
+    atoms.info['energy']   = atoms.get_potential_energy()
+    atoms.arrays['forces'] = atoms.get_forces()
+    atoms.info['stress']   = atoms.get_stress(voigt=False)
+    atoms.calc = None
+    return atoms
 
 
 class EMTReference(BaseReference):
-    """Implements an EMT calculator"""
+    """Container class for EMT calculations (only used for testing purposes)"""
 
-    def evaluate(self, sample, reference_execution):
-        def evaluate_barebones(sample, reference):
-            atoms = sample.atoms.copy()
-            atoms.calc = EMT()
-            energy = atoms.get_potential_energy()
-            forces = atoms.get_forces()
-            stress = atoms.get_stress(voigt=False)
-            sample.label(energy, forces, stress, log='')
-            sample.tag('success')
-            return sample
-        evaluate_electron = ct.electron(
-                evaluate_barebones,
-                executor=reference_execution.executor,
-                )
-        return evaluate_electron(sample, self)
+    @classmethod
+    def create_apps(cls, context):
+        executor_label = context[ReferenceExecutionDefinition].executor_label
+        app_evaluate_single = python_app(evaluate_emt, executors=[executor_label])
+        context.register_app(cls, 'evaluate_single', app_evaluate_single)
+        # see https://stackoverflow.com/questions/1817183/using-super-with-a-class-method
+        super(EMTReference, cls).create_apps(context)

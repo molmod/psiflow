@@ -5,7 +5,6 @@ import tempfile
 import shlex
 from pathlib import Path
 import numpy as np
-import covalent as ct
 
 from pymatgen.io.cp2k.inputs import Cp2kInput, Keyword, KeywordList, Cell, \
         Coord, Global
@@ -58,31 +57,7 @@ def set_global_section(cp2k_input):
     return str(inp)
 
 
-class CP2KReference(BaseReference):
-    """CP2K Reference"""
-
-    def __init__(self, cp2k_input, data):
-        """Constructor
-
-        Arguments
-        ---------
-
-        cp2k_input : str
-            string representation of the cp2k input file.
-
-        data : dict
-            dictionary with data required during the calculation. E.g. basis
-            sets, pseudopotentials, ...
-            They are written to the local execution directory in order to make
-            them available to the cp2k executable.
-            The keys of the dictionary correspond to the capitalized keys in
-            the cp2k input (e.g. BASIS_SET_FILE_NAME)
-
-        """
-        self.cp2k_input = cp2k_input
-        self.data = data
-
-    def evaluate(self, sample, reference_execution):
+def cp2k_singlepoint(atoms, parameters, inputs=[], outputs=[]):
         ncores   = reference_execution.ncores
         command  = reference_execution.command
         mpi      = reference_execution.mpi
@@ -173,4 +148,40 @@ class CP2KReference(BaseReference):
                 evaluate_barebones,
                 executor=reference_execution.executor,
                 )
-        return evaluate_electron(sample, self)
+
+
+@dataclass
+class CP2KParameters:
+    cp2k_input : str
+    data       : dict
+
+
+class CP2KReference(BaseReference):
+    """CP2K Reference"""
+    parameters_cls = CP2KParameters
+
+    def __init__(self, context, cp2k_input='', data={}):
+        """Constructor
+
+        Arguments
+        ---------
+
+        cp2k_input : str
+            string representation of the cp2k input file.
+
+        data : dict
+            dictionary with data required during the calculation. E.g. basis
+            sets, pseudopotentials, ...
+            They are written to the local execution directory in order to make
+            them available to the cp2k executable.
+            The keys of the dictionary correspond to the capitalized keys in
+            the cp2k input (e.g. BASIS_SET_FILE_NAME)
+
+        """
+        super().__init__(context, cp2k_input=cp2k_input, data=data)
+
+    @staticmethod
+    def create_apps(context):
+        apps = {}
+        BaseReference.create_apps(context, apps)
+        return apps

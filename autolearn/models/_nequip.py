@@ -1,6 +1,7 @@
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
+from autolearn.models.base import evaluate_dataset, _new_deploy, _new_model
 from autolearn.models import BaseModel
 from autolearn.execution import ModelExecutionDefinition, \
         TrainingExecutionDefinition
@@ -54,7 +55,7 @@ def initialize(config, inputs=[], outputs=[]):
             defaults=default_config,
             )
     ase_dataset = to_nequip_dataset(
-            read_dataset(inputs=[inputs[0]]),
+            read_dataset(slice(None), inputs=[inputs[0]]),
             nequip_config,
             )
     model = model_from_config(
@@ -151,7 +152,6 @@ def train(device, dtype, nequip_config, inputs=[], outputs=[]):
         torch.cuda.empty_cache()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        nequip_config['device'] = device
         nequip_config['root'] = tmpdir
         nequip_config = Config.from_dict(nequip_config)
 
@@ -170,8 +170,8 @@ def train(device, dtype, nequip_config, inputs=[], outputs=[]):
         check_code_version(nequip_config, add_to_config=True)
         _set_global_options(nequip_config)
         trainer = Trainer(model=None, **dict(nequip_config))
-        training   = read_dataset(inputs=[inputs[1]])
-        validation = read_dataset(inputs=[inputs[2]])
+        training   = read_dataset(slice(None), inputs=[inputs[1]])
+        validation = read_dataset(slice(None), inputs=[inputs[2]])
         trainer.n_train = len(training)
         trainer.n_val   = len(validation)
 
@@ -186,80 +186,92 @@ def train(device, dtype, nequip_config, inputs=[], outputs=[]):
     torch.save(trainer.model.to('cpu').state_dict(), outputs[0].filepath)
 
 
+def _load_nequip_calculator(path_model, device, dtype):
+    from nequip.ase import NequIPCalculator
+    return NequIPCalculator.from_deployed_model(
+            model_path=path_model,
+            device=device,
+            )
+
+
 class NequIPModel(BaseModel):
+    """Container class for NequIP models"""
 
-    def __init__(self, context, config):
-        self.config  = dict(config)
-        self.config['device'] = 'cpu' # only use cuda if requested
-        self.config.pop('include_keys', None)
-        self.config.pop('key_mapping', None)
-        self.config['dataset_include_keys'] = ['total_energy', 'forces', 'virial']
-        self.config['dataset_key_mapping'] = {
-                'energy_qm': 'total_energy', # custom key to ASE default key
-                'forces_qm': 'forces',
-                'stress_qm': 'virial',
-                }
-        self.context = context
+    def __init__(self, context, config, dataset):
+        super().__init__(context)
 
-        self.future        = None
-        self.future_config = None
-        self.future_deploy = None
-
-    def initialize(self, dataset):
-        assert self.future_deploy is None
-        assert self.future_config is None
-        assert self.future is None
-        p_initialize = python_app(
-                initialize,
-                executors=[self.executor_label],
+        self.config_future = self.context.apps(NequIPModel, 'initialize')( # to initialized config
+                dict(config),
+                inputs=[dataset.data_future],
+                outputs=[File(_new_model(context))],
                 )
-        self.future_config = p_initialize(
-                self.config,
-                inputs=[dataset.future],
-                outputs=[File(self.new_model())],
-                )
-        self.future = self.future_config.outputs[0]
+        self.model_future  = self.config_future.outputs[0] # to undeployed model
+        self.deploy_future = None # to deployed model
 
     def deploy(self):
-        device = self.context[ModelExecutionDefinition].device
-        dtype  = self.context[ModelExecutionDefinition].dtype
-        p_deploy = python_app(
-                deploy,
-                executors=[self.executor_label],
-                )
-        self.future_deploy = p_deploy(
-                device,
-                dtype,
-                self.future_config,
-                inputs=[self.future],
-                outputs=[File(self.new_deploy())],
+        self.deploy_future = self.context.apps(NequIPModel, 'deploy')(
+                self.config_future,
+                inputs=[self.model_future],
+                outputs=[File(_new_deploy(self.context))],
                 ).outputs[0]
 
     def train(self, training, validation):
-        self.future_deploy = None
-        device = self.context[TrainingExecutionDefinition].device
-        dtype  = self.context[TrainingExecutionDefinition].dtype
-        executor_label = self.context[TrainingExecutionDefinition].executor_label
-        p_train = python_app(
-                train,
-                executors=[executor_label],
-                )
-        self.future = p_train(
-                device,
-                dtype,
-                self.future_config,
-                inputs=[self.future, training.future, validation.future],
-                outputs=[File(self.new_model())],
+        self.deploy_future = None # no longer valid
+        self.model_future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
+                self.config_future,
+                inputs=[self.model_future, training.data_future, validation.data_future],
+                outputs=[File(_new_model(self.context))]
                 ).outputs[0]
 
-    def save(self, path_model):
-        p_copy_file = python_app(copy_file, executors=[self.context[ModelExecutionDefinition].executor_label])
-        return p_copy_file(inputs=[self.future], outputs=[File(str(path_model))])
-
-    @staticmethod
-    def load_calculator(path_model, device, dtype):
-        from nequip.ase import NequIPCalculator
-        return NequIPCalculator.from_deployed_model(
-                model_path=path_model,
-                device=device,
+    def save_deployed(self, path_deployed):
+        return self.context.apps(NequIPModel, 'copy_model')(
+                inputs=[self.deploy_future],
+                outputs=[File(str(path_deployed))],
                 )
+
+    @classmethod
+    def create_apps(cls, context):
+        training_label  = context[TrainingExecutionDefinition].executor_label
+        training_device = context[TrainingExecutionDefinition].device
+        training_dtype  = context[TrainingExecutionDefinition].dtype
+
+        model_label  = context[ModelExecutionDefinition].executor_label
+        model_device = context[ModelExecutionDefinition].device
+        model_dtype  = context[ModelExecutionDefinition].dtype
+        model_ncores = context[ModelExecutionDefinition].ncores
+
+        app_initialize = python_app(initialize, executors=[model_label])
+        context.register_app(cls, 'initialize', app_initialize)
+        deploy_unwrapped = python_app(deploy, executors=[model_label])
+        def deploy_wrapped(config, inputs=[], outputs=[]):
+            return deploy_unwrapped(
+                    model_device,
+                    model_dtype,
+                    config,
+                    inputs=inputs,
+                    outputs=outputs,
+                    )
+        context.register_app(cls, 'deploy', deploy_wrapped)
+        train_unwrapped = python_app(train, executors=[training_label])
+        def train_wrapped(config, inputs=[], outputs=[]):
+            return train_unwrapped(
+                    training_device,
+                    training_dtype,
+                    config,
+                    inputs=inputs,
+                    outputs=outputs,
+                    )
+        context.register_app(cls, 'train', train_wrapped)
+        app_copy_model = python_app(copy_file, executors=[model_label])
+        context.register_app(cls, 'copy_model', app_copy_model)
+        evaluate_unwrapped = python_app(evaluate_dataset, executors=[model_label])
+        def evaluate_wrapped(inputs=[], outputs=[]):
+            return evaluate_unwrapped(
+                    model_device,
+                    model_dtype,
+                    model_ncores,
+                    _load_nequip_calculator,
+                    inputs=inputs,
+                    outputs=outputs,
+                    )
+        context.register_app(cls, 'evaluate', evaluate_wrapped)

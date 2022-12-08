@@ -3,16 +3,17 @@ import tempfile
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from autolearn.execution import ModelExecutionDefinition
+from autolearn.execution import ModelExecutionDefinition, Container
+from autolearn.dataset import Dataset, _new_xyz
 
 
-def evaluate_dataset(device, dtype, load_calculator, inputs=[], outputs=[]):
+def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=[]):
     import torch
     import numpy as np
     from autolearn.dataset import read_dataset, save_dataset
-    #if device == 'cpu':
-        #torch.set_num_threads(ncores)
-    dataset = read_dataset(inputs=[inputs[0]])
+    if device == 'cpu':
+        torch.set_num_threads(ncores)
+    dataset = read_dataset(slice(None), inputs=[inputs[0]])
     if len(dataset) > 0:
         atoms = dataset[0].copy()
         atoms.calc = load_calculator(inputs[1].filepath, device, dtype)
@@ -34,12 +35,29 @@ def evaluate_dataset(device, dtype, load_calculator, inputs=[], outputs=[]):
         save_dataset(dataset, outputs=[outputs[0]])
 
 
-class BaseModel:
-    """Base class for a trainable interaction potential"""
+def _new_deploy(context):
+    _, name = tempfile.mkstemp(
+            suffix='.pth',
+            prefix='model_deployed_',
+            dir=context.path,
+            )
+    return name
 
-    @staticmethod
-    def load_calculator(path_model, device, dtype):
-        raise NotImplementedError
+
+def _new_model(context):
+    _, name = tempfile.mkstemp(
+            suffix='.pth',
+            prefix='model_',
+            dir=context.path,
+            )
+    return name
+
+
+class BaseModel(Container):
+    """Base Container for a trainable interaction potential"""
+
+    def __init__(self, context):
+        super().__init__(context)
 
     def train(self, dataset):
         """Trains a model and returns it as an AppFuture"""
@@ -47,39 +65,8 @@ class BaseModel:
 
     def evaluate(self, dataset):
         """Evaluates a dataset using a model and returns it as a covalent electron"""
-        definition = self.context[ModelExecutionDefinition]
-        executor_label = definition.executor_label
-        device         = definition.device
-        dtype          = definition.dtype
-        assert self.future_deploy is not None # needs to be deployed first
-        p_evaluate_dataset = python_app(
-                evaluate_dataset,
-                executors=[executor_label],
-                )
-        dataset.future = p_evaluate_dataset(
-                device,
-                dtype,
-                self.load_calculator,
-                inputs=[dataset.future, self.future_deploy],
-                outputs=[File(dataset.new_xyz())],
+        data_future = self.context.apps(self.__class__, 'evaluate')(
+                inputs=[dataset.data_future, self.deploy_future],
+                outputs=[File(_new_xyz(self.context))],
                 ).outputs[0]
-
-    def new_model(self):
-        _, name = tempfile.mkstemp(
-                suffix='.pth',
-                prefix='model_',
-                dir=self.context.path,
-                )
-        return name
-
-    def new_deploy(self):
-        _, name = tempfile.mkstemp(
-                suffix='.pth',
-                prefix='model_deployed_',
-                dir=self.context.path,
-                )
-        return name
-
-    @property
-    def executor_label(self):
-        return self.context[ModelExecutionDefinition].executor_label
+        return Dataset(self.context, data_future=data_future)

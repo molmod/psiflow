@@ -20,12 +20,12 @@ class ModelExecutionDefinition:
 
 
 @dataclass(frozen=True)
-class CP2KExecutionDefinition:
+class ReferenceExecutionDefinition:
     executor_label: str  = 'cpu_large'
     ncores        : int  = 1
-    command       : str  = 'cp2k.psmp' # default command for CP2K Reference
-    mpi           : Optional[Callable] = None # or callable, e.g: mpi(ncores) -> 'mpirun -np {ncores} '
     walltime      : int  = 3600 # timeout in seconds
+    mpi           : Optional[Callable] = None # or callable, e.g: mpi(ncores) -> 'mpirun -np {ncores} '
+    cp2k_command  : str  = 'cp2k.psmp' # default command for CP2K Reference
 
 
 @dataclass(frozen=True)
@@ -41,6 +41,7 @@ class ExecutionContext:
         self.path   = path
         self.executor_labels = [e.label for e in config.executors]
         self.definitions = {}
+        self._apps = {}
         parsl.load(config)
 
     def __getitem__(self, definition_class):
@@ -53,13 +54,24 @@ class ExecutionContext:
         assert key not in self.definitions.keys()
         self.definitions[key] = execution_definition
 
+    def apps(self, container, app_name):
+        if container not in self._apps.keys():
+            container.create_apps(self)
+        assert app_name in self._apps[container].keys()
+        return self._apps[container][app_name]
+
+    def register_app(self, container, app_name, app):
+        if container not in self._apps.keys():
+            self._apps[container] = {}
+        assert app_name not in self._apps[container].keys()
+        self._apps[container][app_name] = app
+
 
 class Container:
 
     def __init__(self, context):
         self.context = context
-        self.apps    = self.__class__.create_apps(context)
 
     @staticmethod
     def create_apps(context):
-        return {}
+        raise NotImplementedError
