@@ -1,16 +1,28 @@
+import requests
+import pytest
+import os
+import molmod
+import numpy as np
 from parsl.dataflow.futures import AppFuture
 from parsl.app.futures import DataFuture
 
+from pymatgen.io.cp2k.inputs import Cp2kInput
+
 from ase import Atoms
 
-from autolearn.reference import EMTReference
+from autolearn.reference import EMTReference, CP2KReference
+from autolearn.reference._cp2k import insert_filepaths_in_input, \
+        insert_atoms_in_input
 from autolearn.dataset import Dataset
+from autolearn.execution import ReferenceExecutionDefinition
 
 from common import context
 from test_dataset import dataset
 
 
-sample_input = """
+@pytest.fixture
+def fake_cp2k_input():
+    return  """
 &FORCE_EVAL
    METHOD Quickstep
    STRESS_TENSOR ANALYTICAL
@@ -41,6 +53,86 @@ sample_input = """
 """
 
 
+@pytest.fixture
+def cp2k_data():
+    basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH').text
+    dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
+    potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
+    return {
+            'BASIS_SET_FILE_NAME': basis,
+            'POTENTIAL_FILE_NAME': potential,
+            'PARAMETER_FILE_NAME': dftd3,
+            }
+
+@pytest.fixture
+def cp2k_input():
+    return """
+&FORCE_EVAL
+   METHOD Quickstep
+   STRESS_TENSOR ANALYTICAL
+   &DFT
+      UKS  F
+      MULTIPLICITY  1
+      BASIS_SET_FILE_NAME  dummy
+      POTENTIAL_FILE_NAME  dummy
+      &SCF
+         MAX_SCF  10
+         MAX_DIIS  8
+         EPS_SCF  1.0E-06
+         SCF_GUESS  RESTART
+         &OT
+            MINIMIZER  CG
+            PRECONDITIONER  FULL_SINGLE_INVERSE
+         &END OT
+         &OUTER_SCF T
+            MAX_SCF  10
+            EPS_SCF  1.0E-06
+         &END OUTER_SCF
+      &END SCF
+      &QS
+         METHOD  GPW
+         EPS_DEFAULT  1.0E-4
+         EXTRAPOLATION  USE_GUESS
+      &END QS
+      &MGRID
+         REL_CUTOFF [Ry]  60.0
+         NGRIDS  5
+         CUTOFF [Ry] 1000
+      &END MGRID
+      &XC
+         DENSITY_CUTOFF   1.0E-10
+         GRADIENT_CUTOFF  1.0E-10
+         TAU_CUTOFF       1.0E-10
+         &XC_FUNCTIONAL PBE
+         &END XC_FUNCTIONAL
+         &VDW_POTENTIAL
+            POTENTIAL_TYPE  PAIR_POTENTIAL
+            &PAIR_POTENTIAL
+               TYPE  DFTD3(BJ)
+               PARAMETER_FILE_NAME  parameter
+               REFERENCE_FUNCTIONAL PBE
+               R_CUTOFF  25
+            &END PAIR_POTENTIAL
+         &END VDW_POTENTIAL
+      &END XC
+   &END DFT
+   &SUBSYS
+      &KIND H
+         ELEMENT  H
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q1
+         POTENTIAL GTH-PBE-q1
+      &END KIND
+   &END SUBSYS
+   &PRINT
+      &STRESS_TENSOR ON
+      &END STRESS_TENSOR
+      &FORCES
+      &END FORCES
+   &END PRINT
+&END FORCE_EVAL
+"""
+
+
 def test_reference_emt(context, dataset):
     reference = EMTReference(context)
     atoms = reference.evaluate(dataset[0])
@@ -53,7 +145,7 @@ def test_reference_emt(context, dataset):
     assert evaluated.length().result() == dataset.length().result()
 
 
-def test_cp2k_insert_filepaths(tmp_path):
+def test_cp2k_insert_filepaths(fake_cp2k_input):
     filepaths = {
             'BASIS_SET_FILE_NAME': ['basisset0', 'basisset1'],
             'POTENTIAL_FILE_NAME': 'potential',
@@ -90,125 +182,67 @@ def test_cp2k_insert_filepaths(tmp_path):
 &END FORCE_EVAL
 """
     target = Cp2kInput.from_string(target_input)
-    sample = Cp2kInput.from_string(insert_filepaths_in_input(sample_input, filepaths))
+    sample = Cp2kInput.from_string(insert_filepaths_in_input(fake_cp2k_input, filepaths))
     assert str(target) == str(sample)
 
 
-def test_cp2k_insert_atoms(tmp_path):
+def test_cp2k_insert_atoms(tmp_path, fake_cp2k_input):
     atoms = Atoms(numbers=np.ones(3), cell=np.eye(3), positions=np.eye(3), pbc=True)
-    sample = Cp2kInput.from_string(insert_atoms_in_input(sample_input, atoms))
+    sample = Cp2kInput.from_string(insert_atoms_in_input(fake_cp2k_input, atoms))
     assert 'COORD' in sample['FORCE_EVAL']['SUBSYS'].subsections.keys()
     assert 'CELL' in sample['FORCE_EVAL']['SUBSYS'].subsections.keys()
     natoms = len(sample['FORCE_EVAL']['SUBSYS']['COORD'].keywords['H'])
     assert natoms == 3
 
 
-def test_cp2k_success(tmp_path):
-    basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH').text
-    dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
-    potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
-    data = {
-            'BASIS_SET_FILE_NAME': basis,
-            'POTENTIAL_FILE_NAME': potential,
-            'PARAMETER_FILE_NAME': dftd3,
-            }
-    cp2k_input = """
-&FORCE_EVAL
-   METHOD Quickstep
-   STRESS_TENSOR ANALYTICAL
-   &DFT
-      UKS  F
-      MULTIPLICITY  1
-      BASIS_SET_FILE_NAME  dummy
-      POTENTIAL_FILE_NAME  dummy
-      &SCF
-         MAX_SCF  10
-         MAX_DIIS  8
-         EPS_SCF  1.0E-01
-         SCF_GUESS  RESTART
-         &OT
-            MINIMIZER  CG
-            PRECONDITIONER  FULL_SINGLE_INVERSE
-         &END OT
-         &OUTER_SCF T
-            MAX_SCF  10
-            EPS_SCF  1.0E-01
-         &END OUTER_SCF
-      &END SCF
-      &QS
-         METHOD  GPW
-         EPS_DEFAULT  1.0E-4
-         EXTRAPOLATION  USE_GUESS
-      &END QS
-      &MGRID
-         REL_CUTOFF [Ry]  60.0
-         NGRIDS  5
-         CUTOFF [Ry] 200
-      &END MGRID
-      &XC
-         DENSITY_CUTOFF   1.0E-10
-         GRADIENT_CUTOFF  1.0E-10
-         TAU_CUTOFF       1.0E-10
-         &XC_FUNCTIONAL PBE
-         &END XC_FUNCTIONAL
-         &VDW_POTENTIAL
-            POTENTIAL_TYPE  PAIR_POTENTIAL
-            &PAIR_POTENTIAL
-               TYPE  DFTD3(BJ)
-               PARAMETER_FILE_NAME  parameter
-               REFERENCE_FUNCTIONAL PBE
-               R_CUTOFF  25
-            &END PAIR_POTENTIAL
-         &END VDW_POTENTIAL
-      &END XC
-   &END DFT
-   &SUBSYS
-      &KIND H
-         ELEMENT  H
-         BASIS_SET DZVP-MOLOPT-PBE-GTH-q1
-         POTENTIAL GTH-PBE-q1
-      &END KIND
-   &END SUBSYS
-   &PRINT
-      &STRESS_TENSOR ON
-      &END STRESS_TENSOR
-      &FORCES
-      &END FORCES
-   &END PRINT
-&END FORCE_EVAL
-"""
-    atoms = Atoms(
+def test_cp2k_success(context, cp2k_input, cp2k_data):
+    reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
+    atoms = Atoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
-            cell=3.5 * np.eye(3),
-            positions=np.array([[0, 0, 0], [1, 0, 0]]),
+            cell=5 * np.eye(3),
+            positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
             pbc=True,
             )
-    reference_execution = ReferenceExecution(
-            ncores=4, # avoid double counting due to HyperT
-            mpi=lambda x: ['mpirun', f' -np {x}'],
+    evaluated = reference.evaluate(atoms)
+    assert isinstance(evaluated, AppFuture)
+    assert isinstance(evaluated.outputs[0], DataFuture)
+    #evaluated.result()
+    assert 'energy' in evaluated.result().info.keys()
+    assert 'stress' in evaluated.result().info.keys()
+    assert 'forces' in evaluated.result().arrays.keys()
+    assert os.path.isfile(evaluated.outputs[0].filepath)
+    assert np.allclose(
+            -1.165271084838365 / molmod.units.electronvolt,
+            evaluated.result().info['energy'],
             )
-    reference = CP2KReference(cp2k_input, data)
-    sample = reference.evaluate(
-            Sample(atoms),
-            reference_execution,
-            )
-    assert 'success' in sample.tags
-    assert sample.evaluated
-    assert 'energy' in sample.atoms.info.keys()
-    assert 'stress' in sample.atoms.info.keys()
-    assert 'forces' in sample.atoms.arrays.keys()
-    assert sample.log is not None
+    forces_reference = np.array([[0.01218794, 0.00001251, 0.00001251],
+            [-0.01215503, 0.00001282, 0.00001282]])
+    forces_reference /= molmod.units.electronvolt
+    forces_reference *= molmod.units.angstrom
+    assert np.allclose(forces_reference, evaluated.result().arrays['forces'])
+    stress_reference = np.array([
+             [4.81790309081E-01,   7.70485237955E-05,   7.70485237963E-05],
+             [7.70485237955E-05,  -9.50069820373E-03,   1.61663002757E-04],
+             [7.70485237963E-05,   1.61663002757E-04,  -9.50069820373E-03]])
+    stress_reference *= 1000
+    assert np.allclose(stress_reference, evaluated.result().info['stress'])
+
+    # check number of mpi processes
+    ncores = context[ReferenceExecutionDefinition].ncores
+    with open(evaluated.outputs[0].filepath, 'r') as f:
+        content = f.read()
+    lines = content.split('\n')
+    for line in lines:
+        if 'Total number of message passing processes' in line:
+            nprocesses = int(line.split()[-1])
+        #print(line)
+        if 'Number of threads for this process' in line:
+            nthreads = int(line.split()[-1])
+    assert nprocesses == ncores
+    assert nthreads == 1 # hardcoded into app
 
 
-def test_cp2k_failure(tmp_path):
-    basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH').text
-    dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
-    potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
-    data = {
-            'BASIS_SET_FILE_NAME': basis,
-            'POTENTIAL_FILE_NAME': potential,
-            'PARAMETER_FILE_NAME': dftd3,
-            }
+def test_cp2k_failure(context, cp2k_data):
     cp2k_input = """
 &FORCE_EVAL
    METHOD Quickstep
@@ -274,116 +308,34 @@ def test_cp2k_failure(tmp_path):
    &END PRINT
 &END FORCE_EVAL
 """ # incorrect input file
-    atoms = Atoms(
+    reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
+    atoms = Atoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
-            cell=3.5 * np.eye(3),
-            positions=np.array([[0, 0, 0], [1, 0, 0]]),
+            cell=5 * np.eye(3),
+            positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
             pbc=True,
             )
-    reference_execution = ReferenceExecution(
-            ncores=4, # avoid double counting due to HyperT
-            mpi=lambda x: ['mpirun', f' -np {x}'],
-            )
-    reference = CP2KReference(cp2k_input, data)
-    sample = reference.evaluate(
-            Sample(atoms),
-            reference_execution,
-            )
-    assert 'error' in sample.tags
-    assert sample.log is not None
+    evaluated = reference.evaluate(atoms)
+    assert isinstance(evaluated, AppFuture)
+    assert isinstance(evaluated.outputs[0], DataFuture)
+    #evaluated.result()
+    assert 'energy' not in evaluated.result().info.keys()
+    assert os.path.isfile(evaluated.outputs[0].filepath)
+    with open(evaluated.outputs[0].filepath, 'r') as f:
+        content = f.read()
+        assert 'ABORT' in content # verify error is captured
+        assert 'requested basis set' in content
 
 
-def test_cp2k_timeout(tmp_path):
-    basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH').text
-    dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
-    potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
-    data = {
-            'BASIS_SET_FILE_NAME': basis,
-            'POTENTIAL_FILE_NAME': potential,
-            'PARAMETER_FILE_NAME': dftd3,
-            }
-    cp2k_input = """
-&FORCE_EVAL
-   METHOD Quickstep
-   STRESS_TENSOR ANALYTICAL
-   &DFT
-      UKS  F
-      MULTIPLICITY  1
-      BASIS_SET_FILE_NAME  dummy
-      POTENTIAL_FILE_NAME  dummy
-      &SCF
-         MAX_SCF  10
-         MAX_DIIS  8
-         EPS_SCF  1.0E-01
-         SCF_GUESS  RESTART
-         &OT
-            MINIMIZER  CG
-            PRECONDITIONER  FULL_SINGLE_INVERSE
-         &END OT
-         &OUTER_SCF T
-            MAX_SCF  10
-            EPS_SCF  1.0E-01
-         &END OUTER_SCF
-      &END SCF
-      &QS
-         METHOD  GPW
-         EPS_DEFAULT  1.0E-4
-         EXTRAPOLATION  USE_GUESS
-      &END QS
-      &MGRID
-         REL_CUTOFF [Ry]  60.0
-         NGRIDS  5
-         CUTOFF [Ry] 200
-      &END MGRID
-      &XC
-         DENSITY_CUTOFF   1.0E-10
-         GRADIENT_CUTOFF  1.0E-10
-         TAU_CUTOFF       1.0E-10
-         &XC_FUNCTIONAL PBE
-         &END XC_FUNCTIONAL
-         &VDW_POTENTIAL
-            POTENTIAL_TYPE  PAIR_POTENTIAL
-            &PAIR_POTENTIAL
-               TYPE  DFTD3(BJ)
-               PARAMETER_FILE_NAME  parameter
-               REFERENCE_FUNCTIONAL PBE
-               R_CUTOFF  25
-            &END PAIR_POTENTIAL
-         &END VDW_POTENTIAL
-      &END XC
-   &END DFT
-   &SUBSYS
-      &KIND H
-         ELEMENT  H
-         BASIS_SET DZVP-MOLOPT-PBE-GTH-q1
-         POTENTIAL GTH-PBE-q1
-      &END KIND
-   &END SUBSYS
-   &PRINT
-      &STRESS_TENSOR ON
-      &END STRESS_TENSOR
-      &FORCES
-      &END FORCES
-   &END PRINT
-&END FORCE_EVAL
-"""
-    atoms = Atoms(
+def test_cp2k_timeout(context, cp2k_data, cp2k_input):
+    reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
+    atoms = Atoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
-            cell=3.5 * np.eye(3),
-            positions=np.array([[0, 0, 0], [1, 0, 0]]),
+            cell=20 * np.eye(3), # box way too large
+            positions=np.array([[0, 0, 0], [3, 0, 0]]),
             pbc=True,
             )
-    reference_execution = ReferenceExecution(
-            ncores=4, # avoid double counting due to HyperT
-            mpi=lambda x: ['mpirun', f' -np {x}'],
-            walltime=10,
-            )
-    reference = CP2KReference(cp2k_input, data)
-    sample = reference.evaluate(
-            Sample(atoms),
-            reference_execution,
-            )
-    assert 'error' in sample.tags
-    assert 'timeout' in sample.tags
-    assert not sample.evaluated
-    assert sample.log is not None
+    evaluated = reference.evaluate(atoms)
+    assert isinstance(evaluated, AppFuture)
+    assert isinstance(evaluated.outputs[0], DataFuture)
+    assert 'energy' not in evaluated.result().info.keys()

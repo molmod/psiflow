@@ -14,18 +14,19 @@ from ase.calculators.emt import EMT
 from parsl.config import Config
 from parsl.providers import LocalProvider
 from parsl.executors import ThreadPoolExecutor, HighThroughputExecutor
+from parsl.launchers import SimpleLauncher, SingleNodeLauncher
 
 from autolearn.execution import ExecutionContext, TrainingExecutionDefinition, \
         ModelExecutionDefinition, ReferenceExecutionDefinition
 
 
-@pytest.fixture(scope='session', params=['threadpool', 'htex'])
+@pytest.fixture(scope='session', params=['threadpool'])
 def context(request, tmpdir_factory):
     if request.param == 'threadpool':
         executors = [
                 ThreadPoolExecutor(label='gpu', max_threads=1, working_dir=str(tmpdir_factory.mktemp('working_dir'))),
-                ThreadPoolExecutor(label='cpu_small', max_threads=6, working_dir=str(tmpdir_factory)),
-                ThreadPoolExecutor(label='cpu_large', max_threads=6, working_dir=str(tmpdir_factory)),
+                ThreadPoolExecutor(label='cpu_small', max_threads=4, working_dir=str(tmpdir_factory)),
+                ThreadPoolExecutor(label='cpu_large', max_threads=4, working_dir=str(tmpdir_factory)),
                 ]
     elif request.param == 'htex':
         provider = LocalProvider(
@@ -33,11 +34,12 @@ def context(request, tmpdir_factory):
             max_blocks=1,
             nodes_per_block=1,
             parallelism=0.5,
+            launcher=SingleNodeLauncher(),
             )
         executors = [
                 HighThroughputExecutor(address='localhost', label='gpu', working_dir=str(tmpdir_factory), provider=provider, max_workers=1),
                 HighThroughputExecutor(address='localhost', label='cpu_small', working_dir=str(tmpdir_factory), provider=provider),
-                HighThroughputExecutor(address='localhost', label='cpu_large', working_dir=str(tmpdir_factory), provider=provider),
+                HighThroughputExecutor(address='localhost', label='cpu_large', working_dir=str(tmpdir_factory), provider=provider, max_workers=1, cores_per_worker=4),
                 ]
     else:
         raise ValueError
@@ -46,7 +48,7 @@ def context(request, tmpdir_factory):
     context = ExecutionContext(config, path=path)
     model_execution = ModelExecutionDefinition()
     context.register(model_execution)
-    context.register(ReferenceExecutionDefinition(mpi=lambda x: f'mpirun -np {x} '))
+    context.register(ReferenceExecutionDefinition(ncores=4))
     if torch.cuda.is_available(): # requires gpu
         context.register(TrainingExecutionDefinition())
     yield context

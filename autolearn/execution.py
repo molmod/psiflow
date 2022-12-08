@@ -23,15 +23,9 @@ class ModelExecutionDefinition:
 class ReferenceExecutionDefinition:
     executor_label: str  = 'cpu_large'
     ncores        : int  = 1
-    walltime      : int  = 3600 # timeout in seconds
-    mpi           : Optional[Callable] = None # or callable, e.g: mpi(ncores) -> 'mpirun -np {ncores} '
-    cp2k_command  : str  = 'cp2k.psmp' # default command for CP2K Reference
-
-
-@dataclass(frozen=True)
-class EMTExecutionDefinition:
-    executor_label: str  = 'cpu_small'
-    ncores        : int  = 1
+    walltime      : str  = '00:00:10' # timeout in hh:mm:ss
+    mpi_command   : Optional[Callable] = lambda x: f'mpirun -np {x} '
+    cp2k_exec     : str  = 'cp2k.psmp' # default command for CP2K Reference
 
 
 class ExecutionContext:

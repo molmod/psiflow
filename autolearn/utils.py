@@ -1,4 +1,5 @@
 import os
+import tempfile
 import numpy as np
 
 from ase.data import chemical_symbols, atomic_numbers
@@ -21,6 +22,15 @@ def get_index_element_mask(numbers, elements, atom_indices):
         mask_indices[np.array(atom_indices)] = True
         mask = np.logical_and(mask, mask_indices)
     return mask
+
+
+def _new_file(context):
+    _, name = tempfile.mkstemp(
+            suffix='.txt',
+            prefix='new_',
+            dir=context.path,
+            )
+    return name
 
 
 def try_manual_plumed_linking():

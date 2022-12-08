@@ -5,18 +5,7 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
 from autolearn.dataset import save_dataset
-from autolearn.execution import ModelExecutionDefinition
-
-
-def copy_atoms(atoms):
-    from ase import Atoms
-    _atoms = Atoms(
-            numbers=atoms.numbers.copy(),
-            positions=atoms.get_positions(),
-            cell=atoms.get_cell(),
-            pbc=True,
-            )
-    return _atoms
+from autolearn.execution import ModelExecutionDefinition, Container
 
 
 @dataclass
@@ -24,18 +13,13 @@ class EmptyParameters:
     pass
 
 
-class BaseWalker:
+class BaseWalker(Container):
     parameters_cls = EmptyParameters
 
-    def __init__(self, context, start, **kwargs):
+    def __init__(self, context, atoms, **kwargs):
+        super().__init__(context, **kwargs)
         self.context = context
-        self.tag    = 'reset'
-        self.p_copy_atoms = python_app(
-                copy_atoms,
-                executors=[self.executor_label],
-                )
-        self.start = self.p_copy_atoms(start)
-        self.state = self.p_copy_atoms(start)
+        self.tag     = 'reset'
         self.parameters = self.parameters_cls(**kwargs)
 
     def propagate(self, model):
@@ -72,3 +56,6 @@ class BaseWalker:
     @property
     def executor_label(self):
         return self.context[ModelExecutionDefinition].executor_label
+
+
+    @classmethod

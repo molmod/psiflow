@@ -9,6 +9,7 @@ from ase import Atoms
 from autolearn.execution import Container, ReferenceExecutionDefinition
 from autolearn.dataset import Dataset, _new_xyz, read_dataset, save_dataset, \
         get_length_dataset
+from autolearn.utils import _new_file
 
 
 @dataclass
@@ -34,7 +35,12 @@ class BaseReference(Container):
         else:
             # should be either atoms or AppFuture of atoms instance
             assert (isinstance(arg, Atoms) or isinstance(arg, AppFuture))
-            return self.context.apps(self.__class__, 'evaluate_single')(arg, self.parameters)
+            return self.context.apps(self.__class__, 'evaluate_single')(
+                    arg,
+                    self.parameters,
+                    inputs=[],
+                    outputs=[File(_new_file(self.context))], # for output logs
+                    )
 
     @classmethod
     def create_apps(cls, context):
