@@ -4,12 +4,13 @@ import numpy as np
 
 from ase.build import bulk
 
-from autolearn import Dataset, ModelExecution, Bias, Sample
+from autolearn import Dataset
 from autolearn.models import NequIPModel
-from autolearn.sampling import DynamicWalker, RandomWalker, Ensemble
-from autolearn.utils import set_path_hills_plumed, get_bias_plumed
+from autolearn.sampling import DynamicWalker, RandomWalker, Ensemble, Bias
+from autolearn.sampling.utils import set_path_hills_plumed, get_bias_plumed
 
-from utils import generate_emt_cu_data
+from common import context, nequip_config
+from test_dataset import dataset
 
 
 def test_get_filename_hills(tmp_path):
@@ -33,20 +34,19 @@ FLUSH STRIDE=10
     assert get_bias_plumed(plumed_input) == ('METAD', 'CV')
 
 
-def test_dynamic_walker_bias(tmp_path):
-    config_text = requests.get('https://raw.githubusercontent.com/mir-group/nequip/v0.5.5/configs/minimal.yaml').text
-    config = yaml.load(config_text, Loader=yaml.FullLoader)
-    config['root'] = str(tmp_path)
-    # ensure stress is computed by the model
-    config['model_builders'] = ['SimpleIrrepsConfig', 'EnergyModel',
-            'PerSpeciesRescale', 'StressForceOutput', 'RescaleEnergyEtc']
-
-    training = Dataset.from_atoms_list(
-            generate_emt_cu_data(a=5, nstates=5),
-            )
-    model = NequIPModel(config)
-    model.initialize(training)
-    model_execution = ModelExecution()
+def test_dynamic_walker_bias(context, nequip_config, dataset):
+    model = NequIPModel(context, nequip_config, dataset)
+    model.deploy()
+    kwargs = {
+            'timestep'           : 1,
+            'steps'              : 10,
+            'step'               : 1,
+            'start'              : 0,
+            'temperature'        : 100,
+            'initial_temperature': 100,
+            'pressure'           : None,
+            }
+    walker = DynamicWalker(context, dataset[0], **kwargs)
 
     # initial unit cell volume is around 125 A**3
     plumed_input = """
@@ -54,27 +54,24 @@ UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
 """
-    bias = Bias(plumed_input)
-    assert not bias.uses_hills
-    kwargs = {
-            'timestep'           : 1,
-            'steps'              : 10,
-            'step'               : 1,
-            'start'              : 0,
-            'temperature'        : 100,
-            'initial_temperature': 100,
-            'pressure'           : 0,
-            'bias'               : bias,
-            }
-    walker = DynamicWalker(training[0], **kwargs)
-    walker = walker.propagate(model, model_execution)
+    bias = Bias(context, plumed_input)
+    assert bias.kind[0] == 'RESTRAINT'
+    assert bias.kind[1] == 'CV'
+    walker.propagate(model=model, bias=bias)
+    assert walker.tag_future.result() == 'safe'
+    assert not np.allclose(
+            walker.state_future.result().positions,
+            walker.start_future.result().positions,
+            )
 
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 """ # RESTART automatically added in input if not present
-    bias = Bias(plumed_input)
+    bias = Bias(context, plumed_input)
+    assert bias.kind[0] == 'METAD'
+    assert bias.kind[1] == 'CV'
     kwargs = {
             'timestep'           : 1,
             'steps'              : 10,
@@ -82,15 +79,17 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             'start'              : 0,
             'temperature'        : 100,
             'initial_temperature': 100,
-            'pressure'           : 0,
-            'bias'               : bias,
+            'pressure'           : None,
             }
-    walker = DynamicWalker(training[0], **kwargs)
-    walker = walker.propagate(model, model_execution)
-    assert walker.parameters.bias.hills is not None
-    single_length = len(bias.hills.split('\n'))
-    walker = walker.propagate(model, model_execution)
-    double_length = len(bias.hills.split('\n'))
+    walker.propagate(model=model, bias=bias)
+    assert bias.hills_future is not None
+
+    with open(bias.hills_future.result(), 'r') as f:
+        single_length = len(f.read().split('\n'))
+    assert walker.tag_future.result() == 'safe'
+    walker.propagate(model=model, bias=bias)
+    with open(bias.hills_future.result(), 'r') as f:
+        double_length = len(f.read().split('\n'))
     assert double_length == 2 * single_length - 1 # twice as many gaussians
 
 

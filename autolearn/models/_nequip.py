@@ -5,7 +5,7 @@ from autolearn.models.base import evaluate_dataset, _new_deploy, _new_model
 from autolearn.models import BaseModel
 from autolearn.execution import ModelExecutionDefinition, \
         TrainingExecutionDefinition
-from autolearn.utils import copy_file
+from autolearn.utils import copy_data_future
 
 
 def get_elements(data):
@@ -186,14 +186,6 @@ def train(device, dtype, nequip_config, inputs=[], outputs=[]):
     torch.save(trainer.model.to('cpu').state_dict(), outputs[0].filepath)
 
 
-def _load_nequip_calculator(path_model, device, dtype):
-    from nequip.ase import NequIPCalculator
-    return NequIPCalculator.from_deployed_model(
-            model_path=path_model,
-            device=device,
-            )
-
-
 class NequIPModel(BaseModel):
     """Container class for NequIP models"""
 
@@ -224,7 +216,7 @@ class NequIPModel(BaseModel):
                 ).outputs[0]
 
     def save_deployed(self, path_deployed):
-        return self.context.apps(NequIPModel, 'copy_model')(
+        return copy_data_future(
                 inputs=[self.deploy_future],
                 outputs=[File(str(path_deployed))],
                 )
@@ -262,16 +254,25 @@ class NequIPModel(BaseModel):
                     outputs=outputs,
                     )
         context.register_app(cls, 'train', train_wrapped)
-        app_copy_model = python_app(copy_file, executors=[model_label])
-        context.register_app(cls, 'copy_model', app_copy_model)
+        #app_copy_model = python_app(copy_file, executors=[model_label])
+        #context.register_app(cls, 'copy_model', app_copy_model)
         evaluate_unwrapped = python_app(evaluate_dataset, executors=[model_label])
         def evaluate_wrapped(inputs=[], outputs=[]):
             return evaluate_unwrapped(
                     model_device,
                     model_dtype,
                     model_ncores,
-                    _load_nequip_calculator,
+                    cls.load_calculator,
                     inputs=inputs,
                     outputs=outputs,
                     )
         context.register_app(cls, 'evaluate', evaluate_wrapped)
+
+
+    @classmethod
+    def load_calculator(cls, path_model, device, dtype):
+        from nequip.ase import NequIPCalculator
+        return NequIPCalculator.from_deployed_model(
+                model_path=path_model,
+                device=device,
+                )

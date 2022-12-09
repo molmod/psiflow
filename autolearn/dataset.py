@@ -7,7 +7,7 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 from autolearn.execution import ModelExecutionDefinition, Container
-from autolearn.utils import copy_file
+from autolearn.utils import copy_data_future
 
 
 def save_dataset(states, inputs=[], outputs=[]):
@@ -153,7 +153,7 @@ class Dataset(Container):
             self.data_future = data_future
 
     def save(self, path_dataset):
-        return self.context.apps(Dataset, 'copy_dataset')(
+        return copy_data_future(
                 inputs=[self.data_future],
                 outputs=[File(str(path_dataset))],
                 )
@@ -216,8 +216,8 @@ class Dataset(Container):
         app_read_dataset = python_app(read_dataset, executors=[executor_label])
         context.register_app(Dataset, 'read_dataset', app_read_dataset)
 
-        app_copy_dataset = python_app(copy_file, executors=[executor_label])
-        context.register_app(Dataset, 'copy_dataset', app_copy_dataset)
+        #app_copy_dataset = python_app(copy_file, executors=[executor_label])
+        #context.register_app(Dataset, 'copy_dataset', app_copy_dataset)
 
         app_join_dataset = python_app(join_dataset, executors=[executor_label])
         context.register_app(Dataset, 'join_dataset', app_join_dataset)

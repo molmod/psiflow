@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from parsl.app.app import python_app
 
+from autolearn.execution import ModelExecutionDefinition
 from autolearn.sampling import BaseWalker
 
 
@@ -27,7 +28,7 @@ def random_perturbation(state, parameters):
             )
     state.set_positions(positions)
     state.set_cell(box)
-    return state
+    return state, 'safe'
 
 
 @dataclass
@@ -40,14 +41,17 @@ class RandomParameters:
 class RandomWalker(BaseWalker):
     parameters_cls = RandomParameters
 
-    def propagate(self, model=None):
-        p_random_perturbation = python_app(
+    @classmethod
+    def create_apps(cls, context):
+        executor_label = context[ModelExecutionDefinition].executor_label
+
+        app_propagate = python_app(
                 random_perturbation,
-                executors=[self.executor_label],
+                executors=[executor_label],
                 )
-        self.state = p_random_perturbation(
-                self.state,
-                self.parameters,
-                )
-        self.tag = 'safe' # random perturbation always safe
-        return self.state
+        def propagate_wrapped(state, parameters, **kwargs):
+            # ignore additional kwargs
+            return app_propagate(state, parameters)
+
+        context.register_app(cls, 'propagate', propagate_wrapped)
+        super(RandomWalker, cls).create_apps(context)

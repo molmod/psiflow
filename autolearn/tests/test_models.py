@@ -12,7 +12,6 @@ from nequip.ase import NequIPCalculator
 
 from autolearn import Dataset
 from autolearn.models import NequIPModel
-from autolearn.models._nequip import _load_nequip_calculator
 from autolearn.execution import ModelExecutionDefinition
 
 from common import context, nequip_config
@@ -29,19 +28,12 @@ def test_nequip_init(context, nequip_config, dataset):
     assert isinstance(model.deploy_future, DataFuture)
 
     # simple test
-    calculator = _load_nequip_calculator(
+    calculator = NequIPModel.load_calculator(
             path_model=model.deploy_future.result().filepath,
             device=context[ModelExecutionDefinition].device,
             dtype=context[ModelExecutionDefinition].dtype,
             )
     assert calculator.device == context[ModelExecutionDefinition].device
-    #model.evaluate(dataset) # overwrites dataset
-    #with open(dataset.future.result(), 'r') as f:
-    #    data_evaluated = list(read_extxyz(f, index=slice(None)))
-    #for atoms in data_evaluated:
-    #    assert 'energy_model' in atoms.info.keys()
-    #    assert 'stress_model' in atoms.info.keys()
-    #    assert 'forces_model' in atoms.arrays.keys()
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')

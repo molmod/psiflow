@@ -10,10 +10,10 @@ class Ensemble:
         self.context = context
         self.walkers = walkers
 
-    def propagate(self, model):
+    def propagate(self, safe_return=False, **kwargs):
         return Dataset(
                 self.context,
-                inputs=[w.propagate(model) for w in self.walkers],
+                atoms_list=[w.propagate(safe_return, **kwargs) for w in self.walkers],
                 )
 
     @property

@@ -2,10 +2,24 @@ from dataclasses import dataclass
 from copy import deepcopy
 
 from parsl.app.app import python_app
-from parsl.data_provider.files import File
 
-from autolearn.dataset import save_dataset
 from autolearn.execution import ModelExecutionDefinition, Container
+from autolearn.utils import copy_app_future, unpack_i
+
+
+
+def safe_return(state, start, tag):
+    if tag == 'unsafe':
+        return start
+    else:
+        return state
+
+
+def is_reset(state, start):
+    if state == start: # positions, numbers, cell, pbc
+        return True
+    else:
+        return False
 
 
 @dataclass
@@ -17,45 +31,65 @@ class BaseWalker(Container):
     parameters_cls = EmptyParameters
 
     def __init__(self, context, atoms, **kwargs):
-        super().__init__(context, **kwargs)
+        super().__init__(context)
         self.context = context
-        self.tag     = 'reset'
+
+        # futures
+        self.start_future = copy_app_future(atoms) # necessary!
+        self.state_future = copy_app_future(atoms)
+        self.tag_future   = 'safe'
+
+        # parameters
         self.parameters = self.parameters_cls(**kwargs)
 
-    def propagate(self, model):
-        raise NotImplementedError
+    def propagate(self, safe_return=False, **kwargs):
+        app = self.context.apps(self.__class__, 'propagate')
+        result = app(
+                self.state_future,
+                self.parameters,
+                **kwargs, # Model or Bias instance
+                )
+        self.state_future = unpack_i(result, 0)
+        self.tag_future   = unpack_i(result, 1)
+        if safe_return: # only return state if safe, else return start
+            # this does NOT reset the walker!
+            return self.context.apps(self.__class__, 'safe_return')(
+                    self.state_future,
+                    self.start_future,
+                    self.tag_future,
+                    )
+        else:
+            return self.state_future
 
-    def reset(self):
-        self.state = self.p_copy_atoms(self.start)
-        self.tag   = 'reset'
+    def reset_if_unsafe(self):
+        app = self.context.apps(self.__class__, 'safe_return')
+        self.state_future = app(
+                self.state_future,
+                self.start_future,
+                self.tag_future,
+                )
 
-    def save(self, path_xyz):
-        p_copy_file = python_app(save_dataset, executors=[self.executor_label])
-        return p_copy_file(self.state)
+    def is_reset(self):
+        app = self.context.apps(self.__class__, 'is_reset')
+        return app(self.state_future, self.start_future)
 
     def copy(self):
         walker = self.__class__(
                 self.context,
-                self.start,
+                self.state_future,
                 )
-        walker.parameters = deepcopy(self.parameters)
+        walker.start_future = copy_app_future(self.start_future)
+        walker.tag_future   = copy_app_future(self.tag_future) # possibly unsafe
+        walker.parameters   = deepcopy(self.parameters)
         return walker
 
-    @property
-    def is_safe(self):
-        def _is_safe(tag):
-            if (tag == 'safe') or (tag == 'reset'):
-                return True
-            return False
-        p_is_safe = python_app(
-                _is_safe,
-                executors=[self.executor_label],
-                )
-        return p_is_safe(self.tag)
-
-    @property
-    def executor_label(self):
-        return self.context[ModelExecutionDefinition].executor_label
-
-
     @classmethod
+    def create_apps(cls, context):
+        assert not (cls == BaseWalker) # should never be called directly
+        executor_label = context[ModelExecutionDefinition].executor_label
+
+        app_safe_return = python_app(safe_return, executors=[executor_label])
+        context.register_app(cls, 'safe_return', app_safe_return)
+
+        app_is_reset = python_app(is_reset, executors=[executor_label])
+        context.register_app(cls, 'is_reset', app_is_reset)

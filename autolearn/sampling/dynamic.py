@@ -2,22 +2,36 @@ from typing import Optional
 from dataclasses import dataclass
 
 from parsl.app.app import python_app
+from parsl.data_provider.files import File
 
 from autolearn.execution import ModelExecutionDefinition
+from autolearn.utils import copy_data_future, unpack_i
 from autolearn.sampling import BaseWalker
-from autolearn import Bias
+#from autolearn.sampling.utils import try_manual_plumed_linking
 
 
-def simulate(device, ncores, dtype, state, parameters, load_calculator, inputs=[]):
+def simulate_model(
+        device,
+        ncores,
+        dtype,
+        state,
+        parameters,
+        load_calculator,
+        plumed_input='',
+        inputs=[],
+        outputs=[],
+        ):
     import torch
+    import os
+    import tempfile
     import numpy as np
     from copy import deepcopy
     import yaff
     yaff.log.set_level(yaff.log.silent)
     import molmod
-    from autolearn.utils import try_manual_plumed_linking
     from autolearn.sampling.utils import ForcePartASE, DataHook, \
-            create_forcefield, ForceThresholdExceededException
+            create_forcefield, ForceThresholdExceededException, \
+            try_manual_plumed_linking, set_path_hills_plumed
     if device == 'cpu':
         torch.set_num_threads(ncores)
     pars = parameters
@@ -32,15 +46,26 @@ def simulate(device, ncores, dtype, state, parameters, load_calculator, inputs=[
     hooks = []
     hooks.append(loghook)
     hooks.append(datahook)
-    if pars.bias is not None: # add bias if present
+    if len(plumed_input) > 0: # add bias if present
         try_manual_plumed_linking()
-        pars.bias.stage() # create tempfile with input
+        if len(inputs) == 2:
+            path_hills = inputs[1]
+            plumed_input = 'RESTART\n' + plumed_input # ensures hills are read
+        else:
+            path_hills = None
+        if path_hills is not None: # path to hills
+            plumed_input = set_path_hills_plumed(plumed_input, path_hills)
+        with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
+            f.write(plumed_input) # write input
+        tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
+        tmp.close()
+        plumedlog = tmp.name # dummy log file
         part_plumed = yaff.external.ForcePartPlumed(
                 forcefield.system,
                 timestep=pars.timestep * molmod.units.femtosecond,
                 restart=1,
-                fn=pars.bias.files['input'],
-                fn_log=pars.bias.files['log'],
+                fn=f.name,
+                fn_log=plumedlog,
                 )
         forcefield.add_part(part_plumed)
         hooks.append(part_plumed) # NECESSARY!!
@@ -79,15 +104,14 @@ def simulate(device, ncores, dtype, state, parameters, load_calculator, inputs=[
                 )
         yaff.log.set_level(yaff.log.medium)
         verlet.run(pars.steps)
-        if pars.bias is not None:
-            pars.bias.close()
     except ForceThresholdExceededException as e:
         print(e)
         print('tagging sample as unsafe')
         tag = 'unsafe'
-        if pars.bias is not None:
-            pars.bias.close(reset=True)
     yaff.log.set_level(yaff.log.silent)
+
+    if len(plumed_input) > 0:
+        os.unlink(plumedlog)
 
     # update state with last stored state if data nonempty
     if len(datahook.data) > 0:
@@ -106,32 +130,57 @@ class DynamicParameters: # container dataclass for simulation parameters
     pressure           : Optional[float] = None
     force_threshold    : float = 1e6 # no threshold by default
     initial_temperature: float = 600 # to mimick parallel tempering
-    bias               : Optional[Bias] = None
     seed               : int = 0 # seed for randomized initializations
 
 
 class DynamicWalker(BaseWalker):
     parameters_cls = DynamicParameters
 
-    def propagate(self, model):
-        """Propagates the walker in phase space using molecular dynamics"""
-        device = self.context[ModelExecutionDefinition].device
-        ncores = self.context[ModelExecutionDefinition].ncores
-        dtype  = self.context[ModelExecutionDefinition].dtype
-        assert model.future_deploy is not None
-        p_simulate = python_app(
-                simulate,
-                executors=[self.executor_label],
+    @classmethod
+    def create_apps(cls, context):
+        executor_label = context[ModelExecutionDefinition].executor_label
+        device = context[ModelExecutionDefinition].device
+        ncores = context[ModelExecutionDefinition].ncores
+        dtype = context[ModelExecutionDefinition].dtype
+
+        app_propagate = python_app(
+                simulate_model,
+                executors=[executor_label],
                 )
-        result = p_simulate( # do unpacking in separate app
-                device,
-                ncores,
-                dtype,
-                self.state,
-                self.parameters,
-                model.load_calculator,
-                inputs=[model.future_deploy],
-                )
-        self.state = python_app(lambda x: x[0], executors=[self.executor_label])(result)
-        self.tag   = python_app(lambda x: x[1], executors=[self.executor_label])(result)
-        return self.state
+        def propagate_wrapped(state, parameters, model=None, bias=None, **kwargs):
+            assert model is not None # model is required
+            assert model.deploy_future is not None # has to be deployed
+            inputs = [model.deploy_future]
+            outputs = []
+            if bias is not None:
+                plumed_input = bias.plumed_input
+                bias_copy = bias.copy() # for backup hills
+                #inputs.append(bias.plumed_input)
+                if bias.hills_future is not None:
+                    inputs.append(bias.hills_future)
+                    outputs.append(File(bias.hills_future.filepath)) # necessary!
+            else:
+                plumed_input = ''
+            result = app_propagate(
+                    device,
+                    ncores,
+                    dtype,
+                    state,
+                    parameters,
+                    model.load_calculator, # load function
+                    plumed_input=plumed_input,
+                    inputs=inputs,
+                    outputs=outputs,
+                    )
+            if bias is not None: # check tag and reset hills if necessary
+                tag = unpack_i(result, 1)
+                if bias.hills_future is not None:
+                    if tag == 'unsafe':
+                        bias.hills_future = bias_copy.hills_future
+                    else:
+                        #pass
+                        bias.hills_future = result.outputs[0]
+            return result
+
+        context.register_app(cls, 'propagate', propagate_wrapped)
+        super(DynamicWalker, cls).create_apps(context)
