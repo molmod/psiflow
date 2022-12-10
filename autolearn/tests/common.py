@@ -20,7 +20,7 @@ from autolearn.execution import ExecutionContext, TrainingExecutionDefinition, \
         ModelExecutionDefinition, ReferenceExecutionDefinition
 
 
-@pytest.fixture(scope='session', params=['htex'])
+@pytest.fixture(scope='module', params=['threadpool', 'htex'])
 def context(request, tmpdir_factory):
     if request.param == 'threadpool':
         executors = [

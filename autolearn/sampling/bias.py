@@ -7,9 +7,71 @@ import numpy as np
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from autolearn.execution import Container
+from autolearn.execution import Container, ModelExecutionDefinition
 from autolearn.utils import _new_file, copy_data_future
 from autolearn.sampling.utils import set_path_hills_plumed, get_bias_plumed
+
+
+
+def evaluate_bias(plumed_input, kind, inputs=[]):
+    import tempfile
+    import os
+    import numpy as np
+    import yaff
+    yaff.log.set_level(yaff.log.silent)
+    import molmod
+    from autolearn.sampling.utils import ForcePartASE, create_forcefield, \
+            ForceThresholdExceededException, try_manual_plumed_linking, \
+            set_path_hills_plumed
+    from autolearn.dataset import read_dataset
+    dataset = read_dataset(slice(None), inputs=[inputs[0]])
+    values = np.zeros((len(dataset), 2)) # column 0 for CV, 1 for bias
+    system = yaff.System(
+            numbers=dataset[0].get_atomic_numbers(),
+            pos=dataset[0].get_positions() * molmod.units.angstrom,
+            rvecs=dataset[0].get_cell() * molmod.units.angstrom,
+            )
+    try_manual_plumed_linking()
+    if len(inputs) == 2:
+        path_hills = inputs[1]
+        plumed_input = 'RESTART\n' + plumed_input # ensures hills are read
+    else:
+        path_hills = None
+    if path_hills is not None: # path to hills
+        plumed_input = set_path_hills_plumed(plumed_input, path_hills)
+    tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
+    tmp.close()
+    colvar = tmp.name # dummy log file
+    #arg = kind[1] + ',' + kind[2] + '.bias'
+    arg = kind[1]
+    plumed_input += '\nFLUSH STRIDe=1' # has to come before PRINT?!
+    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(arg, colvar)
+    with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
+        f.write(plumed_input) # write input
+        path_input = f.name
+    tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
+    tmp.close()
+    plumedlog = tmp.name # dummy log file
+    part_plumed = yaff.external.ForcePartPlumed(
+            system,
+            timestep=1000*molmod.units.femtosecond, # does this matter?
+            restart=0,
+            fn=path_input,
+            fn_log=plumedlog,
+            )
+    ff = yaff.pes.ForceField(system, [part_plumed])
+    for i, atoms in enumerate(dataset):
+        ff.update_pos(atoms.get_positions() * molmod.units.angstrom)
+        ff.update_rvecs(atoms.get_cell() * molmod.units.angstrom)
+        part_plumed.plumedstep = i
+        values[i, 1] = ff.compute() / molmod.units.kjmol
+        part_plumed.plumed.cmd('update')
+    part_plumed.plumed.cmd('update') # flush last
+    values[:, 0] = np.loadtxt(colvar)[:, 1]
+    os.unlink(plumedlog)
+    os.unlink(colvar)
+    os.unlink(path_input)
+    return values
 
 
 class Bias(Container):
@@ -26,76 +88,15 @@ class Bias(Container):
         else:
             self.hills_future = None
 
-#    def evaluate(self, dataset):
-#        def evaluate_barebones(bias, dataset):
-#            values = np.zeros((len(dataset), 2)) # column 0 for CV, 1 for bias
-#            system = yaff.System(
-#                    numbers=dataset[0].atoms.get_atomic_numbers(),
-#                    pos=dataset[0].atoms.get_positions() * molmod.units.angstrom,
-#                    rvecs=dataset[0].atoms.get_cell() * molmod.units.angstrom,
-#                    )
-#            bias.stage()
-#            part_plumed = yaff.external.ForcePartPlumed(
-#                    system,
-#                    timestep=1000*molmod.units.femtosecond, # does this matter?
-#                    restart=0,
-#                    fn=bias.files['input'],
-#                    fn_log=bias.files['log'],
-#                    )
-#            ff = yaff.pes.ForceField(system, [part_plumed])
-#            for i, sample in enumerate(dataset):
-#                ff.update_pos(sample.atoms.get_positions() * molmod.units.angstrom)
-#                ff.update_rvecs(sample.atoms.get_cell() * molmod.units.angstrom)
-#                part_plumed.plumedstep = i
-#                values[i, 1] = ff.compute() / molmod.units.kjmol
-#                part_plumed.plumed.cmd('update')
-#            part_plumed.plumed.cmd('update') # flush last
-#            colvar = np.loadtxt(bias.files['cv'])[:, 1]
-#            values[:, 0] = colvar
-#            bias.close()
-#            return values
-#        evaluate_electron = ct.electron(
-#                evaluate_barebones,
-#                executor='local',
-#                )
-#        return evaluate_electron(self, dataset)
-#
-#    def stage(self):
-#        assert tuple(list(self.files.values())) == (None, None, None, None)
-#
-#        # generate temporary files
-#        for filename in self.files.keys():
-#            tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
-#            tmp.close()
-#            self.files[filename] = tmp.name
-#
-#        # generate temporary hills file and store its name in plumed input
-#        if self.uses_hills:
-#            plumed_input = set_path_hills_plumed(
-#                    self.plumed_input,
-#                    self.files['hills'],
-#                    )
-#            plumed_input = 'RESTART\n' + plumed_input # ensures hills are read
-#        else:
-#            plumed_input = self.plumed_input
-#
-#        # add print colvar
-#        plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(
-#                self.cv,
-#                self.files['cv'],
-#                )
-#        with open(self.files['input'], 'w') as f:
-#            f.write(plumed_input)
-#
-#    def close(self, unsafe=False):
-#        if not unsafe: # load contents of HILLS file
-#            if self.uses_hills:
-#                with open(self.files['hills'], 'r') as f:
-#                    self.hills = f.read()
-#        for name, filepath in self.files.items():
-#            if os.path.exists(filepath):
-#                os.unlink(filepath)
-#            self.files[name] = None
+    def evaluate(self, dataset):
+        inputs = [dataset.data_future]
+        if self.hills_future is not None:
+            inputs.append(self.hills_future)
+        return self.context.apps(Bias, 'evaluate')(
+                self.plumed_input,
+                self.kind,
+                inputs=inputs,
+                )
 
     def copy(self):
         bias = Bias(self.context, self.plumed_input)
@@ -110,5 +111,7 @@ class Bias(Container):
         return get_bias_plumed(self.plumed_input)
 
     @classmethod
-    def create_apps(context):
-        pass
+    def create_apps(cls, context):
+        executor_label = context[ModelExecutionDefinition].executor_label
+        app_evaluate = python_app(evaluate_bias, executors=[executor_label])
+        context.register_app(cls, 'evaluate', app_evaluate)

@@ -212,6 +212,7 @@ def get_bias_plumed(plumed_input):
             if key in line.split():
                 assert not found
                 cv = line.split('ARG=')[1].split()[0]
+                #label = line.split('LABEL=')[1].split()[0]
                 bias = (key, cv)
                 found = True
     return bias

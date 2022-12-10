@@ -93,17 +93,15 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     assert double_length == 2 * single_length - 1 # twice as many gaussians
 
 
-def test_bias_evaluate(tmp_path):
-    sample = Sample(bulk('Cu', 'fcc', a=10, cubic=True))
+def test_bias_evaluate(context, dataset):
     kwargs = {
             'amplitude_box': 0.1,
             'amplitude_pos': 0.1,
             'seed': 0,
             }
-    walker = RandomWalker(sample, **kwargs)
+    walker = RandomWalker(context, dataset[0], **kwargs)
     ensemble = Ensemble.from_walker(walker, nwalkers=10)
-    ensemble.propagate(None, None)
-    dataset = ensemble.sample()
+    dataset = ensemble.propagate()
 
     plumed_input = """
 RESTART
@@ -112,9 +110,21 @@ CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
 FLUSH STRIDE=1
 """
-    bias = Bias(plumed_input)
-    values = bias.evaluate(dataset)
-    for i, sample in enumerate(dataset):
-        volume = np.linalg.det(sample.atoms.cell)
+    bias = Bias(context, plumed_input)
+    values = bias.evaluate(dataset).result()
+    for i in range(dataset.length().result()):
+        volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(np.zeros(values[:, 1].shape), values[:, 1])
+
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
+"""
+    bias = Bias(context, plumed_input)
+    values = bias.evaluate(dataset).result()
+    assert np.allclose(
+            values[:, 1],
+            0.5 * (values[:, 0] - 150) ** 2,
+            )
