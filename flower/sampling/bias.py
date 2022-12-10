@@ -7,9 +7,9 @@ import numpy as np
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from autolearn.execution import Container, ModelExecutionDefinition
-from autolearn.utils import _new_file, copy_data_future
-from autolearn.sampling.utils import set_path_hills_plumed, get_bias_plumed
+from flower.execution import Container, ModelExecutionDefinition
+from flower.utils import _new_file, copy_data_future
+from flower.sampling.utils import set_path_hills_plumed, get_bias_plumed
 
 
 
@@ -20,10 +20,10 @@ def evaluate_bias(plumed_input, kind, inputs=[]):
     import yaff
     yaff.log.set_level(yaff.log.silent)
     import molmod
-    from autolearn.sampling.utils import ForcePartASE, create_forcefield, \
+    from flower.sampling.utils import ForcePartASE, create_forcefield, \
             ForceThresholdExceededException, try_manual_plumed_linking, \
             set_path_hills_plumed
-    from autolearn.dataset import read_dataset
+    from flower.dataset import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     values = np.zeros((len(dataset), 2)) # column 0 for CV, 1 for bias
     system = yaff.System(

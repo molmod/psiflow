@@ -3,14 +3,14 @@ import tempfile
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from autolearn.execution import ModelExecutionDefinition, Container
-from autolearn.dataset import Dataset, _new_xyz
+from flower.execution import ModelExecutionDefinition, Container
+from flower.dataset import Dataset, _new_xyz
 
 
 def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=[]):
     import torch
     import numpy as np
-    from autolearn.dataset import read_dataset, save_dataset
+    from flower.dataset import read_dataset, save_dataset
     if device == 'cpu':
         torch.set_num_threads(ncores)
     dataset = read_dataset(slice(None), inputs=[inputs[0]])

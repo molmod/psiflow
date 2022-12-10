@@ -6,8 +6,8 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from autolearn.execution import ModelExecutionDefinition, Container
-from autolearn.utils import copy_data_future
+from flower.execution import ModelExecutionDefinition, Container
+from flower.utils import copy_data_future
 
 
 def save_dataset(states, inputs=[], outputs=[]):
@@ -63,8 +63,8 @@ def compute_metrics(
         inputs=[],
         ):
     import numpy as np
-    from autolearn.dataset import read_dataset
-    from autolearn.utils import get_index_element_mask
+    from flower.dataset import read_dataset
+    from flower.utils import get_index_element_mask
     data = read_dataset(slice(None), inputs=[inputs[0]])
     errors = np.zeros((len(data), len(properties)))
     outer_mask = np.array([True] * len(data))

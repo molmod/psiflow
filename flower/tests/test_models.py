@@ -10,9 +10,9 @@ from ase.io.extxyz import read_extxyz
 
 from nequip.ase import NequIPCalculator
 
-from autolearn import Dataset
-from autolearn.models import NequIPModel
-from autolearn.execution import ModelExecutionDefinition
+from flower import Dataset
+from flower.models import NequIPModel
+from flower.execution import ModelExecutionDefinition
 
 from common import context, nequip_config
 from test_dataset import dataset

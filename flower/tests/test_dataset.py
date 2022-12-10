@@ -6,8 +6,8 @@ from parsl.app.futures import DataFuture
 from ase import Atoms
 from ase.io.extxyz import write_extxyz
 
-from autolearn import Dataset
-from autolearn.utils import get_index_element_mask
+from flower import Dataset
+from flower.utils import get_index_element_mask
 
 from common import context, generate_emt_cu_data
 

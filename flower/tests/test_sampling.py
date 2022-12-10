@@ -4,8 +4,8 @@ from parsl.dataflow.futures import AppFuture
 
 from ase import Atoms
 
-from autolearn.models import NequIPModel
-from autolearn.sampling import BaseWalker, Ensemble, RandomWalker, \
+from flower.models import NequIPModel
+from flower.sampling import BaseWalker, Ensemble, RandomWalker, \
         DynamicWalker
 
 from common import context, nequip_config

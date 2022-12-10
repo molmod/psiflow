@@ -10,11 +10,11 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 
 from ase import Atoms
 
-from autolearn.reference import EMTReference, CP2KReference
-from autolearn.reference._cp2k import insert_filepaths_in_input, \
+from flower.reference import EMTReference, CP2KReference
+from flower.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
-from autolearn.dataset import Dataset
-from autolearn.execution import ReferenceExecutionDefinition
+from flower.dataset import Dataset
+from flower.execution import ReferenceExecutionDefinition
 
 from common import context
 from test_dataset import dataset

@@ -3,9 +3,8 @@ from copy import deepcopy
 
 from parsl.app.app import python_app
 
-from autolearn.execution import ModelExecutionDefinition, Container
-from autolearn.utils import copy_app_future, unpack_i
-
+from flower.execution import ModelExecutionDefinition, Container
+from flower.utils import copy_app_future, unpack_i
 
 
 def safe_return(state, start, tag):

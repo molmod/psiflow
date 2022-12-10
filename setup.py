@@ -2,7 +2,7 @@ import setuptools
 
 
 setuptools.setup(
-        name='autolearn',
+        name='flower',
         version='0.0.1',
         author='Sander Vandenhaute',
         packages=setuptools.find_packages(),

@@ -2,13 +2,13 @@ from dataclasses import dataclass
 
 from parsl.app.app import python_app
 
-from autolearn.execution import ModelExecutionDefinition
-from autolearn.sampling import BaseWalker
+from flower.execution import ModelExecutionDefinition
+from flower.sampling import BaseWalker
 
 
 def random_perturbation(state, parameters):
     import numpy as np
-    from autolearn.sampling.utils import apply_strain
+    from flower.sampling.utils import apply_strain
     np.random.seed(parameters.seed)
     frac = state.positions @ np.linalg.inv(state.cell)
     strain = np.random.uniform(

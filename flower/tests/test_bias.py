@@ -4,10 +4,10 @@ import numpy as np
 
 from ase.build import bulk
 
-from autolearn import Dataset
-from autolearn.models import NequIPModel
-from autolearn.sampling import DynamicWalker, RandomWalker, Ensemble, Bias
-from autolearn.sampling.utils import set_path_hills_plumed, get_bias_plumed
+from flower import Dataset
+from flower.models import NequIPModel
+from flower.sampling import DynamicWalker, RandomWalker, Ensemble, Bias
+from flower.sampling.utils import set_path_hills_plumed, get_bias_plumed
 
 from common import context, nequip_config
 from test_dataset import dataset

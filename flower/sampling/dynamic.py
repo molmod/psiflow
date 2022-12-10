@@ -4,10 +4,9 @@ from dataclasses import dataclass
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from autolearn.execution import ModelExecutionDefinition
-from autolearn.utils import copy_data_future, unpack_i
-from autolearn.sampling import BaseWalker
-#from autolearn.sampling.utils import try_manual_plumed_linking
+from flower.execution import ModelExecutionDefinition
+from flower.utils import copy_data_future, unpack_i
+from flower.sampling import BaseWalker
 
 
 def simulate_model(
@@ -29,7 +28,7 @@ def simulate_model(
     import yaff
     yaff.log.set_level(yaff.log.silent)
     import molmod
-    from autolearn.sampling.utils import ForcePartASE, DataHook, \
+    from flower.sampling.utils import ForcePartASE, DataHook, \
             create_forcefield, ForceThresholdExceededException, \
             try_manual_plumed_linking, set_path_hills_plumed
     if device == 'cpu':

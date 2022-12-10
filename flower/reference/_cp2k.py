@@ -2,9 +2,8 @@ from dataclasses import dataclass
 
 from parsl.app.app import python_app
 
-from autolearn.execution import ReferenceExecutionDefinition
+from flower.execution import ReferenceExecutionDefinition
 from .base import BaseReference
-
 
 
 def insert_filepaths_in_input(cp2k_input, filepaths):
@@ -73,7 +72,7 @@ def cp2k_singlepoint(
     import numpy as np
     from ase.units import Hartree, Bohr
     from pymatgen.io.cp2k.outputs import Cp2kOutput
-    from autolearn.reference._cp2k import insert_filepaths_in_input, \
+    from flower.reference._cp2k import insert_filepaths_in_input, \
             insert_atoms_in_input, set_global_section
 
     command_list = [command]

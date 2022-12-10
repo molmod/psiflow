@@ -16,7 +16,7 @@ from parsl.providers import LocalProvider
 from parsl.executors import ThreadPoolExecutor, HighThroughputExecutor
 from parsl.launchers import SimpleLauncher, SingleNodeLauncher
 
-from autolearn.execution import ExecutionContext, TrainingExecutionDefinition, \
+from flower.execution import ExecutionContext, TrainingExecutionDefinition, \
         ModelExecutionDefinition, ReferenceExecutionDefinition
 
 

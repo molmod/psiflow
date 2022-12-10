@@ -1,11 +1,11 @@
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from autolearn.models.base import evaluate_dataset, _new_deploy, _new_model
-from autolearn.models import BaseModel
-from autolearn.execution import ModelExecutionDefinition, \
+from flower.models.base import evaluate_dataset, _new_deploy, _new_model
+from flower.models import BaseModel
+from flower.execution import ModelExecutionDefinition, \
         TrainingExecutionDefinition
-from autolearn.utils import copy_data_future
+from flower.utils import copy_data_future
 
 
 def get_elements(data):
@@ -47,8 +47,8 @@ def initialize(config, inputs=[], outputs=[]):
     from nequip.scripts.train import default_config
     from nequip.model import model_from_config
 
-    from autolearn.dataset import read_dataset
-    from autolearn.models._nequip import to_nequip_dataset
+    from flower.dataset import read_dataset
+    from flower.models._nequip import to_nequip_dataset
 
     nequip_config = Config.from_dict(
             config,
@@ -146,8 +146,8 @@ def train(device, dtype, nequip_config, inputs=[], outputs=[]):
     from nequip.utils.versions import check_code_version
     from nequip.utils._global_options import _set_global_options
     from nequip.train.trainer import Trainer
-    from autolearn.dataset import read_dataset
-    from autolearn.models._nequip import to_nequip_dataset
+    from flower.dataset import read_dataset
+    from flower.models._nequip import to_nequip_dataset
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 

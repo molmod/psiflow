@@ -1,7 +1,7 @@
 from parsl.app.app import python_app
 
-from autolearn.execution import ReferenceExecutionDefinition
-from autolearn.reference.base import BaseReference
+from flower.execution import ReferenceExecutionDefinition
+from flower.reference.base import BaseReference
 
 
 def evaluate_emt(atoms, parameters, inputs=[], outputs=[]):

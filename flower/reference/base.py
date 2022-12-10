@@ -6,10 +6,10 @@ from parsl.data_provider.files import File
 
 from ase import Atoms
 
-from autolearn.execution import Container, ReferenceExecutionDefinition
-from autolearn.dataset import Dataset, _new_xyz, read_dataset, save_dataset, \
+from flower.execution import Container, ReferenceExecutionDefinition
+from flower.dataset import Dataset, _new_xyz, read_dataset, save_dataset, \
         get_length_dataset
-from autolearn.utils import _new_file
+from flower.utils import _new_file
 
 
 @dataclass

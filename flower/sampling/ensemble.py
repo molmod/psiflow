@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from autolearn import Dataset
+from flower import Dataset
 
 
 class Ensemble:
