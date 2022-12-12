@@ -1,8 +1,6 @@
 from typing import Optional, Callable
 from dataclasses import dataclass
 
-import parsl
-
 
 @dataclass(frozen=True)
 class TrainingExecutionDefinition:
@@ -36,7 +34,6 @@ class ExecutionContext:
         self.executor_labels = [e.label for e in config.executors]
         self.definitions = {}
         self._apps = {}
-        parsl.load(config)
 
     def __getitem__(self, definition_class):
         assert definition_class in self.definitions.keys()

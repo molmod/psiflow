@@ -64,6 +64,7 @@ def cp2k_data():
             'PARAMETER_FILE_NAME': dftd3,
             }
 
+
 @pytest.fixture
 def cp2k_input():
     return """
