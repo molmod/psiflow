@@ -6,8 +6,8 @@ from parsl.data_provider.files import File
 
 from ase import Atoms
 
-from flower.execution import Container, ReferenceExecutionDefinition
-from flower.dataset import Dataset, _new_xyz, read_dataset, save_dataset, \
+from flower.execution import Container
+from flower.dataset import Dataset, read_dataset, save_dataset, \
         get_length_dataset
 from flower.utils import _new_file
 
@@ -29,7 +29,7 @@ class BaseReference(Container):
             data_future = self.context.apps(self.__class__, 'evaluate_multiple')(
                     self.parameters,
                     inputs=[arg.data_future],
-                    outputs=[File(_new_xyz(self.context))],
+                    outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                     ).outputs[0]
             return Dataset(self.context, data_future=data_future)
         else:
@@ -39,7 +39,7 @@ class BaseReference(Container):
                     arg,
                     self.parameters,
                     inputs=[],
-                    outputs=[File(_new_file(self.context))], # for output logs
+                    outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))], # for output logs
                     )
 
     @classmethod

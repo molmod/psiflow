@@ -26,6 +26,12 @@ class ReferenceExecutionDefinition:
     cp2k_exec     : str  = 'cp2k.psmp' # default command for CP2K Reference
 
 
+@dataclass(frozen=True)
+class DefaultExecutionDefinition:
+    executor_label: str  = 'default'
+    walltime      : str  = '00:00:10' # timeout in hh:mm:ss
+
+
 class ExecutionContext:
 
     def __init__(self, config, path):

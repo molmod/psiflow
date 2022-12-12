@@ -78,7 +78,7 @@ class BaseWalker(Container):
                 self.state_future,
                 )
         walker.start_future = copy_app_future(self.start_future)
-        walker.tag_future   = copy_app_future(self.tag_future) # possibly unsafe
+        walker.tag_future   = copy_app_future(self.tag_future)
         walker.parameters   = deepcopy(self.parameters)
         return walker
 

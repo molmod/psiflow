@@ -24,11 +24,11 @@ def get_index_element_mask(numbers, elements, atom_indices):
     return mask
 
 
-def _new_file(context):
+def _new_file(path, prefix, suffix):
     _, name = tempfile.mkstemp(
-            suffix='.txt',
-            prefix='new_',
-            dir=context.path,
+            suffix=suffix,
+            prefix=prefix,
+            dir=path,
             )
     return name
 

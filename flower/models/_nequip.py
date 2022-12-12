@@ -1,11 +1,11 @@
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from flower.models.base import evaluate_dataset, _new_deploy, _new_model
+from flower.models.base import evaluate_dataset
 from flower.models import BaseModel
 from flower.execution import ModelExecutionDefinition, \
         TrainingExecutionDefinition
-from flower.utils import copy_data_future
+from flower.utils import copy_data_future, _new_file
 
 
 def get_elements(data):
@@ -195,7 +195,7 @@ class NequIPModel(BaseModel):
         self.config_future = self.context.apps(NequIPModel, 'initialize')( # to initialized config
                 dict(config),
                 inputs=[dataset.data_future],
-                outputs=[File(_new_model(context))],
+                outputs=[File(_new_file(context.path, 'model_', '.pth'))],
                 )
         self.model_future  = self.config_future.outputs[0] # to undeployed model
         self.deploy_future = None # to deployed model
@@ -204,7 +204,7 @@ class NequIPModel(BaseModel):
         self.deploy_future = self.context.apps(NequIPModel, 'deploy')(
                 self.config_future,
                 inputs=[self.model_future],
-                outputs=[File(_new_deploy(self.context))],
+                outputs=[File(_new_file(self.context.path, 'deployed_', '.pth'))],
                 ).outputs[0]
 
     def train(self, training, validation):
@@ -212,7 +212,7 @@ class NequIPModel(BaseModel):
         self.model_future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
                 self.config_future,
                 inputs=[self.model_future, training.data_future, validation.data_future],
-                outputs=[File(_new_model(self.context))]
+                outputs=[File(_new_file(self.context.path, 'model_', '.pth'))]
                 ).outputs[0]
 
     def save_deployed(self, path_deployed):

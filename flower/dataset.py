@@ -6,8 +6,8 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from flower.execution import ModelExecutionDefinition, Container
-from flower.utils import copy_data_future
+from flower.execution import DefaultExecutionDefinition, Container
+from flower.utils import copy_data_future, _new_file
 
 
 def save_dataset(states, inputs=[], outputs=[]):
@@ -43,15 +43,6 @@ def join_dataset(inputs=[], outputs=[]):
 def get_length_dataset(inputs=[]):
     data = read_dataset(slice(None), inputs=[inputs[0]])
     return len(data)
-
-
-def _new_xyz(context):
-    _, name = tempfile.mkstemp(
-            suffix='.xyz',
-            prefix='data_',
-            dir=context.path,
-            )
-    return name
 
 
 def compute_metrics(
@@ -142,10 +133,11 @@ class Dataset(Container):
                 else:
                     states = atoms_list
                     inputs = []
+            path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
             self.data_future = context.apps(Dataset, 'save_dataset')(
                     states,
                     inputs=inputs,
-                    outputs=[File(str(_new_xyz(context)))],
+                    outputs=[File(path_new)],
                     ).outputs[0]
         else:
             assert len(atoms_list) == 0 # do not allow additional atoms
@@ -163,10 +155,11 @@ class Dataset(Container):
 
     def __getitem__(self, i):
         if isinstance(i, slice):
+            path_new = _new_file(self.context.path, 'data_', '.xyz')
             data_future = self.context.apps(Dataset, 'read_dataset')(
                     index=i,
                     inputs=[self.data_future],
-                    outputs=[File(_new_xyz(self.context))],
+                    outputs=[File(path_new)],
                     ).outputs[0]
             return Dataset(self.context, data_future=data_future)
         else:
@@ -201,23 +194,21 @@ class Dataset(Container):
     def merge(*datasets):
         assert len(datasets) > 0
         context = datasets[0].context
+        path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
         data_future = context.apps(Dataset, 'join_dataset')(
                 inputs=[item.data_future for item in datasets],
-                outputs=[File(_new_xyz(context))],
+                outputs=[File(path_new)],
                 ).outputs[0]
         return Dataset(context, data_future=data_future)
 
     @staticmethod
     def create_apps(context):
-        executor_label = context[ModelExecutionDefinition].executor_label
+        executor_label = context[DefaultExecutionDefinition].executor_label
         app_save_dataset = python_app(save_dataset, executors=[executor_label])
         context.register_app(Dataset, 'save_dataset', app_save_dataset)
 
         app_read_dataset = python_app(read_dataset, executors=[executor_label])
         context.register_app(Dataset, 'read_dataset', app_read_dataset)
-
-        #app_copy_dataset = python_app(copy_file, executors=[executor_label])
-        #context.register_app(Dataset, 'copy_dataset', app_copy_dataset)
 
         app_join_dataset = python_app(join_dataset, executors=[executor_label])
         context.register_app(Dataset, 'join_dataset', app_join_dataset)

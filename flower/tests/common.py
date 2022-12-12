@@ -17,7 +17,8 @@ from parsl.executors import ThreadPoolExecutor, HighThroughputExecutor
 from parsl.launchers import SimpleLauncher, SingleNodeLauncher
 
 from flower.execution import ExecutionContext, TrainingExecutionDefinition, \
-        ModelExecutionDefinition, ReferenceExecutionDefinition
+        ModelExecutionDefinition, ReferenceExecutionDefinition, \
+        DefaultExecutionDefinition
 
 
 @pytest.fixture(scope='module', params=['threadpool', 'htex'])
@@ -25,6 +26,7 @@ def context(request, tmpdir_factory):
     if request.param == 'threadpool':
         executors = [
                 ThreadPoolExecutor(label='gpu', max_threads=1, working_dir=str(tmpdir_factory.mktemp('working_dir'))),
+                ThreadPoolExecutor(label='default', max_threads=1, working_dir=str(tmpdir_factory)),
                 ThreadPoolExecutor(label='cpu_small', max_threads=4, working_dir=str(tmpdir_factory)),
                 ThreadPoolExecutor(label='cpu_large', max_threads=4, working_dir=str(tmpdir_factory)),
                 ]
@@ -38,6 +40,7 @@ def context(request, tmpdir_factory):
             )
         executors = [
                 HighThroughputExecutor(address='localhost', label='gpu', working_dir=str(tmpdir_factory), provider=provider, max_workers=1),
+                HighThroughputExecutor(address='localhost', label='default', working_dir=str(tmpdir_factory), provider=provider, cores_per_worker=1),
                 HighThroughputExecutor(address='localhost', label='cpu_small', working_dir=str(tmpdir_factory), provider=provider),
                 HighThroughputExecutor(address='localhost', label='cpu_large', working_dir=str(tmpdir_factory), provider=provider, max_workers=1, cores_per_worker=4),
                 ]
@@ -45,7 +48,9 @@ def context(request, tmpdir_factory):
         raise ValueError
     config = Config(executors, run_dir=str(tmpdir_factory.mktemp('runinfo')))
     path = tempfile.mkdtemp()
+    parsl.load(config)
     context = ExecutionContext(config, path=path)
+    context.register(DefaultExecutionDefinition())
     model_execution = ModelExecutionDefinition()
     context.register(model_execution)
     context.register(ReferenceExecutionDefinition(ncores=4))

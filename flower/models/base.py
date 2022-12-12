@@ -3,8 +3,8 @@ import tempfile
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from flower.execution import ModelExecutionDefinition, Container
-from flower.dataset import Dataset, _new_xyz
+from flower.execution import Container
+from flower.dataset import Dataset, _new_file
 
 
 def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=[]):
@@ -35,24 +35,6 @@ def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=
         save_dataset(dataset, outputs=[outputs[0]])
 
 
-def _new_deploy(context):
-    _, name = tempfile.mkstemp(
-            suffix='.pth',
-            prefix='model_deployed_',
-            dir=context.path,
-            )
-    return name
-
-
-def _new_model(context):
-    _, name = tempfile.mkstemp(
-            suffix='.pth',
-            prefix='model_',
-            dir=context.path,
-            )
-    return name
-
-
 class BaseModel(Container):
     """Base Container for a trainable interaction potential"""
 
@@ -65,8 +47,9 @@ class BaseModel(Container):
 
     def evaluate(self, dataset):
         """Evaluates a dataset using a model and returns it as a covalent electron"""
+        path_xyz = _new_file(self.context.path, 'data_', '.xyz')
         data_future = self.context.apps(self.__class__, 'evaluate')(
                 inputs=[dataset.data_future, self.deploy_future],
-                outputs=[File(_new_xyz(self.context))],
+                outputs=[File(path_xyz)],
                 ).outputs[0]
         return Dataset(self.context, data_future=data_future)

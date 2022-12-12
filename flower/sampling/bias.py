@@ -84,7 +84,7 @@ class Bias(Container):
         self.plumed_input = plumed_input
 
         if self.kind[0] == 'METAD': # create hills file
-            self.hills_future = File(_new_file(context))
+            self.hills_future = File(_new_file(context.path, 'bias_', '.txt.'))
         else:
             self.hills_future = None
 
@@ -103,7 +103,7 @@ class Bias(Container):
         if bias.hills_future is not None:
             bias.hills_future = copy_data_future(
                     inputs=[bias.hills_future],
-                    outputs=[File(_new_file(self.context))],
+                    outputs=[File(_new_file(self.context.path, 'bias_', '.txt.'))],
                     ).outputs[0]
 
     @property
