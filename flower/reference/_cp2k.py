@@ -133,10 +133,16 @@ def cp2k_singlepoint(
         print('success: {}\treturncode: {}\ttimeout: {}'.format(success, returncode, timeout))
         #print(stdout)
         #print(stderr)
+        if len(outputs) > 0:
+            path_log = outputs[0].filepath
+        else:
+            tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
+            tmp.close()
+            path_log = tmp.name # dummy log file
         if success:
-            with open(outputs[0], 'w') as f:
+            with open(path_log, 'w') as f:
                 f.write(stdout)
-            out = Cp2kOutput(outputs[0].filepath)
+            out = Cp2kOutput(path_log)
             out.parse_energies()
             out.parse_forces()
             out.parse_stresses()
@@ -149,7 +155,7 @@ def cp2k_singlepoint(
             for file in glob.glob('_electron-RESTART.wfn*'):
                 os.remove(file) # include .wfn.bak-
         else:
-            with open(outputs[0], 'w') as f:
+            with open(path_log, 'w') as f:
                 f.write(stdout)
                 f.write(stderr)
             # remove properties keys in atoms if present
