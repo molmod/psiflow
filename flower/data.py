@@ -6,8 +6,50 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+from ase import Atoms
+
 from flower.execution import DefaultExecutionDefinition, Container
 from flower.utils import copy_data_future, _new_file
+
+
+class FlowerAtoms(Atoms):
+    """Wrapper class around ase Atoms with additional attributes for QM logs"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.evaluation_log   = None
+        self.info['evaluation_flag'] = None
+
+    @property
+    def evaluation_flag(self):
+        return self.info['evaluation_flag']
+
+    @evaluation_flag.setter
+    def evaluation_flag(self, flag):
+        assert flag in [None, 'success', 'failed']
+        self.info['evaluation_flag'] = flag
+
+    @classmethod
+    def from_atoms(cls, atoms):
+        flower_atoms = cls(
+                numbers=atoms.numbers,
+                positions=atoms.get_positions(),
+                cell=atoms.get_cell(),
+                pbc=atoms.pbc,
+                )
+        if 'energy' in atoms.info.keys():
+            flower_atoms.info['energy'] = atoms.info['energy']
+        if 'stress' in atoms.info.keys():
+            flower_atoms.info['stress'] = atoms.info['stress']
+        if 'forces' in atoms.arrays.keys():
+            flower_atoms.arrays['forces'] = atoms.arrays['forces']
+        if 'evaluation_flag' in atoms.info.keys():
+            # default ASE value is True; should be converted to None
+            value = atoms.info['evaluation_flag']
+            if value == True:
+                value = None
+            flower_atoms.evaluation_flag = value
+        return flower_atoms
 
 
 def save_dataset(states, inputs=[], outputs=[]):
@@ -22,8 +64,10 @@ def save_dataset(states, inputs=[], outputs=[]):
 
 def read_dataset(index, inputs=[], outputs=[]):
     from ase.io.extxyz import read_extxyz, write_extxyz
+    from flower.data import FlowerAtoms
     with open(inputs[0], 'r' ) as f:
         data = list(read_extxyz(f, index=index))
+    data = [FlowerAtoms.from_atoms(a) for a in data]
     if isinstance(index, int): # unpack list to single Atoms object
         assert len(data) == 1
         data = data[0]
@@ -131,7 +175,7 @@ class Dataset(Container):
                     states = None
                     inputs = atoms_list
                 else:
-                    states = atoms_list
+                    states = [FlowerAtoms.from_atoms(a) for a in atoms_list]
                     inputs = []
             path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
             self.data_future = context.apps(Dataset, 'save_dataset')(

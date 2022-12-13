@@ -10,7 +10,7 @@ from ase.io.extxyz import read_extxyz
 
 from nequip.ase import NequIPCalculator
 
-from flower import Dataset
+from flower.data import Dataset
 from flower.models import NequIPModel
 from flower.execution import ModelExecutionDefinition
 

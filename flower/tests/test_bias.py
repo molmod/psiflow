@@ -4,7 +4,7 @@ import numpy as np
 
 from ase.build import bulk
 
-from flower import Dataset
+from flower.data import Dataset
 from flower.models import NequIPModel
 from flower.sampling import DynamicWalker, RandomWalker, Ensemble, Bias
 from flower.sampling.utils import set_path_hills_plumed, get_bias_plumed

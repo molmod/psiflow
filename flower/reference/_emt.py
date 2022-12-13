@@ -11,6 +11,8 @@ def evaluate_emt(atoms, parameters, inputs=[], outputs=[]):
     atoms.arrays['forces'] = atoms.get_forces()
     atoms.info['stress']   = atoms.get_stress(voigt=False)
     atoms.calc = None
+    atoms.evaluation_log  = ''
+    atoms.evaluation_flag = 'success'
     return atoms
 
 

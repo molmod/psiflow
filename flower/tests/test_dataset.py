@@ -6,7 +6,7 @@ from parsl.app.futures import DataFuture
 from ase import Atoms
 from ase.io.extxyz import write_extxyz
 
-from flower import Dataset
+from flower.data import FlowerAtoms, Dataset
 from flower.utils import get_index_element_mask
 
 from common import context, generate_emt_cu_data
@@ -16,6 +16,14 @@ from common import context, generate_emt_cu_data
 def dataset(context, tmp_path):
     data = generate_emt_cu_data(20)
     return Dataset(context, atoms_list=data)
+
+
+def test_flower_atoms(context, dataset):
+    for i in range(dataset.length().result()):
+        atoms = dataset[i].result()
+        assert isinstance(atoms, FlowerAtoms)
+        assert atoms.evaluation_log is None
+        assert atoms.evaluation_flag is None
 
 
 def test_dataset_empty(context, tmp_path):

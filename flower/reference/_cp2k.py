@@ -46,6 +46,18 @@ def insert_atoms_in_input(cp2k_input, atoms):
     return str(inp)
 
 
+def regularize_input(cp2k_input):
+    """Ensures forces and stress are printed; removes topology/cell info"""
+    from pymatgen.io.cp2k.inputs import Cp2kInput
+    inp = Cp2kInput.from_string(cp2k_input)
+    inp.update({'FORCE_EVAL': {'SUBSYS': {'CELL': {}}}})
+    inp.update({'FORCE_EVAL': {'SUBSYS': {'TOPOLOGY': {}}}})
+    inp.update({'FORCE_EVAL': {'SUBSYS': {'COORD': {}}}})
+    inp.update({'FORCE_EVAL': {'PRINT': {'FORCES': {}}}})
+    inp.update({'FORCE_EVAL': {'PRINT': {'STRESS_TENSOR': {}}}})
+    return str(inp)
+
+
 def set_global_section(cp2k_input):
     from pymatgen.io.cp2k.inputs import Cp2kInput, Global
     inp = Cp2kInput.from_string(cp2k_input)
@@ -87,6 +99,7 @@ def cp2k_singlepoint(
                 parameters.cp2k_input,
                 filepaths,
                 )
+        cp2k_input = regularize_input(cp2k_input) # before insert_atoms_in_input
         cp2k_input = insert_atoms_in_input(
                 cp2k_input,
                 atoms,
@@ -133,16 +146,12 @@ def cp2k_singlepoint(
         print('success: {}\treturncode: {}\ttimeout: {}'.format(success, returncode, timeout))
         #print(stdout)
         #print(stderr)
-        if len(outputs) > 0:
-            path_log = outputs[0].filepath
-        else:
-            tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
-            tmp.close()
-            path_log = tmp.name # dummy log file
+        atoms.evaluation_log = stdout
         if success:
-            with open(path_log, 'w') as f:
-                f.write(stdout)
-            out = Cp2kOutput(path_log)
+            atoms.evaluation_flag = 'success'
+            with tempfile.NamedTemporaryFile(delete=False, mode='w+') as tmp:
+                tmp.write(atoms.evaluation_log)
+            out = Cp2kOutput(tmp.name)
             out.parse_energies()
             out.parse_forces()
             out.parse_stresses()
@@ -155,9 +164,8 @@ def cp2k_singlepoint(
             for file in glob.glob('_electron-RESTART.wfn*'):
                 os.remove(file) # include .wfn.bak-
         else:
-            with open(path_log, 'w') as f:
-                f.write(stdout)
-                f.write(stderr)
+            atoms.evaluation_flag = 'failed'
+            atoms.evaluation_log += '\n\n STDERR\n' + stderr
             # remove properties keys in atoms if present
             atoms.info.pop('energy', None)
             atoms.info.pop('stress', None)
@@ -218,13 +226,14 @@ class CP2KReference(BaseReference):
                 executors=[executor_label],
                 )
         def singlepoint_wrapped(atoms, parameters, inputs=[], outputs=[]):
+            assert len(outputs) == 0
             return singlepoint_unwrapped(
                     atoms=atoms,
                     parameters=parameters,
                     command=command,
                     walltime=_walltime,
                     inputs=inputs,
-                    outputs=outputs,
+                    outputs=[],
                     )
         context.register_app(cls, 'evaluate_single', singlepoint_wrapped)
         super(CP2KReference, cls).create_apps(context)

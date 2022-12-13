@@ -10,10 +10,11 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 
 from ase import Atoms
 
+from flower.data import FlowerAtoms
 from flower.reference import EMTReference, CP2KReference
 from flower.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
-from flower.dataset import Dataset
+from flower.data import Dataset
 from flower.execution import ReferenceExecutionDefinition
 
 from common import context
@@ -124,12 +125,12 @@ def cp2k_input():
          POTENTIAL GTH-PBE-q1
       &END KIND
    &END SUBSYS
-   &PRINT
-      &STRESS_TENSOR ON
-      &END STRESS_TENSOR
-      &FORCES
-      &END FORCES
-   &END PRINT
+!   &PRINT
+!      &STRESS_TENSOR ON
+!      &END STRESS_TENSOR
+!      &FORCES
+!      &END FORCES
+!   &END PRINT
 &END FORCE_EVAL
 """
 
@@ -138,12 +139,18 @@ def test_reference_emt(context, dataset):
     reference = EMTReference(context)
     atoms = reference.evaluate(dataset[0])
     assert isinstance(atoms, AppFuture)
-    assert isinstance(atoms.result(), Atoms)
+    assert isinstance(atoms.result(), FlowerAtoms)
+    assert atoms.result().info['evaluation_flag'] == 'success'
+    assert atoms.result().evaluation_log == ''
 
-    evaluated = reference.evaluate(dataset)
-    assert isinstance(evaluated, Dataset)
-    assert isinstance(evaluated.data_future, DataFuture)
-    assert evaluated.length().result() == dataset.length().result()
+    #evaluated = reference.evaluate(dataset)
+    #evaluated.length().result()
+    #assert isinstance(evaluated, Dataset)
+    #assert isinstance(evaluated.data_future, DataFuture)
+    #assert evaluated.length().result() == dataset.length().result()
+    #for i in range(evaluated.length().result()):
+    #    assert evaluated[i].result().evaluation_flag == 'success'
+    #    assert evaluated[i].result().evaluation_log is None # not retained with batch eval!
 
 
 def test_cp2k_insert_filepaths(fake_cp2k_input):
@@ -188,7 +195,7 @@ def test_cp2k_insert_filepaths(fake_cp2k_input):
 
 
 def test_cp2k_insert_atoms(tmp_path, fake_cp2k_input):
-    atoms = Atoms(numbers=np.ones(3), cell=np.eye(3), positions=np.eye(3), pbc=True)
+    atoms = FlowerAtoms(numbers=np.ones(3), cell=np.eye(3), positions=np.eye(3), pbc=True)
     sample = Cp2kInput.from_string(insert_atoms_in_input(fake_cp2k_input, atoms))
     assert 'COORD' in sample['FORCE_EVAL']['SUBSYS'].subsections.keys()
     assert 'CELL' in sample['FORCE_EVAL']['SUBSYS'].subsections.keys()
@@ -198,7 +205,7 @@ def test_cp2k_insert_atoms(tmp_path, fake_cp2k_input):
 
 def test_cp2k_success(context, cp2k_input, cp2k_data):
     reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
-    atoms = Atoms( # simple H2 at ~optimized interatomic distance
+    atoms = FlowerAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=5 * np.eye(3),
             positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
@@ -206,12 +213,11 @@ def test_cp2k_success(context, cp2k_input, cp2k_data):
             )
     evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
-    assert isinstance(evaluated.outputs[0], DataFuture)
+    assert evaluated.result().evaluation_flag == 'success'
     #evaluated.result()
     assert 'energy' in evaluated.result().info.keys()
     assert 'stress' in evaluated.result().info.keys()
     assert 'forces' in evaluated.result().arrays.keys()
-    assert os.path.isfile(evaluated.outputs[0].filepath)
     assert np.allclose(
             -1.165271084838365 / molmod.units.electronvolt,
             evaluated.result().info['energy'],
@@ -229,9 +235,8 @@ def test_cp2k_success(context, cp2k_input, cp2k_data):
     assert np.allclose(stress_reference, evaluated.result().info['stress'])
 
     # check number of mpi processes
+    content = evaluated.result().evaluation_log
     ncores = context[ReferenceExecutionDefinition].ncores
-    with open(evaluated.outputs[0].filepath, 'r') as f:
-        content = f.read()
     lines = content.split('\n')
     for line in lines:
         if 'Total number of message passing processes' in line:
@@ -310,7 +315,7 @@ def test_cp2k_failure(context, cp2k_data):
 &END FORCE_EVAL
 """ # incorrect input file
     reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
-    atoms = Atoms( # simple H2 at ~optimized interatomic distance
+    atoms = FlowerAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=5 * np.eye(3),
             positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
@@ -318,19 +323,16 @@ def test_cp2k_failure(context, cp2k_data):
             )
     evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
-    assert isinstance(evaluated.outputs[0], DataFuture)
-    #evaluated.result()
+    assert evaluated.result().evaluation_flag == 'failed'
     assert 'energy' not in evaluated.result().info.keys()
-    assert os.path.isfile(evaluated.outputs[0].filepath)
-    with open(evaluated.outputs[0].filepath, 'r') as f:
-        content = f.read()
-        assert 'ABORT' in content # verify error is captured
-        assert 'requested basis set' in content
+    log = evaluated.result().evaluation_log
+    assert 'ABORT' in log # verify error is captured
+    assert 'requested basis set' in log
 
 
 def test_cp2k_timeout(context, cp2k_data, cp2k_input):
     reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
-    atoms = Atoms( # simple H2 at ~optimized interatomic distance
+    atoms = FlowerAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=20 * np.eye(3), # box way too large
             positions=np.array([[0, 0, 0], [3, 0, 0]]),
@@ -338,5 +340,5 @@ def test_cp2k_timeout(context, cp2k_data, cp2k_input):
             )
     evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
-    assert isinstance(evaluated.outputs[0], DataFuture)
+    assert evaluated.result().evaluation_flag == 'failed'
     assert 'energy' not in evaluated.result().info.keys()

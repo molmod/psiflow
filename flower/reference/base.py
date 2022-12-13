@@ -7,7 +7,7 @@ from parsl.data_provider.files import File
 from ase import Atoms
 
 from flower.execution import Container
-from flower.dataset import Dataset, read_dataset, save_dataset, \
+from flower.data import FlowerAtoms, Dataset, read_dataset, save_dataset, \
         get_length_dataset
 from flower.utils import _new_file
 
@@ -34,12 +34,13 @@ class BaseReference(Container):
             return Dataset(self.context, data_future=data_future)
         else:
             # should be either atoms or AppFuture of atoms instance
-            assert (isinstance(arg, Atoms) or isinstance(arg, AppFuture))
+            assert (isinstance(arg, FlowerAtoms) or isinstance(arg, AppFuture))
+            assert not type(arg) == Atoms
             return self.context.apps(self.__class__, 'evaluate_single')(
                     arg,
                     self.parameters,
                     inputs=[],
-                    outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))], # for output logs
+                    outputs=[],
                     )
 
     @classmethod
@@ -49,6 +50,7 @@ class BaseReference(Container):
         app_save_dataset   = context.apps(Dataset, 'save_dataset')
 
         def evaluate_multiple(parameters, inputs=[], outputs=[]):
+            assert len(outputs) == 1
             data = []
             nstates = app_length_dataset(inputs=[inputs[0]])
             for i in range(nstates.result()):
@@ -58,6 +60,8 @@ class BaseReference(Container):
                     inputs=[],
                     outputs=[],
                     ))
+            for i in range(nstates.result()):
+                print(data[i].result().info['evaluation_flag'])
             return app_save_dataset(states=None, inputs=data, outputs=[outputs[0]])
         app_evaluate_multiple = join_app(evaluate_multiple)
         context.register_app(cls, 'evaluate_multiple', app_evaluate_multiple)
