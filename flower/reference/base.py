@@ -33,9 +33,9 @@ class BaseReference(Container):
                     ).outputs[0]
             return Dataset(self.context, data_future=data_future)
         else:
-            # should be either atoms or AppFuture of atoms instance
+            if type(arg) == Atoms: # convert to FlowerAtoms
+                arg = FlowerAtoms.from_atoms(arg)
             assert (isinstance(arg, FlowerAtoms) or isinstance(arg, AppFuture))
-            assert not type(arg) == Atoms
             return self.context.apps(self.__class__, 'evaluate_single')(
                     arg,
                     self.parameters,
