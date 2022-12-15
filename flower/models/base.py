@@ -4,7 +4,7 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
 from flower.execution import Container
-from flower.dataset import Dataset, _new_file
+from flower.data import Dataset, _new_file
 
 
 def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=[]):
