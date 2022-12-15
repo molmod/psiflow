@@ -98,7 +98,7 @@ def compute_metrics(
         inputs=[],
         ):
     import numpy as np
-    from flower.dataset import read_dataset
+    from flower.data import read_dataset
     from flower.utils import get_index_element_mask
     data = read_dataset(slice(None), inputs=[inputs[0]])
     errors = np.zeros((len(data), len(properties)))

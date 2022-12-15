@@ -10,7 +10,7 @@ from flower.data import Dataset, _new_file
 def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=[]):
     import torch
     import numpy as np
-    from flower.dataset import read_dataset, save_dataset
+    from flower.data import read_dataset, save_dataset
     if device == 'cpu':
         torch.set_num_threads(ncores)
     dataset = read_dataset(slice(None), inputs=[inputs[0]])

@@ -47,7 +47,7 @@ def initialize(config, inputs=[], outputs=[]):
     from nequip.scripts.train import default_config
     from nequip.model import model_from_config
 
-    from flower.dataset import read_dataset
+    from flower.data import read_dataset
     from flower.models._nequip import to_nequip_dataset
 
     nequip_config = Config.from_dict(
@@ -146,7 +146,7 @@ def train(device, dtype, nequip_config, inputs=[], outputs=[]):
     from nequip.utils.versions import check_code_version
     from nequip.utils._global_options import _set_global_options
     from nequip.train.trainer import Trainer
-    from flower.dataset import read_dataset
+    from flower.data import read_dataset
     from flower.models._nequip import to_nequip_dataset
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

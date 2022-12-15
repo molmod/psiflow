@@ -23,7 +23,7 @@ def evaluate_bias(plumed_input, kind, inputs=[]):
     from flower.sampling.utils import ForcePartASE, create_forcefield, \
             ForceThresholdExceededException, try_manual_plumed_linking, \
             set_path_hills_plumed
-    from flower.dataset import read_dataset
+    from flower.data import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     values = np.zeros((len(dataset), 2)) # column 0 for CV, 1 for bias
     system = yaff.System(
