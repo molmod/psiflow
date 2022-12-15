@@ -192,8 +192,16 @@ class NequIPModel(BaseModel):
     def __init__(self, context, config, dataset):
         super().__init__(context)
 
+        config = dict(config)
+        config['dataset_include_keys'] = ['total_energy', 'forces', 'virial']
+        config['dataset_key_mapping'] = {
+                'energy': 'total_energy',
+                'forces': 'forces',
+                'stress': 'virial',
+                }
+
         self.config_future = self.context.apps(NequIPModel, 'initialize')( # to initialized config
-                dict(config),
+                config,
                 inputs=[dataset.data_future],
                 outputs=[File(_new_file(context.path, 'model_', '.pth'))],
                 )

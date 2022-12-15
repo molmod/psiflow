@@ -37,12 +37,15 @@ class FlowerAtoms(Atoms):
                 cell=atoms.get_cell(),
                 pbc=atoms.pbc,
                 )
-        if 'energy' in atoms.info.keys():
-            flower_atoms.info['energy'] = atoms.info['energy']
-        if 'stress' in atoms.info.keys():
-            flower_atoms.info['stress'] = atoms.info['stress']
-        if 'forces' in atoms.arrays.keys():
-            flower_atoms.arrays['forces'] = atoms.arrays['forces']
+        info_keys = ['energy', 'energy_model', 'stress', 'stress_model']
+        for key in info_keys:
+            if key in atoms.info.keys():
+                flower_atoms.info[key] = atoms.info[key]
+        arrays_keys = ['forces', 'forces_model']
+        for key in arrays_keys:
+            if key in atoms.arrays.keys():
+                flower_atoms.arrays[key] = atoms.arrays[key]
+
         if 'evaluation_flag' in atoms.info.keys():
             # default ASE value is True; should be converted to None
             value = atoms.info['evaluation_flag']
