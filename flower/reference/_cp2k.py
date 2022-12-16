@@ -110,8 +110,6 @@ def cp2k_singlepoint(
             f.write(cp2k_input)
         command_list.append(' -i {}'.format(path_input))
         os.environ['OMP_NUM_THREADS'] = '1'
-        #for key, value in os.environ.items():
-        #    print(key, value)
         try:
             result = subprocess.run(
                     shlex.split(' '.join(command_list)), # proper splitting
@@ -134,18 +132,14 @@ def cp2k_singlepoint(
             success = False
             #print(e)
         except parsl.app.errors.AppTimeout as e: # subprocess.TimeoutExpired
-            #print(e)
             #stdout = e.stdout.decode('utf-8') # no result variable in this case
             #stderr = e.stderr
             stdout = ''
-            stderr = ''
+            stderr = 'subprocess walltime ({}s) reached'.format(walltime)
             timeout = True
             returncode = 1
             success = False
-            #print(e)
         print('success: {}\treturncode: {}\ttimeout: {}'.format(success, returncode, timeout))
-        #print(stdout)
-        #print(stderr)
         atoms.evaluation_log = stdout
         if success:
             atoms.evaluation_flag = 'success'

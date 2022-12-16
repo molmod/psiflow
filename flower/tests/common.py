@@ -66,12 +66,6 @@ def nequip_config(tmp_path):
     config = yaml.load(config_text, Loader=yaml.FullLoader)
     config['r_max'] = 3.5 # reduce computational cost of data processing
     config['chemical_symbols'] = ['X'] # should get overridden
-    #config['dataset_include_keys'] = ['total_energy', 'forces', 'virial']
-    #config['dataset_key_mapping'] = {
-    #        'energy': 'total_energy',
-    #        'forces': 'forces',
-    #        'stress': 'virial',
-    #        }
     return config
 
 

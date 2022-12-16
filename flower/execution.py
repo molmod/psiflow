@@ -1,5 +1,6 @@
 from typing import Optional, Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -22,7 +23,7 @@ class ReferenceExecutionDefinition:
     executor_label: str  = 'cpu_large'
     ncores        : int  = 1
     walltime      : str  = '00:00:10' # timeout in hh:mm:ss
-    mpi_command   : Optional[Callable] = lambda x: f'mpirun -np {x} '
+    mpi_command   : Optional[Callable] = lambda x: f'mpirun -np {x} --oversubscribe'
     cp2k_exec     : str  = 'cp2k.psmp' # default command for CP2K Reference
 
 
@@ -36,7 +37,8 @@ class ExecutionContext:
 
     def __init__(self, config, path):
         self.config = config
-        self.path   = path
+        Path.mkdir(Path(path), parents=True, exist_ok=True)
+        self.path = path
         self.executor_labels = [e.label for e in config.executors]
         self.definitions = {}
         self._apps = {}
