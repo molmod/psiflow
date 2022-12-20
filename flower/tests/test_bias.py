@@ -7,9 +7,9 @@ from ase.build import bulk
 
 from flower.data import Dataset
 from flower.models import NequIPModel
-from flower.sampling import DynamicWalker, RandomWalker, Ensemble, create_bias
+from flower.sampling import DynamicWalker, RandomWalker, Ensemble, PlumedBias
 from flower.sampling.bias import set_path_in_plumed, parse_plumed_input, \
-        PlumedBias, MetadynamicsBias, ExternalBias, generate_external_grid
+        generate_external_grid
 
 from common import context, nequip_config
 from test_dataset import dataset
@@ -33,7 +33,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=/tmp/my_input sdld
 PRINT ARG=CV,metad.bias STRIDE=10 FILE=COLVAR
 FLUSH STRIDE=10
 """
-    assert parse_plumed_input(plumed_input) == ('METAD', 'CV')
+    assert parse_plumed_input(plumed_input)[0] == ('METAD', 'CV')
 
 
 def test_dynamic_walker_bias(context, nequip_config, dataset):
@@ -56,10 +56,8 @@ UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
 """
-    bias = create_bias(context, plumed_input, path_data=None)
-    assert type(bias) == PlumedBias
-    assert bias.keyword == 'RESTRAINT'
-    assert bias.cv == 'CV'
+    bias = PlumedBias(context, plumed_input)
+    assert bias.components[0] == ('RESTRAINT', 'CV')
     walker.propagate(model=model, bias=bias)
     assert walker.tag_future.result() == 'safe'
     assert not np.allclose(
@@ -70,12 +68,13 @@ restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
+restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 """ # RESTART automatically added in input if not present
-    bias = create_bias(context, plumed_input)
-    assert type(bias) == MetadynamicsBias
-    assert bias.keyword == 'METAD'
-    assert bias.cv == 'CV'
+    bias = PlumedBias(context, plumed_input)
+    assert ('METAD', 'CV') in bias.components
+    assert ('RESTRAINT', 'CV') in bias.components
+    assert bias.keys[0] == 'METAD'
     kwargs = {
             'timestep'           : 1,
             'steps'              : 10,
@@ -86,15 +85,36 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             'pressure'           : None,
             }
     walker.propagate(model=model, bias=bias)
-    assert bias.data_future is not None
 
-    with open(bias.data_future.result(), 'r') as f:
+    with open(bias.data_futures['METAD'].result(), 'r') as f:
         single_length = len(f.read().split('\n'))
     assert walker.tag_future.result() == 'safe'
     walker.propagate(model=model, bias=bias)
-    with open(bias.data_future.result(), 'r') as f:
+    with open(bias.data_futures['METAD'].result(), 'r') as f:
         double_length = len(f.read().split('\n'))
     assert double_length == 2 * single_length - 1 # twice as many gaussians
+
+    # double check MTD gives correct nonzero positive contribution
+    values = bias.evaluate(dataset).result()
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=2 LABEL=metad FILE=test_hills
+""" # RESTART automatically added in input if not present
+    bias_mtd = PlumedBias(context, plumed_input, data={'METAD': bias.data_futures['METAD']})
+    values_mtd = bias_mtd.evaluate(dataset).result()
+    assert np.allclose(
+            values[:, 0],
+            values_mtd[:, 0],
+            )
+    assert np.any(values_mtd[:, 1] >  0)
+    assert np.all(values_mtd[:, 1] >= 0)
+    total  = values[:, 1]
+    manual = values_mtd[:, 1] + 0.5 * (values[:, 0] - 150) ** 2
+    assert np.allclose(
+            total,
+            manual,
+            )
 
 
 def test_bias_evaluate(context, dataset):
@@ -111,11 +131,12 @@ def test_bias_evaluate(context, dataset):
 RESTART
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
-METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 FLUSH STRIDE=1
 """
-    bias = create_bias(context, plumed_input, path_data=None)
-    assert type(bias) == MetadynamicsBias
+    bias = PlumedBias(context, plumed_input)
+    assert len(bias.components) == 1
+    assert tuple(bias.keys) == ('METAD',)
     values = bias.evaluate(dataset).result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
@@ -128,7 +149,6 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 """
     bias = PlumedBias(context, plumed_input)
-    assert type(bias) == PlumedBias
     values = bias.evaluate(dataset).result()
     assert np.allclose(
             values[:, 1],
@@ -145,11 +165,27 @@ external: EXTERNAL ARG=CV FILE=test_grid
     bias_function = lambda x: np.exp(-0.01 * (x - 150) ** 2)
     cv = np.linspace(0, 300, 500)
     grid = generate_external_grid(bias_function, cv, 'CV', periodic=False)
-    bias = create_bias(context, plumed_input, path_data=None, data=grid)
-    assert type(bias) == ExternalBias
+    data = {'EXTERNAL': grid}
+    bias = PlumedBias(context, plumed_input, data)
     values = bias.evaluate(dataset).result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(bias_function(values[:, 0]), values[:, 1])
 
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+external: EXTERNAL ARG=CV FILE=test_grid
+RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
+"""
+    bias = PlumedBias(context, plumed_input, data)
+    assert len(bias.components) == 3
+    assert bias.keys[0] == 'METAD' # in front
+    values = bias.evaluate(dataset).result()
+    for i in range(dataset.length().result()):
+        volume = np.linalg.det(dataset[i].result().cell)
+        assert np.allclose(volume, values[i, 0])
+    reference = bias_function(values[:, 0]) + 0.5 * (values[:, 0] - 150) ** 2
+    assert np.allclose(reference, values[:, 1])

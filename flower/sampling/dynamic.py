@@ -47,8 +47,7 @@ def simulate_model(
     hooks.append(datahook)
     if len(plumed_input) > 0: # add bias if present
         try_manual_plumed_linking()
-        if len(inputs) > 1:
-            assert len(outputs) == 1
+        if len(inputs) > 1: # item 1 is hills file; only one to backup
             with open(inputs[1], 'r') as f:
                 backup_data = f.read() # backup data
         with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
@@ -158,8 +157,8 @@ class DynamicWalker(BaseWalker):
             outputs = []
             if bias is not None:
                 plumed_input = bias.prepare_input()
-                inputs.append(bias.data_future)
-                outputs.append(File(bias.data_future.filepath))
+                inputs += list(bias.data_futures.values())
+                outputs += [File(f.filepath) for f in bias.data_futures.values()]
             else:
                 plumed_input = ''
             result = app_propagate(
@@ -173,8 +172,9 @@ class DynamicWalker(BaseWalker):
                     inputs=inputs,
                     outputs=outputs,
                     )
-            if bias is not None: # check tag and reset hills if necessary
-                bias.data_future = result.outputs[0]
+            if bias is not None: # ensure dependency on new hills is set
+                if 'METAD' in bias.keys:
+                    bias.data_futures['METAD'] = result.outputs[0]
             return result
 
         context.register_app(cls, 'propagate', propagate_wrapped)

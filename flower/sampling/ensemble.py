@@ -6,14 +6,22 @@ from flower.data import Dataset
 class Ensemble:
     """Wraps a set of walkers"""
 
-    def __init__(self, context, walkers):
+    def __init__(self, context, walkers, biases=[], global_bias=None):
         self.context = context
         self.walkers = walkers
+        if len(biases) > 0:
+            assert len(biases) == len(walkers)
+        else:
+            biases = [None] * len(walkers)
+        self.biases = biases
+        self.global_bias = global_bias
 
     def propagate(self, safe_return=False, **kwargs):
+        iterator = zip(self.walkers, self.biases)
+        atoms_list = [w.propagate(safe_return, bias=b, **kwargs) for w, b in iterator]
         return Dataset(
                 self.context,
-                atoms_list=[w.propagate(safe_return, **kwargs) for w in self.walkers],
+                atoms_list=atoms_list,
                 )
 
     @property
