@@ -4,16 +4,69 @@ import yaff
 import molmod
 import numpy as np
 
-from parsl.app.app import python_app
+from parsl.app.app import python_app, join_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 from flower.execution import Container, ModelExecutionDefinition
 from flower.utils import _new_file, copy_data_future
-from flower.sampling.utils import set_path_hills_plumed, get_bias_plumed
 
 
+def try_manual_plumed_linking():
+    if 'PLUMED_KERNEL' not in os.environ.keys():
+        # try linking manually
+        if 'CONDA_PREFIX' in os.environ.keys(): # for conda environments
+            p = 'CONDA_PREFIX'
+        elif 'PREFIX' in os.environ.keys(): # for pip environments
+            p = 'PREFIX'
+        else:
+            print('failed to set plumed .so kernel')
+            pass
+        path = os.environ[p] + '/lib/libplumedKernel.so'
+        if os.path.exists(path):
+            os.environ['PLUMED_KERNEL'] = path
+            print('plumed kernel manually set at at : {}'.format(path))
 
-def evaluate_bias(plumed_input, kind, inputs=[]):
+
+def set_path_in_plumed(plumed_input, keyword, path_to_set):
+    lines = plumed_input.split('\n')
+    for i, line in enumerate(lines):
+        if keyword in line.split():
+            line_before = line.split('FILE=')[0]
+            line_after  = line.split('FILE=')[1].split()[1:]
+            lines[i] = line_before + 'FILE={} '.format(path_to_set) + ' '.join(line_after)
+    return '\n'.join(lines)
+
+
+def parse_plumed_input(plumed_input):
+    allowed_keywords = ['METAD', 'RESTRAINT', 'EXTERNAL', 'UPPER_WALLS']
+    found = False
+    for key in allowed_keywords:
+        lines = plumed_input.split('\n')
+        for i, line in enumerate(lines):
+            if key in line.split():
+                assert not found
+                cv = line.split('ARG=')[1].split()[0]
+                #label = line.split('LABEL=')[1].split()[0]
+                bias = (key, cv)
+                found = True
+    return bias
+
+
+def generate_external_grid(bias_function, cv, cv_label, periodic=False):
+    _periodic = 'false' if not periodic else 'true'
+    grid = ''
+    grid += '#! FIELDS {} external.bias der_{}\n'.format(cv_label, cv_label)
+    grid += '#! SET min_{} {}\n'.format(cv_label, np.min(cv))
+    grid += '#! SET max_{} {}\n'.format(cv_label, np.max(cv))
+    grid += '#! SET nbins_{} {}\n'.format(cv_label, len(cv))
+    grid += '#! SET periodic_{} {}\n'.format(cv_label, _periodic)
+    for i in range(len(cv)):
+        grid += '{} {} {}\n'.format(cv[i], bias_function(cv[i]), 0)
+    return grid
+
+
+def evaluate_bias(plumed_input, keyword, cv, inputs=[]):
     import tempfile
     import os
     import numpy as np
@@ -21,8 +74,8 @@ def evaluate_bias(plumed_input, kind, inputs=[]):
     yaff.log.set_level(yaff.log.silent)
     import molmod
     from flower.sampling.utils import ForcePartASE, create_forcefield, \
-            ForceThresholdExceededException, try_manual_plumed_linking, \
-            set_path_hills_plumed
+            ForceThresholdExceededException
+    from flower.sampling.bias import try_manual_plumed_linking
     from flower.data import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     values = np.zeros((len(dataset), 2)) # column 0 for CV, 1 for bias
@@ -32,20 +85,11 @@ def evaluate_bias(plumed_input, kind, inputs=[]):
             rvecs=dataset[0].get_cell() * molmod.units.angstrom,
             )
     try_manual_plumed_linking()
-    if len(inputs) == 2:
-        path_hills = inputs[1]
-        plumed_input = 'RESTART\n' + plumed_input # ensures hills are read
-    else:
-        path_hills = None
-    if path_hills is not None: # path to hills
-        plumed_input = set_path_hills_plumed(plumed_input, path_hills)
     tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
     tmp.close()
-    colvar = tmp.name # dummy log file
-    #arg = kind[1] + ',' + kind[2] + '.bias'
-    arg = kind[1]
-    plumed_input += '\nFLUSH STRIDe=1' # has to come before PRINT?!
-    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(arg, colvar)
+    colvar_log = tmp.name # dummy log file
+    plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
+    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(cv, colvar_log)
     with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
         f.write(plumed_input) # write input
         path_input = f.name
@@ -67,51 +111,104 @@ def evaluate_bias(plumed_input, kind, inputs=[]):
         values[i, 1] = ff.compute() / molmod.units.kjmol
         part_plumed.plumed.cmd('update')
     part_plumed.plumed.cmd('update') # flush last
-    values[:, 0] = np.loadtxt(colvar)[:, 1]
+    values[:, 0] = np.loadtxt(colvar_log)[:, 1]
     os.unlink(plumedlog)
-    os.unlink(colvar)
+    os.unlink(colvar_log)
     os.unlink(path_input)
     return values
 
 
-class Bias(Container):
+class PlumedBias(Container):
     """Represents a PLUMED bias potential"""
 
-    def __init__(self, context, plumed_input):
+    def __init__(self, context, plumed_input, data_future=None):
         super().__init__(context)
-
         assert 'PRINT' not in plumed_input
         self.plumed_input = plumed_input
-
-        if self.kind[0] == 'METAD': # create hills file
-            self.hills_future = File(_new_file(context.path, 'bias_', '.txt.'))
+        self.keyword, self.cv = parse_plumed_input(plumed_input)
+        if data_future is None:
+            self.data_future = File(_new_file(context.path, 'bias_', '.txt'))
         else:
-            self.hills_future = None
+            assert (isinstance(data_future, DataFuture) or isinstance(data_future, File))
+            self.data_future = data_future
 
     def evaluate(self, dataset):
-        inputs = [dataset.data_future]
-        if self.hills_future is not None:
-            inputs.append(self.hills_future)
-        return self.context.apps(Bias, 'evaluate')(
-                self.plumed_input,
-                self.kind,
-                inputs=inputs,
+        plumed_input = self.prepare_input()
+        return self.context.apps(PlumedBias, 'evaluate')(
+                plumed_input,
+                self.keyword,
+                self.cv,
+                inputs=[dataset.data_future, self.data_future],
                 )
 
-    def copy(self):
-        bias = Bias(self.context, self.plumed_input)
-        if bias.hills_future is not None:
-            bias.hills_future = copy_data_future(
-                    inputs=[bias.hills_future],
-                    outputs=[File(_new_file(self.context.path, 'bias_', '.txt.'))],
-                    ).outputs[0]
+    def prepare_input(self):
+        return self.plumed_input
 
-    @property
-    def kind(self):
-        return get_bias_plumed(self.plumed_input)
+    def copy(self):
+        return PlumedBias(
+                self.context,
+                self.plumed_input,
+                data_future=copy_data_future(
+                    inputs=[self.data_future],
+                    outputs=[File(_new_file(self.context.path, 'bias_', '.txt'))],
+                    ).outputs[0]
+                )
 
     @classmethod
     def create_apps(cls, context):
         executor_label = context[ModelExecutionDefinition].executor_label
         app_evaluate = python_app(evaluate_bias, executors=[executor_label])
         context.register_app(cls, 'evaluate', app_evaluate)
+
+
+class MetadynamicsBias(PlumedBias):
+
+    def __init__(self, context, plumed_input, data_future=None):
+        super().__init__(context, plumed_input, data_future)
+        assert self.keyword == 'METAD'
+
+    def prepare_input(self):
+        plumed_input = str(self.plumed_input)
+        plumed_input = set_path_in_plumed(plumed_input, 'METAD', self.data_future.filepath)
+        plumed_input = 'RESTART\n' + plumed_input
+        plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
+        return plumed_input
+
+
+class ExternalBias(PlumedBias):
+
+    def __init__(self, context, plumed_input, data_future=None):
+        super().__init__(context, plumed_input, data_future)
+        assert self.keyword == 'EXTERNAL'
+
+    def prepare_input(self):
+        plumed_input = str(self.plumed_input)
+        plumed_input = set_path_in_plumed(plumed_input, 'EXTERNAL', self.data_future.filepath)
+        print(plumed_input)
+        with open(self.data_future.filepath, 'r') as f:
+            print(f.read())
+        return plumed_input
+
+
+def create_bias(context, plumed_input, path_data=None, data=None):
+    keyword, cv = parse_plumed_input(plumed_input)
+    if isinstance(path_data, str):
+        assert data is None
+        assert os.path.exists(path_data)
+        data_future = File(path_data) # convert to File before passing it as future
+    elif isinstance(data, str):
+        assert path_data is None
+        path_data = _new_file(context.path, 'bias_', '.txt')
+        with open(path_data, 'w') as f:
+            f.write(data)
+        data_future = File(path_data)
+    else:
+        data_future = None
+    if (keyword == 'RESTRAINT' or keyword == 'UPPER_WALLS'):
+        return PlumedBias(context, plumed_input)
+    elif keyword == 'METAD':
+        return MetadynamicsBias(context, plumed_input, data_future=data_future)
+    elif keyword == 'EXTERNAL':
+        return ExternalBias(context, plumed_input, data_future=data_future)
+    else:
+        raise ValueError('plumed keyword {} unrecognized'.format(keyword))
