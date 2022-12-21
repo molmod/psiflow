@@ -1,4 +1,5 @@
 import pytest
+import torch
 import numpy as np
 from parsl.dataflow.futures import AppFuture
 
@@ -6,7 +7,7 @@ from ase import Atoms
 
 from flower.models import NequIPModel
 from flower.sampling import BaseWalker, Ensemble, RandomWalker, \
-        DynamicWalker
+        DynamicWalker, OptimizationWalker
 
 from common import context, nequip_config
 from test_dataset import dataset
@@ -68,8 +69,13 @@ def test_dynamic_walker(context, dataset, nequip_config):
     walker = DynamicWalker(context, dataset[0], steps=10, step=1)
     model = NequIPModel(context, nequip_config, dataset[:3])
     model.deploy()
-    state = walker.propagate(model=model)
-    #assert walker.tag.result() == 'safe'
+    state, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    assert trajectory.length().result() == 11
+    assert np.allclose(
+            trajectory[0].result().get_positions(), # initial structure
+            walker.start_future.result().get_positions(),
+            )
+    assert walker.tag_future.result() == 'safe'
     assert not np.allclose(
             walker.start_future.result().get_positions(),
             state.result().get_positions(),
@@ -79,3 +85,20 @@ def test_dynamic_walker(context, dataset, nequip_config):
     walker.parameters.step            = 1
     state = walker.propagate(model=model)
     assert walker.tag_future.result() == 'unsafe' # raised ForceExceededException
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')
+def test_optimization(context, dataset, nequip_config):
+    training = dataset[:15]
+    validate = dataset[15:]
+    model = NequIPModel(context, nequip_config, training)
+    model.train(training, validate)
+    model.deploy()
+
+    walker = OptimizationWalker(context, dataset[0], optimize_cell=False, fmax=1e-1)
+    final = walker.propagate(model=model)
+    assert np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.5)
+    assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.05) # they have to have moved
+    walker.parameters.fmax = 1e-3
+    final_ = walker.propagate(model=model)
+    assert np.all(np.abs(final.result().positions - final_.result().positions) < 0.05) # moved much less

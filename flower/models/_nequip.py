@@ -206,26 +206,31 @@ class NequIPModel(BaseModel):
                 outputs=[File(_new_file(context.path, 'model_', '.pth'))],
                 )
         self.model_future  = self.config_future.outputs[0] # to undeployed model
-        self.deploy_future = None # to deployed model
+        self.deploy_future = {} # to deployed model
 
     def deploy(self):
-        self.deploy_future = self.context.apps(NequIPModel, 'deploy')(
+        self.deploy_future['float32'] = self.context.apps(NequIPModel, 'deploy_float32')(
+                self.config_future,
+                inputs=[self.model_future],
+                outputs=[File(_new_file(self.context.path, 'deployed_', '.pth'))],
+                ).outputs[0]
+        self.deploy_future['float64'] = self.context.apps(NequIPModel, 'deploy_float64')(
                 self.config_future,
                 inputs=[self.model_future],
                 outputs=[File(_new_file(self.context.path, 'deployed_', '.pth'))],
                 ).outputs[0]
 
     def train(self, training, validation):
-        self.deploy_future = None # no longer valid
+        self.deploy_future = {} # no longer valid
         self.model_future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
                 self.config_future,
                 inputs=[self.model_future, training.data_future, validation.data_future],
                 outputs=[File(_new_file(self.context.path, 'model_', '.pth'))]
                 ).outputs[0]
 
-    def save_deployed(self, path_deployed):
+    def save_deployed(self, path_deployed, dtype='float32'):
         return copy_data_future(
-                inputs=[self.deploy_future],
+                inputs=[self.deploy_future[dtype]],
                 outputs=[File(str(path_deployed))],
                 )
 
@@ -243,15 +248,24 @@ class NequIPModel(BaseModel):
         app_initialize = python_app(initialize, executors=[model_label])
         context.register_app(cls, 'initialize', app_initialize)
         deploy_unwrapped = python_app(deploy, executors=[model_label])
-        def deploy_wrapped(config, inputs=[], outputs=[]):
+        def deploy_float32(config, inputs=[], outputs=[]):
             return deploy_unwrapped(
                     model_device,
-                    model_dtype,
+                    'float32',
                     config,
                     inputs=inputs,
                     outputs=outputs,
                     )
-        context.register_app(cls, 'deploy', deploy_wrapped)
+        context.register_app(cls, 'deploy_float32', deploy_float32)
+        def deploy_float64(config, inputs=[], outputs=[]):
+            return deploy_unwrapped(
+                    model_device,
+                    'float64',
+                    config,
+                    inputs=inputs,
+                    outputs=outputs,
+                    )
+        context.register_app(cls, 'deploy_float64', deploy_float64)
         train_unwrapped = python_app(train, executors=[training_label])
         def train_wrapped(config, inputs=[], outputs=[]):
             return train_unwrapped(

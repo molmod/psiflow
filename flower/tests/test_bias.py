@@ -95,14 +95,14 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     assert double_length == 2 * single_length - 1 # twice as many gaussians
 
     # double check MTD gives correct nonzero positive contribution
-    values = bias.evaluate(dataset).result()
+    values = bias.evaluate(dataset, cv='CV').result()
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=2 LABEL=metad FILE=test_hills
 """ # RESTART automatically added in input if not present
     bias_mtd = PlumedBias(context, plumed_input, data={'METAD': bias.data_futures['METAD']})
-    values_mtd = bias_mtd.evaluate(dataset).result()
+    values_mtd = bias_mtd.evaluate(dataset, cv='CV').result()
     assert np.allclose(
             values[:, 0],
             values_mtd[:, 0],
@@ -114,6 +114,23 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=2 LABEL=metad FILE=test_hills
     assert np.allclose(
             total,
             manual,
+            )
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+SOMEOTHER: VOLUME
+restraint: RESTRAINT ARG=SOMEOTHER AT=150 KAPPA=1
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
+""" # RESTART automatically added in input if not present
+    bias_ = PlumedBias(context, plumed_input, data={'METAD': bias.data_futures['METAD']})
+    values_ = bias_.evaluate(dataset, cv='CV').result()
+    assert np.allclose(
+            values_[:, 0],
+            values[:, 0],
+            )
+    assert np.allclose( # even though restraint is present, it should not count
+            values_[:, 1],
+            values_mtd[:, 1],
             )
 
 
@@ -137,7 +154,7 @@ FLUSH STRIDE=1
     bias = PlumedBias(context, plumed_input)
     assert len(bias.components) == 1
     assert tuple(bias.keys) == ('METAD',)
-    values = bias.evaluate(dataset).result()
+    values = bias.evaluate(dataset, cv='CV').result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
@@ -149,7 +166,7 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 """
     bias = PlumedBias(context, plumed_input)
-    values = bias.evaluate(dataset).result()
+    values = bias.evaluate(dataset, cv='CV').result()
     assert np.allclose(
             values[:, 1],
             0.5 * (values[:, 0] - 150) ** 2,
@@ -167,7 +184,7 @@ external: EXTERNAL ARG=CV FILE=test_grid
     grid = generate_external_grid(bias_function, cv, 'CV', periodic=False)
     data = {'EXTERNAL': grid}
     bias = PlumedBias(context, plumed_input, data)
-    values = bias.evaluate(dataset).result()
+    values = bias.evaluate(dataset, cv='CV').result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
@@ -183,7 +200,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
     bias = PlumedBias(context, plumed_input, data)
     assert len(bias.components) == 3
     assert bias.keys[0] == 'METAD' # in front
-    values = bias.evaluate(dataset).result()
+    values = bias.evaluate(dataset, cv='CV').result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])

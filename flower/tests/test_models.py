@@ -22,18 +22,31 @@ def test_nequip_init(context, nequip_config, dataset):
     model = NequIPModel(context, nequip_config, dataset[:3])
     assert isinstance(model.model_future, DataFuture)
     assert isinstance(model.config_future, AppFuture)
-    assert model.deploy_future is None
+    assert len(model.deploy_future) == 0
     torch.load(model.model_future.result().filepath) # should work
     model.deploy()
-    assert isinstance(model.deploy_future, DataFuture)
+    assert isinstance(model.deploy_future['float32'], DataFuture)
+    assert isinstance(model.deploy_future['float64'], DataFuture)
 
     # simple test
-    calculator = NequIPModel.load_calculator(
-            path_model=model.deploy_future.result().filepath,
+    atoms = dataset[0].result()
+    atoms.calc = calculator = NequIPModel.load_calculator(
+            path_model=model.deploy_future['float32'].result().filepath,
             device=context[ModelExecutionDefinition].device,
             dtype=context[ModelExecutionDefinition].dtype,
             )
-    assert calculator.device == context[ModelExecutionDefinition].device
+    assert atoms.calc.device == context[ModelExecutionDefinition].device
+    e0 = atoms.get_potential_energy()
+    torch.set_default_dtype(torch.float64)
+    atoms.calc = calculator = NequIPModel.load_calculator(
+            path_model=model.deploy_future['float64'].result().filepath,
+            device=context[ModelExecutionDefinition].device,
+            dtype=context[ModelExecutionDefinition].dtype,
+            )
+    assert atoms.calc.device == context[ModelExecutionDefinition].device
+    e1 = atoms.get_potential_energy()
+    assert np.allclose(e0, e1, atol=1e-4)
+    assert not e0 == e1 # never exactly equal
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')
@@ -44,7 +57,7 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     model.deploy()
     errors0 = model.evaluate(validation).get_errors()
     model.train(training, validation)
-    assert model.deploy_future is None
+    assert len(model.deploy_future) == 0
     model.deploy()
     errors1 = model.evaluate(validation).get_errors()
     evaluated = model.evaluate(validation)

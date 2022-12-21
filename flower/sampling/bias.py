@@ -88,21 +88,11 @@ def evaluate_bias(plumed_input, cv, inputs=[]):
     tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
     tmp.close()
     colvar_log = tmp.name # dummy log file
+    plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
+    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(cv, colvar_log)
     tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
     tmp.close()
     plumed_log = tmp.name # dummy log file
-
-    # prepare input; modify METAD pace if necessary
-    lines = plumed_input.split('\n')
-    for i, line in enumerate(lines):
-        if 'METAD' in line.split():
-            line_before = line.split('PACE=')[0]
-            line_after  = line.split('PACE=')[1].split()[1:]
-            pace = 2147483647 # some random high prime number
-            lines[i] = line_before + 'PACE={} '.format(pace) + ' '.join(line_after)
-    plumed_input = '\n'.join(lines)
-    plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
-    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(cv, colvar_log)
     with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
         f.write(plumed_input) # write input
         path_input = f.name
@@ -138,9 +128,8 @@ class PlumedBias(Container):
         assert len(components) > 0
         for c in components:
             assert ',' not in c[1] # require 1D bias
-        assert len(set([c[1] for c in components])) == 1 # single CV
+        #assert len(set([c[1] for c in components])) == 1 # single CV
         self.components   = components
-        self.cv           = components[0][1]
         self.plumed_input = plumed_input
 
         # initialize data future for each component
@@ -162,12 +151,24 @@ class PlumedBias(Container):
         if 'METAD' in self.keys:
             self.data_futures.move_to_end('METAD', last=False)
 
-
-    def evaluate(self, dataset):
+    def evaluate(self, dataset, cv):
+        assert cv in [c[1] for c in self.components]
         plumed_input = self.prepare_input()
+        lines = plumed_input.split('\n')
+        for i, line in enumerate(lines):
+            if 'ARG=' in line:
+                if not (cv == line.split('ARG=')[1].split()[0]):
+                    lines[i] = '\n'
+        for i, line in enumerate(lines):
+            if 'METAD' in line.split():
+                line_before = line.split('PACE=')[0]
+                line_after  = line.split('PACE=')[1].split()[1:]
+                pace = 2147483647 # some random high prime number
+                lines[i] = line_before + 'PACE={} '.format(pace) + ' '.join(line_after)
+        plumed_input = '\n'.join(lines)
         return self.context.apps(PlumedBias, 'evaluate')(
                 plumed_input,
-                self.cv,
+                cv,
                 inputs=[dataset.data_future] + self.futures,
                 )
 
@@ -217,80 +218,3 @@ class PlumedBias(Container):
         executor_label = context[ModelExecutionDefinition].executor_label
         app_evaluate = python_app(evaluate_bias, executors=[executor_label])
         context.register_app(cls, 'evaluate', app_evaluate)
-
-
-#class MetadynamicsBias(PlumedBias):
-#
-#    def __init__(self, context, plumed_input, data_futures=None):
-#        super().__init__(context, plumed_input, data_futures)
-#        assert self.keyword == 'METAD'
-#
-#    def prepare_input(self):
-#        plumed_input = str(self.plumed_input)
-#        plumed_input = set_path_in_plumed(plumed_input, 'METAD', self.data_futures[0].filepath)
-#        plumed_input = 'RESTART\n' + plumed_input
-#        plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
-#        return plumed_input
-#
-#
-#class ExternalBias(PlumedBias):
-#
-#    def __init__(self, context, plumed_input, data_futures=None):
-#        super().__init__(context, plumed_input, data_futures)
-#        assert self.keyword == 'EXTERNAL'
-#
-#    def prepare_input(self):
-#        plumed_input = str(self.plumed_input)
-#        plumed_input = set_path_in_plumed(plumed_input, 'EXTERNAL', self.data_futures[0].filepath)
-#        return plumed_input
-#
-#
-#class AggregateBias(PlumedBias):
-#
-#    def __init__(self, context, plumed_input, data_futures):
-#        #assert bias0.cv == bias1.cv
-#        #assert bias0.keyword != bias1.keyword
-#        #assert len(bias0.data_futures) == 1
-#        #assert len(bias1.data_futures) == 1
-#        #self.context = bias0.context
-#        #self.bias0 = bias0.copy()
-#        #self.bias1 = bias1.copy()
-#        #self.data_futures = [
-#        #        self.bias0.data_futures[0],
-#        #        self.bias1.data_futures[0],
-#        #        ]
-#
-#    def prepare_input(self):
-#        #plumed_input = bias0.prepare_input() # base input file
-#        #lines = bias1.prepare_input().split('\n')
-#        #found = False
-#        #for i, line in enumerate(lines):
-#        #    if bias1.keyword in line.split():
-#        #        found = True
-#        #        plumed_input += '\n' + line
-#        #assert found
-#        #return plumed_input
-
-
-#def create_bias(context, plumed_input, path_data=None, data=None):
-#    keyword, cv = parse_plumed_input(plumed_input)
-#    if isinstance(path_data, str):
-#        assert data is None
-#        assert os.path.exists(path_data)
-#        data_future = File(path_data) # convert to File before passing it as future
-#    elif isinstance(data, str):
-#        assert path_data is None
-#        path_data = _new_file(context.path, 'bias_', '.txt')
-#        with open(path_data, 'w') as f:
-#            f.write(data)
-#        data_future = File(path_data)
-#    else:
-#        data_future = None
-#    if (keyword == 'RESTRAINT' or keyword == 'UPPER_WALLS'):
-#        return PlumedBias(context, plumed_input, data_futures=[])
-#    elif keyword == 'METAD':
-#        return MetadynamicsBias(context, plumed_input, data_futures=[data_future])
-#    elif keyword == 'EXTERNAL':
-#        return ExternalBias(context, plumed_input, data_futures=[data_future])
-#    else:
-#        raise ValueError('plumed keyword {} unrecognized'.format(keyword))

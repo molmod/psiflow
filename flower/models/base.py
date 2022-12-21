@@ -3,7 +3,7 @@ import tempfile
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
-from flower.execution import Container
+from flower.execution import Container, ModelExecutionDefinition
 from flower.data import Dataset, _new_file
 
 
@@ -13,6 +13,10 @@ def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=
     from flower.data import read_dataset, save_dataset
     if device == 'cpu':
         torch.set_num_threads(ncores)
+    if dtype == 'float64':
+        torch.set_default_dtype(torch.float64)
+    else:
+        torch.set_default_dtype(torch.float32)
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     if len(dataset) > 0:
         atoms = dataset[0].copy()
@@ -48,8 +52,9 @@ class BaseModel(Container):
     def evaluate(self, dataset):
         """Evaluates a dataset using a model and returns it as a covalent electron"""
         path_xyz = _new_file(self.context.path, 'data_', '.xyz')
+        dtype = self.context[ModelExecutionDefinition].dtype
         data_future = self.context.apps(self.__class__, 'evaluate')(
-                inputs=[dataset.data_future, self.deploy_future],
+                inputs=[dataset.data_future, self.deploy_future[dtype]],
                 outputs=[File(path_xyz)],
                 ).outputs[0]
         return Dataset(self.context, data_future=data_future)

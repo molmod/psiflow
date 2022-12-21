@@ -49,9 +49,10 @@ class RandomWalker(BaseWalker):
                 random_perturbation,
                 executors=[executor_label],
                 )
-        def propagate_wrapped(state, parameters, **kwargs):
-            # ignore additional kwargs
-            return app_propagate(state, parameters)
+        def propagate_wrapped(state, parameters, keep_trajectory=False, **kwargs):
+            # ignore additional kwargs; return None as dataset
+            assert not keep_trajectory
+            return app_propagate(state, parameters), None
 
         context.register_app(cls, 'propagate', propagate_wrapped)
         super(RandomWalker, cls).create_apps(context)

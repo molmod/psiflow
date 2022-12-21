@@ -22,7 +22,7 @@ class ModelExecutionDefinition:
 class ReferenceExecutionDefinition:
     executor_label: str  = 'cpu_large'
     ncores        : int  = 1
-    walltime      : str  = '00:00:10' # timeout in hh:mm:ss
+    walltime      : str  = '00:00:20' # timeout in hh:mm:ss
     mpi_command   : Optional[Callable] = lambda x: f'mpirun -np {x} --oversubscribe'
     cp2k_exec     : str  = 'cp2k.psmp' # default command for CP2K Reference
 

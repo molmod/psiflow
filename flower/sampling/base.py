@@ -41,24 +41,30 @@ class BaseWalker(Container):
         # parameters
         self.parameters = self.parameters_cls(**kwargs)
 
-    def propagate(self, safe_return=False, **kwargs):
+    def propagate(self, safe_return=False, keep_trajectory=False, **kwargs):
         app = self.context.apps(self.__class__, 'propagate')
-        result = app(
+        result, dataset = app(
                 self.state_future,
                 self.parameters,
                 **kwargs, # Model or Bias instance
+                keep_trajectory=keep_trajectory,
                 )
         self.state_future = unpack_i(result, 0)
         self.tag_future   = unpack_i(result, 1)
         if safe_return: # only return state if safe, else return start
             # this does NOT reset the walker!
-            return self.context.apps(self.__class__, 'safe_return')(
+            future = self.context.apps(self.__class__, 'safe_return')(
                     self.state_future,
                     self.start_future,
                     self.tag_future,
                     )
         else:
-            return self.state_future
+            future = self.state_future
+        if keep_trajectory:
+            assert dataset is not None
+            return future, dataset
+        else:
+            return future
 
     def reset_if_unsafe(self):
         app = self.context.apps(self.__class__, 'safe_return')

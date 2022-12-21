@@ -18,7 +18,7 @@ class Ensemble:
 
     def propagate(self, safe_return=False, **kwargs):
         iterator = zip(self.walkers, self.biases)
-        atoms_list = [w.propagate(safe_return, bias=b, **kwargs) for w, b in iterator]
+        atoms_list = [w.propagate(safe_return, bias=b, keep_trajectory=False, **kwargs) for w, b in iterator]
         return Dataset(
                 self.context,
                 atoms_list=atoms_list,

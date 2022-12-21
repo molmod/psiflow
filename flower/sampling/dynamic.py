@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
+from flower.data import Dataset
 from flower.execution import ModelExecutionDefinition
-from flower.utils import copy_data_future, unpack_i
+from flower.utils import copy_data_future, unpack_i, _new_file
 from flower.sampling import BaseWalker
 
 
@@ -28,11 +29,16 @@ def simulate_model(
     import yaff
     yaff.log.set_level(yaff.log.silent)
     import molmod
+    from ase.io.extxyz import write_extxyz
     from flower.sampling.utils import ForcePartASE, DataHook, \
             create_forcefield, ForceThresholdExceededException
     from flower.sampling.bias import try_manual_plumed_linking
     if device == 'cpu':
         torch.set_num_threads(ncores)
+    if dtype == 'float64':
+        torch.set_default_dtype(torch.float64)
+    else:
+        torch.set_default_dtype(torch.float32)
     pars = parameters
     np.random.seed(pars.seed)
     torch.manual_seed(pars.seed)
@@ -118,6 +124,10 @@ def simulate_model(
     if len(datahook.data) > 0:
         state.set_positions(datahook.data[-1].get_positions())
         state.set_cell(datahook.data[-1].get_cell())
+
+    # write data to output xyz
+    with open(outputs[0], 'w+') as f:
+        write_extxyz(f, datahook.data)
     return state, tag
 
 
@@ -150,11 +160,18 @@ class DynamicWalker(BaseWalker):
                 simulate_model,
                 executors=[executor_label],
                 )
-        def propagate_wrapped(state, parameters, model=None, bias=None, **kwargs):
+        def propagate_wrapped(
+                state,
+                parameters,
+                model=None,
+                bias=None,
+                keep_trajectory=False,
+                **kwargs,
+                ):
             assert model is not None # model is required
-            assert model.deploy_future is not None # has to be deployed
-            inputs = [model.deploy_future]
-            outputs = []
+            assert model.deploy_future[dtype] is not None # has to be deployed
+            inputs = [model.deploy_future[dtype]]
+            outputs = [File(_new_file(path, 'traj_', '.xyz'))]
             if bias is not None:
                 plumed_input = bias.prepare_input()
                 inputs += list(bias.data_futures.values())
@@ -174,8 +191,12 @@ class DynamicWalker(BaseWalker):
                     )
             if bias is not None: # ensure dependency on new hills is set
                 if 'METAD' in bias.keys:
-                    bias.data_futures['METAD'] = result.outputs[0]
-            return result
+                    bias.data_futures['METAD'] = result.outputs[1]
+            if not keep_trajectory:
+                dataset = None
+            else:
+                dataset = Dataset(context, data_future=result.outputs[0])
+            return result, dataset
 
         context.register_app(cls, 'propagate', propagate_wrapped)
         super(DynamicWalker, cls).create_apps(context)
