@@ -1,19 +1,68 @@
 from copy import deepcopy
 
-from flower.data import Dataset
+from parsl.app.app import join_app, python_app
+from parsl.data_provider.files import File
+
+from flower.data import Dataset, save_dataset
+from flower.utils import _new_file
+
+
+@python_app
+def get_continue_flag(nstates, inputs=[], outputs=[]):
+    from flower.data import read_dataset
+    continue_flag = sum([state is not None for state in inputs]) < nstates
+    return continue_flag
+
+
+@join_app
+def conditional_propagate(
+        context,
+        continue_flag,
+        walkers,
+        biases,
+        nstates,
+        model,
+        checks,
+        inputs=[],
+        outputs=[],
+        ):
+    from flower.data import read_dataset
+    from flower.sampling.ensemble import get_continue_flag
+    from flower.utils import _new_file
+    states = inputs
+    if (len(states) < len(walkers)) or continue_flag:
+        index = int(len(states) % len(walkers))
+        walker = walkers[index]
+        bias   = biases[index]
+        state = walker.propagate(
+                safe_return=False,
+                bias=bias,
+                keep_trajectory=False,
+                )
+        walker.reset_if_unsafe()
+        walker.parameters.seed += len(walkers) # avoid generating same states
+        for check in checks:
+            state = check(state)
+        states.append(state) # some are None
+        return conditional_propagate(
+                context,
+                get_continue_flag(nstates, inputs=states),
+                walkers,
+                biases,
+                nstates,
+                model,
+                checks,
+                inputs=states,
+                outputs=[outputs[0]],
+                )
+    data_future = context.apps(Dataset, 'save_dataset')(states=None, inputs=states, outputs=[outputs[0]])
+    return data_future
 
 
 class Ensemble:
     """Wraps a set of walkers"""
 
-    def __init__(
-            self,
-            context,
-            walkers,
-            biases=[],
-            strategy='safe',
-            max_retries=2,
-            ):
+    def __init__(self, context, walkers, biases=[]):
         self.context = context
         self.walkers = walkers
         if len(biases) > 0:
@@ -21,17 +70,21 @@ class Ensemble:
         else:
             biases = [None] * len(walkers)
         self.biases = biases
-        assert strategy in ['naive', 'safe']
-        self.strategy    = strategy
-        self.max_retries = max_retries
 
-    def propagate(self, safe_return=False, **kwargs):
-        iterator = zip(self.walkers, self.biases)
-        atoms_list = [w.propagate(safe_return, bias=b, keep_trajectory=False, **kwargs) for w, b in iterator]
-        return Dataset(
+    def propagate(self, nstates, model=None, checks=[]):
+        assert nstates >= len(self.walkers)
+        data_future = conditional_propagate(
                 self.context,
-                atoms_list=atoms_list,
-                )
+                True,
+                self.walkers,
+                self.biases,
+                nstates,
+                model=model,
+                checks=checks,
+                inputs=[],
+                outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
+                ).outputs[0]
+        return Dataset(self.context, data_future=data_future)
 
     @property
     def nwalkers(self):

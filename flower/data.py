@@ -61,6 +61,12 @@ def save_dataset(states, inputs=[], outputs=[]):
         _data = states
     else:
         _data = inputs
+    i = 0
+    while i < len(_data):
+        if _data[i] is None:
+            del _data[i]
+        else:
+            i += 1
     with open(outputs[0], 'w') as f:
         write_extxyz(f, _data)
 

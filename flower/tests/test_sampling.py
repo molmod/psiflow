@@ -54,9 +54,20 @@ def test_random_walker(context, dataset):
 
 def test_ensemble(context, dataset):
     walker = RandomWalker(context, dataset[0])
-    ensemble = Ensemble.from_walker(walker, nwalkers=10)
-    new_data = ensemble.propagate()
-    assert ensemble.nwalkers == new_data.length().result()
+    nwalkers = 10
+    ensemble = Ensemble.from_walker(walker, nwalkers=nwalkers)
+
+    with pytest.raises(AssertionError):
+        new_data = ensemble.propagate(5) # nstates should be >= nwalkers
+    nstates = 25
+    new_data = ensemble.propagate(nstates)
+    assert new_data.length().result() == nstates
+    for i, walker in enumerate(ensemble.walkers[:int(nstates % nwalkers)]):
+        assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers
+    for i, walker in enumerate(ensemble.walkers[int(nstates % nwalkers):]):
+        assert walker.parameters.seed == i + (nstates // nwalkers) * nwalkers + nstates % nwalkers
+
+    # no two states should be the same
     for i in range(new_data.length().result() - 1):
         for j in range(i + 1, new_data.length().result()):
             assert not np.allclose(

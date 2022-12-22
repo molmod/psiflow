@@ -60,6 +60,7 @@ class BaseWalker(Container):
                     )
         else:
             future = self.state_future
+        future = copy_app_future(future) # necessary
         if keep_trajectory:
             assert dataset is not None
             return future, dataset

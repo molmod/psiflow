@@ -142,7 +142,7 @@ def test_bias_evaluate(context, dataset):
             }
     walker = RandomWalker(context, dataset[0], **kwargs)
     ensemble = Ensemble.from_walker(walker, nwalkers=10)
-    dataset = ensemble.propagate()
+    dataset = ensemble.propagate(nstates=10)
 
     plumed_input = """
 RESTART
