@@ -173,7 +173,7 @@ RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
             )
 
 
-def test_bias_external(context, dataset, tmpdir):
+def test_bias_external(context, dataset):
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -206,3 +206,72 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
         assert np.allclose(volume, values[i, 0])
     reference = bias_function(values[:, 0]) + 0.5 * (values[:, 0] - 150) ** 2
     assert np.allclose(reference, values[:, 1])
+
+
+def test_adjust_restraint(context, dataset):
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
+"""
+    bias   = PlumedBias(context, plumed_input, data={})
+    values = bias.evaluate(dataset, cv='CV').result()
+    bias.adjust_restraint('CV', kappa=2, center=150)
+    assert bias.plumed_input == """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=150 KAPPA=2 LABEL=restraint
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
+"""
+    values_ = bias.evaluate(dataset, cv='CV').result()
+    assert np.allclose(
+            values[:, 0],
+            values_[:, 0],
+            )
+    assert np.allclose(
+            2 * values[:, 1],
+            values_[:, 1],
+            )
+    bias.adjust_restraint('CV', kappa=3, center=155)
+    assert bias.plumed_input == """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=155 KAPPA=3 LABEL=restraint
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
+"""
+
+
+def test_bias_find_states(context, dataset):
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
+"""
+    bias = PlumedBias(context, plumed_input, data={})
+    cv_values = bias.evaluate(dataset, cv='CV').result()[:, 0]
+    cv_min = np.min(cv_values)
+    cv_max = np.max(cv_values)
+    cv_step = (cv_max - cv_min) / 2
+    extracted = bias.extract_states(
+            dataset,
+            cv='CV',
+            cv_min=cv_min,
+            cv_max=cv_max,
+            cv_step=cv_step,
+            slack=cv_step / 3,
+            )
+    assert np.allclose(
+            extracted[0].result().positions,
+            dataset[int(np.argmin(cv_values))].result().positions,
+            )
+    assert np.allclose(
+            extracted[-1].result().positions,
+            dataset[int(np.argmax(cv_values))].result().positions,
+            )
+    cv_values = bias.evaluate(extracted, cv='CV').result()[:, 0]
+    assert np.allclose(
+            cv_values,
+            np.sort(cv_values),
+            )

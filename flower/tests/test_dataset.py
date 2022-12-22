@@ -128,3 +128,14 @@ def test_index_element_mask():
             get_index_element_mask(numbers, elements, indices),
             np.array([False] * len(numbers))
             )
+
+
+def test_dataset_gather(context, dataset):
+    indices = [0, 3, 2, 6, 1]
+    gathered = dataset[indices]
+    assert gathered.length().result() == len(indices)
+    for i, index in enumerate(indices):
+        assert np.allclose(
+                dataset[index].result().positions,
+                gathered[i].result().positions,
+                )

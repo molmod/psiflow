@@ -6,7 +6,14 @@ from flower.data import Dataset
 class Ensemble:
     """Wraps a set of walkers"""
 
-    def __init__(self, context, walkers, biases=[], global_bias=None):
+    def __init__(
+            self,
+            context,
+            walkers,
+            biases=[],
+            strategy='safe',
+            max_retries=2,
+            ):
         self.context = context
         self.walkers = walkers
         if len(biases) > 0:
@@ -14,7 +21,9 @@ class Ensemble:
         else:
             biases = [None] * len(walkers)
         self.biases = biases
-        self.global_bias = global_bias
+        assert strategy in ['naive', 'safe']
+        self.strategy    = strategy
+        self.max_retries = max_retries
 
     def propagate(self, safe_return=False, **kwargs):
         iterator = zip(self.walkers, self.biases)
@@ -37,3 +46,10 @@ class Ensemble:
             _walker.parameters.seed = i
             walkers.append(_walker)
         return cls(walker.context, walkers)
+
+
+def generate_distributed_ensemble(walker, bias, cv_name, cv_grid, dataset=None):
+    if dataset is None: # explore CV space manually!
+        raise NotImplementedError
+    else:
+        pass

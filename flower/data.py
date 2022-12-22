@@ -65,15 +65,21 @@ def save_dataset(states, inputs=[], outputs=[]):
         write_extxyz(f, _data)
 
 
-def read_dataset(index, inputs=[], outputs=[]):
+def read_dataset(index_or_indices, inputs=[], outputs=[]):
     from ase.io.extxyz import read_extxyz, write_extxyz
     from flower.data import FlowerAtoms
     with open(inputs[0], 'r' ) as f:
-        data = list(read_extxyz(f, index=index))
-    data = [FlowerAtoms.from_atoms(a) for a in data]
-    if isinstance(index, int): # unpack list to single Atoms object
-        assert len(data) == 1
-        data = data[0]
+        if type(index_or_indices) == int:
+            atoms = list(read_extxyz(f, index=index_or_indices))[0]
+            data  = FlowerAtoms.from_atoms(atoms) # single atoms instance
+        else:
+            if type(index_or_indices) == list:
+                data = [list(read_extxyz(f, index=i))[0] for i in index_or_indices]
+            elif type(index_or_indices) == slice:
+                data = list(read_extxyz(f, index=index_or_indices))
+            else:
+                raise ValueError
+            data = [FlowerAtoms.from_atoms(a) for a in data] # list of atoms
     if len(outputs) > 0: # save to file
         with open(outputs[0], 'w') as f:
             write_extxyz(f, data)
@@ -200,18 +206,26 @@ class Dataset(Container):
     def length(self):
         return self.context.apps(Dataset, 'length_dataset')(inputs=[self.data_future])
 
-    def __getitem__(self, i):
-        if isinstance(i, slice):
+    def __getitem__(self, index):
+        if isinstance(index, int):
+            return self.get(index=index)
+        else: # slice, List, AppFuture
+            return self.get(indices=index)
+
+    def get(self, index=None, indices=None):
+        if indices is not None:
+            assert index is None
             path_new = _new_file(self.context.path, 'data_', '.xyz')
             data_future = self.context.apps(Dataset, 'read_dataset')(
-                    index=i,
+                    indices,
                     inputs=[self.data_future],
                     outputs=[File(path_new)],
                     ).outputs[0]
             return Dataset(self.context, data_future=data_future)
         else:
+            assert index is not None
             return self.context.apps(Dataset, 'read_dataset')(
-                    index=i,
+                    index, # int or AppFuture of int
                     inputs=[self.data_future],
                     ) # represents an AppFuture of an ase.Atoms instance
 
@@ -265,3 +279,13 @@ class Dataset(Container):
 
         app_compute_metrics = python_app(compute_metrics, executors=[executor_label])
         context.register_app(Dataset, 'compute_metrics', app_compute_metrics)
+
+        #def get_item(indices, inputs=[]):
+        #    from flower.data import FlowerAtoms
+        #    data = app_read_dataset(indices, inputs=inputs)
+        #    if isinstance(data, FlowerAtoms):
+        #        return data
+        #    else:
+        #        return Dataset(context, atoms_list=data)
+        #app_get_item = join_app(get_item)
+        #context.register_app(Dataset, 'get_item', app_get_item)

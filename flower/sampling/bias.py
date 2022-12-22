@@ -11,6 +11,7 @@ from parsl.data_provider.files import File
 
 from flower.execution import Container, ModelExecutionDefinition
 from flower.utils import _new_file, copy_data_future
+from flower.data import read_dataset
 
 
 def try_manual_plumed_linking():
@@ -118,6 +119,25 @@ def evaluate_bias(plumed_input, cv, inputs=[]):
     return values
 
 
+def find_states_in_data(plumed_input, cv, cv_min, cv_max, cv_step, slack, inputs=[]):
+    import numpy as np
+    from flower.sampling.bias import evaluate_bias
+    cv_values = evaluate_bias(plumed_input, cv, inputs=inputs)[:, 0]
+    nstates = np.floor((cv_max - cv_min) / cv_step).astype(np.int32) + 1
+    targets = cv_min + cv_step * np.arange(nstates)
+    deltas  = np.abs(targets[:, np.newaxis] - cv_values[np.newaxis, :])
+    indices = np.argmin(deltas, axis=1)
+    found   = np.abs(targets - cv_values[indices]) < slack
+    to_extract = [] # create list of indices to extract
+    for i in range(nstates):
+        if found[i]:
+            index = indices[i]
+            to_extract.append(int(index))
+        else:
+            pass
+    return to_extract
+
+
 class PlumedBias(Container):
     """Represents a PLUMED bias potential"""
 
@@ -199,6 +219,52 @@ class PlumedBias(Container):
                 data_futures=new_futures,
                 )
 
+    def adjust_restraint(self, cv, kappa, center):
+        plumed_input = str(self.plumed_input)
+        lines = plumed_input.split('\n')
+        found = False
+        for i, line in enumerate(lines):
+            if 'RESTRAINT' in line.split():
+                if 'ARG={}'.format(cv) in line.split():
+                    assert not found
+                    line_ = line
+                    line_before = line_.split('KAPPA=')[0]
+                    line_after  = line_.split('KAPPA=')[1].split()[1:]
+                    line_ = line_before + 'KAPPA={} '.format(kappa) + ' '.join(line_after)
+                    line_before = line_.split('AT=')[0]
+                    line_after  = line_.split('AT=')[1].split()[1:]
+                    line_ = line_before + 'AT={} '.format(center) + ' '.join(line_after)
+                    lines[i] = line_
+                    found = True
+        assert found
+        self.plumed_input = '\n'.join(lines)
+
+    def extract_states(self, dataset, cv, cv_min, cv_max, cv_step, slack=0.1):
+        assert cv in [c[1] for c in self.components]
+        plumed_input = self.prepare_input()
+        lines = plumed_input.split('\n')
+        for i, line in enumerate(lines):
+            if 'ARG=' in line:
+                if not (cv == line.split('ARG=')[1].split()[0]):
+                    lines[i] = '\n'
+        for i, line in enumerate(lines):
+            if 'METAD' in line.split():
+                line_before = line.split('PACE=')[0]
+                line_after  = line.split('PACE=')[1].split()[1:]
+                pace = 2147483647 # some random high prime number
+                lines[i] = line_before + 'PACE={} '.format(pace) + ' '.join(line_after)
+        plumed_input = '\n'.join(lines)
+        indices = self.context.apps(PlumedBias, 'find_states')( # is future!
+                plumed_input,
+                cv,
+                cv_min,
+                cv_max,
+                cv_step,
+                slack,
+                inputs=[dataset.data_future] + self.futures,
+                )
+        return dataset[indices]
+
     @property
     def keys(self):
         keys = sorted([c[0] for c in self.components])
@@ -218,3 +284,5 @@ class PlumedBias(Container):
         executor_label = context[ModelExecutionDefinition].executor_label
         app_evaluate = python_app(evaluate_bias, executors=[executor_label])
         context.register_app(cls, 'evaluate', app_evaluate)
+        app_find = python_app(find_states_in_data, executors=[executor_label])
+        context.register_app(cls, 'find_states', app_find)

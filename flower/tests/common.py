@@ -21,7 +21,7 @@ from flower.execution import ExecutionContext, TrainingExecutionDefinition, \
         DefaultExecutionDefinition
 
 
-@pytest.fixture(scope='module', params=['threadpool', 'htex'])
+@pytest.fixture(scope='module', params=['htex'])
 def context(request, tmpdir_factory):
     if request.param == 'threadpool':
         executors = [
