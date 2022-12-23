@@ -5,7 +5,7 @@ from flower.data import Dataset
 
 class Check:
 
-    def __call__(self, state):
+    def __call__(self, state, tag=None):
         raise NotImplementedError
 
 
@@ -34,7 +34,7 @@ class InteratomicDistanceCheck(Check):
     def __init__(self, threshold):
         self.threshold = threshold
 
-    def __call__(self, state):
+    def __call__(self, state, tag=None):
         return check_distances(state, self.threshold)
 
 
@@ -53,6 +53,7 @@ def check_discrepancy(state, errors, thresholds):
 
 
 class DiscrepancyCheck(Check):
+
     def __init__(self, model_old, model_new, metric, properties, thresholds):
         self.model_old = model_old
         self.model_new = model_new
@@ -62,7 +63,7 @@ class DiscrepancyCheck(Check):
         self.thresholds = thresholds
 
 
-    def __call__(self, state):
+    def __call__(self, state, tag=None):
         dataset = Dataset(self.model_old.context, atoms_list=[state])
         dataset = self.model_old.evaluate(dataset, suffix='_old')
         dataset = self.model_new.evaluate(dataset, suffix='_new')
@@ -74,3 +75,17 @@ class DiscrepancyCheck(Check):
                 properties=self.properties,
                 )
         return check_discrepancy(state, errors, self.thresholds)
+
+
+@python_app
+def check_safety(state, tag):
+    if tag == 'unsafe':
+        return None
+    else:
+        return state
+
+
+class SafetyCheck(Check):
+
+    def __call__(self, state, tag):
+        return check_safety(state, tag)

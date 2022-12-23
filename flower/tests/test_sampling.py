@@ -8,6 +8,7 @@ from ase import Atoms
 from flower.models import NequIPModel
 from flower.sampling import BaseWalker, Ensemble, RandomWalker, \
         DynamicWalker, OptimizationWalker
+from flower.checks import SafetyCheck
 
 from common import context, nequip_config
 from test_dataset import dataset
@@ -60,7 +61,7 @@ def test_ensemble(context, dataset):
     with pytest.raises(AssertionError):
         new_data = ensemble.propagate(5) # nstates should be >= nwalkers
     nstates = 25
-    new_data = ensemble.propagate(nstates)
+    new_data = ensemble.propagate(nstates, checks=[SafetyCheck()]) # always passes
     assert new_data.length().result() == nstates
     for i, walker in enumerate(ensemble.walkers[:int(nstates % nwalkers)]):
         assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers

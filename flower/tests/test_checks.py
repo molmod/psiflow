@@ -1,6 +1,8 @@
 
-from flower.checks import InteratomicDistanceCheck, DiscrepancyCheck
+from flower.checks import InteratomicDistanceCheck, DiscrepancyCheck, \
+        SafetyCheck
 from flower.models import NequIPModel
+from flower.sampling import RandomWalker
 
 from common import context, nequip_config
 from test_dataset import dataset
@@ -28,3 +30,13 @@ def test_discrepancy_check(context, dataset, nequip_config):
     assert check(dataset[6]).result() is not None
     check.thresholds = [100, 10] # mae's should be lower than this
     assert check(dataset[6]).result() is None
+
+
+def test_safety(context, dataset):
+    walker = RandomWalker(context, dataset[0])
+    state = walker.propagate()
+    check = SafetyCheck()
+    assert check(state, walker.tag_future).result() is not None
+    walker.tag_future = 'unsafe'
+    assert check(state, walker.tag_future).result() is None
+

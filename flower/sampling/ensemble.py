@@ -42,7 +42,7 @@ def conditional_propagate(
         walker.reset_if_unsafe()
         walker.parameters.seed += len(walkers) # avoid generating same states
         for check in checks:
-            state = check(state)
+            state = check(state, walker.tag_future)
         states.append(state) # some are None
         return conditional_propagate(
                 context,
