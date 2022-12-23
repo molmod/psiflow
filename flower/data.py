@@ -37,14 +37,16 @@ class FlowerAtoms(Atoms):
                 cell=atoms.get_cell(),
                 pbc=atoms.pbc,
                 )
-        info_keys = ['energy', 'energy_model', 'stress', 'stress_model']
-        for key in info_keys:
-            if key in atoms.info.keys():
-                flower_atoms.info[key] = atoms.info[key]
-        arrays_keys = ['forces', 'forces_model']
-        for key in arrays_keys:
-            if key in atoms.arrays.keys():
-                flower_atoms.arrays[key] = atoms.arrays[key]
+        properties = ['energy', 'stress']
+        for property_ in properties:
+            for key in atoms.info.keys():
+                if key.startswith(property_):
+                    flower_atoms.info[key] = atoms.info[key]
+        properties = ['forces']
+        for property_ in properties:
+            for key in atoms.arrays.keys():
+                if key.startswith(property_):
+                    flower_atoms.arrays[key] = atoms.arrays[key]
 
         if 'evaluation_flag' in atoms.info.keys():
             # default ASE value is True; should be converted to None
@@ -110,6 +112,8 @@ def compute_metrics(
         elements,
         metric,
         properties,
+        suffix_0,
+        suffix_1,
         inputs=[],
         ):
     import numpy as np
@@ -118,6 +122,7 @@ def compute_metrics(
     data = read_dataset(slice(None), inputs=[inputs[0]])
     errors = np.zeros((len(data), len(properties)))
     outer_mask = np.array([True] * len(data))
+    assert suffix_0 != suffix_1
     for i, atoms in enumerate(data):
         if (atom_indices is not None) or (elements is not None):
             assert 'energy' not in properties
@@ -129,33 +134,40 @@ def compute_metrics(
         if not np.any(mask): # no target atoms present; skip
             outer_mask[i] = False
             continue
-        if not intrinsic:
-            if 'energy' in properties:
-                assert 'energy_model' in atoms.info.keys()
-            if 'forces' in properties:
-                assert 'forces_model' in atoms.arrays.keys()
-            if 'stress' in properties:
-                assert 'stress_model' in atoms.info.keys()
+        if 'energy' in properties:
+            assert 'energy' + suffix_0 in atoms.info.keys()
+            if not intrinsic:
+                assert 'energy' + suffix_1 in atoms.info.keys()
+        if 'forces' in properties:
+            assert 'forces' + suffix_0 in atoms.arrays.keys()
+            if not intrinsic:
+                assert 'forces' + suffix_1 in atoms.arrays.keys()
+        if 'stress' in properties:
+            assert 'stress' + suffix_0 in atoms.info.keys()
+            if not intrinsic:
+                assert 'stress' + suffix_1 in atoms.info.keys()
         for j, property_ in enumerate(properties):
             if intrinsic:
-                atoms.info['energy_model'] = 0.0
-                atoms.arrays['forces_model'] = np.zeros(atoms.positions.shape)
-                atoms.info['stress_model'] = np.zeros((3, 3))
+                atoms.info['energy' + suffix_1] = 0.0
+                atoms.info['stress' + suffix_1] = np.zeros((3, 3))
+                atoms.arrays['forces' + suffix_1] = np.zeros(atoms.positions.shape)
             if property_ == 'energy':
-                array_0 = np.array([atoms.info['energy']]).reshape((1, 1))
-                array_1 = np.array([atoms.info['energy_model']]).reshape((1, 1))
+                array_0 = np.array([atoms.info['energy' + suffix_0]]).reshape((1, 1))
+                array_1 = np.array([atoms.info['energy' + suffix_1]]).reshape((1, 1))
             elif property_ == 'forces':
-                array_0 = atoms.arrays['forces'][mask, :]
-                array_1 = atoms.arrays['forces_model'][mask, :]
+                array_0 = atoms.arrays['forces' + suffix_0][mask, :]
+                array_1 = atoms.arrays['forces' + suffix_1][mask, :]
             elif property_ == 'stress':
-                array_0 = atoms.info['stress'].reshape((1, 9))
-                array_1 = atoms.info['stress_model'].reshape((1, 9))
+                array_0 = atoms.info['stress' + suffix_0].reshape((1, 9))
+                array_1 = atoms.info['stress' + suffix_1].reshape((1, 9))
             else:
                 raise ValueError('property {} unknown!'.format(property_))
             if metric == 'mae':
                 errors[i, j] = np.mean(np.abs(array_0 - array_1))
             elif metric == 'rmse':
                 errors[i, j] = np.mean(np.linalg.norm(array_0 - array_1, axis=1))
+            elif metric == 'max':
+                errors[i, j] = np.max(np.linalg.norm(array_0 - array_1, axis=1))
             else:
                 raise ValueError('metric {} unknown!'.format(metric))
     if not np.any(outer_mask):
@@ -241,6 +253,8 @@ class Dataset(Container):
             atom_indices=None,
             elements=None,
             metric='rmse',
+            suffix_0='', # use QM reference by default
+            suffix_1='_model', # use single model by default 
             properties=['energy', 'forces', 'stress'],
             ):
         return self.context.apps(Dataset, 'compute_metrics')(
@@ -249,6 +263,8 @@ class Dataset(Container):
                 elements=elements,
                 metric=metric,
                 properties=properties,
+                suffix_0=suffix_0,
+                suffix_1=suffix_1,
                 inputs=[self.data_future],
                 )
 

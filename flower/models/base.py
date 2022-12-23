@@ -7,7 +7,15 @@ from flower.execution import Container, ModelExecutionDefinition
 from flower.data import Dataset, _new_file
 
 
-def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=[]):
+def evaluate_dataset(
+        device,
+        dtype,
+        ncores,
+        load_calculator,
+        suffix,
+        inputs=[],
+        outputs=[],
+        ):
     import torch
     import numpy as np
     from flower.data import read_dataset, save_dataset
@@ -33,9 +41,9 @@ def evaluate_dataset(device, dtype, ncores, load_calculator, inputs=[], outputs=
                 print(e)
                 stress = np.zeros((3, 3))
             #sample.label(energy, forces, stress, log=None)
-            _atoms.info['energy_model'] = energy
-            _atoms.info['stress_model'] = stress
-            _atoms.arrays['forces_model'] = forces
+            _atoms.info['energy' + suffix] = energy
+            _atoms.info['stress' + suffix] = stress
+            _atoms.arrays['forces' + suffix] = forces
         save_dataset(dataset, outputs=[outputs[0]])
 
 
@@ -49,11 +57,12 @@ class BaseModel(Container):
         """Trains a model and returns it as an AppFuture"""
         raise NotImplementedError
 
-    def evaluate(self, dataset):
+    def evaluate(self, dataset, suffix='_model'):
         """Evaluates a dataset using a model and returns it as a covalent electron"""
         path_xyz = _new_file(self.context.path, 'data_', '.xyz')
         dtype = self.context[ModelExecutionDefinition].dtype
         data_future = self.context.apps(self.__class__, 'evaluate')(
+                suffix=suffix,
                 inputs=[dataset.data_future, self.deploy_future[dtype]],
                 outputs=[File(path_xyz)],
                 ).outputs[0]

@@ -279,12 +279,13 @@ class NequIPModel(BaseModel):
         #app_copy_model = python_app(copy_file, executors=[model_label])
         #context.register_app(cls, 'copy_model', app_copy_model)
         evaluate_unwrapped = python_app(evaluate_dataset, executors=[model_label])
-        def evaluate_wrapped(inputs=[], outputs=[]):
+        def evaluate_wrapped(suffix, inputs=[], outputs=[]):
             return evaluate_unwrapped(
                     model_device,
                     model_dtype,
                     model_ncores,
                     cls.load_calculator,
+                    suffix,
                     inputs=inputs,
                     outputs=outputs,
                     )

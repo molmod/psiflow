@@ -76,8 +76,12 @@ def test_dataset_metric(context, dataset):
         errors.result()
     errors = dataset.get_errors(intrinsic=True, elements=['H'], properties=['forces']) # H present
     errors.result()
-    errors = dataset.get_errors(intrinsic=True, elements=['Cu'], properties=['forces']) # Cu present
-    errors.result()
+    errors_rmse = dataset.get_errors(intrinsic=True, elements=['Cu'], properties=['forces']) # Cu present
+    errors_mae  = dataset.get_errors(intrinsic=True, elements=['Cu'], properties=['forces'], metric='mae') # Cu present
+    errors_max  = dataset.get_errors(intrinsic=True, elements=['Cu'], properties=['forces'], metric='max') # Cu present
+    assert np.all(errors_rmse.result() > errors_mae.result())
+    assert np.all(errors_max.result() > errors_rmse.result())
+
     with pytest.raises(AssertionError): # no atoms of interest
         errors = dataset.get_errors(intrinsic=True, elements=['O'], properties=['forces']) # Cu present
         errors.result()

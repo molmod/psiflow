@@ -55,7 +55,12 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     validation = dataset[-5:]
     model = NequIPModel(context, nequip_config, training)
     model.deploy()
-    errors0 = model.evaluate(validation).get_errors()
+    validation_evaluated = model.evaluate(validation, suffix='_my_model')
+    assert 'energy_my_model' in validation_evaluated[0].result().info.keys()
+    #errors0 = model.evaluate(validation, suffix='_model').get_errors()
+    with pytest.raises(AssertionError):
+        validation_evaluated.get_errors().result() # nonexisting suffix
+    errors0 = validation_evaluated.get_errors(suffix_1='_my_model')
     model.train(training, validation)
     assert len(model.deploy_future) == 0
     model.deploy()
