@@ -1,10 +1,15 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from copy import deepcopy
+import yaml
+
+from ase.io import read
 
 from parsl.app.app import python_app
+from parsl.data_provider.files import File
 
 from flower.execution import ModelExecutionDefinition, Container
-from flower.utils import copy_app_future, unpack_i
+from flower.utils import copy_app_future, unpack_i, copy_data_future, \
+        save_yaml, save_atoms
 
 
 def safe_return(state, start, tag):
@@ -88,6 +93,35 @@ class BaseWalker(Container):
         walker.tag_future   = copy_app_future(self.tag_future)
         walker.parameters   = deepcopy(self.parameters)
         return walker
+
+    def save(self, path_start, path_state, path_pars, require_done=True):
+        future_start = save_atoms(
+                self.start_future,
+                outputs=[File(str(path_start))],
+                ).outputs[0]
+        future_state = save_atoms(
+                self.state_future,
+                outputs=[File(str(path_state))],
+                ).outputs[0]
+        future_pars = save_yaml(
+                asdict(self.parameters),
+                outputs=[File(str(path_pars))],
+                ).outputs[0]
+        future_start.result()
+        future_state.result()
+        future_pars.result()
+        return future_start, future_state, future_pars
+
+    @classmethod
+    def load(cls, context, path_start, path_state, path_pars):
+        start = read(str(path_start))
+        state = read(str(path_state))
+        with open(path_pars, 'r') as f:
+            pars_dict = yaml.load(f, Loader=yaml.FullLoader)
+        walker = cls(context, state, **pars_dict)
+        walker.start_future = copy_app_future(start)
+        return walker
+
 
     @classmethod
     def create_apps(cls, context):

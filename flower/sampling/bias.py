@@ -10,7 +10,7 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 from flower.execution import Container, ModelExecutionDefinition
-from flower.utils import _new_file, copy_data_future
+from flower.utils import _new_file, copy_data_future, save_txt
 from flower.data import read_dataset
 
 
@@ -140,6 +140,7 @@ def find_states_in_data(plumed_input, cv, cv_min, cv_max, cv_step, slack, inputs
 
 class PlumedBias(Container):
     """Represents a PLUMED bias potential"""
+    keys_with_future = ['EXTERNAL', 'METAD']
 
     def __init__(self, context, plumed_input, data={}):
         super().__init__(context)
@@ -165,7 +166,7 @@ class PlumedBias(Container):
                 assert (isinstance(value, DataFuture) or isinstance(value, File))
                 self.data_futures[key] = value
         for key in self.keys:
-            if key not in self.data_futures.keys():
+            if (key not in self.data_futures.keys()) and (key in PlumedBias.keys_with_future):
                 assert key != 'EXTERNAL' # has to be initialized by user
                 self.data_futures[key] = File(_new_file(context.path, key + '_', '.txt'))
         if 'METAD' in self.keys:
@@ -264,6 +265,34 @@ class PlumedBias(Container):
                 inputs=[dataset.data_future] + self.futures,
                 )
         return dataset[indices]
+
+    def save(self, path_input, require_done=True, **paths_data):
+        input_future = save_txt(
+                self.plumed_input,
+                outputs=[File(str(path_input))],
+                ).outputs[0]
+        data_futures = {}
+        for key in self.data_futures.keys():
+            assert key in paths_data.keys()
+            data_futures[key] = copy_data_future(
+                    inputs=[self.data_futures[key]],
+                    outputs=[File(str(paths_data[key]))],
+                    ).outputs[0]
+        if require_done:
+            input_future.result()
+            for value in data_futures.values():
+                value.result()
+        return input_future, data_futures
+
+    @classmethod
+    def load(cls, context, path_input, **paths_data):
+        with open(path_input, 'r') as f:
+            plumed_input = f.read()
+        data = {}
+        for key, path in paths_data.items():
+            with open(path, 'r') as f:
+                data[key] = f.read()
+        return cls(context, plumed_input, data=data)
 
     @property
     def keys(self):

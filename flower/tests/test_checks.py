@@ -16,9 +16,13 @@ def test_distance_check(context, dataset):
 
 
 def test_discrepancy_check(context, dataset, nequip_config):
-    model_old = NequIPModel(context, nequip_config, dataset[:5])
+    model_old = NequIPModel(context, nequip_config)
+    model_old.set_seed(123)
+    model_old.initialize(dataset[5:])
     model_old.deploy()
-    model_new = NequIPModel(context, nequip_config, dataset[-5:])
+    model_new = NequIPModel(context, nequip_config)
+    model_new.set_seed(111) # networks only substantially different with different seeds
+    model_new.initialize(dataset[-5:])
     model_new.deploy()
     check = DiscrepancyCheck(
             model_old,
@@ -39,4 +43,3 @@ def test_safety(context, dataset):
     assert check(state, walker.tag_future).result() is not None
     walker.tag_future = 'unsafe'
     assert check(state, walker.tag_future).result() is None
-

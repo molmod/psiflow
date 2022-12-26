@@ -43,12 +43,16 @@ def to_nequip_dataset(data, nequip_config):
 
 def initialize(config, inputs=[], outputs=[]):
     import torch
+    import numpy as np
     from nequip.utils import Config
     from nequip.scripts.train import default_config
     from nequip.model import model_from_config
 
     from flower.data import read_dataset
     from flower.models._nequip import to_nequip_dataset
+
+    torch.manual_seed(config['seed']) # necessary to ensure reproducible init!
+    np.random.seed(config['seed'])
 
     nequip_config = Config.from_dict(
             config,
@@ -189,7 +193,7 @@ def train(device, dtype, nequip_config, inputs=[], outputs=[]):
 class NequIPModel(BaseModel):
     """Container class for NequIP models"""
 
-    def __init__(self, context, config, dataset):
+    def __init__(self, context, config):
         super().__init__(context)
 
         config = dict(config)
@@ -200,15 +204,25 @@ class NequIPModel(BaseModel):
                 'stress': 'virial',
                 }
 
+        self.config_raw    = config
+        self.config_future = None
+        self.model_future  = None
+        self.deploy_future = {} # deployed models in float32 and float64
+
+    def initialize(self, dataset):
+        assert self.config_future is None
+        assert self.model_future is None
+        self.deploy_future = {}
         self.config_future = self.context.apps(NequIPModel, 'initialize')( # to initialized config
-                config,
+                self.config_raw,
                 inputs=[dataset.data_future],
-                outputs=[File(_new_file(context.path, 'model_', '.pth'))],
+                outputs=[File(_new_file(self.context.path, 'model_', '.pth'))],
                 )
-        self.model_future  = self.config_future.outputs[0] # to undeployed model
-        self.deploy_future = {} # to deployed model
+        self.model_future = self.config_future.outputs[0] # to undeployed model
 
     def deploy(self):
+        assert self.config_future is not None
+        assert self.model_future is not None
         self.deploy_future['float32'] = self.context.apps(NequIPModel, 'deploy_float32')(
                 self.config_future,
                 inputs=[self.model_future],
@@ -233,6 +247,15 @@ class NequIPModel(BaseModel):
                 inputs=[self.deploy_future[dtype]],
                 outputs=[File(str(path_deployed))],
                 )
+
+    def reset(self):
+        self.config_future = None
+        self.model_future = None
+        self.deploy_future = {}
+
+    def set_seed(self, seed):
+        self.config_raw['seed'] = seed
+        self.config_raw['dataset_seed'] = seed
 
     @classmethod
     def create_apps(cls, context):
@@ -276,8 +299,6 @@ class NequIPModel(BaseModel):
                     outputs=outputs,
                     )
         context.register_app(cls, 'train', train_wrapped)
-        #app_copy_model = python_app(copy_file, executors=[model_label])
-        #context.register_app(cls, 'copy_model', app_copy_model)
         evaluate_unwrapped = python_app(evaluate_dataset, executors=[model_label])
         def evaluate_wrapped(suffix, inputs=[], outputs=[]):
             return evaluate_unwrapped(
@@ -291,11 +312,11 @@ class NequIPModel(BaseModel):
                     )
         context.register_app(cls, 'evaluate', evaluate_wrapped)
 
-
     @classmethod
-    def load_calculator(cls, path_model, device, dtype):
+    def load_calculator(cls, path_model, device, dtype, set_global_options='warn'):
         from nequip.ase import NequIPCalculator
         return NequIPCalculator.from_deployed_model(
                 model_path=path_model,
                 device=device,
+                set_global_options=set_global_options,
                 )

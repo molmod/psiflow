@@ -1,4 +1,5 @@
 from copy import deepcopy
+from pathlib import Path
 
 from parsl.app.app import join_app, python_app
 from parsl.data_provider.files import File
@@ -63,6 +64,7 @@ class Ensemble:
     """Wraps a set of walkers"""
 
     def __init__(self, context, walkers, biases=[]):
+        assert len(walkers) > 0
         self.context = context
         self.walkers = walkers
         if len(biases) > 0:
@@ -85,6 +87,53 @@ class Ensemble:
                 outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                 ).outputs[0]
         return Dataset(self.context, data_future=data_future)
+
+    def save(self, path_dir, require_done=True):
+        path_dir = Path(path_dir)
+        assert path_dir.is_dir()
+        for i, (walker, bias) in enumerate(zip(self.walkers, self.biases)):
+            path_start = path_dir / '{}_start.xyz'.format(i)
+            path_state = path_dir / '{}_state.xyz'.format(i)
+            path_pars  = path_dir / '{}_pars.yaml'.format(i)
+            walker.save(path_start, path_state, path_pars, require_done=require_done)
+            if bias is not None:
+                path_plumed = path_dir / '{}_plumed_input.txt'.format(i)
+                paths_data = {}
+                for key in bias.data_futures.keys():
+                    paths_data[key] = path_dir / '{}_plumed_{}.txt'.format(i, key)
+                bias.save(path_plumed, require_done=require_done, **paths_data)
+
+    @classmethod
+    def load(cls, context, walker_cls, path_dir):
+        path_dir = Path(path_dir)
+        assert path_dir.is_dir()
+        walkers = []
+        biases = []
+        i = 0
+        while (path_dir / '{}_start.xyz'.format(i)).is_file():
+            path_start = path_dir / '{}_start.xyz'.format(i)
+            path_state = path_dir / '{}_state.xyz'.format(i)
+            path_pars  = path_dir / '{}_pars.yaml'.format(i)
+            path_plumed = path_dir / '{}_plumed_input.txt'.format(i)
+            walker = walker_cls.load(
+                    walker_cls,
+                    path_start,
+                    path_state,
+                    path_pars,
+                    )
+            if path_plumed.is_file():
+                paths_data = {}
+                for key in PlumedBias.keys_with_future:
+                    path = path_dir / '{}_plumed_{}.txt'.format(i, key)
+                    if path.is_file():
+                        paths_data[key] = path
+                bias = PlumedBias.load(context, path_plumed, **paths_data)
+            else:
+                bias = None
+            walkers.append(walker)
+            biases.append(bias)
+            i += 1
+        return cls(context, walkers, biases)
 
     @property
     def nwalkers(self):

@@ -37,7 +37,8 @@ FLUSH STRIDE=10
 
 
 def test_dynamic_walker_bias(context, nequip_config, dataset):
-    model = NequIPModel(context, nequip_config, dataset)
+    model = NequIPModel(context, nequip_config)
+    model.initialize(dataset)
     model.deploy()
     kwargs = {
             'timestep'           : 1,
@@ -173,7 +174,7 @@ RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
             )
 
 
-def test_bias_external(context, dataset):
+def test_bias_external(context, dataset, tmpdir):
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -189,6 +190,12 @@ external: EXTERNAL ARG=CV FILE=test_grid
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(bias_function(values[:, 0]), values[:, 1])
+    path_input = tmpdir / 'plumed_input.txt'
+    path_external = tmpdir / 'grid.txt'
+    input_future, data_futures = bias.save(path_input, EXTERNAL=path_external)
+    bias_ = PlumedBias.load(context, path_input, EXTERNAL=path_external)
+    values_ = bias_.evaluate(dataset, cv='CV').result()
+    assert np.allclose(values, values_)
 
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
@@ -206,6 +213,22 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
         assert np.allclose(volume, values[i, 0])
     reference = bias_function(values[:, 0]) + 0.5 * (values[:, 0] - 150) ** 2
     assert np.allclose(reference, values[:, 1])
+    path_input = tmpdir / 'plumed_input.txt'
+    path_external = tmpdir / 'grid.txt'
+    path_metad = tmpdir / 'hills.txt'
+    input_future, data_futures = bias.save(
+            path_input,
+            EXTERNAL=path_external,
+            METAD=path_metad,
+            )
+    bias_ = PlumedBias.load(
+            context,
+            path_input,
+            EXTERNAL=path_external,
+            METAD=path_metad,
+            )
+    values_ = bias_.evaluate(dataset, cv='CV').result()
+    assert np.allclose(values, values_)
 
 
 def test_adjust_restraint(context, dataset):

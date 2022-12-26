@@ -54,7 +54,7 @@ def test_dataset_from_xyz(context, tmp_path):
     path_xyz = tmp_path / 'data.xyz'
     with open(path_xyz, 'w') as f:
         write_extxyz(f, data)
-    dataset = Dataset.from_xyz(context, path_xyz)
+    dataset = Dataset.load(context, path_xyz)
 
     for i in range(20):
         assert np.allclose(

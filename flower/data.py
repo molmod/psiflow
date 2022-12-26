@@ -215,12 +215,6 @@ class Dataset(Container):
             assert (isinstance(data_future, DataFuture) or isinstance(data_future, File))
             self.data_future = data_future
 
-    def save(self, path_dataset):
-        return copy_data_future(
-                inputs=[self.data_future],
-                outputs=[File(str(path_dataset))],
-                )
-
     def length(self):
         return self.context.apps(Dataset, 'length_dataset')(inputs=[self.data_future])
 
@@ -268,8 +262,17 @@ class Dataset(Container):
                 inputs=[self.data_future],
                 )
 
+    def save(self, path_dataset, require_done=True):
+        future = copy_data_future(
+                inputs=[self.data_future],
+                outputs=[File(str(path_dataset))],
+                )
+        if require_done:
+            future.result()
+        return future
+
     @classmethod
-    def from_xyz(cls, context, path_xyz):
+    def load(cls, context, path_xyz):
         assert os.path.isfile(path_xyz) # needs to be locally accessible
         return cls(context, data_future=File(str(path_xyz)))
 

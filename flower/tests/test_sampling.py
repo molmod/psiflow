@@ -1,3 +1,5 @@
+from dataclasses import asdict
+import os
 import pytest
 import torch
 import numpy as np
@@ -12,6 +14,28 @@ from flower.checks import SafetyCheck
 
 from common import context, nequip_config
 from test_dataset import dataset
+
+
+def test_save_load(context, dataset, tmpdir):
+    walker = DynamicWalker(context, dataset[0], steps=10, step=1)
+    path_start = tmpdir / 'start.xyz'
+    path_state = tmpdir / 'state.xyz'
+    path_pars  = tmpdir / 'pars.yaml'
+    futures = walker.save(path_start, path_state, path_pars)
+    assert os.path.exists(path_start)
+    assert os.path.exists(path_state)
+    assert os.path.exists(path_pars)
+    walker_ = DynamicWalker.load(context, path_start, path_state, path_pars)
+    assert np.allclose(
+            walker.start_future.result().positions,
+            walker_.start_future.result().positions,
+            )
+    assert np.allclose(
+            walker.state_future.result().positions,
+            walker_.state_future.result().positions,
+            )
+    for key, value in asdict(walker.parameters).items():
+        assert value == asdict(walker_.parameters)[key]
 
 
 def test_base_walker(context, dataset):
@@ -53,14 +77,14 @@ def test_random_walker(context, dataset):
     state = walker.propagate(model='dummy') # irrelevant kwargs are ignored
 
 
-def test_ensemble(context, dataset):
+def test_ensemble(context, dataset, tmpdir):
     walker = RandomWalker(context, dataset[0])
     nwalkers = 10
     ensemble = Ensemble.from_walker(walker, nwalkers=nwalkers)
 
     with pytest.raises(AssertionError):
         new_data = ensemble.propagate(5) # nstates should be >= nwalkers
-    nstates = 25
+    nstates = 15
     new_data = ensemble.propagate(nstates, checks=[SafetyCheck()]) # always passes
     assert new_data.length().result() == nstates
     for i, walker in enumerate(ensemble.walkers[:int(nstates % nwalkers)]):
@@ -76,10 +100,24 @@ def test_ensemble(context, dataset):
                     new_data[j].result().get_positions(),
                     )
 
+    # test save and load
+    path_ensemble = tmpdir / 'ensemble'
+    path_ensemble.mkdir()
+    ensemble.save(path_ensemble)
+    ensemble_ = Ensemble.load(context, RandomWalker, path_ensemble)
+    assert ensemble_.nwalkers == nwalkers
+    for i, walker in enumerate(ensemble_.walkers[:int(nstates % nwalkers)]):
+        assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers
+    for i, walker in enumerate(ensemble_.walkers[int(nstates % nwalkers):]):
+        assert walker.parameters.seed == i + (nstates // nwalkers) * nwalkers + nstates % nwalkers
+    nfiles = len([f for f in os.listdir(path_ensemble) if os.path.isfile(path_ensemble / f)])
+    assert nfiles == 3 * nwalkers
+
 
 def test_dynamic_walker(context, dataset, nequip_config):
     walker = DynamicWalker(context, dataset[0], steps=10, step=1)
-    model = NequIPModel(context, nequip_config, dataset[:3])
+    model = NequIPModel(context, nequip_config)
+    model.initialize(dataset[:3])
     model.deploy()
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
     assert trajectory.length().result() == 11
@@ -103,7 +141,8 @@ def test_dynamic_walker(context, dataset, nequip_config):
 def test_optimization(context, dataset, nequip_config):
     training = dataset[:15]
     validate = dataset[15:]
-    model = NequIPModel(context, nequip_config, training)
+    model = NequIPModel(context, nequip_config)
+    model.initialize(training)
     model.train(training, validate)
     model.deploy()
 

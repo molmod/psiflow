@@ -48,3 +48,22 @@ def copy_app_future(future):
 @python_app
 def unpack_i(result, i):
     return result[i]
+
+
+@python_app
+def save_yaml(input_dict, outputs=[]):
+    import yaml
+    with open(outputs[0], 'w') as f:
+        yaml.dump(input_dict, f, default_flow_style=False)
+
+
+@python_app
+def save_atoms(atoms, outputs=[]):
+    from ase.io import write
+    write(outputs[0].filepath, atoms)
+
+
+@python_app
+def save_txt(data, outputs=[]):
+    with open(outputs[0], 'w') as f:
+        f.write(data)
