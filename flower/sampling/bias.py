@@ -3,6 +3,7 @@ import tempfile
 import yaff
 import molmod
 import numpy as np
+from pathlib import Path
 from collections import OrderedDict
 
 from parsl.app.app import python_app, join_app
@@ -266,17 +267,20 @@ class PlumedBias(Container):
                 )
         return dataset[indices]
 
-    def save(self, path_input, require_done=True, **paths_data):
+    def save(self, path, require_done=True):
+        path = Path(path)
+        assert path.is_dir()
+        path_input = path / 'plumed_input.txt'
         input_future = save_txt(
                 self.plumed_input,
                 outputs=[File(str(path_input))],
                 ).outputs[0]
         data_futures = {}
         for key in self.data_futures.keys():
-            assert key in paths_data.keys()
+            path_key = path / (key + '.txt')
             data_futures[key] = copy_data_future(
                     inputs=[self.data_futures[key]],
-                    outputs=[File(str(paths_data[key]))],
+                    outputs=[File(str(path_key))],
                     ).outputs[0]
         if require_done:
             input_future.result()
@@ -285,13 +289,19 @@ class PlumedBias(Container):
         return input_future, data_futures
 
     @classmethod
-    def load(cls, context, path_input, **paths_data):
+    def load(cls, context, path):
+        path = Path(path)
+        assert path.is_dir()
+        path_input = path / 'plumed_input.txt'
+        assert path_input.is_file()
         with open(path_input, 'r') as f:
             plumed_input = f.read()
         data = {}
-        for key, path in paths_data.items():
-            with open(path, 'r') as f:
-                data[key] = f.read()
+        for key in cls.keys_with_future:
+            path_key = path / (key + '.txt')
+            if path_key.is_file():
+                with open(path_key, 'r') as f:
+                    data[key] = f.read()
         return cls(context, plumed_input, data=data)
 
     @property

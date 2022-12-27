@@ -8,8 +8,9 @@ from parsl.dataflow.futures import AppFuture
 from ase import Atoms
 
 from flower.models import NequIPModel
-from flower.sampling import BaseWalker, Ensemble, RandomWalker, \
-        DynamicWalker, OptimizationWalker
+from flower.sampling import BaseWalker, RandomWalker, DynamicWalker, \
+        OptimizationWalker, load_walker
+from flower.ensemble import Ensemble
 from flower.checks import SafetyCheck
 
 from common import context, nequip_config
@@ -20,12 +21,13 @@ def test_save_load(context, dataset, tmpdir):
     walker = DynamicWalker(context, dataset[0], steps=10, step=1)
     path_start = tmpdir / 'start.xyz'
     path_state = tmpdir / 'state.xyz'
-    path_pars  = tmpdir / 'pars.yaml'
-    futures = walker.save(path_start, path_state, path_pars)
+    path_pars  = tmpdir / 'DynamicWalker.yaml' # has name of walker class
+    futures = walker.save(tmpdir)
     assert os.path.exists(path_start)
     assert os.path.exists(path_state)
     assert os.path.exists(path_pars)
-    walker_ = DynamicWalker.load(context, path_start, path_state, path_pars)
+    walker_ = load_walker(context, tmpdir)
+    assert type(walker_) == DynamicWalker
     assert np.allclose(
             walker.start_future.result().positions,
             walker_.start_future.result().positions,
@@ -101,17 +103,15 @@ def test_ensemble(context, dataset, tmpdir):
                     )
 
     # test save and load
-    path_ensemble = tmpdir / 'ensemble'
-    path_ensemble.mkdir()
-    ensemble.save(path_ensemble)
-    ensemble_ = Ensemble.load(context, RandomWalker, path_ensemble)
+    ensemble.save(tmpdir)
+    ensemble_ = Ensemble.load(context, tmpdir)
     assert ensemble_.nwalkers == nwalkers
     for i, walker in enumerate(ensemble_.walkers[:int(nstates % nwalkers)]):
         assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers
     for i, walker in enumerate(ensemble_.walkers[int(nstates % nwalkers):]):
         assert walker.parameters.seed == i + (nstates // nwalkers) * nwalkers + nstates % nwalkers
-    nfiles = len([f for f in os.listdir(path_ensemble) if os.path.isfile(path_ensemble / f)])
-    assert nfiles == 3 * nwalkers
+    ndirs = len([f for f in os.listdir(tmpdir) if os.path.isdir(tmpdir / f)])
+    assert ndirs == nwalkers
 
 
 def test_dynamic_walker(context, dataset, nequip_config):

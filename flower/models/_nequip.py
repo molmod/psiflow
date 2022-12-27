@@ -194,8 +194,6 @@ class NequIPModel(BaseModel):
     """Container class for NequIP models"""
 
     def __init__(self, context, config):
-        super().__init__(context)
-
         config = dict(config)
         config['dataset_include_keys'] = ['total_energy', 'forces', 'virial']
         config['dataset_key_mapping'] = {
@@ -203,11 +201,7 @@ class NequIPModel(BaseModel):
                 'forces': 'forces',
                 'stress': 'virial',
                 }
-
-        self.config_raw    = config
-        self.config_future = None
-        self.model_future  = None
-        self.deploy_future = {} # deployed models in float32 and float64
+        super().__init__(context, config)
 
     def initialize(self, dataset):
         assert self.config_future is None

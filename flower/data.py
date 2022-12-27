@@ -271,6 +271,13 @@ class Dataset(Container):
             future.result()
         return future
 
+    def append(self, dataset):
+        path_new = _new_file(self.context.path, prefix='data_', suffix='.xyz')
+        self.data_future = self.context.apps(Dataset, 'join_dataset')(
+                inputs=[self.data_future, dataset.data_future],
+                outputs=[File(path_new)],
+                ).outputs[0]
+
     @classmethod
     def load(cls, context, path_xyz):
         assert os.path.isfile(path_xyz) # needs to be locally accessible

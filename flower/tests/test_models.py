@@ -11,7 +11,7 @@ from ase.io.extxyz import read_extxyz
 from nequip.ase import NequIPCalculator
 
 from flower.data import Dataset
-from flower.models import NequIPModel
+from flower.models import NequIPModel, load_model
 from flower.execution import ModelExecutionDefinition
 
 from common import context, nequip_config
@@ -20,6 +20,7 @@ from test_dataset import dataset
 
 def test_nequip_init(context, nequip_config, dataset):
     model = NequIPModel(context, nequip_config)
+    model.set_seed(1)
     model.initialize(dataset[:3])
     assert isinstance(model.model_future, DataFuture)
     assert isinstance(model.config_future, AppFuture)
@@ -46,8 +47,6 @@ def test_nequip_init(context, nequip_config, dataset):
             path_model=model.deploy_future['float64'].result().filepath,
             device=context[ModelExecutionDefinition].device,
             dtype='float64',
-            #set_global_options=False,
-            #dtype=context[ModelExecutionDefinition].dtype,
             )
     assert atoms.calc.device == context[ModelExecutionDefinition].device
     e1 = atoms.get_potential_energy()
@@ -58,6 +57,7 @@ def test_nequip_init(context, nequip_config, dataset):
     torch.set_default_dtype(torch.float32)
     e0 = model.evaluate(dataset.get(indices=[0]))[0].result().info['energy_model']
     model.reset()
+    model.set_seed(1)
     model.initialize(dataset[:3])
     model.deploy()
     assert e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info['energy_model']
@@ -96,22 +96,24 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
 
 def test_nequip_save_load(context, nequip_config, dataset, tmpdir):
     model = NequIPModel(context, nequip_config)
-    future_raw, _, _ = model.save(tmpdir / 'config.yaml')
+    future_raw, _, _ = model.save(tmpdir)
     assert future_raw.done()
     assert _ is None
     model.initialize(dataset[:2])
     model.deploy()
     e0 = model.evaluate(dataset.get(indices=[3]))[0].result().info['energy_model']
 
-    path_config_raw = tmpdir / 'config.yaml'
+    path_config_raw = tmpdir / 'NequIPModel.yaml'
     path_config     = tmpdir / 'config_after_init.yaml'
     path_model      = tmpdir / 'model_undeployed.pth'
-    futures = model.save(path_config_raw, path_config, path_model)
+    futures = model.save(tmpdir)
     assert os.path.exists(path_config_raw)
     assert os.path.exists(path_config)
     assert os.path.exists(path_model)
 
-    model_ = NequIPModel.load(context, path_config_raw, path_config, path_model)
+    model_ = load_model(context, tmpdir)
+    assert type(model_) == NequIPModel
+    assert model_.model_future is not None
     model_.deploy()
     e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info['energy_model']
     assert e0 == e1

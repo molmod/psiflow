@@ -1,5 +1,7 @@
 import yaml
 import tempfile
+from copy import deepcopy
+from pathlib import Path
 
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
@@ -52,8 +54,12 @@ def evaluate_dataset(
 class BaseModel(Container):
     """Base Container for a trainable interaction potential"""
 
-    def __init__(self, context):
+    def __init__(self, context, config):
         super().__init__(context)
+        self.config_raw    = deepcopy(config)
+        self.config_future = None
+        self.model_future  = None
+        self.deploy_future = {} # deployed models in float32 and float64
 
     def train(self, training, validation):
         """Trains a model and returns it as an AppFuture"""
@@ -75,12 +81,17 @@ class BaseModel(Container):
                 ).outputs[0]
         return Dataset(self.context, data_future=data_future)
 
-    def save(self, path_config_raw, path_config=None, path_model=None, require_done=True):
+    def save(self, path, require_done=True):
+        path = Path(path)
+        assert path.is_dir()
+        path_config_raw = path / (self.__class__.__name__ + '.yaml')
         future_raw = save_yaml(
                 self.config_raw,
                 outputs=[File(str(path_config_raw))],
                 ).outputs[0]
         if self.config_future is not None:
+            path_config = path / 'config_after_init.yaml'
+            path_model  = path / 'model_undeployed.pth'
             future_config = save_yaml(
                     self.config_future,
                     outputs=[File(str(path_config))],
@@ -99,18 +110,18 @@ class BaseModel(Container):
                 future_model.result()
         return future_raw, future_config, future_model
 
-    @classmethod
-    def load(cls, context, path_config_raw, path_config=None, path_model=None):
-        with open(path_config_raw, 'r') as f:
-            config = yaml.load(f, Loader=yaml.FullLoader)
-        model = cls(context, config)
-        if path_model is not None:
-            assert path_config is not None
-            with open(path_config, 'r') as f:
-                config_init = yaml.load(f, Loader=yaml.FullLoader)
-            model.config_future = copy_app_future(config_init)
+    def copy(self):
+        model = self.__class__(self.context, self.config_raw)
+        if self.config_future is not None:
+            model.config_future = copy_app_future(self.config_future)
             model.model_future = copy_data_future(
-                    inputs=[path_model],
-                    outputs=[File(_new_file(context.path, 'model_', '.pth'))],
+                    inputs=[self.model_future],
+                    outputs=[File(_new_file(self.context.path, 'model_', '.pth'))],
                     ).outputs[0]
+        if len(self.deploy_future) > 0:
+            for key, future in self.deploy_future.items():
+                model.deploy_future[key] = copy_data_future(
+                        inputs=[self.deploy_future[key]],
+                        outputs=[File(_new_file(self.context.path, 'model_', '.pth'))],
+                        ).outputs[0]
         return model

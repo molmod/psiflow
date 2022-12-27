@@ -35,10 +35,15 @@ def test_dataset_empty(context, tmp_path):
     assert os.path.isfile(path_xyz)
 
 
-def test_dataset_add(dataset):
+def test_dataset_append(dataset):
     assert 20 == dataset.length().result()
+    empty = Dataset(dataset.context)
+    empty.append(dataset)
+    assert 20 == empty.length().result()
     new = Dataset.merge(dataset, dataset)
     assert 40 == new.length().result()
+    dataset.append(dataset)
+    assert 40 == dataset.length().result()
 
 
 def test_dataset_slice(dataset):

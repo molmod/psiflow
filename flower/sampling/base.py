@@ -1,8 +1,6 @@
 from dataclasses import dataclass, asdict
 from copy import deepcopy
-import yaml
-
-from ase.io import read
+from pathlib import Path
 
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
@@ -84,6 +82,10 @@ class BaseWalker(Container):
         app = self.context.apps(self.__class__, 'is_reset')
         return app(self.state_future, self.start_future)
 
+    def reset(self):
+        self.state_future = copy_app_future(self.start_future)
+        self.tag = 'safe'
+
     def copy(self):
         walker = self.__class__(
                 self.context,
@@ -94,7 +96,13 @@ class BaseWalker(Container):
         walker.parameters   = deepcopy(self.parameters)
         return walker
 
-    def save(self, path_start, path_state, path_pars, require_done=True):
+    def save(self, path, require_done=True):
+        path = Path(path)
+        assert path.is_dir()
+        name = self.__class__.__name__
+        path_start = path / 'start.xyz'
+        path_state = path / 'state.xyz'
+        path_pars  = path / (name + '.yaml')
         future_start = save_atoms(
                 self.start_future,
                 outputs=[File(str(path_start))],
@@ -107,21 +115,11 @@ class BaseWalker(Container):
                 asdict(self.parameters),
                 outputs=[File(str(path_pars))],
                 ).outputs[0]
-        future_start.result()
-        future_state.result()
-        future_pars.result()
+        if require_done:
+            future_start.result()
+            future_state.result()
+            future_pars.result()
         return future_start, future_state, future_pars
-
-    @classmethod
-    def load(cls, context, path_start, path_state, path_pars):
-        start = read(str(path_start))
-        state = read(str(path_state))
-        with open(path_pars, 'r') as f:
-            pars_dict = yaml.load(f, Loader=yaml.FullLoader)
-        walker = cls(context, state, **pars_dict)
-        walker.start_future = copy_app_future(start)
-        return walker
-
 
     @classmethod
     def create_apps(cls, context):

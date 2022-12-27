@@ -5,6 +5,7 @@ from parsl.app.app import join_app, python_app
 from parsl.data_provider.files import File
 
 from flower.data import Dataset, save_dataset
+from flower.sampling import load_walker
 from flower.utils import _new_file
 
 
@@ -28,7 +29,7 @@ def conditional_propagate(
         outputs=[],
         ):
     from flower.data import read_dataset
-    from flower.sampling.ensemble import get_continue_flag
+    from flower.ensemble import get_continue_flag
     from flower.utils import _new_file
     states = inputs
     if (len(states) < len(walkers)) or continue_flag:
@@ -73,7 +74,7 @@ class Ensemble:
             biases = [None] * len(walkers)
         self.biases = biases
 
-    def propagate(self, nstates, model=None, checks=[]):
+    def propagate(self, nstates, model=None, checks=None):
         assert nstates >= len(self.walkers)
         data_future = conditional_propagate(
                 self.context,
@@ -82,52 +83,35 @@ class Ensemble:
                 self.biases,
                 nstates,
                 model=model,
-                checks=checks,
+                checks=checks if checks is not None else [],
                 inputs=[],
                 outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                 ).outputs[0]
         return Dataset(self.context, data_future=data_future)
 
-    def save(self, path_dir, require_done=True):
-        path_dir = Path(path_dir)
-        assert path_dir.is_dir()
+    def save(self, path, require_done=True):
+        path = Path(path)
+        assert path.is_dir()
         for i, (walker, bias) in enumerate(zip(self.walkers, self.biases)):
-            path_start = path_dir / '{}_start.xyz'.format(i)
-            path_state = path_dir / '{}_state.xyz'.format(i)
-            path_pars  = path_dir / '{}_pars.yaml'.format(i)
-            walker.save(path_start, path_state, path_pars, require_done=require_done)
+            path_walker = path / str(i)
+            path_walker.mkdir(parents=False, exist_ok=False)
+            walker.save(path_walker, require_done=require_done)
             if bias is not None:
-                path_plumed = path_dir / '{}_plumed_input.txt'.format(i)
-                paths_data = {}
-                for key in bias.data_futures.keys():
-                    paths_data[key] = path_dir / '{}_plumed_{}.txt'.format(i, key)
-                bias.save(path_plumed, require_done=require_done, **paths_data)
+                bias.save(path_walker, require_done=require_done)
 
     @classmethod
-    def load(cls, context, walker_cls, path_dir):
-        path_dir = Path(path_dir)
-        assert path_dir.is_dir()
+    def load(cls, context, path):
+        path = Path(path)
+        assert path.is_dir()
         walkers = []
         biases = []
         i = 0
-        while (path_dir / '{}_start.xyz'.format(i)).is_file():
-            path_start = path_dir / '{}_start.xyz'.format(i)
-            path_state = path_dir / '{}_state.xyz'.format(i)
-            path_pars  = path_dir / '{}_pars.yaml'.format(i)
-            path_plumed = path_dir / '{}_plumed_input.txt'.format(i)
-            walker = walker_cls.load(
-                    walker_cls,
-                    path_start,
-                    path_state,
-                    path_pars,
-                    )
-            if path_plumed.is_file():
-                paths_data = {}
-                for key in PlumedBias.keys_with_future:
-                    path = path_dir / '{}_plumed_{}.txt'.format(i, key)
-                    if path.is_file():
-                        paths_data[key] = path
-                bias = PlumedBias.load(context, path_plumed, **paths_data)
+        while (path / str(i)).is_dir():
+            path_walker = path / str(i)
+            walker = load_walker(context, path_walker)
+            path_plumed = path_walker / 'plumed_input.txt'
+            if path_plumed.is_file(): # check if bias present
+                bias = PlumedBias.load(context, path_walker)
             else:
                 bias = None
             walkers.append(walker)

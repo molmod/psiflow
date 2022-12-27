@@ -7,9 +7,10 @@ from ase.build import bulk
 
 from flower.data import Dataset
 from flower.models import NequIPModel
-from flower.sampling import DynamicWalker, RandomWalker, Ensemble, PlumedBias
+from flower.sampling import DynamicWalker, RandomWalker, PlumedBias
 from flower.sampling.bias import set_path_in_plumed, parse_plumed_input, \
         generate_external_grid
+from flower.ensemble import Ensemble
 
 from common import context, nequip_config
 from test_dataset import dataset
@@ -190,10 +191,8 @@ external: EXTERNAL ARG=CV FILE=test_grid
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(bias_function(values[:, 0]), values[:, 1])
-    path_input = tmpdir / 'plumed_input.txt'
-    path_external = tmpdir / 'grid.txt'
-    input_future, data_futures = bias.save(path_input, EXTERNAL=path_external)
-    bias_ = PlumedBias.load(context, path_input, EXTERNAL=path_external)
+    input_future, data_futures = bias.save(tmpdir)
+    bias_ = PlumedBias.load(context, tmpdir)
     values_ = bias_.evaluate(dataset, cv='CV').result()
     assert np.allclose(values, values_)
 
@@ -213,20 +212,8 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
         assert np.allclose(volume, values[i, 0])
     reference = bias_function(values[:, 0]) + 0.5 * (values[:, 0] - 150) ** 2
     assert np.allclose(reference, values[:, 1])
-    path_input = tmpdir / 'plumed_input.txt'
-    path_external = tmpdir / 'grid.txt'
-    path_metad = tmpdir / 'hills.txt'
-    input_future, data_futures = bias.save(
-            path_input,
-            EXTERNAL=path_external,
-            METAD=path_metad,
-            )
-    bias_ = PlumedBias.load(
-            context,
-            path_input,
-            EXTERNAL=path_external,
-            METAD=path_metad,
-            )
+    bias.save(tmpdir)
+    bias_ = PlumedBias.load(context, tmpdir)
     values_ = bias_.evaluate(dataset, cv='CV').result()
     assert np.allclose(values, values_)
 
