@@ -42,7 +42,7 @@ class BaseWalker(Container):
         self.tag_future   = 'safe'
 
         # parameters
-        self.parameters = self.parameters_cls(**kwargs)
+        self.parameters = self.parameters_cls(**deepcopy(kwargs))
 
     def propagate(self, safe_return=False, keep_trajectory=False, **kwargs):
         app = self.context.apps(self.__class__, 'propagate')

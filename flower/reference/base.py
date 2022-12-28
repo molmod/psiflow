@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from copy import deepcopy
 
 from parsl.dataflow.futures import AppFuture
 from parsl.app.app import join_app, python_app
@@ -22,7 +23,7 @@ class BaseReference(Container):
 
     def __init__(self, context, **kwargs):
         super().__init__(context)
-        self.parameters = self.parameters_cls(**kwargs)
+        self.parameters = self.parameters_cls(**deepcopy(kwargs))
 
     def evaluate(self, arg):
         if isinstance(arg, Dataset):
