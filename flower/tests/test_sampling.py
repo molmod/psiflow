@@ -13,9 +13,6 @@ from flower.sampling import BaseWalker, RandomWalker, DynamicWalker, \
 from flower.ensemble import Ensemble
 from flower.checks import SafetyCheck
 
-from common import context, nequip_config
-from test_dataset import dataset
-
 
 def test_save_load(context, dataset, tmpdir):
     walker = DynamicWalker(context, dataset[0], steps=10, step=1)

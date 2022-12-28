@@ -1,0 +1,18 @@
+[build-system]
+requires = ['setuptools']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'flower'
+version = '0.0.1'
+description = 'Library for developing interatomic potentials'
+readme = 'README.md'
+requires-python = '>=3.8'
+
+[tool.pytest.ini_options]
+addopts = [
+    '--import-mode=importlib',
+    '--parsl-config=flower/configs/local_threadpool.py',
+    '-vv',
+]
+testpaths = ['flower/tests']

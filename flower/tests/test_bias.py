@@ -12,9 +12,6 @@ from flower.sampling.bias import set_path_in_plumed, parse_plumed_input, \
         generate_external_grid
 from flower.ensemble import Ensemble
 
-from common import context, nequip_config
-from test_dataset import dataset
-
 
 def test_get_filename_hills(tmp_path):
     plumed_input = """

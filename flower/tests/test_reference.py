@@ -17,9 +17,6 @@ from flower.reference._cp2k import insert_filepaths_in_input, \
 from flower.data import Dataset
 from flower.execution import ReferenceExecutionDefinition
 
-from common import context
-from test_dataset import dataset
-
 
 @pytest.fixture
 def fake_cp2k_input():

@@ -14,9 +14,6 @@ from flower.data import Dataset
 from flower.models import NequIPModel, load_model
 from flower.execution import ModelExecutionDefinition
 
-from common import context, nequip_config
-from test_dataset import dataset
-
 
 def test_nequip_init(context, nequip_config, dataset):
     model = NequIPModel(context, nequip_config)

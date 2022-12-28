@@ -11,9 +11,6 @@ from flower.ensemble import Ensemble
 from flower.checks import SafetyCheck, DiscrepancyCheck, \
         InteratomicDistanceCheck
 
-from common import context, nequip_config
-from test_dataset import dataset
-
 
 @pytest.fixture
 def model(context, nequip_config, dataset):

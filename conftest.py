@@ -1,55 +1,50 @@
 import pytest
+import sys
 import parsl
 import requests
 import yaml
 import torch
 import numpy as np
 import tempfile
+import importlib
 from pathlib import Path
 
 from ase import Atoms
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
-from parsl.config import Config
-from parsl.providers import LocalProvider
-from parsl.executors import ThreadPoolExecutor, HighThroughputExecutor
-from parsl.launchers import SimpleLauncher, SingleNodeLauncher
-
 from flower.execution import ExecutionContext, TrainingExecutionDefinition, \
         ModelExecutionDefinition, ReferenceExecutionDefinition, \
         DefaultExecutionDefinition
+from flower.data import Dataset
 
 
-@pytest.fixture(scope='module', params=['threadpool'])
-def context(request, tmpdir_factory):
-    if request.param == 'threadpool':
-        executors = [
-                ThreadPoolExecutor(label='gpu', max_threads=1, working_dir=str(tmpdir_factory.mktemp('working_dir'))),
-                ThreadPoolExecutor(label='default', max_threads=1, working_dir=str(tmpdir_factory)),
-                ThreadPoolExecutor(label='cpu_small', max_threads=4, working_dir=str(tmpdir_factory)),
-                ThreadPoolExecutor(label='cpu_large', max_threads=4, working_dir=str(tmpdir_factory)),
-                ]
-    elif request.param == 'htex':
-        provider = LocalProvider(
-            min_blocks=1,
-            max_blocks=1,
-            nodes_per_block=1,
-            parallelism=0.5,
-            launcher=SingleNodeLauncher(),
+def pytest_addoption(parser):
+    parser.addoption(
+            '--parsl-config',
+            action='store',
+            #default='local_threadpool',
+            help='test',
             )
-        executors = [
-                HighThroughputExecutor(address='localhost', label='gpu', working_dir=str(tmpdir_factory), provider=provider, max_workers=1),
-                HighThroughputExecutor(address='localhost', label='default', working_dir=str(tmpdir_factory), provider=provider, cores_per_worker=1),
-                HighThroughputExecutor(address='localhost', label='cpu_small', working_dir=str(tmpdir_factory), provider=provider),
-                HighThroughputExecutor(address='localhost', label='cpu_large', working_dir=str(tmpdir_factory), provider=provider, max_workers=1, cores_per_worker=4),
-                ]
-    else:
-        raise ValueError
-    config = Config(executors, run_dir=str(tmpdir_factory.mktemp('runinfo')))
-    path = tempfile.mkdtemp()
-    parsl.load(config)
-    context = ExecutionContext(config, path=path)
+
+
+@pytest.fixture(scope='module')
+def parsl_config(request, tmpdir_factory):
+    parsl_config_path = Path(request.config.getoption('--parsl-config'))
+    assert parsl_config_path.is_file()
+    # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
+    spec = importlib.util.spec_from_file_location('module.name', parsl_config_path)
+    parsl_config_module = importlib.util.module_from_spec(spec)
+    sys.modules['module.name'] = parsl_config_module
+    spec.loader.exec_module(parsl_config_module)
+    return parsl_config_module.get_config(str(tmpdir_factory.mktemp('parsl_config_dir')))
+
+
+@pytest.fixture(scope='module')
+def context(parsl_config, tmpdir_factory):
+    parsl.load(parsl_config)
+    path = str(tmpdir_factory.mktemp('internal'))
+    context = ExecutionContext(parsl_config, path=path)
     context.register(DefaultExecutionDefinition())
     model_execution = ModelExecutionDefinition()
     context.register(model_execution)
@@ -89,3 +84,9 @@ def generate_emt_cu_data(nstates):
         _atoms.symbols[0] = 'H'
         atoms_list.append(_atoms)
     return atoms_list
+
+
+@pytest.fixture
+def dataset(context, tmp_path):
+    data = generate_emt_cu_data(20)
+    return Dataset(context, atoms_list=data)

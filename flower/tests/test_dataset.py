@@ -9,13 +9,7 @@ from ase.io.extxyz import write_extxyz
 from flower.data import FlowerAtoms, Dataset
 from flower.utils import get_index_element_mask
 
-from common import context, generate_emt_cu_data
-
-
-@pytest.fixture
-def dataset(context, tmp_path):
-    data = generate_emt_cu_data(20)
-    return Dataset(context, atoms_list=data)
+from conftest import generate_emt_cu_data # explicit import for regular function
 
 
 def test_flower_atoms(context, dataset):

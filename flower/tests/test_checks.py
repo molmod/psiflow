@@ -5,9 +5,6 @@ from flower.checks import InteratomicDistanceCheck, DiscrepancyCheck, \
 from flower.models import NequIPModel
 from flower.sampling import RandomWalker
 
-from common import context, nequip_config
-from test_dataset import dataset
-
 
 def test_distance_check(context, dataset, tmpdir):
     check = InteratomicDistanceCheck(threshold=0.1)
