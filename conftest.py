@@ -36,7 +36,7 @@ def parsl_config(request, tmpdir_factory):
     parsl_config_module = importlib.util.module_from_spec(spec)
     sys.modules['module.name'] = parsl_config_module
     spec.loader.exec_module(parsl_config_module)
-    return parsl_config_module.get_config(str(tmpdir_factory.mktemp('parsl_config_dir')))
+    return parsl_config_module.get_config(tmpdir_factory.mktemp('parsl_config_dir'))
 
 
 @pytest.fixture(scope='module')
