@@ -47,8 +47,7 @@ def context(parsl_config, tmpdir_factory):
     model_execution = ModelExecutionDefinition()
     context.register(model_execution)
     context.register(ReferenceExecutionDefinition(ncores=4))
-    if torch.cuda.is_available(): # requires gpu
-        context.register(TrainingExecutionDefinition())
+    context.register(TrainingExecutionDefinition())
     yield context
     parsl.clear()
 

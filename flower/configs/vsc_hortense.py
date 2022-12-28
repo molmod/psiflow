@@ -355,4 +355,4 @@ def get_config(path_internal):
             working_dir=str(path_internal / 'reference_executor'),
             cores_per_worker=4,
             )
-    return Config(executors=[default, model, reference, training], usage_tracking=True)
+    return Config(executors=[default, model, reference, training], usage_tracking=True, run_dir=str(path_internal))

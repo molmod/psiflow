@@ -65,7 +65,6 @@ def test_nequip_init(context, nequip_config, dataset):
     assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info['energy_model']
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')
 def test_nequip_train(context, nequip_config, dataset, tmp_path):
     training   = dataset[:-5]
     validation = dataset[-5:]
