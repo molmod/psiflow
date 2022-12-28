@@ -98,5 +98,7 @@ def test_manager_save_load(context, dataset, model, ensemble, tmpdir):
             context,
             )
     assert model_.config_future is not None # model was not initialized
-    assert checks[1].model_old is not None
-    assert checks[1].model_new is not None
+    for check in checks: # order is arbitrary
+        if type(check) == DiscrepancyCheck:
+            assert check.model_old is not None
+            assert check.model_new is not None

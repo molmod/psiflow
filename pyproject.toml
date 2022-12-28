@@ -2,12 +2,22 @@
 requires = ['setuptools']
 build-backend = 'setuptools.build_meta'
 
+
 [project]
 name = 'flower'
 version = '0.0.1'
 description = 'Library for developing interatomic potentials'
 readme = 'README.md'
 requires-python = '>=3.8'
+
+
+#[tool.setuptools.packages.find]
+#where = ['flower']
+#include = ['flower*']
+
+[tool.setuptools]
+packages = ["flower"]
+
 
 [tool.pytest.ini_options]
 addopts = [
