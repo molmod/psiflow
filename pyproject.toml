@@ -13,7 +13,7 @@ requires-python = '>=3.8'
 addopts = [
     '--basetemp=pytest-tmp', # /tmp/ may be different for each worker!
     '--import-mode=importlib',
-    '--parsl-config=flower/configs/local_threadpool.py',
+    '--parsl-config=configs/local_threadpool.py',
     '-vv',
 ]
-testpaths = ['flower/tests']
+testpaths = ['tests']

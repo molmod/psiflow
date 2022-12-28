@@ -112,4 +112,4 @@ def test_nequip_save_load(context, nequip_config, dataset, tmpdir):
     assert model_.model_future is not None
     model_.deploy()
     e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info['energy_model']
-    assert e0 == e1
+    assert np.allclose(e0, e1, atol=1e-4) # up to single precision

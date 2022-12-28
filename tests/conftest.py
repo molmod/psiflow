@@ -27,7 +27,7 @@ def pytest_addoption(parser):
             )
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def parsl_config(request, tmpdir_factory):
     parsl_config_path = Path(request.config.getoption('--parsl-config'))
     assert parsl_config_path.is_file()
@@ -39,7 +39,7 @@ def parsl_config(request, tmpdir_factory):
     return parsl_config_module.get_config(tmpdir_factory.mktemp('parsl_config_dir'))
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def context(parsl_config, tmpdir_factory):
     parsl.load(parsl_config)
     path = str(tmpdir_factory.mktemp('internal'))

@@ -276,7 +276,7 @@ def get_config(path_internal):
     from parsl.config import Config
     from parsl.executors import HighThroughputExecutor
     channel = LocalChannel(script_dir=str(path_internal / 'local_script_dir'))
-    worker_init = 'ml Flower-develop/10Dec2022-CPU'
+    worker_init = 'PLUMED/2.7.2-intel-2021a; ml Flower-develop/10Dec2022-CPU'
     provider = SlurmProvider(
             partition='cpu_rome',
             account='2022_050',
