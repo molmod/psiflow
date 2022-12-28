@@ -23,8 +23,7 @@ def try_manual_plumed_linking():
         elif 'PREFIX' in os.environ.keys(): # for pip environments
             p = 'PREFIX'
         else:
-            print('failed to set plumed .so kernel')
-            pass
+            raise ValueError('failed to set plumed .so kernel')
         path = os.environ[p] + '/lib/libplumedKernel.so'
         if os.path.exists(path):
             os.environ['PLUMED_KERNEL'] = path

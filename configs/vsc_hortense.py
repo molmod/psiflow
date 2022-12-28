@@ -283,7 +283,7 @@ def get_config(path_internal):
             channel=channel,
             nodes_per_block=1,
             cores_per_node=8,
-            min_blocks=1,
+            min_blocks=0,
             max_blocks=512,
             parallelism=1,
             walltime='00:30:00',
@@ -307,7 +307,7 @@ def get_config(path_internal):
             cores_per_worker=1,
             )
 
-    worker_init = 'ml Flower-develop/10Dec2022-CUDA-11.3.1'
+    worker_init = 'PLUMED/2.7.2-intel-2021a; ml Flower-develop/10Dec2022-CUDA-11.3.1'
     provider = SlurmProvider(
             partition='gpu_rome_a100',
             account='2022_050',
@@ -338,7 +338,7 @@ def get_config(path_internal):
             channel=channel,
             nodes_per_block=1,
             cores_per_node=4,
-            min_blocks=1,
+            min_blocks=0,
             max_blocks=16,
             parallelism=1,
             walltime='01:00:00',
