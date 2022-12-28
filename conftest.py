@@ -44,8 +44,7 @@ def context(parsl_config, tmpdir_factory):
     parsl.load(parsl_config)
     path = str(tmpdir_factory.mktemp('internal'))
     context = ExecutionContext(parsl_config, path=path)
-    model_execution = ModelExecutionDefinition()
-    context.register(model_execution)
+    context.register(ModelExecutionDefinition())
     context.register(ReferenceExecutionDefinition(ncores=4))
     context.register(TrainingExecutionDefinition())
     yield context

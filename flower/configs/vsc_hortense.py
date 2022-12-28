@@ -320,8 +320,8 @@ def get_config(path_internal):
             walltime='01:00:00',
             worker_init=worker_init,
             exclusive=False,
-            scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12', # request gpu
-            ) # using --export=None gave issues
+            scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n#SBATCH --export=None', # request gpu
+            )
     training = HighThroughputExecutor(
             label='training',
             provider=provider,
