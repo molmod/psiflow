@@ -14,8 +14,7 @@ from ase.build import bulk
 from ase.calculators.emt import EMT
 
 from flower.execution import ExecutionContext, TrainingExecutionDefinition, \
-        ModelExecutionDefinition, ReferenceExecutionDefinition, \
-        DefaultExecutionDefinition
+        ModelExecutionDefinition, ReferenceExecutionDefinition
 from flower.data import Dataset
 
 
@@ -45,7 +44,6 @@ def context(parsl_config, tmpdir_factory):
     parsl.load(parsl_config)
     path = str(tmpdir_factory.mktemp('internal'))
     context = ExecutionContext(parsl_config, path=path)
-    context.register(DefaultExecutionDefinition())
     model_execution = ModelExecutionDefinition()
     context.register(model_execution)
     context.register(ReferenceExecutionDefinition(ncores=4))

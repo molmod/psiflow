@@ -84,14 +84,14 @@ class OptimizationWalker(BaseWalker):
 
     @classmethod
     def create_apps(cls, context):
-        executor_label = context[ModelExecutionDefinition].executor_label
+        label = context[ModelExecutionDefinition].label
         device = context[ModelExecutionDefinition].device
         ncores = context[ModelExecutionDefinition].ncores
         path = context.path
 
         app_optimize = python_app(
                 optimize_geometry,
-                executors=[executor_label],
+                executors=[label],
                 )
         def optimize_wrapped(
                 state,

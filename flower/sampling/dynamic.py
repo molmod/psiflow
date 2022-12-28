@@ -149,7 +149,7 @@ class DynamicWalker(BaseWalker):
 
     @classmethod
     def create_apps(cls, context):
-        executor_label = context[ModelExecutionDefinition].executor_label
+        label = context[ModelExecutionDefinition].label
         device = context[ModelExecutionDefinition].device
         ncores = context[ModelExecutionDefinition].ncores
         dtype = context[ModelExecutionDefinition].dtype
@@ -158,7 +158,7 @@ class DynamicWalker(BaseWalker):
 
         app_propagate = python_app(
                 simulate_model,
-                executors=[executor_label],
+                executors=[label],
                 )
         def propagate_wrapped(
                 state,

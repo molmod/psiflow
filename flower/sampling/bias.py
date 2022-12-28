@@ -320,8 +320,8 @@ class PlumedBias(Container):
 
     @classmethod
     def create_apps(cls, context):
-        executor_label = context[ModelExecutionDefinition].executor_label
-        app_evaluate = python_app(evaluate_bias, executors=[executor_label])
+        label = context[ModelExecutionDefinition].label
+        app_evaluate = python_app(evaluate_bias, executors=[label])
         context.register_app(cls, 'evaluate', app_evaluate)
-        app_find = python_app(find_states_in_data, executors=[executor_label])
+        app_find = python_app(find_states_in_data, executors=[label])
         context.register_app(cls, 'find_states', app_find)

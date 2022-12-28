@@ -69,7 +69,7 @@ def cp2k_singlepoint(
         atoms,
         parameters,
         command,
-        walltime,
+        walltime=0,
         inputs=[],
         outputs=[],
         ):
@@ -199,11 +199,11 @@ class CP2KReference(BaseReference):
 
     @classmethod
     def create_apps(cls, context):
-        executor_label = context[ReferenceExecutionDefinition].executor_label
+        label = context[ReferenceExecutionDefinition].label
         ncores = context[ReferenceExecutionDefinition].ncores
         mpi_command = context[ReferenceExecutionDefinition].mpi_command
         cp2k_exec = context[ReferenceExecutionDefinition].cp2k_exec
-        walltime = context[ReferenceExecutionDefinition].walltime
+        walltime = context[ReferenceExecutionDefinition].time_per_singlepoint
 
         # parse full command
         command = ''
@@ -213,11 +213,11 @@ class CP2KReference(BaseReference):
         command += cp2k_exec
 
         # convert walltime into seconds
-        hms = walltime.split(':')
-        _walltime = float(hms[2]) + 60 * float(hms[1]) + 3600 * float(hms[0])
+        #hms = walltime.split(':')
+        #_walltime = float(hms[2]) + 60 * float(hms[1]) + 3600 * float(hms[0])
         singlepoint_unwrapped = python_app(
                 cp2k_singlepoint,
-                executors=[executor_label],
+                executors=[label],
                 )
         def singlepoint_wrapped(atoms, parameters, inputs=[], outputs=[]):
             assert len(outputs) == 0
@@ -225,7 +225,7 @@ class CP2KReference(BaseReference):
                     atoms=atoms,
                     parameters=parameters,
                     command=command,
-                    walltime=_walltime,
+                    walltime=walltime,
                     inputs=inputs,
                     outputs=[],
                     )

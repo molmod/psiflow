@@ -124,10 +124,10 @@ class BaseWalker(Container):
     @classmethod
     def create_apps(cls, context):
         assert not (cls == BaseWalker) # should never be called directly
-        executor_label = context[ModelExecutionDefinition].executor_label
+        label = context[ModelExecutionDefinition].label
 
-        app_safe_return = python_app(safe_return, executors=[executor_label])
+        app_safe_return = python_app(safe_return, executors=[label])
         context.register_app(cls, 'safe_return', app_safe_return)
 
-        app_is_reset = python_app(is_reset, executors=[executor_label])
+        app_is_reset = python_app(is_reset, executors=[label])
         context.register_app(cls, 'is_reset', app_is_reset)

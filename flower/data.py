@@ -1,14 +1,14 @@
 import os
 import tempfile
 
-from parsl.app.app import python_app, join_app
+from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 from ase import Atoms
 
-from flower.execution import DefaultExecutionDefinition, Container
+from flower.execution import Container
 from flower.utils import copy_data_future, _new_file
 
 
@@ -296,28 +296,18 @@ class Dataset(Container):
 
     @staticmethod
     def create_apps(context):
-        executor_label = context[DefaultExecutionDefinition].executor_label
-        app_save_dataset = python_app(save_dataset, executors=[executor_label])
+        label = 'default'
+        app_save_dataset = python_app(save_dataset, executors=[label])
         context.register_app(Dataset, 'save_dataset', app_save_dataset)
 
-        app_read_dataset = python_app(read_dataset, executors=[executor_label])
+        app_read_dataset = python_app(read_dataset, executors=[label])
         context.register_app(Dataset, 'read_dataset', app_read_dataset)
 
-        app_join_dataset = python_app(join_dataset, executors=[executor_label])
+        app_join_dataset = python_app(join_dataset, executors=[label])
         context.register_app(Dataset, 'join_dataset', app_join_dataset)
 
-        app_length_dataset = python_app(get_length_dataset, executors=[executor_label])
+        app_length_dataset = python_app(get_length_dataset, executors=[label])
         context.register_app(Dataset, 'length_dataset', app_length_dataset)
 
-        app_compute_metrics = python_app(compute_metrics, executors=[executor_label])
+        app_compute_metrics = python_app(compute_metrics, executors=[label])
         context.register_app(Dataset, 'compute_metrics', app_compute_metrics)
-
-        #def get_item(indices, inputs=[]):
-        #    from flower.data import FlowerAtoms
-        #    data = app_read_dataset(indices, inputs=inputs)
-        #    if isinstance(data, FlowerAtoms):
-        #        return data
-        #    else:
-        #        return Dataset(context, atoms_list=data)
-        #app_get_item = join_app(get_item)
-        #context.register_app(Dataset, 'get_item', app_get_item)

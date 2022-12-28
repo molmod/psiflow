@@ -40,7 +40,7 @@ class Check:
         return {}
 
 
-@python_app
+@python_app(executors=['default'])
 def check_distances(state, threshold):
     import numpy as np
     from ase.geometry.geometry import find_mic
@@ -73,7 +73,7 @@ class InteratomicDistanceCheck(Check):
         return {'threshold': self.threshold}
 
 
-@python_app
+@python_app(executors=['default'])
 def check_discrepancy(state, errors, thresholds):
     assert len(thresholds) == errors.shape[1]
     assert errors.shape[0] == 1
@@ -162,7 +162,7 @@ class DiscrepancyCheck(Check):
                 }
 
 
-@python_app
+@python_app(executors=['default'])
 def check_safety(state, tag):
     if tag == 'unsafe':
         return None

@@ -21,8 +21,8 @@ class EMTReference(BaseReference):
 
     @classmethod
     def create_apps(cls, context):
-        executor_label = context[ReferenceExecutionDefinition].executor_label
-        app_evaluate_single = python_app(evaluate_emt, executors=[executor_label])
+        label = context[ReferenceExecutionDefinition].label
+        app_evaluate_single = python_app(evaluate_emt, executors=[label])
         context.register_app(cls, 'evaluate_single', app_evaluate_single)
         # see https://stackoverflow.com/questions/1817183/using-super-with-a-class-method
         super(EMTReference, cls).create_apps(context)

@@ -43,11 +43,11 @@ class RandomWalker(BaseWalker):
 
     @classmethod
     def create_apps(cls, context):
-        executor_label = context[ModelExecutionDefinition].executor_label
+        label = context[ModelExecutionDefinition].label
 
         app_propagate = python_app(
                 random_perturbation,
-                executors=[executor_label],
+                executors=[label],
                 )
         def propagate_wrapped(state, parameters, keep_trajectory=False, **kwargs):
             # ignore additional kwargs; return None as dataset

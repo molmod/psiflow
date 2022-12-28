@@ -253,11 +253,11 @@ class NequIPModel(BaseModel):
 
     @classmethod
     def create_apps(cls, context):
-        training_label  = context[TrainingExecutionDefinition].executor_label
+        training_label  = context[TrainingExecutionDefinition].label
         training_device = context[TrainingExecutionDefinition].device
         training_dtype  = context[TrainingExecutionDefinition].dtype
 
-        model_label  = context[ModelExecutionDefinition].executor_label
+        model_label  = context[ModelExecutionDefinition].label
         model_device = context[ModelExecutionDefinition].device
         model_dtype  = context[ModelExecutionDefinition].dtype
         model_ncores = context[ModelExecutionDefinition].ncores

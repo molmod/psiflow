@@ -9,7 +9,7 @@ from flower.sampling import load_walker
 from flower.utils import _new_file
 
 
-@python_app
+@python_app(executors=['default'])
 def get_continue_flag(nstates, inputs=[], outputs=[]):
     from flower.data import read_dataset
     continue_flag = sum([state is not None for state in inputs]) < nstates

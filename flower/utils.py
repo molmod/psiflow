@@ -33,37 +33,37 @@ def _new_file(path, prefix, suffix):
     return name
 
 
-@python_app
+@python_app(executors=['default'])
 def copy_data_future(inputs=[], outputs=[]):
     import shutil
     shutil.copyfile(inputs[0], outputs[0])
 
 
-@python_app
+@python_app(executors=['default'])
 def copy_app_future(future):
     from copy import deepcopy
     return deepcopy(future)
 
 
-@python_app
+@python_app(executors=['default'])
 def unpack_i(result, i):
     return result[i]
 
 
-@python_app
+@python_app(executors=['default'])
 def save_yaml(input_dict, outputs=[]):
     import yaml
     with open(outputs[0], 'w') as f:
         yaml.dump(input_dict, f, default_flow_style=False)
 
 
-@python_app
+@python_app(executors=['default'])
 def save_atoms(atoms, outputs=[]):
     from ase.io import write
     write(outputs[0].filepath, atoms)
 
 
-@python_app
+@python_app(executors=['default'])
 def save_txt(data, outputs=[]):
     with open(outputs[0], 'w') as f:
         f.write(data)
