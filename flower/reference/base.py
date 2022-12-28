@@ -26,9 +26,10 @@ class BaseReference(Container):
         self.parameters = self.parameters_cls(**deepcopy(kwargs))
 
     def evaluate(self, arg):
+        parameters = deepcopy(self.parameters)
         if isinstance(arg, Dataset):
             data_future = self.context.apps(self.__class__, 'evaluate_multiple')(
-                    self.parameters,
+                    parameters,
                     inputs=[arg.data_future],
                     outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                     ).outputs[0]
@@ -39,7 +40,7 @@ class BaseReference(Container):
             assert (isinstance(arg, FlowerAtoms) or isinstance(arg, AppFuture))
             return self.context.apps(self.__class__, 'evaluate_single')(
                     arg,
-                    self.parameters,
+                    parameters,
                     inputs=[],
                     outputs=[],
                     )

@@ -174,28 +174,24 @@ class CP2KParameters:
 
 
 class CP2KReference(BaseReference):
-    """CP2K Reference"""
+    """CP2K Reference
+
+    Arguments
+    ---------
+
+    cp2k_input : str
+        string representation of the cp2k input file.
+
+    cp2k_data : dict
+        dictionary with data required during the calculation. E.g. basis
+        sets, pseudopotentials, ...
+        They are written to the local execution directory in order to make
+        them available to the cp2k executable.
+        The keys of the dictionary correspond to the capitalized keys in
+        the cp2k input (e.g. BASIS_SET_FILE_NAME)
+
+    """
     parameters_cls = CP2KParameters
-
-    def __init__(self, context, cp2k_input='', cp2k_data={}):
-        """Constructor
-
-        Arguments
-        ---------
-
-        cp2k_input : str
-            string representation of the cp2k input file.
-
-        cp2k_data : dict
-            dictionary with data required during the calculation. E.g. basis
-            sets, pseudopotentials, ...
-            They are written to the local execution directory in order to make
-            them available to the cp2k executable.
-            The keys of the dictionary correspond to the capitalized keys in
-            the cp2k input (e.g. BASIS_SET_FILE_NAME)
-
-        """
-        super().__init__(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
 
     @classmethod
     def create_apps(cls, context):
