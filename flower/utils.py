@@ -2,7 +2,7 @@ import os
 import tempfile
 import numpy as np
 
-from ase.data import chemical_symbols, atomic_numbers
+from ase.data import atomic_numbers
 
 from parsl.app.app import python_app
 

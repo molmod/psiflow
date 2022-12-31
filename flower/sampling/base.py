@@ -48,7 +48,7 @@ class BaseWalker(Container):
         app = self.context.apps(self.__class__, 'propagate')
         result, dataset = app(
                 self.state_future,
-                self.parameters,
+                deepcopy(self.parameters),
                 **kwargs, # Model or Bias instance
                 keep_trajectory=keep_trajectory,
                 )

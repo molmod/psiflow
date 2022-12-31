@@ -210,6 +210,7 @@ def test_cp2k_success(context, cp2k_input, cp2k_data):
             )
     evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
+    # calculation will fail if time_per_singlepoint in execution definition is too low!
     assert evaluated.result().evaluation_flag == 'success'
     #evaluated.result()
     assert 'energy' in evaluated.result().info.keys()

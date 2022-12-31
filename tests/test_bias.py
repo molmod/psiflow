@@ -19,15 +19,18 @@ RESTART
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills sdld
+METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld
 PRINT ARG=CV,metad.bias STRIDE=10 FILE=COLVAR
 FLUSH STRIDE=10
 """
     plumed_input = set_path_in_plumed(plumed_input, 'METAD', '/tmp/my_input')
+    plumed_input = set_path_in_plumed(plumed_input, 'METADD', '/tmp/my_input')
     assert plumed_input == """
 RESTART
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=/tmp/my_input sdld
+METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
 PRINT ARG=CV,metad.bias STRIDE=10 FILE=COLVAR
 FLUSH STRIDE=10
 """

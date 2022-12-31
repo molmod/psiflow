@@ -34,6 +34,9 @@ def set_path_in_plumed(plumed_input, keyword, path_to_set):
     lines = plumed_input.split('\n')
     for i, line in enumerate(lines):
         if keyword in line.split():
+            if 'FILE=' not in line:
+                lines[i] = line + ' FILE={}'.format(path_to_set)
+                continue
             line_before = line.split('FILE=')[0]
             line_after  = line.split('FILE=')[1].split()[1:]
             lines[i] = line_before + 'FILE={} '.format(path_to_set) + ' '.join(line_after)
@@ -182,6 +185,7 @@ class PlumedBias(Container):
                     lines[i] = '\n'
         for i, line in enumerate(lines):
             if 'METAD' in line.split():
+                assert 'PACE=' in line # PACE needs to be specified
                 line_before = line.split('PACE=')[0]
                 line_after  = line.split('PACE=')[1].split()[1:]
                 pace = 2147483647 # some random high prime number
@@ -312,6 +316,10 @@ class PlumedBias(Container):
             return ['METAD'] + keys
         else:
             return keys
+
+    @property
+    def variables(self): # not sorted
+        return list(set([c[1] for c in self.components]))
 
     @property
     def futures(self):

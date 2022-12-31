@@ -134,7 +134,6 @@ def test_dynamic_walker(context, dataset, nequip_config):
     assert walker.tag_future.result() == 'unsafe' # raised ForceExceededException
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason='requires GPU')
 def test_optimization(context, dataset, nequip_config):
     training = dataset[:15]
     validate = dataset[15:]

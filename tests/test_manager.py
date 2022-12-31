@@ -4,9 +4,9 @@ from pathlib import Path
 import numpy as np
 
 from flower.models import NequIPModel
-from flower.learning import Manager
+from flower.manager import Manager
 from flower.reference import EMTReference
-from flower.sampling import RandomWalker, DynamicWalker
+from flower.sampling import RandomWalker, DynamicWalker, PlumedBias
 from flower.ensemble import Ensemble
 from flower.checks import SafetyCheck, DiscrepancyCheck, \
         InteratomicDistanceCheck
@@ -31,7 +31,7 @@ def reference(context):
 
 
 def test_manager_dry_run(context, dataset, model, ensemble, reference, tmpdir):
-    manager = Manager(tmpdir)
+    manager = Manager(tmpdir, '')
     with pytest.raises(AssertionError):
         manager.dry_run(model, reference) # specify either walker or ensemble
     random_walker = RandomWalker(context, dataset[0])
@@ -44,7 +44,7 @@ def test_manager_save_load(context, dataset, model, ensemble, tmpdir):
     walkers.append(RandomWalker(context, dataset[0]))
     walkers.append(DynamicWalker(context, dataset[1]))
     ensemble = Ensemble(context, walkers=walkers, biases=[None, None])
-    manager = Manager(path_output)
+    manager = Manager(path_output, '')
     checks = [
             SafetyCheck(),
             DiscrepancyCheck(
@@ -102,3 +102,44 @@ def test_manager_save_load(context, dataset, model, ensemble, tmpdir):
         if type(check) == DiscrepancyCheck:
             assert check.model_old is not None
             assert check.model_new is not None
+
+
+def test_manager_wandb(context, dataset, model, tmp_path):
+    manager = Manager(tmp_path, 'pytest')
+    #future = manager.log_dataset('first_data', 'test_manager_wandb', dataset)
+    #future.result()
+
+    # with bias and model
+    errors_kwargs = {
+            'intrinsic': False,
+            'metric': 'mae',
+            'properties': ['energy', 'forces', 'stress'],
+            }
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
+CV1: VOLUME
+mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
+"""
+    bias = PlumedBias(context, plumed_input)
+    model.initialize(dataset[:2])
+    model.deploy()
+    future = manager.log_dataset(
+            'third',
+            'test_manager_wandb',
+            dataset,
+            bias=bias,
+            model=model,
+            error_kwargs=errors_kwargs,
+            )
+    future.result()
+    future = manager.log_dataset(
+            'third',
+            'test_manager_wandb',
+            dataset,
+            bias=None,
+            model=model,
+            error_kwargs=errors_kwargs,
+            )
+    future.result()
