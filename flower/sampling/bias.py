@@ -51,26 +51,26 @@ def parse_plumed_input(plumed_input):
         for i, line in enumerate(lines):
             if key in line.split():
                 #assert not found
-                cv = line.split('ARG=')[1].split()[0]
+                variable = line.split('ARG=')[1].split()[0]
                 #label = line.split('LABEL=')[1].split()[0]
-                biases.append((key, cv))
+                biases.append((key, variable))
     return biases
 
 
-def generate_external_grid(bias_function, cv, cv_label, periodic=False):
+def generate_external_grid(bias_function, variable, variable_label, periodic=False):
     _periodic = 'false' if not periodic else 'true'
     grid = ''
-    grid += '#! FIELDS {} external.bias der_{}\n'.format(cv_label, cv_label)
-    grid += '#! SET min_{} {}\n'.format(cv_label, np.min(cv))
-    grid += '#! SET max_{} {}\n'.format(cv_label, np.max(cv))
-    grid += '#! SET nbins_{} {}\n'.format(cv_label, len(cv))
-    grid += '#! SET periodic_{} {}\n'.format(cv_label, _periodic)
-    for i in range(len(cv)):
-        grid += '{} {} {}\n'.format(cv[i], bias_function(cv[i]), 0)
+    grid += '#! FIELDS {} external.bias der_{}\n'.format(variable_label, variable_label)
+    grid += '#! SET min_{} {}\n'.format(variable_label, np.min(variable))
+    grid += '#! SET max_{} {}\n'.format(variable_label, np.max(variable))
+    grid += '#! SET nbins_{} {}\n'.format(variable_label, len(variable))
+    grid += '#! SET periodic_{} {}\n'.format(variable_label, _periodic)
+    for i in range(len(variable)):
+        grid += '{} {} {}\n'.format(variable[i], bias_function(variable[i]), 0)
     return grid
 
 
-def evaluate_bias(plumed_input, cv, inputs=[]):
+def evaluate_bias(plumed_input, variable, inputs=[]):
     import tempfile
     import os
     import numpy as np
@@ -93,7 +93,7 @@ def evaluate_bias(plumed_input, cv, inputs=[]):
     tmp.close()
     colvar_log = tmp.name # dummy log file
     plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
-    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(cv, colvar_log)
+    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(variable, colvar_log)
     tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
     tmp.close()
     plumed_log = tmp.name # dummy log file
@@ -114,23 +114,23 @@ def evaluate_bias(plumed_input, cv, inputs=[]):
         values[i, 1] = ff.compute() / molmod.units.kjmol
         part_plumed.plumed.cmd('update')
         part_plumed.plumedstep = 3 # can be anything except zero; pick a prime
-    part_plumed.plumed.cmd('update') # flush last
-    values[:, 0] = np.loadtxt(colvar_log)[:, 1]
+    if len(dataset) > 1: # counter weird behavior
+        part_plumed.plumed.cmd('update') # flush last
+    values[:, 0] = np.loadtxt(colvar_log).reshape(-1, 2)[:, 1]
     os.unlink(plumed_log)
     os.unlink(colvar_log)
     os.unlink(path_input)
     return values
 
 
-def find_states_in_data(plumed_input, cv, cv_min, cv_max, cv_step, slack, inputs=[]):
+def find_states_in_data(plumed_input, variable, targets, slack, inputs=[]):
     import numpy as np
     from flower.sampling.bias import evaluate_bias
-    cv_values = evaluate_bias(plumed_input, cv, inputs=inputs)[:, 0]
-    nstates = np.floor((cv_max - cv_min) / cv_step).astype(np.int32) + 1
-    targets = cv_min + cv_step * np.arange(nstates)
-    deltas  = np.abs(targets[:, np.newaxis] - cv_values[np.newaxis, :])
+    variable_values = evaluate_bias(plumed_input, variable, inputs=inputs)[:, 0]
+    nstates = len(targets)
+    deltas  = np.abs(targets[:, np.newaxis] - variable_values[np.newaxis, :])
     indices = np.argmin(deltas, axis=1)
-    found   = np.abs(targets - cv_values[indices]) < slack
+    found   = np.abs(targets - variable_values[indices]) < slack
     to_extract = [] # create list of indices to extract
     for i in range(nstates):
         if found[i]:
@@ -175,13 +175,13 @@ class PlumedBias(Container):
         if 'METAD' in self.keys:
             self.data_futures.move_to_end('METAD', last=False)
 
-    def evaluate(self, dataset, cv):
-        assert cv in [c[1] for c in self.components]
+    def evaluate(self, dataset, variable):
+        assert variable in [c[1] for c in self.components]
         plumed_input = self.prepare_input()
         lines = plumed_input.split('\n')
         for i, line in enumerate(lines):
             if 'ARG=' in line:
-                if not (cv == line.split('ARG=')[1].split()[0]):
+                if not (variable == line.split('ARG=')[1].split()[0]):
                     lines[i] = '\n'
         for i, line in enumerate(lines):
             if 'METAD' in line.split():
@@ -193,7 +193,7 @@ class PlumedBias(Container):
         plumed_input = '\n'.join(lines)
         return self.context.apps(PlumedBias, 'evaluate')(
                 plumed_input,
-                cv,
+                variable,
                 inputs=[dataset.data_future] + self.futures,
                 )
 
@@ -221,16 +221,16 @@ class PlumedBias(Container):
         return PlumedBias(
                 self.context,
                 self.plumed_input,
-                data_futures=new_futures,
+                data=new_futures,
                 )
 
-    def adjust_restraint(self, cv, kappa, center):
+    def adjust_restraint(self, variable, kappa, center):
         plumed_input = str(self.plumed_input)
         lines = plumed_input.split('\n')
         found = False
         for i, line in enumerate(lines):
             if 'RESTRAINT' in line.split():
-                if 'ARG={}'.format(cv) in line.split():
+                if 'ARG={}'.format(variable) in line.split():
                     assert not found
                     line_ = line
                     line_before = line_.split('KAPPA=')[0]
@@ -244,13 +244,13 @@ class PlumedBias(Container):
         assert found
         self.plumed_input = '\n'.join(lines)
 
-    def extract_states(self, dataset, cv, cv_min, cv_max, cv_step, slack=0.1):
-        assert cv in [c[1] for c in self.components]
+    def extract_states(self, dataset, variable, targets, slack=0.1):
+        assert variable in self.variables
         plumed_input = self.prepare_input()
         lines = plumed_input.split('\n')
         for i, line in enumerate(lines):
             if 'ARG=' in line:
-                if not (cv == line.split('ARG=')[1].split()[0]):
+                if not (variable == line.split('ARG=')[1].split()[0]):
                     lines[i] = '\n'
         for i, line in enumerate(lines):
             if 'METAD' in line.split():
@@ -261,10 +261,8 @@ class PlumedBias(Container):
         plumed_input = '\n'.join(lines)
         indices = self.context.apps(PlumedBias, 'find_states')( # is future!
                 plumed_input,
-                cv,
-                cv_min,
-                cv_max,
-                cv_step,
+                variable,
+                targets,
                 slack,
                 inputs=[dataset.data_future] + self.futures,
                 )

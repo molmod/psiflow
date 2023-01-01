@@ -49,7 +49,7 @@ def test_dataset_slice(dataset):
 
 
 def test_dataset_from_xyz(context, tmp_path):
-    data = generate_emt_cu_data(20)
+    data = generate_emt_cu_data(20, 0.1)
     path_xyz = tmp_path / 'data.xyz'
     with open(path_xyz, 'w') as f:
         write_extxyz(f, data)

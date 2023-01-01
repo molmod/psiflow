@@ -6,34 +6,38 @@ from parsl.data_provider.files import File
 
 from flower.data import Dataset, save_dataset
 from flower.sampling import load_walker
-from flower.utils import _new_file
+from flower.utils import _new_file, copy_app_future
 
 
 @python_app(executors=['default'])
 def get_continue_flag(nstates, inputs=[], outputs=[]):
-    from flower.data import read_dataset
     continue_flag = sum([state is not None for state in inputs]) < nstates
     return continue_flag
 
 
 @join_app
-def conditional_propagate(
+def conditional_sample(
         context,
         continue_flag,
         walkers,
         biases,
         nstates,
+        shuffled_sampling,
         model,
         checks,
         inputs=[],
         outputs=[],
         ):
+    import numpy as np
     from flower.data import read_dataset
     from flower.ensemble import get_continue_flag
     from flower.utils import _new_file
     states = inputs
     if (len(states) < len(walkers)) or continue_flag:
-        index = int(len(states) % len(walkers))
+        if shuffled_sampling:
+            index = np.random.randint(0, len(walkers))
+        else:
+            index = int(len(states) % len(walkers))
         walker = walkers[index]
         bias   = biases[index]
         state = walker.propagate(
@@ -46,12 +50,13 @@ def conditional_propagate(
         for check in checks:
             state = check(state, walker.tag_future)
         states.append(state) # some are None
-        return conditional_propagate(
+        return conditional_sample(
                 context,
                 get_continue_flag(nstates, inputs=states),
                 walkers,
                 biases,
                 nstates,
+                shuffled_sampling,
                 model,
                 checks,
                 inputs=states,
@@ -64,7 +69,7 @@ def conditional_propagate(
 class Ensemble:
     """Wraps a set of walkers"""
 
-    def __init__(self, context, walkers, biases=[]):
+    def __init__(self, context, walkers, biases=[], shuffled_sampling=False):
         assert len(walkers) > 0
         self.context = context
         self.walkers = walkers
@@ -73,21 +78,36 @@ class Ensemble:
         else:
             biases = [None] * len(walkers)
         self.biases = biases
+        self.shuffled_sampling = shuffled_sampling
 
-    def propagate(self, nstates, model=None, checks=None):
-        assert nstates >= len(self.walkers)
-        data_future = conditional_propagate(
+    def sample(self, nstates, model=None, checks=None):
+        data_future = conditional_sample(
                 self.context,
                 True,
                 self.walkers,
                 self.biases,
                 nstates,
+                shuffled_sampling=self.shuffled_sampling,
                 model=model,
                 checks=checks if checks is not None else [],
                 inputs=[],
                 outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                 ).outputs[0]
         return Dataset(self.context, data_future=data_future)
+
+    def as_dataset(self, checks=None):
+        context = self.walkers[0].context
+        states = []
+        for i, walker in enumerate(self.walkers):
+            state = walker.state_future
+            if checks is not None:
+                for check in checks:
+                    state = check(state, walker.tag_future)
+            states.append(state)
+        return Dataset( # None states are filtered in constructor
+                context,
+                atoms_list=states,
+                )
 
     def save(self, path, require_done=True):
         path = Path(path)
@@ -124,18 +144,14 @@ class Ensemble:
         return len(self.walkers)
 
     @classmethod
-    def from_walker(cls, walker, nwalkers):
+    def from_walker(cls, walker, nwalkers, dataset=None):
         """Initialize ensemble based on single walker"""
         walkers = []
         for i in range(nwalkers):
             _walker = walker.copy()
             _walker.parameters.seed = i
+            if dataset is not None:
+                _walker.state_future = copy_app_future(dataset[i])
+                _walker.start_future = copy_app_future(dataset[i])
             walkers.append(_walker)
         return cls(walker.context, walkers)
-
-
-def generate_distributed_ensemble(walker, bias, cv_name, cv_grid, dataset=None):
-    if dataset is None: # explore CV space manually!
-        raise NotImplementedError
-    else:
-        pass

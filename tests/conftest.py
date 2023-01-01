@@ -60,13 +60,12 @@ def nequip_config(tmp_path):
     return config
 
 
-def generate_emt_cu_data(nstates):
+def generate_emt_cu_data(nstates, amplitude):
     atoms = bulk('Cu', 'fcc', a=3.6, cubic=True)
     atoms.calc = EMT()
     pos = atoms.get_positions()
     box = atoms.get_cell()
     atoms_list = []
-    amplitude = 0.2
     for i in range(nstates):
         atoms.set_positions(pos + np.random.uniform(-amplitude, amplitude, size=(len(atoms), 3)))
         atoms.set_cell(box + np.random.uniform(-amplitude, amplitude, size=(3, 3)))
@@ -84,5 +83,5 @@ def generate_emt_cu_data(nstates):
 
 @pytest.fixture
 def dataset(context, tmp_path):
-    data = generate_emt_cu_data(20)
+    data = generate_emt_cu_data(20, 0.2)
     return Dataset(context, atoms_list=data)

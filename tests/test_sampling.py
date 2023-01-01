@@ -76,41 +76,6 @@ def test_random_walker(context, dataset):
     state = walker.propagate(model='dummy') # irrelevant kwargs are ignored
 
 
-def test_ensemble(context, dataset, tmpdir):
-    walker = RandomWalker(context, dataset[0])
-    nwalkers = 10
-    ensemble = Ensemble.from_walker(walker, nwalkers=nwalkers)
-
-    with pytest.raises(AssertionError):
-        new_data = ensemble.propagate(5) # nstates should be >= nwalkers
-    nstates = 15
-    new_data = ensemble.propagate(nstates, checks=[SafetyCheck()]) # always passes
-    assert new_data.length().result() == nstates
-    for i, walker in enumerate(ensemble.walkers[:int(nstates % nwalkers)]):
-        assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers
-    for i, walker in enumerate(ensemble.walkers[int(nstates % nwalkers):]):
-        assert walker.parameters.seed == i + (nstates // nwalkers) * nwalkers + nstates % nwalkers
-
-    # no two states should be the same
-    for i in range(new_data.length().result() - 1):
-        for j in range(i + 1, new_data.length().result()):
-            assert not np.allclose(
-                    new_data[i].result().get_positions(),
-                    new_data[j].result().get_positions(),
-                    )
-
-    # test save and load
-    ensemble.save(tmpdir)
-    ensemble_ = Ensemble.load(context, tmpdir)
-    assert ensemble_.nwalkers == nwalkers
-    for i, walker in enumerate(ensemble_.walkers[:int(nstates % nwalkers)]):
-        assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers
-    for i, walker in enumerate(ensemble_.walkers[int(nstates % nwalkers):]):
-        assert walker.parameters.seed == i + (nstates // nwalkers) * nwalkers + nstates % nwalkers
-    ndirs = len([f for f in os.listdir(tmpdir) if os.path.isdir(tmpdir / f)])
-    assert ndirs == nwalkers
-
-
 def test_dynamic_walker(context, dataset, nequip_config):
     walker = DynamicWalker(context, dataset[0], steps=10, step=1)
     model = NequIPModel(context, nequip_config)

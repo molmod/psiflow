@@ -106,11 +106,7 @@ def test_manager_save_load(context, dataset, model, ensemble, tmpdir):
 
 def test_manager_wandb(context, dataset, model, tmp_path):
     manager = Manager(tmp_path, 'pytest')
-    #future = manager.log_dataset('first_data', 'test_manager_wandb', dataset)
-    #future.result()
-
-    # with bias and model
-    errors_kwargs = {
+    error_kwargs = {
             'intrinsic': False,
             'metric': 'mae',
             'properties': ['energy', 'forces', 'stress'],
@@ -126,20 +122,30 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
     model.initialize(dataset[:2])
     model.deploy()
     future = manager.log_dataset(
-            'third',
+            'my_data',
             'test_manager_wandb',
             dataset,
+            visualize_structures=False,
             bias=bias,
             model=model,
-            error_kwargs=errors_kwargs,
+            error_kwargs=error_kwargs,
             )
     future.result()
-    future = manager.log_dataset(
-            'third',
+
+    ensemble = Ensemble.from_walker(
+            RandomWalker(context, dataset[0]),
+            nwalkers=10,
+            dataset=dataset,
+            )
+    ensemble.walkers[3].tag_future = 'unsafe'
+    ensemble.walkers[7].tag_future = 'unsafe'
+    ensemble.biases = [None, None] + [bias.copy() for i in range(8)] # not all same bias
+    future = manager.log_ensemble(
+            'my_ensemble',
             'test_manager_wandb',
-            dataset,
-            bias=None,
+            ensemble,
             model=model,
-            error_kwargs=errors_kwargs,
+            error_kwargs=error_kwargs,
+            checks=None,
             )
     future.result()

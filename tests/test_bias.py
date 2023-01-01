@@ -97,14 +97,14 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     assert double_length == 2 * single_length - 1 # twice as many gaussians
 
     # double check MTD gives correct nonzero positive contribution
-    values = bias.evaluate(dataset, cv='CV').result()
+    values = bias.evaluate(dataset, variable='CV').result()
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=2 LABEL=metad FILE=test_hills
 """ # RESTART automatically added in input if not present
     bias_mtd = PlumedBias(context, plumed_input, data={'METAD': bias.data_futures['METAD']})
-    values_mtd = bias_mtd.evaluate(dataset, cv='CV').result()
+    values_mtd = bias_mtd.evaluate(dataset, variable='CV').result()
     assert np.allclose(
             values[:, 0],
             values_mtd[:, 0],
@@ -125,7 +125,7 @@ restraint: RESTRAINT ARG=SOMEOTHER AT=150 KAPPA=1
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 """ # RESTART automatically added in input if not present
     bias_ = PlumedBias(context, plumed_input, data={'METAD': bias.data_futures['METAD']})
-    values_ = bias_.evaluate(dataset, cv='CV').result()
+    values_ = bias_.evaluate(dataset, variable='CV').result()
     assert np.allclose(
             values_[:, 0],
             values[:, 0],
@@ -144,7 +144,7 @@ def test_bias_evaluate(context, dataset):
             }
     walker = RandomWalker(context, dataset[0], **kwargs)
     ensemble = Ensemble.from_walker(walker, nwalkers=10)
-    dataset = ensemble.propagate(nstates=10)
+    dataset = ensemble.sample(nstates=10)
 
     plumed_input = """
 RESTART
@@ -156,7 +156,7 @@ FLUSH STRIDE=1
     bias = PlumedBias(context, plumed_input)
     assert len(bias.components) == 1
     assert tuple(bias.keys) == ('METAD',)
-    values = bias.evaluate(dataset, cv='CV').result()
+    values = bias.evaluate(dataset, variable='CV').result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
@@ -168,10 +168,16 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 """
     bias = PlumedBias(context, plumed_input)
-    values = bias.evaluate(dataset, cv='CV').result()
+    values = bias.evaluate(dataset, variable='CV').result()
     assert np.allclose(
             values[:, 1],
             0.5 * (values[:, 0] - 150) ** 2,
+            )
+    singleton = Dataset(context, atoms_list=[dataset[0]])
+    values_ = bias.evaluate(singleton, variable='CV').result()
+    assert np.allclose(
+            values[0, :],
+            values_[0, :],
             )
 
 
@@ -182,18 +188,18 @@ CV: VOLUME
 external: EXTERNAL ARG=CV FILE=test_grid
 """
     bias_function = lambda x: np.exp(-0.01 * (x - 150) ** 2)
-    cv = np.linspace(0, 300, 500)
-    grid = generate_external_grid(bias_function, cv, 'CV', periodic=False)
+    variable = np.linspace(0, 300, 500)
+    grid = generate_external_grid(bias_function, variable, 'CV', periodic=False)
     data = {'EXTERNAL': grid}
     bias = PlumedBias(context, plumed_input, data)
-    values = bias.evaluate(dataset, cv='CV').result()
+    values = bias.evaluate(dataset, variable='CV').result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(bias_function(values[:, 0]), values[:, 1])
     input_future, data_futures = bias.save(tmpdir)
     bias_ = PlumedBias.load(context, tmpdir)
-    values_ = bias_.evaluate(dataset, cv='CV').result()
+    values_ = bias_.evaluate(dataset, variable='CV').result()
     assert np.allclose(values, values_)
 
     plumed_input = """
@@ -206,7 +212,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
     bias = PlumedBias(context, plumed_input, data)
     assert len(bias.components) == 3
     assert bias.keys[0] == 'METAD' # in front
-    values = bias.evaluate(dataset, cv='CV').result()
+    values = bias.evaluate(dataset, variable='CV').result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
@@ -214,7 +220,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
     assert np.allclose(reference, values[:, 1])
     bias.save(tmpdir)
     bias_ = PlumedBias.load(context, tmpdir)
-    values_ = bias_.evaluate(dataset, cv='CV').result()
+    values_ = bias_.evaluate(dataset, variable='CV').result()
     assert np.allclose(values, values_)
 
 
@@ -226,7 +232,7 @@ RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
 """
     bias   = PlumedBias(context, plumed_input, data={})
-    values = bias.evaluate(dataset, cv='CV').result()
+    values = bias.evaluate(dataset, variable='CV').result()
     bias.adjust_restraint('CV', kappa=2, center=150)
     assert bias.plumed_input == """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
@@ -234,7 +240,7 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=2 LABEL=restraint
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
 """
-    values_ = bias.evaluate(dataset, cv='CV').result()
+    values_ = bias.evaluate(dataset, variable='CV').result()
     assert np.allclose(
             values[:, 0],
             values_[:, 0],
@@ -260,28 +266,27 @@ RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
 """
     bias = PlumedBias(context, plumed_input, data={})
-    cv_values = bias.evaluate(dataset, cv='CV').result()[:, 0]
-    cv_min = np.min(cv_values)
-    cv_max = np.max(cv_values)
-    cv_step = (cv_max - cv_min) / 2
+    values = bias.evaluate(dataset, variable='CV').result()[:, 0]
+    #cv_min = np.min(cv_values)
+    #cv_max = np.max(cv_values)
+    #cv_step = (cv_max - cv_min) / 2
+    targets = np.array([np.min(values), np.mean(values), np.max(values)])
     extracted = bias.extract_states(
             dataset,
-            cv='CV',
-            cv_min=cv_min,
-            cv_max=cv_max,
-            cv_step=cv_step,
-            slack=cv_step / 3,
+            variable='CV',
+            targets=targets,
+            slack=np.max(values) - np.min(values), # disable slack
             )
     assert np.allclose(
             extracted[0].result().positions,
-            dataset[int(np.argmin(cv_values))].result().positions,
+            dataset[int(np.argmin(values))].result().positions,
             )
     assert np.allclose(
             extracted[-1].result().positions,
-            dataset[int(np.argmax(cv_values))].result().positions,
+            dataset[int(np.argmax(values))].result().positions,
             )
-    cv_values = bias.evaluate(extracted, cv='CV').result()[:, 0]
+    values = bias.evaluate(extracted, variable='CV').result()[:, 0]
     assert np.allclose(
-            cv_values,
-            np.sort(cv_values),
+            values,
+            np.sort(values),
             )

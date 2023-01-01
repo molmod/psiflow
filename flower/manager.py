@@ -16,9 +16,11 @@ from flower.checks import Check, load_checks
 
 @python_app(executors=['default'])
 def log_data(
-        name,
+        table_name,
+        wandb_name,
         wandb_group,
         wandb_project,
+        visualize_structures,
         errors=None,
         error_labels=None,
         bias_labels=None,
@@ -34,7 +36,7 @@ def log_data(
             project=wandb_project,
             group=wandb_group,
             job_type='dataset',
-            name=name,
+            name=wandb_name,
             )
     columns = [
             'index',
@@ -65,12 +67,84 @@ def log_data(
         table_data.append(row)
     assert len(columns) == len(table_data[0])
     table = wandb.Table(columns=columns, data=table_data)
-    #for i, atoms in enumerate(data):
-    #    tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
-    #    tmp.close()
-    #    path_pdb = tmp.name + '.pdb' # dummy log file
-    #    write(path_pdb, atoms)
-    wandb.log({Path(inputs[0].filepath).name: table})
+    wandb.log({table_name: table})
+    if visualize_structures:
+        columns = ['index', 'structure']
+        table_data = []
+        for i, atoms in enumerate(data):
+            tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
+            tmp.close()
+            path_pdb = tmp.name + '.pdb' # dummy log file
+            write(path_pdb, atoms)
+            table_data.append([i, wandb.Molecule(data_or_path=path_pdb)])
+        table = wandb.Table(columns=columns, data=table_data)
+        wandb.log({
+            'structures for {}'.format(table_name): table,
+            })
+    wandb.finish()
+
+
+@python_app(executors=['default'])
+def log_ensemble(
+        table_name,
+        wandb_name,
+        wandb_group,
+        wandb_project,
+        visualize_structures,
+        errors=None,
+        error_labels=None,
+        bias_labels=None,
+        inputs=[],
+        ):
+    import wandb
+    import tempfile
+    import numpy as np
+    from ase.data import chemical_symbols
+    from ase.io import write
+    from flower.data import read_dataset
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    wandb.init(
+            project=wandb_project,
+            group=wandb_group,
+            job_type='ensemble',
+            name=wandb_name,
+            )
+    columns = [
+            'walker index',
+            'elements',
+            'natoms',
+            'tag',
+            ]
+    if error_labels is not None:
+        if errors.shape[0] != len(data):
+            raise AssertionError('error evaluation was not performed on every state')
+        assert len(error_labels) == errors.shape[1]
+        columns += error_labels
+    if bias_labels is not None:
+        assert len(bias_labels) % 2 == 0
+        nvariables = len(bias_labels) // 2
+        assert len(inputs[1:]) == len(data) * (nvariables + 1) # +1 due to tags
+        columns += bias_labels
+    table_data = []
+    for i, atoms in enumerate(data):
+        elements = list(set([chemical_symbols[n] for n in atoms.numbers]))
+        tag_index = 1 + i
+        row = [i, ', '.join(elements), len(atoms), inputs[tag_index]]
+        if error_labels is not None:
+            row += [e for e in errors[i, :]]
+        if bias_labels is not None:
+            for j in range(nvariables):
+                index = int(1 + len(data) + i * nvariables + j) # casting necessary?
+                if isinstance(inputs[index], np.ndarray): # False if bias not present
+                    assert inputs[index].shape == (1, 2)
+                    row.append(inputs[index][0, 0])
+                    row.append(inputs[index][0, 1])
+                else:
+                    row.append(None)
+                    row.append(None)
+        table_data.append(row)
+    table = wandb.Table(columns=columns, data=table_data, allow_mixed_types=True)
+    wandb.log({table_name: table})
     wandb.finish()
 
 
@@ -106,7 +180,7 @@ class Manager:
 
         # generation of small dataset
         _ensemble = Ensemble.from_walker(random_walker, nwalkers=5)
-        data = _ensemble.propagate(7, model=None, checks=[])
+        data = _ensemble.sample(7, model=None, checks=[])
         data = reference.evaluate(data)
 
         # short training and deploy
@@ -128,7 +202,7 @@ class Manager:
         # deploy and propagate ensemble
         model.deploy()
         if ensemble is not None:
-            data = ensemble.propagate(
+            data = ensemble.sample(
                     ensemble.nwalkers,
                     checks=checks,
                     model=model,
@@ -215,15 +289,17 @@ class Manager:
             wandb_name,
             wandb_group,
             dataset,
+            visualize_structures=False,
             bias=None,
             model=None,
             error_kwargs=None,
             ):
+        table_name = Path(dataset.data_future.filepath).name
         inputs = []
         if bias is not None:
             bias_labels = []
             for variable in bias.variables:
-                inputs.append(bias.evaluate(dataset, cv=variable))
+                inputs.append(bias.evaluate(dataset, variable=variable))
                 bias_labels.append(variable)
                 bias_labels.append('bias({})'.format(variable))
         else:
@@ -237,9 +313,76 @@ class Manager:
             errors = None
             error_labels = None
         return log_data(
+                table_name,
                 wandb_name,
                 wandb_group,
                 wandb_project=self.wandb_project,
+                visualize_structures=visualize_structures,
+                errors=errors,
+                error_labels=error_labels,
+                bias_labels=bias_labels,
+                inputs=[dataset.data_future] + inputs,
+                )
+
+    def log_ensemble(
+            self,
+            wandb_name,
+            wandb_group,
+            ensemble,
+            visualize_structures=False,
+            model=None,
+            error_kwargs=None,
+            checks=None,
+            ):
+        table_name = 'ensemble'
+        assert len(ensemble.walkers) > 0
+        dataset = ensemble.as_dataset()
+        if model is not None:
+            assert error_kwargs is not None
+            _dataset = model.evaluate(dataset)
+            errors = _dataset.get_errors(**error_kwargs)
+            error_labels = [error_kwargs['metric'] + '_' + p for p in error_kwargs['properties']]
+        else:
+            errors = None
+            error_labels = None
+
+        inputs = []
+
+        # add walker tags to inputs
+        for walker in ensemble.walkers:
+            inputs.append(walker.tag_future)
+
+        # add bias to inputs
+        variables = []
+        for bias in ensemble.biases:
+            if bias is not None:
+                variables += bias.variables
+        variables = list(set(variables))
+        if len(variables) > 0:
+            bias_labels = []
+            for variable in variables:
+                bias_labels.append(variable)
+                bias_labels.append('bias({})'.format(variable))
+            for walker, bias in zip(ensemble.walkers, ensemble.biases): # evaluate bias per walker
+                for i, variable in enumerate(variables):
+                    if (bias is not None) and (variable in bias.variables):
+                        inputs.append(bias.evaluate(
+                            Dataset(bias.context, atoms_list=[walker.state_future]),
+                            variable=variable,
+                            ))
+                    else:
+                        inputs.append(False) # cannot pass None as input
+        else:
+            bias_labels = None
+
+        # double check inputs contains tag info + bias info
+        assert len(inputs) == len(ensemble.walkers) * (len(variables) + 1)
+        return log_ensemble(
+                table_name,
+                wandb_name,
+                wandb_group,
+                wandb_project=self.wandb_project,
+                visualize_structures=visualize_structures,
                 errors=errors,
                 error_labels=error_labels,
                 bias_labels=bias_labels,
