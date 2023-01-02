@@ -15,7 +15,7 @@ from ase.calculators.emt import EMT
 
 from flower.execution import ExecutionContext, TrainingExecutionDefinition, \
         ModelExecutionDefinition, ReferenceExecutionDefinition
-from flower.data import Dataset
+from flower.data import Dataset, FlowerAtoms
 
 
 def pytest_addoption(parser):
@@ -84,4 +84,7 @@ def generate_emt_cu_data(nstates, amplitude):
 @pytest.fixture
 def dataset(context, tmp_path):
     data = generate_emt_cu_data(20, 0.2)
-    return Dataset(context, atoms_list=data)
+    data_ = [FlowerAtoms.from_atoms(atoms) for atoms in data]
+    for atoms in data_:
+        atoms.evaluation_flag = 'success'
+    return Dataset(context, atoms_list=data_)

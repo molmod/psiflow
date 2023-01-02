@@ -106,6 +106,16 @@ def get_length_dataset(inputs=[]):
     return len(data)
 
 
+def get_indices_per_flag(flag, inputs=[]):
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    indices = []
+    for i, atoms in enumerate(data):
+        assert atoms.evaluation_flag is not None
+        if atoms.evaluation_flag == flag:
+            indices.append(i)
+    return indices
+
+
 def compute_metrics(
         intrinsic,
         atom_indices,
@@ -278,6 +288,20 @@ class Dataset(Container):
                 outputs=[File(path_new)],
                 ).outputs[0]
 
+    @property
+    def success(self):
+        return self.context.apps(Dataset, 'get_indices_per_flag')(
+                'success',
+                inputs=[self.data_future],
+                )
+
+    @property
+    def failed(self):
+        return self.context.apps(Dataset, 'get_indices_per_flag')(
+                'failed',
+                inputs=[self.data_future],
+                )
+
     @classmethod
     def load(cls, context, path_xyz):
         assert os.path.isfile(path_xyz) # needs to be locally accessible
@@ -308,6 +332,9 @@ class Dataset(Container):
 
         app_length_dataset = python_app(get_length_dataset, executors=[label])
         context.register_app(Dataset, 'length_dataset', app_length_dataset)
+
+        app_get_indices = python_app(get_indices_per_flag, executors=[label])
+        context.register_app(Dataset, 'get_indices_per_flag', app_get_indices)
 
         app_compute_metrics = python_app(compute_metrics, executors=[label])
         context.register_app(Dataset, 'compute_metrics', app_compute_metrics)

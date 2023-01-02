@@ -30,6 +30,7 @@ class BaseReference(Container):
         if isinstance(arg, Dataset):
             data_future = self.context.apps(self.__class__, 'evaluate_multiple')(
                     parameters,
+                    arg.length(),
                     inputs=[arg.data_future],
                     outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                     ).outputs[0]
@@ -48,22 +49,20 @@ class BaseReference(Container):
     @classmethod
     def create_apps(cls, context):
         assert not (cls == BaseReference) # should never be called directly
-        app_length_dataset = context.apps(Dataset, 'length_dataset')
-        app_save_dataset   = context.apps(Dataset, 'save_dataset')
-
-        def evaluate_multiple(parameters, inputs=[], outputs=[]):
+        def evaluate_multiple(parameters, nstates, inputs=[], outputs=[]):
             assert len(outputs) == 1
             data = []
-            nstates = app_length_dataset(inputs=[inputs[0]])
-            for i in range(nstates.result()):
+            for i in range(nstates):
                 data.append(context.apps(cls, 'evaluate_single')(
                     read_dataset(i, inputs=[inputs[0]], outputs=[]),
                     parameters,
                     inputs=[],
                     outputs=[],
                     ))
-            for i in range(nstates.result()):
-                print(data[i].result().info['evaluation_flag'])
-            return app_save_dataset(states=None, inputs=data, outputs=[outputs[0]])
+            return context.apps(Dataset, 'save_dataset')(
+                    states=None,
+                    inputs=data,
+                    outputs=[outputs[0]],
+                    )
         app_evaluate_multiple = join_app(evaluate_multiple)
         context.register_app(cls, 'evaluate_multiple', app_evaluate_multiple)

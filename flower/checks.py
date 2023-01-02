@@ -10,10 +10,32 @@ from flower.utils import save_yaml
 from flower.models import load_model
 
 
+@python_app
+def adjust_npasses(npasses, checked_state):
+    if checked_state is None:
+        return npasses
+    else:
+        return npasses + 1
+
+
 class Check:
 
+    def __init__(self):
+        self.nchecks = 0
+        self.npasses = 0
+
     def __call__(self, state, tag=None):
+        self.nchecks += 1
+        checked_state = self.apply_check(state, tag)
+        self.npasses = adjust_npasses(self.npasses, checked_state)
+        return checked_state
+
+    def apply_check(self, state, tag=None):
         raise NotImplementedError
+
+    def reset(self):
+        self.nchecks = 0
+        self.npasses = 0
 
     def save(self, path, require_done=True):
         path = Path(path)
@@ -65,9 +87,10 @@ def check_distances(state, threshold):
 class InteratomicDistanceCheck(Check):
 
     def __init__(self, threshold):
+        super().__init__()
         self.threshold = threshold
 
-    def __call__(self, state, tag=None):
+    def apply_check(self, state, tag=None):
         return check_distances(state, self.threshold)
 
     @property
@@ -94,6 +117,7 @@ def check_discrepancy(state, errors, thresholds):
 class DiscrepancyCheck(Check):
 
     def __init__(self, metric, properties, thresholds, model_old=None, model_new=None):
+        super().__init__()
         self.metric = metric
         assert type(properties) == list
         assert type(thresholds) == list
@@ -107,7 +131,7 @@ class DiscrepancyCheck(Check):
         self.model_old = model_old # can be initialized with None models
         self.model_new = model_new
 
-    def __call__(self, state, tag=None):
+    def apply_check(self, state, tag=None):
         assert self.model_old is not None
         assert self.model_old.config_future is not None
         assert self.model_new is not None
@@ -178,7 +202,7 @@ def check_safety(state, tag):
 
 class SafetyCheck(Check):
 
-    def __call__(self, state, tag):
+    def apply_check(self, state, tag):
         return check_safety(state, tag)
 
 

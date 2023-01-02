@@ -66,6 +66,13 @@ def conditional_sample(
     return data_future
 
 
+@join_app
+def reset_walkers(walkers, indices):
+    for i, walker in enumerate(walkers):
+        if i in indices:
+            walker.reset()
+
+
 class Ensemble:
     """Wraps a set of walkers"""
 
@@ -118,6 +125,10 @@ class Ensemble:
             walker.save(path_walker, require_done=require_done)
             if bias is not None:
                 bias.save(path_walker, require_done=require_done)
+
+    def reset(self, indices):
+        reset_walkers(self.walkers, indices)
+
 
     @classmethod
     def load(cls, context, path):

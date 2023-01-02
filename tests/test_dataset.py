@@ -17,7 +17,12 @@ def test_flower_atoms(context, dataset):
         atoms = dataset[i].result()
         assert isinstance(atoms, FlowerAtoms)
         assert atoms.evaluation_log is None
-        assert atoms.evaluation_flag is None
+        assert atoms.evaluation_flag == 'success'
+    assert np.allclose(
+            np.array(dataset.success.result()),
+            np.arange(dataset.length().result()),
+            )
+    assert len(dataset.failed.result()) == 0
 
 
 def test_dataset_empty(context, tmp_path):

@@ -208,7 +208,7 @@ class Manager:
                     model=model,
                     )
             data = reference.evaluate(data)
-            assert data.length.result() == ensemble.nwalkers
+            assert data.length().result() == ensemble.nwalkers
 
         # save objects
         if ensemble is None:
@@ -229,6 +229,7 @@ class Manager:
             ensemble: Ensemble,
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
+            data_failed: Optional[Dataset] = None,
             checks: Optional[list] = None,
             ):
         path = self.path_output / prefix
@@ -247,6 +248,8 @@ class Manager:
             data_train.save(path / 'train.xyz')
         if data_valid is not None:
             data_valid.save(path / 'validate.xyz')
+        if data_failed is not None:
+            data_valid.save(path / 'failed.xyz')
 
         # save checks if necessary
         if checks is not None:

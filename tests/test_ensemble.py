@@ -44,8 +44,10 @@ def test_ensemble(context, dataset, tmpdir):
 
     ensemble.walkers[3].tag_future = 'unsafe'
     ensemble.walkers[7].tag_future = 'unsafe'
-    dataset = ensemble.as_dataset(checks=[SafetyCheck(), SafetyCheck()]) # double shouldn't matter
+    check = SafetyCheck()
+    dataset = ensemble.as_dataset(checks=[check, SafetyCheck()]) # double shouldn't matter
     assert dataset.length().result() == nwalkers - 2
+    assert check.npasses.result() == nwalkers - 2
     dataset = ensemble.sample(nstates, model=None, checks=[SafetyCheck()])
     assert dataset.length().result() == nstates
     for walker in ensemble.walkers:

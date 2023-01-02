@@ -35,8 +35,12 @@ def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
             model_new=model_new,
             )
     assert check(dataset[6]).result() is not None
+    assert check.nchecks == 1
+    assert check.npasses.result() == 1
     check.thresholds = [100, 10] # mae's should be lower than this
     assert check(dataset[6]).result() is None
+    assert check.nchecks == 2
+    assert check.npasses.result() == 1
     path = Path(tmpdir)
     check.save(path, context)
     check_ = load_checks(path, context)[0]
@@ -45,13 +49,17 @@ def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
     assert check_.model_new.config_raw['seed'] == 111
 
 
-def test_safety(context, dataset, tmpdir):
+def test_safety_check(context, dataset, tmpdir):
     walker = RandomWalker(context, dataset[0])
     state = walker.propagate()
     check = SafetyCheck()
     assert check(state, walker.tag_future).result() is not None
+    assert check.nchecks == 1
+    assert check.npasses.result() == 1
     walker.tag_future = 'unsafe'
     assert check(state, walker.tag_future).result() is None
+    assert check.nchecks == 2
+    assert check.npasses.result() == 1
     path = Path(tmpdir)
     check.save(path, context)
     check_ = load_checks(path, context)[0]
