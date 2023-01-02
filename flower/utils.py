@@ -34,6 +34,11 @@ def _new_file(path, prefix, suffix):
 
 
 @python_app(executors=['default'])
+def sum_inputs(inputs=[]):
+    return sum(inputs)
+
+
+@python_app(executors=['default'])
 def copy_data_future(inputs=[], outputs=[]):
     import shutil
     shutil.copyfile(inputs[0], outputs[0])

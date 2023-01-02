@@ -33,7 +33,7 @@ def conditional_sample(
     from flower.ensemble import get_continue_flag
     from flower.utils import _new_file
     states = inputs
-    if (len(states) < len(walkers)) or continue_flag:
+    if (len(states) < nstates) or continue_flag:
         if shuffled_sampling:
             index = np.random.randint(0, len(walkers))
         else:

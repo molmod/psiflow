@@ -39,7 +39,7 @@ class BaseWalker(Container):
         # futures
         self.start_future = copy_app_future(atoms) # necessary!
         self.state_future = copy_app_future(atoms)
-        self.tag_future   = 'safe'
+        self.tag_future   = copy_app_future('safe')
 
         # parameters
         self.parameters = self.parameters_cls(**deepcopy(kwargs))
@@ -77,6 +77,7 @@ class BaseWalker(Container):
                 self.start_future,
                 self.tag_future,
                 )
+        self.tag_future = copy_app_future('safe')
 
     def is_reset(self):
         app = self.context.apps(self.__class__, 'is_reset')

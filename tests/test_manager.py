@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from flower.models import NequIPModel
-from flower.manager import Manager
+from flower.manager import Manager, log_dataset, log_ensemble
 from flower.reference import EMTReference
 from flower.sampling import RandomWalker, DynamicWalker, PlumedBias
 from flower.ensemble import Ensemble
@@ -31,7 +31,7 @@ def reference(context):
 
 
 def test_manager_dry_run(context, dataset, model, ensemble, reference, tmpdir):
-    manager = Manager(tmpdir, '')
+    manager = Manager(tmpdir, 'pytest', 'test_manager_dry_run')
     with pytest.raises(AssertionError):
         manager.dry_run(model, reference) # specify either walker or ensemble
     random_walker = RandomWalker(context, dataset[0])
@@ -44,7 +44,7 @@ def test_manager_save_load(context, dataset, model, ensemble, tmpdir):
     walkers.append(RandomWalker(context, dataset[0]))
     walkers.append(DynamicWalker(context, dataset[1]))
     ensemble = Ensemble(context, walkers=walkers, biases=[None, None])
-    manager = Manager(path_output, '')
+    manager = Manager(path_output, 'pytest', 'test_manager_save_load')
     checks = [
             SafetyCheck(),
             DiscrepancyCheck(
@@ -55,13 +55,13 @@ def test_manager_save_load(context, dataset, model, ensemble, tmpdir):
                 model_new=None,
                 ),
             ]
-    prefix = 'test'
-    manager.save(prefix=prefix, model=model, ensemble=ensemble, checks=checks)
-    assert (path_output / prefix / 'ensemble').is_dir()
-    assert (path_output / prefix / 'ensemble' / '0').is_dir()
-    assert (path_output / prefix / 'ensemble' / '1').is_dir()
-    assert not (path_output / prefix / 'ensemble' / '2').is_dir()
-    assert (path_output / prefix / 'checks').is_dir() # directory for saved checks
+    name = 'test'
+    manager.save(name=name, model=model, ensemble=ensemble, checks=checks)
+    assert (path_output / name / 'ensemble').is_dir()
+    assert (path_output / name / 'ensemble' / '0').is_dir()
+    assert (path_output / name / 'ensemble' / '1').is_dir()
+    assert not (path_output / name / 'ensemble' / '2').is_dir()
+    assert (path_output / name / 'checks').is_dir() # directory for saved checks
 
     model_, ensemble_, data_train, data_valid, checks = manager.load(
             'test',
@@ -91,8 +91,8 @@ def test_manager_save_load(context, dataset, model, ensemble, tmpdir):
                 model_new=model.copy(),
                 ),
             ]
-    prefix = 'test_'
-    manager.save(prefix=prefix, model=model, ensemble=ensemble, checks=checks)
+    name = 'test_'
+    manager.save(name=name, model=model, ensemble=ensemble, checks=checks)
     model_, ensemble_, data_train, data_valid, checks = manager.load(
             'test_',
             context,
@@ -104,8 +104,7 @@ def test_manager_save_load(context, dataset, model, ensemble, tmpdir):
             assert check.model_new is not None
 
 
-def test_manager_wandb(context, dataset, model, tmp_path):
-    manager = Manager(tmp_path, 'pytest')
+def test_log_dataset_ensemble(context, dataset, model, tmp_path):
     error_kwargs = {
             'intrinsic': False,
             'metric': 'mae',
@@ -121,9 +120,11 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
     bias = PlumedBias(context, plumed_input)
     model.initialize(dataset[:2])
     model.deploy()
-    future = manager.log_dataset(
-            'my_data',
-            'test_manager_wandb',
+    future = log_dataset(
+            'training',
+            'run_name', # run name
+            'test_manager_wandb', # group
+            'pytest', # project
             dataset,
             visualize_structures=False,
             bias=bias,
@@ -140,12 +141,11 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
     ensemble.walkers[3].tag_future = 'unsafe'
     ensemble.walkers[7].tag_future = 'unsafe'
     ensemble.biases = [None, None] + [bias.copy() for i in range(8)] # not all same bias
-    future = manager.log_ensemble(
-            'my_ensemble',
-            'test_manager_wandb',
+    future = log_ensemble(
+            'run_name', # run name
+            'test_manager_wandb', # group
+            'pytest', # project
             ensemble,
-            model=model,
-            error_kwargs=error_kwargs,
-            checks=None,
+            visualize_structures=False,
             )
     future.result()

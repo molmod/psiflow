@@ -8,8 +8,9 @@ from floer.sampling import RandomWalker
 from flower.ensemble import Ensemble
 
 
-@python_app
+@python_app(executors=['default'])
 def get_ntrain_nvalid(effective_nstates, train_valid_split):
+    import numpy as np
     ntrain = int(np.floor(nstates * train_valid_split))
     nvalid = nstates - ntrain
     assert ntrain > 0
@@ -25,7 +26,7 @@ class BaseLearning:
 
 
 @dataclass
-class RandomLearningParameters
+class RandomLearningParameters:
     nstates           : int = 20
     train_valid_split : int = 0.9
 
@@ -61,12 +62,20 @@ class RandomLearning:
                 data_valid=data_valid,
                 data_failed=data.get(indices=data.failed),
                 )
+        manager.log_dataset( # log training
+                wandb_name='train',
+                wandb_group='random_learning',
+                dataset=data_train,
+                visualize_structures=False,
+                bias=None,
+                model=model,
+                )
         return data_train, data_valid
 
 
 @dataclass
 class OnlineLearningParameters(RandomLearningParameters):
-    niterations   : int = 10
+    niterations : int = 10
     retrain_model_per_iteration : bool = True
 
 

@@ -72,6 +72,7 @@ def test_random_walker(context, dataset):
     walker.tag_future = 'unsafe'
     walker.reset_if_unsafe() # should reset
     assert walker.is_reset().result() # should reset
+    assert walker.tag_future.result() == 'safe'
 
     state = walker.propagate(model='dummy') # irrelevant kwargs are ignored
 

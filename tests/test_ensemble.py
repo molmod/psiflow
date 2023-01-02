@@ -10,13 +10,14 @@ from flower.data import Dataset
 from tests.conftest import generate_emt_cu_data
 
 
-def test_ensemble(context, dataset, tmpdir):
+def test_ensemble_sampling(context, dataset, tmpdir):
     walker = RandomWalker(context, dataset[0])
     nwalkers = 10
     ensemble = Ensemble.from_walker(walker, nwalkers=nwalkers)
 
-    nstates = 15
-    new_data = ensemble.sample(nstates, checks=[SafetyCheck()]) # always passes
+    nstates = 11
+    check = SafetyCheck()
+    new_data = ensemble.sample(nstates, checks=[check]) # always passes
     assert new_data.length().result() == nstates
     for i, walker in enumerate(ensemble.walkers[:int(nstates % nwalkers)]):
         assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers
@@ -45,10 +46,20 @@ def test_ensemble(context, dataset, tmpdir):
     ensemble.walkers[3].tag_future = 'unsafe'
     ensemble.walkers[7].tag_future = 'unsafe'
     check = SafetyCheck()
-    dataset = ensemble.as_dataset(checks=[check, SafetyCheck()]) # double shouldn't matter
+    assert check.npasses.result() == 0 # should be AppFuture
+    assert check.nchecks == 0
+    dataset = ensemble.as_dataset(checks=[check]) # double shouldn't matter
+    assert check.nchecks == nwalkers # immediately OK because no join app
     assert dataset.length().result() == nwalkers - 2
     assert check.npasses.result() == nwalkers - 2
-    dataset = ensemble.sample(nstates, model=None, checks=[SafetyCheck()])
+    dataset = ensemble.sample(nstates, model=None, checks=[check])
+    assert not check.nchecks == nwalkers + nstates # because of join app!
+    dataset.data_future.result() # forces join app execution
+    assert check.nchecks == nwalkers + nstates # now OK
+    assert check.npasses.result() == nwalkers - 2 + nstates
+    check.reset()
+    assert check.nchecks == 0
+    assert check.npasses.result() == 0
     assert dataset.length().result() == nstates
     for walker in ensemble.walkers:
         assert walker.tag_future.result() == 'safe' # unsafe ones were reset

@@ -2,32 +2,41 @@ from pathlib import Path
 import glob
 import yaml
 
-from parsl.app.app import python_app
+from parsl.app.app import python_app, join_app
 from parsl.data_provider.files import File
 
 from flower.data import Dataset
-from flower.utils import save_yaml
+from flower.utils import save_yaml, copy_app_future
 from flower.models import load_model
 
 
-@python_app
-def adjust_npasses(npasses, checked_state):
-    if checked_state is None:
+@python_app(executors=['default'])
+def update_npasses(npasses, state, checked_state):
+    if (state is not None) and (checked_state is None):
         return npasses
     else:
         return npasses + 1
+
+
+@python_app(executors=['default'])
+def update_states(states, state, checked_state):
+    if (state is not None) and (checked_state is None):
+        states.append(state)
+    return states
 
 
 class Check:
 
     def __init__(self):
         self.nchecks = 0
-        self.npasses = 0
+        self.npasses = copy_app_future(0)
+        self.states  = copy_app_future([])
 
     def __call__(self, state, tag=None):
         self.nchecks += 1
         checked_state = self.apply_check(state, tag)
-        self.npasses = adjust_npasses(self.npasses, checked_state)
+        self.npasses = update_npasses(self.npasses, state, checked_state)
+        self.states  = update_states(self.states, state, checked_state)
         return checked_state
 
     def apply_check(self, state, tag=None):
@@ -35,7 +44,7 @@ class Check:
 
     def reset(self):
         self.nchecks = 0
-        self.npasses = 0
+        self.npasses = copy_app_future(0)
 
     def save(self, path, require_done=True):
         path = Path(path)

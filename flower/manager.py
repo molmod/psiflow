@@ -11,11 +11,12 @@ from flower.reference.base import BaseReference
 from flower.sampling import RandomWalker
 from flower.ensemble import Ensemble
 from flower.data import Dataset
-from flower.checks import Check, load_checks
+from flower.checks import Check, load_checks, SafetyCheck
+from flower.utils import copy_app_future
 
 
 @python_app(executors=['default'])
-def log_data(
+def app_log_data(
         table_name,
         wandb_name,
         wandb_group,
@@ -24,6 +25,8 @@ def log_data(
         errors=None,
         error_labels=None,
         bias_labels=None,
+        checks=None,
+        checks_labels=None,
         inputs=[],
         ):
     import wandb
@@ -40,6 +43,7 @@ def log_data(
             )
     columns = [
             'index',
+            'location',
             'elements',
             'natoms',
             ]
@@ -55,9 +59,10 @@ def log_data(
             assert values.shape[1] == 2
         columns += bias_labels
     table_data = []
+    location = Path(inputs[0].filepath).name
     for i, atoms in enumerate(data):
         elements = list(set([chemical_symbols[n] for n in atoms.numbers]))
-        row = [i, ', '.join(elements), len(atoms)]
+        row = [i, location, ', '.join(elements), len(atoms)]
         if error_labels is not None:
             row += [e for e in errors[i, :]]
         if bias_labels is not None:
@@ -85,7 +90,7 @@ def log_data(
 
 
 @python_app(executors=['default'])
-def log_ensemble(
+def app_log_ensemble(
         table_name,
         wandb_name,
         wandb_group,
@@ -148,13 +153,152 @@ def log_ensemble(
     wandb.finish()
 
 
+def log_dataset(
+        table_name,
+        wandb_name,
+        wandb_group,
+        wandb_project,
+        dataset,
+        visualize_structures,
+        bias,
+        model,
+        error_kwargs,
+        ):
+    inputs = []
+    if bias is not None:
+        bias_labels = []
+        for variable in bias.variables:
+            inputs.append(bias.evaluate(dataset, variable=variable))
+            bias_labels.append(variable)
+            bias_labels.append('bias({})'.format(variable))
+    else:
+        bias_labels = None
+    if model is not None:
+        assert error_kwargs is not None
+        if len(model.deploy_future) == 0:
+            model.deploy()
+        _dataset = model.evaluate(dataset)
+        errors = _dataset.get_errors(**error_kwargs)
+        error_labels = [error_kwargs['metric'] + '_' + p for p in error_kwargs['properties']]
+    else:
+        errors = None
+        error_labels = None
+    return app_log_data(
+            table_name,
+            wandb_name,
+            wandb_group,
+            wandb_project=wandb_project,
+            visualize_structures=visualize_structures,
+            errors=errors,
+            error_labels=error_labels,
+            bias_labels=bias_labels,
+            inputs=[dataset.data_future] + inputs,
+            )
+
+
+def log_ensemble(
+        wandb_name,
+        wandb_group,
+        wandb_project,
+        ensemble,
+        visualize_structures,
+        ):
+    assert len(ensemble.walkers) > 0
+    dataset = ensemble.as_dataset()
+    inputs = []
+
+    # add walker tags to inputs
+    for walker in ensemble.walkers:
+        inputs.append(walker.tag_future)
+
+    # add bias to inputs
+    variables = []
+    for bias in ensemble.biases:
+        if bias is not None:
+            variables += bias.variables
+    variables = list(set(variables))
+    if len(variables) > 0:
+        bias_labels = []
+        for variable in variables:
+            bias_labels.append(variable)
+            bias_labels.append('bias({})'.format(variable))
+        for walker, bias in zip(ensemble.walkers, ensemble.biases): # evaluate bias per walker
+            for i, variable in enumerate(variables):
+                if (bias is not None) and (variable in bias.variables):
+                    inputs.append(bias.evaluate(
+                        Dataset(bias.context, atoms_list=[walker.state_future]),
+                        variable=variable,
+                        ))
+                else:
+                    inputs.append(False) # cannot pass None as input
+    else:
+        bias_labels = None
+
+    # double check inputs contains tag info + bias info
+    assert len(inputs) == len(ensemble.walkers) * (len(variables) + 1)
+    return app_log_ensemble(
+            'ensemble',
+            wandb_name,
+            wandb_group,
+            wandb_project,
+            visualize_structures=visualize_structures,
+            bias_labels=bias_labels,
+            inputs=[dataset.data_future] + inputs,
+            )
+
+
+def log_checks(
+        wandb_name,
+        wandb_group,
+        wandb_project,
+        context,
+        checks,
+        bias,
+        visualize_structures,
+        ):
+    for check in checks:
+        name = check.__class__.__name__
+        dataset = Dataset(context, atoms_list=check.states)
+        inputs = []
+        if bias is not None:
+            bias_labels = []
+            for variable in bias.variables:
+                inputs.append(bias.evaluate(dataset, variable=variable))
+                bias_labels.append(variable)
+                bias_labels.append('bias({})'.format(variable))
+        else:
+            bias_labels = None
+        return app_log_data(
+                name,
+                wandb_name,
+                wandb_group,
+                wandb_project=wandb_project,
+                visualize_structures=visualize_structures,
+                bias_labels=bias_labels,
+                inputs=[dataset.data_future] + inputs,
+                )
+
+
 class Manager:
 
-    def __init__(self, path_output, wandb_project):
+    def __init__(
+            self,
+            path_output,
+            wandb_project,
+            wandb_group,
+            error_kwargs=None,
+            ):
         self.path_output = Path(path_output)
         self.path_output.mkdir(parents=True, exist_ok=True)
         self.wandb_project = wandb_project
-        self.iteration = 0
+        self.wandb_group   = wandb_group
+        if error_kwargs is None:
+            error_kwargs = {
+                    'intrinsic': False,
+                    'metric': 'mae',
+                    'properties': ['energy', 'forces', 'stress'],
+                    }
+        self.error_kwargs = error_kwargs
 
     def dry_run(
             self,
@@ -180,7 +324,12 @@ class Manager:
 
         # generation of small dataset
         _ensemble = Ensemble.from_walker(random_walker, nwalkers=5)
-        data = _ensemble.sample(7, model=None, checks=[])
+        if checks is None:
+            checks = [SafetyCheck()]
+        else:
+            checks = checks + [SafetyCheck()]
+        _ensemble.walkers[3].tag_future = copy_app_future('unsafe')
+        data = _ensemble.sample(7, model=None, checks=checks)
         data = reference.evaluate(data)
 
         # short training and deploy
@@ -210,11 +359,20 @@ class Manager:
             data = reference.evaluate(data)
             assert data.length().result() == ensemble.nwalkers
 
-        # save objects
+        # log and save objects
         if ensemble is None:
             ensemble = _ensemble
+        logs = self.log(
+                'dry_run',
+                model,
+                ensemble,
+                data_train=new_train,
+                data_valid=new_valid,
+                )
+        for log in logs:
+            log.result()
         self.save( # test save
-                prefix='dry_run',
+                name='dry_run',
                 model=model,
                 ensemble=ensemble,
                 data_train=new_train,
@@ -224,7 +382,7 @@ class Manager:
 
     def save(
             self,
-            prefix,
+            name,
             model: BaseModel,
             ensemble: Ensemble,
             data_train: Optional[Dataset] = None,
@@ -232,7 +390,7 @@ class Manager:
             data_failed: Optional[Dataset] = None,
             checks: Optional[list] = None,
             ):
-        path = self.path_output / prefix
+        path = self.path_output / name
         path.mkdir(parents=False, exist_ok=False) # parent should exist
 
         # model
@@ -258,8 +416,8 @@ class Manager:
             for check in checks:
                 check.save(path_checks) # all checks may be stored in same dir
 
-    def load(self, prefix, context):
-        path = self.path_output / prefix
+    def load(self, name, context):
+        path = self.path_output / name
         assert path.is_dir() # needs to exist
 
         # model
@@ -287,110 +445,69 @@ class Manager:
             checks = load_checks(path_checks, context)
         return model, ensemble, data_train, data_valid, checks
 
-    def log_dataset(
+    def log(
             self,
-            wandb_name,
-            wandb_group,
-            dataset,
-            visualize_structures=False,
+            name,
+            model: BaseModel,
+            ensemble: Ensemble,
+            data_train: Optional[Dataset] = None,
+            data_valid: Optional[Dataset] = None,
+            data_failed: Optional[Dataset] = None,
+            checks: Optional[list] = None,
             bias=None,
-            model=None,
-            error_kwargs=None,
             ):
-        table_name = Path(dataset.data_future.filepath).name
-        inputs = []
-        if bias is not None:
-            bias_labels = []
-            for variable in bias.variables:
-                inputs.append(bias.evaluate(dataset, variable=variable))
-                bias_labels.append(variable)
-                bias_labels.append('bias({})'.format(variable))
-        else:
-            bias_labels = None
-        if model is not None:
-            assert error_kwargs is not None
-            _dataset = model.evaluate(dataset)
-            errors = _dataset.get_errors(**error_kwargs)
-            error_labels = [error_kwargs['metric'] + '_' + p for p in error_kwargs['properties']]
-        else:
-            errors = None
-            error_labels = None
-        return log_data(
-                table_name,
-                wandb_name,
-                wandb_group,
-                wandb_project=self.wandb_project,
-                visualize_structures=visualize_structures,
-                errors=errors,
-                error_labels=error_labels,
-                bias_labels=bias_labels,
-                inputs=[dataset.data_future] + inputs,
-                )
-
-    def log_ensemble(
-            self,
-            wandb_name,
-            wandb_group,
-            ensemble,
-            visualize_structures=False,
-            model=None,
-            error_kwargs=None,
-            checks=None,
-            ):
-        table_name = 'ensemble'
-        assert len(ensemble.walkers) > 0
-        dataset = ensemble.as_dataset()
-        if model is not None:
-            assert error_kwargs is not None
-            _dataset = model.evaluate(dataset)
-            errors = _dataset.get_errors(**error_kwargs)
-            error_labels = [error_kwargs['metric'] + '_' + p for p in error_kwargs['properties']]
-        else:
-            errors = None
-            error_labels = None
-
-        inputs = []
-
-        # add walker tags to inputs
-        for walker in ensemble.walkers:
-            inputs.append(walker.tag_future)
-
-        # add bias to inputs
-        variables = []
-        for bias in ensemble.biases:
-            if bias is not None:
-                variables += bias.variables
-        variables = list(set(variables))
-        if len(variables) > 0:
-            bias_labels = []
-            for variable in variables:
-                bias_labels.append(variable)
-                bias_labels.append('bias({})'.format(variable))
-            for walker, bias in zip(ensemble.walkers, ensemble.biases): # evaluate bias per walker
-                for i, variable in enumerate(variables):
-                    if (bias is not None) and (variable in bias.variables):
-                        inputs.append(bias.evaluate(
-                            Dataset(bias.context, atoms_list=[walker.state_future]),
-                            variable=variable,
-                            ))
-                    else:
-                        inputs.append(False) # cannot pass None as input
-        else:
-            bias_labels = None
-
-        # double check inputs contains tag info + bias info
-        assert len(inputs) == len(ensemble.walkers) * (len(variables) + 1)
-        return log_ensemble(
-                table_name,
-                wandb_name,
-                wandb_group,
-                wandb_project=self.wandb_project,
-                visualize_structures=visualize_structures,
-                errors=errors,
-                error_labels=error_labels,
-                bias_labels=bias_labels,
-                inputs=[dataset.data_future] + inputs,
-                )
-
-    def increment(self):
-        self.iteration += 1
+        logs = []
+        if data_train is not None:
+            logs.append(log_dataset( # log training and validation data as tables
+                    table_name='training',
+                    wandb_name=name,
+                    wandb_group=self.wandb_group,
+                    wandb_project=self.wandb_project,
+                    dataset=data_train,
+                    visualize_structures=False,
+                    bias=bias,
+                    model=model,
+                    error_kwargs=self.error_kwargs,
+                    ))
+        if data_valid is not None:
+            logs.append(log_dataset(
+                    table_name='validation',
+                    wandb_name=name,
+                    wandb_group=self.wandb_group,
+                    wandb_project=self.wandb_project,
+                    dataset=data_valid,
+                    visualize_structures=False,
+                    bias=bias,
+                    model=model,
+                    error_kwargs=self.error_kwargs,
+                    ))
+        if data_failed is not None:
+            logs.append(log_dataset( # log states with failed reference calculation
+                    table_name='failed',
+                    wandb_name=name,
+                    wandb_group=self.wandb_group,
+                    wandb_project=self.wandb_project,
+                    dataset=data_failed,
+                    visualize_structures=False,
+                    bias=bias,
+                    model=model,
+                    error_kwargs=self.error_kwargs,
+                    ))
+        if ensemble is not None:
+            logs.append(log_ensemble(
+                    wandb_name=name,
+                    wandb_group=self.wandb_group,
+                    wandb_project=self.wandb_project,
+                    ensemble=ensemble,
+                    visualize_structures=False,
+                    ))
+        if checks is not None:
+            logs.append(log_checks(
+                    wandb_name=name,
+                    wandb_group=self.wandb_group,
+                    wandb_project=self.wandb_project,
+                    checks=checks,
+                    bias=bias,
+                    visualize_structures=False,
+                    ))
+        return logs
