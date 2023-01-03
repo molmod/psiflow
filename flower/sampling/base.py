@@ -86,6 +86,7 @@ class BaseWalker(Container):
     def reset(self):
         self.state_future = copy_app_future(self.start_future)
         self.tag = 'safe'
+        return self.state_future
 
     def copy(self):
         walker = self.__class__(

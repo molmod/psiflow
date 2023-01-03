@@ -19,10 +19,6 @@ def test_ensemble_sampling(context, dataset, tmpdir):
     check = SafetyCheck()
     new_data = ensemble.sample(nstates, checks=[check]) # always passes
     assert new_data.length().result() == nstates
-    for i, walker in enumerate(ensemble.walkers[:int(nstates % nwalkers)]):
-        assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers
-    for i, walker in enumerate(ensemble.walkers[int(nstates % nwalkers):]):
-        assert walker.parameters.seed == i + (nstates // nwalkers) * nwalkers + nstates % nwalkers
 
     # no two states should be the same
     for i in range(new_data.length().result() - 1):
@@ -36,15 +32,16 @@ def test_ensemble_sampling(context, dataset, tmpdir):
     ensemble.save(tmpdir)
     ensemble_ = Ensemble.load(context, tmpdir)
     assert ensemble_.nwalkers == nwalkers
-    for i, walker in enumerate(ensemble_.walkers[:int(nstates % nwalkers)]):
-        assert walker.parameters.seed == i + (nstates // nwalkers + 1) * nwalkers
-    for i, walker in enumerate(ensemble_.walkers[int(nstates % nwalkers):]):
-        assert walker.parameters.seed == i + (nstates // nwalkers) * nwalkers + nstates % nwalkers
     ndirs = len([f for f in os.listdir(tmpdir) if os.path.isdir(tmpdir / f)])
     assert ndirs == nwalkers
 
     ensemble.walkers[3].tag_future = 'unsafe'
     ensemble.walkers[7].tag_future = 'unsafe'
+    future = ensemble.reset([3, 7])
+    assert not ensemble.walkers[3].is_reset().result()
+    future.result() # force join_app execution
+    assert ensemble.walkers[3].is_reset().result()
+    assert ensemble.walkers[7].is_reset().result()
     check = SafetyCheck()
     assert check.npasses.result() == 0 # should be AppFuture
     assert check.nchecks == 0

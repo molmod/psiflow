@@ -10,19 +10,17 @@ from flower.utils import _new_file, copy_app_future
 
 
 @python_app(executors=['default'])
-def get_continue_flag(nstates, inputs=[], outputs=[]):
-    continue_flag = sum([state is not None for state in inputs]) < nstates
-    return continue_flag
+def count_nstates(inputs=[], outputs=[]):
+    return sum([state is not None for state in inputs])
 
 
 @join_app
 def conditional_sample(
         context,
-        continue_flag,
+        nstates,
+        nstates_effective,
         walkers,
         biases,
-        nstates,
-        shuffled_sampling,
         model,
         checks,
         inputs=[],
@@ -30,53 +28,72 @@ def conditional_sample(
         ):
     import numpy as np
     from flower.data import read_dataset
-    from flower.ensemble import get_continue_flag
+    from flower.ensemble import count_nstates
     from flower.utils import _new_file
     states = inputs
-    if (len(states) < nstates) or continue_flag:
-        if shuffled_sampling:
+    if nstates_effective == 0:
+        for i in range(len(walkers)):
+            index = i # no shuffle
+            walker = walkers[index]
+            bias   = biases[index]
+            state = walker.propagate(
+                    safe_return=False,
+                    bias=bias,
+                    keep_trajectory=False,
+                    )
+            walker.parameters.seed += len(walkers) # avoid generating same states
+            for check in checks:
+                state = check(state, walker.tag_future)
+            walker.reset_if_unsafe()
+            states.append(state) # some are None
+    else:
+        batch_size = nstates - nstates_effective
+        if not batch_size > 0:
+            data_future = context.apps(Dataset, 'save_dataset')(
+                    states=None,
+                    inputs=states,
+                    outputs=[outputs[0]],
+                    )
+            return data_future
+        for i in range(batch_size):
             index = np.random.randint(0, len(walkers))
-        else:
-            index = int(len(states) % len(walkers))
-        walker = walkers[index]
-        bias   = biases[index]
-        state = walker.propagate(
-                safe_return=False,
-                bias=bias,
-                keep_trajectory=False,
-                )
-        walker.reset_if_unsafe()
-        walker.parameters.seed += len(walkers) # avoid generating same states
-        for check in checks:
-            state = check(state, walker.tag_future)
-        states.append(state) # some are None
-        return conditional_sample(
-                context,
-                get_continue_flag(nstates, inputs=states),
-                walkers,
-                biases,
-                nstates,
-                shuffled_sampling,
-                model,
-                checks,
-                inputs=states,
-                outputs=[outputs[0]],
-                )
-    data_future = context.apps(Dataset, 'save_dataset')(states=None, inputs=states, outputs=[outputs[0]])
-    return data_future
+            walker = walkers[index]
+            bias   = biases[index]
+            state = walker.propagate(
+                    safe_return=False,
+                    bias=bias,
+                    keep_trajectory=False,
+                    )
+            walker.parameters.seed += len(walkers) # avoid generating same states
+            for check in checks:
+                state = check(state, walker.tag_future)
+            walker.reset_if_unsafe()
+            states.append(state) # some are None
+    return conditional_sample(
+            context,
+            nstates,
+            count_nstates(inputs=states),
+            walkers,
+            biases,
+            model,
+            checks,
+            inputs=states,
+            outputs=[outputs[0]],
+            )
 
 
 @join_app
 def reset_walkers(walkers, indices):
     for i, walker in enumerate(walkers):
         if i in indices:
-            walker.reset()
+            future = walker.reset()
+    return future # irrelevant return value?
 
 
 class Ensemble:
     """Wraps a set of walkers"""
 
-    def __init__(self, context, walkers, biases=[], shuffled_sampling=False):
+    def __init__(self, context, walkers, biases=[]):
         assert len(walkers) > 0
         self.context = context
         self.walkers = walkers
@@ -85,16 +102,14 @@ class Ensemble:
         else:
             biases = [None] * len(walkers)
         self.biases = biases
-        self.shuffled_sampling = shuffled_sampling
 
     def sample(self, nstates, model=None, checks=None):
         data_future = conditional_sample(
                 self.context,
-                True,
+                nstates,
+                0,
                 self.walkers,
                 self.biases,
-                nstates,
-                shuffled_sampling=self.shuffled_sampling,
                 model=model,
                 checks=checks if checks is not None else [],
                 inputs=[],
@@ -127,8 +142,7 @@ class Ensemble:
                 bias.save(path_walker, require_done=require_done)
 
     def reset(self, indices):
-        reset_walkers(self.walkers, indices)
-
+        return reset_walkers(self.walkers, indices)
 
     @classmethod
     def load(cls, context, path):
