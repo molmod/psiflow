@@ -10,18 +10,28 @@ from flower.utils import copy_app_future, unpack_i, copy_data_future, \
         save_yaml, save_atoms
 
 
-def safe_return(state, start, tag):
+@python_app(executors=['default'])
+def app_safe_return(state, start, tag):
     if tag == 'unsafe':
         return start
     else:
         return state
 
 
+@python_app(executors=['default'])
 def is_reset(state, start):
     if state == start: # positions, numbers, cell, pbc
         return True
     else:
         return False
+
+
+@python_app
+def update_tag(existing_tag, new_tag):
+    if (existing_tag == 'safe') and (new_tag == 'safe'):
+        return 'safe'
+    else:
+        return 'unsafe'
 
 
 @dataclass
@@ -53,10 +63,10 @@ class BaseWalker(Container):
                 keep_trajectory=keep_trajectory,
                 )
         self.state_future = unpack_i(result, 0)
-        self.tag_future   = unpack_i(result, 1)
+        self.tag_future   = update_tag(self.tag_future, unpack_i(result, 1))
         if safe_return: # only return state if safe, else return start
             # this does NOT reset the walker!
-            future = self.context.apps(self.__class__, 'safe_return')(
+            future = app_safe_return(
                     self.state_future,
                     self.start_future,
                     self.tag_future,
@@ -70,9 +80,14 @@ class BaseWalker(Container):
         else:
             return future
 
+    def tag_unsafe(self):
+        self.tag_future = copy_app_future('unsafe')
+
+    def tag_safe(self):
+        self.tag_future = copy_app_future('safe')
+
     def reset_if_unsafe(self):
-        app = self.context.apps(self.__class__, 'safe_return')
-        self.state_future = app(
+        self.state_future = app_safe_return(
                 self.state_future,
                 self.start_future,
                 self.tag_future,
@@ -80,12 +95,11 @@ class BaseWalker(Container):
         self.tag_future = copy_app_future('safe')
 
     def is_reset(self):
-        app = self.context.apps(self.__class__, 'is_reset')
-        return app(self.state_future, self.start_future)
+        return is_reset(self.state_future, self.start_future)
 
     def reset(self):
         self.state_future = copy_app_future(self.start_future)
-        self.tag = 'safe'
+        self.tag = copy_app_future('safe')
         return self.state_future
 
     def copy(self):
@@ -126,10 +140,4 @@ class BaseWalker(Container):
     @classmethod
     def create_apps(cls, context):
         assert not (cls == BaseWalker) # should never be called directly
-        label = context[ModelExecutionDefinition].label
-
-        app_safe_return = python_app(safe_return, executors=[label])
-        context.register_app(cls, 'safe_return', app_safe_return)
-
-        app_is_reset = python_app(is_reset, executors=[label])
-        context.register_app(cls, 'is_reset', app_is_reset)
+        pass

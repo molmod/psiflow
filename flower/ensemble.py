@@ -49,6 +49,7 @@ def conditional_sample(
     else:
         batch_size = nstates - nstates_effective
         if not batch_size > 0:
+            assert batch_size == 0 # cannot be negative
             data_future = context.apps(Dataset, 'save_dataset')(
                     states=None,
                     inputs=states,
@@ -87,7 +88,7 @@ def reset_walkers(walkers, indices):
     for i, walker in enumerate(walkers):
         if i in indices:
             future = walker.reset()
-    return future # irrelevant return value?
+    return future # return last future to enforce execution
 
 
 class Ensemble:

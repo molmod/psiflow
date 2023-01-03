@@ -127,6 +127,7 @@ def compute_metrics(
         inputs=[],
         ):
     import numpy as np
+    from ase.units import Pascal
     from flower.data import read_dataset
     from flower.utils import get_index_element_mask
     data = read_dataset(slice(None), inputs=[inputs[0]])
@@ -164,12 +165,20 @@ def compute_metrics(
             if property_ == 'energy':
                 array_0 = np.array([atoms.info['energy' + suffix_0]]).reshape((1, 1))
                 array_1 = np.array([atoms.info['energy' + suffix_1]]).reshape((1, 1))
+                array_0 /= len(atoms) # per atom energy error
+                array_1 /= len(atoms)
+                array_0 *= 1000 # in meV/atom
+                array_1 *= 1000
             elif property_ == 'forces':
                 array_0 = atoms.arrays['forces' + suffix_0][mask, :]
                 array_1 = atoms.arrays['forces' + suffix_1][mask, :]
+                array_0 *= 1000 # in meV/angstrom
+                array_1 *= 1000
             elif property_ == 'stress':
                 array_0 = atoms.info['stress' + suffix_0].reshape((1, 9))
                 array_1 = atoms.info['stress' + suffix_1].reshape((1, 9))
+                array_0 /= (1e6 * Pascal) # in MPa
+                array_1 /= (1e6 * Pascal)
             else:
                 raise ValueError('property {} unknown!'.format(property_))
             if metric == 'mae':

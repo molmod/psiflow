@@ -32,7 +32,7 @@ def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
     check = DiscrepancyCheck(
             metric='mae',
             properties=['energy', 'forces'],
-            thresholds=[0.01, 0.001], # will be exceeded
+            thresholds=[1, 10], # will be exceeded (meV/atom, meV/angstrom)
             model_old=model_old,
             model_new=model_new,
             )
@@ -40,7 +40,7 @@ def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
     assert check.nchecks == 1
     assert check.npasses.result() == 1
     assert len(check.states.result()) == 0
-    check.thresholds = [100, 10] # mae's should be lower than this
+    check.thresholds = [1e4, 1e4] # mae's should be lower than this
     assert check(dataset[6]).result() is None
     assert check.nchecks == 2
     assert check.npasses.result() == 1

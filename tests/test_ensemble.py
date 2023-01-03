@@ -4,7 +4,7 @@ import numpy as np
 
 from flower.sampling import RandomWalker, PlumedBias
 from flower.ensemble import Ensemble
-from flower.checks import SafetyCheck
+from flower.checks import SafetyCheck, InteratomicDistanceCheck
 from flower.data import Dataset
 
 from tests.conftest import generate_emt_cu_data
@@ -35,8 +35,8 @@ def test_ensemble_sampling(context, dataset, tmpdir):
     ndirs = len([f for f in os.listdir(tmpdir) if os.path.isdir(tmpdir / f)])
     assert ndirs == nwalkers
 
-    ensemble.walkers[3].tag_future = 'unsafe'
-    ensemble.walkers[7].tag_future = 'unsafe'
+    ensemble.walkers[3].tag_unsafe()
+    ensemble.walkers[7].tag_unsafe()
     future = ensemble.reset([3, 7])
     assert not ensemble.walkers[3].is_reset().result()
     future.result() # force join_app execution
@@ -45,21 +45,24 @@ def test_ensemble_sampling(context, dataset, tmpdir):
     check = SafetyCheck()
     assert check.npasses.result() == 0 # should be AppFuture
     assert check.nchecks == 0
-    dataset = ensemble.as_dataset(checks=[check]) # double shouldn't matter
+    dataset = ensemble.as_dataset(checks=[check]) # walkers still unsafe
     assert check.nchecks == nwalkers # immediately OK because no join app
     assert dataset.length().result() == nwalkers - 2
     assert check.npasses.result() == nwalkers - 2
     dataset = ensemble.sample(nstates, model=None, checks=[check])
-    assert not check.nchecks == nwalkers + nstates # because of join app!
+    assert not check.nchecks == nwalkers + nstates + 2 # because of join app!
     dataset.data_future.result() # forces join app execution
-    assert check.nchecks == nwalkers + nstates # now OK
-    assert check.npasses.result() == nwalkers - 2 + nstates
+    assert check.nchecks == nwalkers + nstates + 2 # now OK
+    assert check.npasses.result() == nwalkers + nstates - 2
+    # unsafe walkers are reset after first pass through ensemble, so when
+    # batch_size is nonzero to reach nstates samples, no unsafe walkers are
+    # present.
+    for walker in ensemble.walkers:
+        assert walker.tag_future.result() == 'safe' # unsafe ones were reset
     check.reset()
     assert check.nchecks == 0
     assert check.npasses.result() == 0
     assert dataset.length().result() == nstates
-    for walker in ensemble.walkers:
-        assert walker.tag_future.result() == 'safe' # unsafe ones were reset
 
 
 def test_generate_distributed(context):
@@ -92,3 +95,20 @@ RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
     values_extracted = bias.evaluate(extracted, variable='CV').result()
     values_as_dataset = bias.evaluate(as_dataset, variable='CV').result()
     assert np.allclose(values_extracted, values_as_dataset)
+
+
+def test_ensemble_check(context, dataset):
+    ensemble = Ensemble.from_walker(
+            RandomWalker(context, dataset[0]),
+            nwalkers=10,
+            dataset=dataset,
+            )
+    ensemble.walkers[3].tag_unsafe()
+    ensemble.walkers[7].tag_unsafe()
+    checks = [SafetyCheck(), InteratomicDistanceCheck(threshold=0.6)]
+    dataset = ensemble.sample(10, checks=checks)
+    dataset.data_future.result() # necessary to force join_app execution!
+    # walkers reset if unsafe
+    assert ensemble.walkers[3].tag_future.result() == 'safe'
+    assert ensemble.walkers[7].tag_future.result() == 'safe'
+    assert len(checks[0].states.result()) == 2
