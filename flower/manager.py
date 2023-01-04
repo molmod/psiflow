@@ -1,12 +1,11 @@
 import os
-import wandb
 from dataclasses import dataclass, field
 from typing import Optional, List
 from pathlib import Path
 import shutil
 import wandb
 
-from parsl.app.app import python_app, join_app
+from parsl.app.app import python_app
 
 from flower.models import BaseModel, load_model
 from flower.reference.base import BaseReference
@@ -14,50 +13,21 @@ from flower.sampling import RandomWalker
 from flower.ensemble import Ensemble
 from flower.data import Dataset
 from flower.checks import Check, load_checks, SafetyCheck
-from flower.utils import copy_app_future
+from flower.utils import copy_app_future, log_data_to_wandb
 
 
 @python_app(executors=['default'])
 def app_log_data(
-        table_name,
-        wandb_name,
-        wandb_id,
-        wandb_group,
-        wandb_project,
-        wandb_dir,
-        visualize_structures,
         errors=None,
         error_labels=None,
         bias_labels=None,
-        checks=None,
-        checks_labels=None,
         inputs=[],
         ):
-    import wandb
-    import tempfile
     from ase.data import chemical_symbols
     from ase.io import write
     from flower.data import read_dataset
     data = read_dataset(slice(None), inputs=[inputs[0]])
-    wandb.init(
-            project=wandb_project,
-            group=wandb_group,
-            id=wandb_id,
-            resume='allow',
-            name=wandb_name,
-            dir=wandb_dir,
-            reinit=True,
-            )
-    if len(data) == 0:
-        wandb.log({table_name: None})
-        wandb.finish()
-        return None
-    columns = [
-            'index',
-            'location',
-            'elements',
-            'natoms',
-            ]
+    columns = ['index', 'location', 'elements', 'natoms']
     if error_labels is not None:
         if errors.shape[0] != len(data):
             raise AssertionError('error evaluation was not performed on every state')
@@ -82,62 +52,22 @@ def app_log_data(
                 row.append(values[i, 1])
         assert len(columns) == len(row)
         table_data.append(row)
-    assert len(columns) == len(table_data[0])
-    table = wandb.Table(columns=columns, data=table_data)
-    wandb.log({table_name: table})
-    if visualize_structures:
-        columns = ['index', 'structure']
-        table_data = []
-        for i, atoms in enumerate(data):
-            tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
-            tmp.close()
-            path_pdb = tmp.name + '.pdb' # dummy log file
-            write(path_pdb, atoms)
-            table_data.append([i, wandb.Molecule(data_or_path=path_pdb)])
-        table = wandb.Table(columns=columns, data=table_data)
-        wandb.log({
-            'structures for {}'.format(table_name): table,
-            })
-    wandb.finish()
-    return table_data
+    return [columns] + table_data
 
 
 @python_app(executors=['default'])
 def app_log_ensemble(
-        table_name,
-        wandb_name,
-        wandb_id,
-        wandb_group,
-        wandb_project,
-        wandb_dir,
-        visualize_structures,
         errors=None,
         error_labels=None,
         bias_labels=None,
         inputs=[],
         ):
-    import wandb
-    import tempfile
     import numpy as np
     from ase.data import chemical_symbols
     from ase.io import write
     from flower.data import read_dataset
     data = read_dataset(slice(None), inputs=[inputs[0]])
-    wandb.init(
-            project=wandb_project,
-            group=wandb_group,
-            name=wandb_name,
-            id=wandb_id,
-            resume='allow',
-            dir=wandb_dir,
-            reinit=True,
-            )
-    columns = [
-            'walker index',
-            'elements',
-            'natoms',
-            'tag',
-            ]
+    columns = ['walker index', 'elements', 'natoms', 'tag']
     if error_labels is not None:
         if errors.shape[0] != len(data):
             raise AssertionError('error evaluation was not performed on every state')
@@ -167,29 +97,10 @@ def app_log_ensemble(
                     row.append(None)
         assert len(columns) == len(row)
         table_data.append(row)
-    table = wandb.Table(columns=columns, data=table_data, allow_mixed_types=True)
-    wandb.log({table_name: table})
-    wandb.finish()
-    return table_data
+    return [columns] + table_data
 
 
-@join_app
-def log_data(
-        table_name,
-        wandb_name,
-        wandb_id,
-        wandb_group,
-        wandb_project,
-        wandb_dir,
-        dataset,
-        length,
-        visualize_structures,
-        bias,
-        model,
-        error_kwargs,
-        ):
-    if length == 0:
-        return dataset.length() # fake future
+def log_data(dataset, length, bias, model, error_kwargs):
     inputs = []
     if bias is not None:
         bias_labels = []
@@ -210,13 +121,6 @@ def log_data(
         errors = None
         error_labels = None
     return app_log_data(
-            table_name,
-            wandb_name,
-            wandb_id,
-            wandb_group,
-            wandb_project,
-            wandb_dir,
-            visualize_structures=visualize_structures,
             errors=errors,
             error_labels=error_labels,
             bias_labels=bias_labels,
@@ -224,15 +128,7 @@ def log_data(
             )
 
 
-def log_ensemble(
-        wandb_name,
-        wandb_id,
-        wandb_group,
-        wandb_project,
-        wandb_dir,
-        ensemble,
-        visualize_structures,
-        ):
+def log_ensemble(ensemble):
     assert len(ensemble.walkers) > 0
     dataset = ensemble.as_dataset()
     inputs = []
@@ -268,47 +164,9 @@ def log_ensemble(
     assert len(inputs) == len(ensemble.walkers) * (len(variables) + 1)
     return app_log_ensemble(
             'ensemble',
-            wandb_name,
-            wandb_id,
-            wandb_group,
-            wandb_project,
-            wandb_dir,
-            visualize_structures=visualize_structures,
             bias_labels=bias_labels,
             inputs=[dataset.data_future] + inputs,
             )
-
-
-def log_checks(
-        wandb_name,
-        wandb_id,
-        wandb_group,
-        wandb_project,
-        wandb_dir,
-        context,
-        checks,
-        bias,
-        visualize_structures,
-        ):
-    logs = []
-    for check in checks:
-        table_name = check.__class__.__name__
-        dataset = Dataset(context, atoms_list=check.states)
-        logs.append(log_data(
-                table_name,
-                wandb_name,
-                wandb_id,
-                wandb_group,
-                wandb_project,
-                wandb_dir,
-                dataset,
-                dataset.length(), # log_dataset is conditional on length > 0
-                visualize_structures=visualize_structures,
-                bias=bias,
-                model=None,
-                error_kwargs=None,
-                ))
-    return logs
 
 
 class Manager:
@@ -331,10 +189,10 @@ class Manager:
                     'properties': ['energy', 'forces', 'stress'],
                     }
         self.error_kwargs = error_kwargs
-        self.wandb_dir = self.path_output / 'wandb'
-        if self.wandb_dir.is_dir():
-            shutil.rmtree(self.wandb_dir)
-        self.wandb_dir.mkdir(exist_ok=False)
+        #self.wandb_dir = self.path_output / 'wandb'
+        #if self.wandb_dir.is_dir():
+        #    shutil.rmtree(self.wandb_dir)
+        #self.wandb_dir.mkdir(exist_ok=False)
 
     def dry_run(
             self,
@@ -398,15 +256,15 @@ class Manager:
         # log and save objects
         if ensemble is None:
             ensemble = _ensemble
-        logs = self.log(
+        log = self.log(
                 'dry_run',
                 model,
                 ensemble,
                 data_train=new_train,
                 data_valid=new_valid,
+                checks=checks,
                 )
-        for log in logs:
-            log.result()
+        log.result()
         self.save( # test save
                 name='dry_run',
                 model=model,
@@ -483,7 +341,7 @@ class Manager:
 
     def log(
             self,
-            name,
+            run_name,
             model: BaseModel,
             ensemble: Ensemble,
             data_train: Optional[Dataset] = None,
@@ -492,72 +350,48 @@ class Manager:
             checks: Optional[list] = None,
             bias=None,
             ):
-        wandb_id = wandb.util.generate_id()
-        logs = []
+        log_futures = {}
         if data_train is not None:
-            logs.append(log_data( # log training and validation data as tables
-                    table_name='training',
-                    wandb_name=name,
-                    wandb_id=wandb_id,
-                    wandb_group=self.wandb_group,
-                    wandb_project=self.wandb_project,
-                    wandb_dir=self.wandb_dir,
+            log_futures['training'] = log_data( # log training and validation data as tables
                     dataset=data_train,
                     length=data_train.length(),
-                    visualize_structures=False,
                     bias=bias,
                     model=model,
                     error_kwargs=self.error_kwargs,
-                    ))
+                    )
         if data_valid is not None:
-            logs.append(log_data(
-                    table_name='validation',
-                    wandb_name=name,
-                    wandb_id=wandb_id,
-                    wandb_group=self.wandb_group,
-                    wandb_project=self.wandb_project,
-                    wandb_dir=self.wandb_dir,
+            log_futures['validation'] = log_data(
                     dataset=data_valid,
                     length=data_valid.length(),
-                    visualize_structures=False,
                     bias=bias,
                     model=model,
                     error_kwargs=self.error_kwargs,
-                    ))
+                    )
         if data_failed is not None:
-            logs.append(log_data( # log states with failed reference calculation
-                    table_name='failed',
-                    wandb_name=name,
-                    wandb_id=wandb_id,
-                    wandb_group=self.wandb_group,
-                    wandb_project=self.wandb_project,
-                    wandb_dir=self.wandb_dir,
+            log_futures['failed'] = log_data( # log states with failed reference calculation
                     dataset=data_failed,
                     length=data_failed.length(),
-                    visualize_structures=False,
                     bias=bias,
                     model=model,
                     error_kwargs=self.error_kwargs,
-                    ))
-        if ensemble is not None:
-            logs.append(log_ensemble(
-                    wandb_name=name,
-                    wandb_id=wandb_id,
-                    wandb_group=self.wandb_group,
-                    wandb_project=self.wandb_project,
-                    wandb_dir=self.wandb_dir,
-                    ensemble=ensemble,
-                    visualize_structures=False,
-                    ))
-        if checks is not None:
-            logs += log_checks(
-                    wandb_name=name,
-                    wandb_id=wandb_id,
-                    wandb_group=self.wandb_group,
-                    wandb_project=self.wandb_project,
-                    wandb_dir=self.wandb_dir,
-                    checks=checks,
-                    bias=bias,
-                    visualize_structures=False,
                     )
-        return logs
+        if ensemble is not None:
+            log_futures['ensemble'] = log_ensemble(ensemble=ensemble)
+        if checks is not None:
+            for check in checks:
+                name = check.__class__.__name__
+                dataset = Dataset(model.context, atoms_list=check.states)
+                log_futures[name] = log_data(
+                        dataset,
+                        dataset.length(),
+                        bias=bias,
+                        model=None,
+                        error_kwargs=None,
+                        ) # no model or error kwargs
+        return log_data_to_wandb(
+                run_name,
+                self.wandb_group,
+                self.wandb_project,
+                list(log_futures.keys()),
+                inputs=list(log_futures.values()),
+                )

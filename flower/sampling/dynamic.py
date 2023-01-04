@@ -31,7 +31,7 @@ def simulate_model(
     import molmod
     from ase.io.extxyz import write_extxyz
     from flower.sampling.utils import ForcePartASE, DataHook, \
-            create_forcefield, ForceThresholdExceededException
+            create_forcefield, ForceThresholdExceededException, ForcePartPlumed
     from flower.sampling.bias import try_manual_plumed_linking
     if device == 'cpu':
         torch.set_num_threads(ncores)
@@ -62,7 +62,7 @@ def simulate_model(
         tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
         tmp.close()
         path_log = tmp.name # dummy log file
-        part_plumed = yaff.external.ForcePartPlumed(
+        part_plumed = ForcePartPlumed(
                 forcefield.system,
                 timestep=pars.timestep * molmod.units.femtosecond,
                 restart=1,

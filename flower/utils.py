@@ -1,6 +1,8 @@
 import os
 import tempfile
 import numpy as np
+import wandb
+from pathlib import Path
 
 from ase.data import atomic_numbers
 
@@ -72,3 +74,24 @@ def save_atoms(atoms, outputs=[]):
 def save_txt(data, outputs=[]):
     with open(outputs[0], 'w') as f:
         f.write(data)
+
+
+@python_app(executors=['default'])
+def log_data_to_wandb(run_name, group, project, names, inputs=[]):
+    wandb_log = {}
+    assert len(names) == len(inputs)
+    for name, data in zip(names, inputs):
+        table = wandb.Table(columns=data[0], data=data[1:])
+        wandb_log[name] = table
+    path_wandb = Path(tempfile.mkdtemp())
+    assert path_wandb.is_dir()
+    os.environ['WANDB_SILENT'] = 'True' # suppress logs
+    wandb.init(
+            name=run_name,
+            group=group,
+            project=project,
+            resume='allow',
+            dir=path_wandb,
+            )
+    wandb.log(wandb_log)
+    wandb.finish()

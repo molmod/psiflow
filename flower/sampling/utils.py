@@ -7,6 +7,44 @@ from ase.geometry import Cell
 from ase import Atoms
 
 
+class ForcePartPlumed(yaff.external.ForcePartPlumed):
+    """Remove timer from _internal_compute to avoid pathological errors"""
+
+    def _internal_compute(self, gpos, vtens):
+        self.plumed.cmd("setStep", self.plumedstep)
+        self.plumed.cmd("setPositions", self.system.pos)
+        self.plumed.cmd("setMasses", self.system.masses)
+        if self.system.charges is not None:
+            self.plumed.cmd("setCharges", self.system.charges)
+        if self.system.cell.nvec>0:
+            rvecs = self.system.cell.rvecs.copy()
+            self.plumed.cmd("setBox", rvecs)
+        # PLUMED always needs arrays to write forces and virial to, so
+        # provide dummy arrays if Yaff does not provide them
+        # Note that gpos and forces differ by a minus sign, which has to be
+        # corrected for when interacting with PLUMED
+        if gpos is None:
+            my_gpos = np.zeros(self.system.pos.shape)
+        else:
+            gpos[:] *= -1.0
+            my_gpos = gpos
+        self.plumed.cmd("setForces", my_gpos)
+        if vtens is None:
+            my_vtens = np.zeros((3,3))
+        else: my_vtens = vtens
+        self.plumed.cmd("setVirial", my_vtens)
+        # Do the actual calculation, without an update; this should
+        # only be done at the end of a time step
+        self.plumed.cmd("prepareCalc")
+        self.plumed.cmd("performCalcNoUpdate")
+        if gpos is not None:
+            gpos[:] *= -1.0
+        # Retrieve biasing energy
+        energy = np.zeros((1,))
+        self.plumed.cmd("getBias",energy)
+        return energy[0]
+
+
 class ForceThresholdExceededException(Exception):
     pass
 

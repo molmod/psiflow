@@ -5,12 +5,13 @@ import wandb
 import numpy as np
 
 from flower.models import NequIPModel
-from flower.manager import Manager, log_data, log_ensemble, log_checks
+from flower.manager import Manager, log_data, log_ensemble
 from flower.reference import EMTReference
 from flower.sampling import RandomWalker, DynamicWalker, PlumedBias
 from flower.ensemble import Ensemble
 from flower.checks import SafetyCheck, DiscrepancyCheck, \
         InteratomicDistanceCheck
+from flower.utils import log_data_to_wandb
 
 
 @pytest.fixture
@@ -31,12 +32,60 @@ def reference(context):
     return EMTReference(context)
 
 
-def test_manager_dry_run(context, dataset, model, ensemble, reference, tmp_path):
-    manager = Manager(tmp_path, 'pytest', 'test_manager_dry_run')
-    with pytest.raises(AssertionError):
-        manager.dry_run(model, reference) # specify either walker or ensemble
-    random_walker = RandomWalker(context, dataset[0])
-    manager.dry_run(model, reference, random_walker=random_walker)
+def test_log_dataset_ensemble(context, dataset, model, tmp_path):
+    error_kwargs = {
+            'intrinsic': False,
+            'metric': 'mae',
+            'properties': ['energy', 'forces', 'stress'],
+            }
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
+CV1: VOLUME
+mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
+"""
+    bias = PlumedBias(context, plumed_input)
+    model.initialize(dataset[:2])
+    model.deploy()
+    wandb_id = wandb.util.generate_id()
+    future = log_data(
+            dataset,
+            dataset.length(),
+            bias=bias,
+            model=model,
+            error_kwargs=error_kwargs,
+            )
+    log0 = log_data_to_wandb(
+            'run_name',
+            'test_log_dataset_ensemble',
+            'pytest',
+            ['training'],
+            inputs=[future],
+            )
+
+    ensemble = Ensemble.from_walker(
+            RandomWalker(context, dataset[0]),
+            nwalkers=10,
+            dataset=dataset,
+            )
+    ensemble.walkers[3].tag_future = 'unsafe'
+    ensemble.walkers[7].tag_future = 'unsafe'
+    ensemble.biases = [None, None] + [bias.copy() for i in range(8)] # not all same bias
+    checks = [SafetyCheck(), InteratomicDistanceCheck(threshold=0.6)]
+    dataset = ensemble.sample(10, checks=checks)
+    dataset.data_future.result() # force execution of join_app
+    assert len(checks[0].states.result()) == 2
+    future = log_ensemble(ensemble)
+    log1 = log_data_to_wandb(
+            'run_name',
+            'test_log_dataset_ensemble',
+            'pytest',
+            ['ensemble'],
+            inputs=[future],
+            )
+    log1.result()
+    log0.result()
 
 
 def test_manager_save_load(context, dataset, model, ensemble, tmp_path):
@@ -105,71 +154,9 @@ def test_manager_save_load(context, dataset, model, ensemble, tmp_path):
             assert check.model_new is not None
 
 
-def test_log_dataset_ensemble(context, dataset, model, tmp_path):
-    error_kwargs = {
-            'intrinsic': False,
-            'metric': 'mae',
-            'properties': ['energy', 'forces', 'stress'],
-            }
-    plumed_input = """
-UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
-CV1: VOLUME
-mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
-"""
-    bias = PlumedBias(context, plumed_input)
-    model.initialize(dataset[:2])
-    model.deploy()
-    wandb_id = wandb.util.generate_id()
-    future = log_data(
-            'training',
-            'run_name', # run name
-            wandb_id,
-            'test_manager_wandb', # group
-            'pytest', # project
-            tmp_path,
-            dataset,
-            dataset.length(),
-            visualize_structures=False,
-            bias=bias,
-            model=model,
-            error_kwargs=error_kwargs,
-            )
-    future.result()
-
-    ensemble = Ensemble.from_walker(
-            RandomWalker(context, dataset[0]),
-            nwalkers=10,
-            dataset=dataset,
-            )
-    ensemble.walkers[3].tag_future = 'unsafe'
-    ensemble.walkers[7].tag_future = 'unsafe'
-    ensemble.biases = [None, None] + [bias.copy() for i in range(8)] # not all same bias
-    checks = [SafetyCheck(), InteratomicDistanceCheck(threshold=0.6)]
-    dataset = ensemble.sample(10, checks=checks)
-    dataset.data_future.result() # force execution of join_app
-    future = log_ensemble(
-            'run_name', # if different for same id, name gets overwritten
-            wandb_id,
-            'test_manager_wandb', # group
-            'pytest', # project
-            tmp_path,
-            ensemble,
-            visualize_structures=False,
-            )
-    future.result()
-    assert len(checks[0].states.result()) == 2
-    futures = log_checks(
-            'run_name', # run name
-            wandb_id,
-            'test_manager_wandb', # group
-            'pytest', # project
-            tmp_path,
-            context,
-            checks,
-            bias,
-            visualize_structures=False,
-            )
-    for future in futures: # one for each check
-        future.result()
+def test_manager_dry_run(context, dataset, model, ensemble, reference, tmp_path):
+    manager = Manager(tmp_path, 'pytest', 'test_manager_dry_run')
+    with pytest.raises(AssertionError):
+        manager.dry_run(model, reference) # specify either walker or ensemble
+    random_walker = RandomWalker(context, dataset[0])
+    manager.dry_run(model, reference, random_walker=random_walker)

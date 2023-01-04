@@ -78,7 +78,7 @@ def evaluate_bias(plumed_input, variable, inputs=[]):
     yaff.log.set_level(yaff.log.silent)
     import molmod
     from flower.sampling.utils import ForcePartASE, create_forcefield, \
-            ForceThresholdExceededException
+            ForceThresholdExceededException, ForcePartPlumed
     from flower.sampling.bias import try_manual_plumed_linking
     from flower.data import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
@@ -100,7 +100,7 @@ def evaluate_bias(plumed_input, variable, inputs=[]):
     with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
         f.write(plumed_input) # write input
         path_input = f.name
-    part_plumed = yaff.external.ForcePartPlumed(
+    part_plumed = ForcePartPlumed(
             system,
             timestep=1*molmod.units.femtosecond, # does not matter
             restart=1,
