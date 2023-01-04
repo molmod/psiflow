@@ -23,6 +23,7 @@ def test_flower_atoms(context, dataset):
             np.arange(dataset.length().result()),
             )
     assert len(dataset.failed.result()) == 0
+    #atoms.evaluation_flag = 0
 
 
 def test_dataset_empty(context, tmp_path):
@@ -36,7 +37,7 @@ def test_dataset_empty(context, tmp_path):
 
 def test_dataset_append(dataset):
     assert 20 == dataset.length().result()
-    empty = Dataset(dataset.context)
+    empty = Dataset(dataset.context, []) # use [] instead of None
     empty.append(dataset)
     assert 20 == empty.length().result()
     new = Dataset.merge(dataset, dataset)
@@ -76,7 +77,7 @@ def test_dataset_metric(context, dataset):
         errors = dataset.get_errors(intrinsic=True, atom_indices=[0, 1])
         errors.result()
     with pytest.raises(AssertionError):
-        errors = dataset.get_errors(intrinsic=True, atom_indices=['C'])
+        errors = dataset.get_errors(intrinsic=True, elements=['C'])
         errors.result()
     errors = dataset.get_errors(intrinsic=True, elements=['H'], properties=['forces']) # H present
     errors.result()
@@ -90,9 +91,9 @@ def test_dataset_metric(context, dataset):
         errors = dataset.get_errors(intrinsic=True, elements=['O'], properties=['forces']) # Cu present
         errors.result()
 
-    atoms = Atoms(numbers=30 * np.ones(10), positions=np.zeros((10, 3)), pbc=False)
+    atoms = FlowerAtoms(numbers=30 * np.ones(10), positions=np.zeros((10, 3)), pbc=False)
     atoms.info['forces'] = np.random.uniform(-1, 1, size=(10, 3))
-    dataset_ = Dataset(context, atoms_list=[atoms])
+    dataset_ = Dataset(context, [atoms])
     merged = Dataset.merge(dataset, dataset_)
     errors = merged.get_errors(intrinsic=True, elements=['H'], properties=['forces']) # H present
     assert errors.result().shape[0] == merged.length().result() - 1

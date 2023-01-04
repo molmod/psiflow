@@ -9,6 +9,7 @@ from flower.sampling import RandomWalker
 def test_distance_check(context, dataset, tmpdir):
     check = InteratomicDistanceCheck(threshold=0.1)
     assert check(dataset[0]).result() is not None
+    assert check.npasses.result() == 1
     assert len(check.states.result()) == 0
     check = InteratomicDistanceCheck(threshold=10)
     assert check(dataset[0]).result() is None
@@ -20,6 +21,7 @@ def test_distance_check(context, dataset, tmpdir):
     assert check_.threshold == 10
 
 
+# test occasionally fails due to torch.jit compilation errors
 def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
     model_old = NequIPModel(context, nequip_config)
     model_old.set_seed(123)
@@ -46,7 +48,7 @@ def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
     assert check.npasses.result() == 1
     assert len(check.states.result()) == 1
     path = Path(tmpdir)
-    check.save(path, context)
+    check.save(path)
     check_ = load_checks(path, context)[0]
     assert type(check_) == DiscrepancyCheck
     assert check_.model_old.config_raw['seed'] == 123
@@ -60,11 +62,11 @@ def test_safety_check(context, dataset, tmpdir):
     assert check(state, walker.tag_future).result() is not None
     assert check.nchecks == 1
     assert check.npasses.result() == 1
-    walker.tag_future = 'unsafe'
+    walker.tag_unsafe()
     assert check(state, walker.tag_future).result() is None
     assert check.nchecks == 2
     assert check.npasses.result() == 1
     path = Path(tmpdir)
-    check.save(path, context)
+    check.save(path)
     check_ = load_checks(path, context)[0]
     assert type(check_) == SafetyCheck

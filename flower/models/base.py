@@ -79,7 +79,7 @@ class BaseModel(Container):
                 inputs=[dataset.data_future, self.deploy_future[dtype]],
                 outputs=[File(path_xyz)],
                 ).outputs[0]
-        return Dataset(self.context, data_future=data_future)
+        return Dataset(self.context, None, data_future=data_future)
 
     def save(self, path, require_done=True):
         path = Path(path)

@@ -1,17 +1,30 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Any, Dict
+import typeguard
 from pathlib import Path
 import glob
 import yaml
+import numpy as np
 
 from parsl.app.app import python_app, join_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
-from flower.data import Dataset
+from flower.execution import ExecutionContext
+from flower.models import BaseModel
+from flower.data import Dataset, FlowerAtoms
 from flower.utils import save_yaml, copy_app_future
 from flower.models import load_model
 
 
 @python_app(executors=['default'])
-def update_npasses(npasses, state, checked_state):
+@typeguard.typechecked
+def update_npasses(
+        npasses: int,
+        state: Optional[FlowerAtoms],
+        checked_state: Optional[FlowerAtoms],
+        ) -> int:
     if (state is not None) and (checked_state is None):
         return npasses
     else:
@@ -19,34 +32,48 @@ def update_npasses(npasses, state, checked_state):
 
 
 @python_app(executors=['default'])
-def update_states(states, state, checked_state):
+@typeguard.typechecked
+def update_states(
+        states: List[FlowerAtoms],
+        state: Optional[FlowerAtoms],
+        checked_state: Optional[FlowerAtoms],
+        ) -> List[FlowerAtoms]:
     if (state is not None) and (checked_state is None):
         states.append(state)
     return states
 
 
+@typeguard.typechecked
 class Check:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.nchecks = 0
         self.npasses = copy_app_future(0)
         self.states  = copy_app_future([])
 
-    def __call__(self, state, tag=None):
+    def __call__(
+            self,
+            state: AppFuture,
+            tag: Optional[AppFuture] = None,
+            ) -> AppFuture:
         self.nchecks += 1
         checked_state = self.apply_check(state, tag)
         self.npasses = update_npasses(self.npasses, state, checked_state)
         self.states  = update_states(self.states, state, checked_state)
         return checked_state
 
-    def apply_check(self, state, tag=None):
+    def apply_check(
+            self,
+            state: AppFuture,
+            tag: Optional[AppFuture] = None,
+            ) -> AppFuture:
         raise NotImplementedError
 
-    def reset(self):
+    def reset(self) -> None:
         self.nchecks = 0
         self.npasses = copy_app_future(0)
 
-    def save(self, path, require_done=True):
+    def save(self, path: Union[Path, str], require_done: bool = True) -> DataFuture:
         path = Path(path)
         assert path.is_dir()
         future = save_yaml(
@@ -57,7 +84,7 @@ class Check:
         return future
 
     @classmethod
-    def load(cls, path, *args): # requires a context in some cases
+    def load(cls, path: Union[Path, str], *args: Any):
         path = Path(path)
         assert path.is_dir()
         path_pars = path / (cls.__name__ + '.yaml')
@@ -67,12 +94,16 @@ class Check:
         return cls(**pars_dict)
 
     @property
-    def parameters(self):
+    def parameters(self) -> Dict:
         return {}
 
 
 @python_app(executors=['default'])
-def check_distances(state, threshold):
+@typeguard.typechecked
+def check_distances(
+        state: Optional[FlowerAtoms],
+        threshold: float,
+        ) -> Optional[FlowerAtoms]:
     import numpy as np
     from ase.geometry.geometry import find_mic
     if state is None:
@@ -93,22 +124,32 @@ def check_distances(state, threshold):
         return None
 
 
+@typeguard.typechecked
 class InteratomicDistanceCheck(Check):
 
-    def __init__(self, threshold):
+    def __init__(self, threshold: float) -> None:
         super().__init__()
         self.threshold = threshold
 
-    def apply_check(self, state, tag=None):
+    def apply_check(
+            self,
+            state: AppFuture,
+            tag: Optional[AppFuture] = None,
+            ) -> AppFuture:
         return check_distances(state, self.threshold)
 
     @property
-    def parameters(self):
+    def parameters(self) -> Dict:
         return {'threshold': self.threshold}
 
 
 @python_app(executors=['default'])
-def check_discrepancy(state, errors, thresholds):
+@typeguard.typechecked
+def check_discrepancy(
+        state: Optional[FlowerAtoms],
+        errors: np.ndarray,
+        thresholds: List[float],
+        ) -> Optional[FlowerAtoms]:
     if state is None:
         return None
     assert len(thresholds) == errors.shape[1]
@@ -123,13 +164,19 @@ def check_discrepancy(state, errors, thresholds):
         return None
 
 
+@typeguard.typechecked
 class DiscrepancyCheck(Check):
 
-    def __init__(self, metric, properties, thresholds, model_old=None, model_new=None):
+    def __init__(
+            self,
+            metric: str,
+            properties: List[str],
+            thresholds: List[float],
+            model_old: Optional[BaseModel] = None,
+            model_new: Optional[BaseModel] = None,
+            ) -> None:
         super().__init__()
         self.metric = metric
-        assert type(properties) == list
-        assert type(thresholds) == list
         assert len(properties) == len(thresholds)
         self.properties = properties
         self.thresholds = thresholds
@@ -140,12 +187,16 @@ class DiscrepancyCheck(Check):
         self.model_old = model_old # can be initialized with None models
         self.model_new = model_new
 
-    def apply_check(self, state, tag=None):
+    def apply_check(
+            self,
+            state: AppFuture,
+            tag: Optional[AppFuture] = None,
+            ) -> AppFuture:
         assert self.model_old is not None
         assert self.model_old.config_future is not None
         assert self.model_new is not None
         assert self.model_new.config_future is not None
-        dataset = Dataset(self.model_old.context, atoms_list=[state])
+        dataset = Dataset(self.model_old.context, [state])
         dataset = self.model_old.evaluate(dataset, suffix='_old')
         dataset = self.model_new.evaluate(dataset, suffix='_new')
         errors = dataset.get_errors(
@@ -157,14 +208,14 @@ class DiscrepancyCheck(Check):
                 )
         return check_discrepancy(state, errors, self.thresholds)
 
-    def update_model(self, model):
-        assert model is not None
-        assert model.config_future is not None
-        assert len(model.deploy_future) > 0
+    def update_model(self, model: BaseModel) -> None:
+        assert model.config_future is not None # initialized
+        assert len(model.deploy_future) > 0 # and deployed
         self.model_old = self.model_new
         self.model_new = model
 
-    def save(self, path, require_done=True):
+    def save(self, path: Union[Path, str], require_done: bool = True) -> None:
+        path = Path(path)
         super().save(path, require_done)
         if self.model_old is not None:
             path_old = path / 'model_old'
@@ -176,7 +227,7 @@ class DiscrepancyCheck(Check):
             self.model_new.save(path_new, require_done=require_done)
 
     @classmethod
-    def load(cls, path, context):
+    def load(cls, path: Union[Path, str], context: ExecutionContext) -> DiscrepancyCheck:
         check = super(DiscrepancyCheck, cls).load(path)
         path_old = path / 'model_old'
         if path_old.is_dir():
@@ -191,7 +242,7 @@ class DiscrepancyCheck(Check):
         return check
 
     @property
-    def parameters(self):
+    def parameters(self) -> Dict:
         return {
                 'metric': self.metric,
                 'properties': list(self.properties),
@@ -200,7 +251,8 @@ class DiscrepancyCheck(Check):
 
 
 @python_app(executors=['default'])
-def check_safety(state, tag):
+@typeguard.typechecked
+def check_safety(state: Optional[FlowerAtoms], tag: str):
     if state is None:
         return None
     if tag == 'unsafe':
@@ -209,13 +261,19 @@ def check_safety(state, tag):
         return state
 
 
+@typeguard.typechecked
 class SafetyCheck(Check):
 
-    def apply_check(self, state, tag):
+    def apply_check(
+            self,
+            state: AppFuture,
+            tag: AppFuture,
+            ) -> AppFuture:
         return check_safety(state, tag)
 
 
-def load_checks(path, context):
+@typeguard.typechecked
+def load_checks(path: Union[Path, str], context: ExecutionContext) -> Optional[List[Check]]:
     path = Path(path)
     assert path.is_dir()
     checks = []

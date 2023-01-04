@@ -1,5 +1,10 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List
+import typeguard
 import os
 import tempfile
+import numpy as np
+from pathlib import Path
 
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
@@ -8,29 +13,30 @@ from parsl.dataflow.futures import AppFuture
 
 from ase import Atoms
 
-from flower.execution import Container
+from flower.execution import Container, ExecutionContext
 from flower.utils import copy_data_future, _new_file
 
 
+@typeguard.typechecked
 class FlowerAtoms(Atoms):
     """Wrapper class around ase Atoms with additional attributes for QM logs"""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.evaluation_log   = None
+        self.evaluation_log = None
         self.info['evaluation_flag'] = None
 
     @property
-    def evaluation_flag(self):
+    def evaluation_flag(self) -> Optional[str]:
         return self.info['evaluation_flag']
 
     @evaluation_flag.setter
-    def evaluation_flag(self, flag):
+    def evaluation_flag(self, flag: Optional[str]) -> None:
         assert flag in [None, 'success', 'failed']
         self.info['evaluation_flag'] = flag
 
     @classmethod
-    def from_atoms(cls, atoms):
+    def from_atoms(cls, atoms: Atoms) -> FlowerAtoms:
         flower_atoms = cls(
                 numbers=atoms.numbers,
                 positions=atoms.get_positions(),
@@ -57,7 +63,12 @@ class FlowerAtoms(Atoms):
         return flower_atoms
 
 
-def save_dataset(states, inputs=[], outputs=[]):
+@typeguard.typechecked
+def save_dataset(
+        states: Optional[List[Optional[FlowerAtoms]]],
+        inputs: List[FlowerAtoms] = [],
+        outputs: List[File] = [],
+        ) -> None:
     from ase.io.extxyz import write_extxyz
     if states is not None:
         _data = states
@@ -73,7 +84,12 @@ def save_dataset(states, inputs=[], outputs=[]):
         write_extxyz(f, _data)
 
 
-def read_dataset(index_or_indices, inputs=[], outputs=[]):
+@typeguard.typechecked
+def read_dataset(
+        index_or_indices: Union[int, List[int], slice],
+        inputs: List[File] = [],
+        outputs: List[File] = [],
+        ) -> Union[FlowerAtoms, List[FlowerAtoms]]:
     from ase.io.extxyz import read_extxyz, write_extxyz
     from flower.data import FlowerAtoms
     with open(inputs[0], 'r' ) as f:
@@ -94,19 +110,25 @@ def read_dataset(index_or_indices, inputs=[], outputs=[]):
     return data
 
 
-def join_dataset(inputs=[], outputs=[]):
+@typeguard.typechecked
+def join_dataset(inputs: List[File] = [], outputs: List[File] = []) -> None:
     data = []
     for i in range(len(inputs)):
         data += read_dataset(slice(None), inputs=[inputs[i]]) # read all
     save_dataset(data, outputs=[outputs[0]])
 
 
-def get_length_dataset(inputs=[]):
+@typeguard.typechecked
+def get_length_dataset(inputs: List[File] = []) -> int:
     data = read_dataset(slice(None), inputs=[inputs[0]])
     return len(data)
 
 
-def get_indices_per_flag(flag, inputs=[]):
+@typeguard.typechecked
+def get_indices_per_flag(
+        flag: Optional[str],
+        inputs: List[File] = [],
+        ) -> List[int]:
     data = read_dataset(slice(None), inputs=[inputs[0]])
     indices = []
     for i, atoms in enumerate(data):
@@ -116,16 +138,17 @@ def get_indices_per_flag(flag, inputs=[]):
     return indices
 
 
+@typeguard.typechecked
 def compute_metrics(
-        intrinsic,
-        atom_indices,
-        elements,
-        metric,
-        properties,
-        suffix_0,
-        suffix_1,
-        inputs=[],
-        ):
+        intrinsic: bool,
+        atom_indices: Optional[List[int]],
+        elements: Optional[List[str]],
+        metric: str,
+        properties: List[str],
+        suffix_0: str,
+        suffix_1: str,
+        inputs: List[File] = [],
+        ) -> np.ndarray:
     import numpy as np
     from ase.units import Pascal
     from flower.data import read_dataset
@@ -194,25 +217,21 @@ def compute_metrics(
     return errors[outer_mask, :]
 
 
+@typeguard.typechecked
 class Dataset(Container):
     """Container to represent a dataset of atomic structures"""
 
-    def __init__(self, context, atoms_list=[], data_future=None):
-        """Constructor
-
-        Arguments
-        ---------
-
-        context : ExecutionContext
-
-        atoms_list : list of Atoms objects
-
-        data_future : DataFuture
-
-        """
+    def __init__(
+            self,
+            context: ExecutionContext,
+            atoms_list: Optional[Union[List[AppFuture], List[FlowerAtoms], AppFuture]],
+            data_future: Optional[Union[DataFuture, File]] = None,
+            ) -> None:
+        """Constructor"""
         super().__init__(context)
 
         if data_future is None: # generate new DataFuture
+            assert atoms_list is not None
             if isinstance(atoms_list, AppFuture):
                 states = atoms_list
                 inputs = []
@@ -230,20 +249,26 @@ class Dataset(Container):
                     outputs=[File(path_new)],
                     ).outputs[0]
         else:
-            assert len(atoms_list) == 0 # do not allow additional atoms
-            assert (isinstance(data_future, DataFuture) or isinstance(data_future, File))
+            assert atoms_list is None # do not allow additional atoms
             self.data_future = data_future
 
-    def length(self):
+    def length(self) -> AppFuture:
         return self.context.apps(Dataset, 'length_dataset')(inputs=[self.data_future])
 
-    def __getitem__(self, index):
+    def __getitem__(
+            self,
+            index: Union[int, slice, List[int], AppFuture],
+            ) -> Union[Dataset, AppFuture]:
         if isinstance(index, int):
             return self.get(index=index)
         else: # slice, List, AppFuture
             return self.get(indices=index)
 
-    def get(self, index=None, indices=None):
+    def get(
+            self,
+            index: Optional[int] = None,
+            indices: Optional[Union[List[int], AppFuture, slice]] = None,
+            ) -> Union[Dataset, AppFuture]:
         if indices is not None:
             assert index is None
             path_new = _new_file(self.context.path, 'data_', '.xyz')
@@ -252,7 +277,7 @@ class Dataset(Container):
                     inputs=[self.data_future],
                     outputs=[File(path_new)],
                     ).outputs[0]
-            return Dataset(self.context, data_future=data_future)
+            return Dataset(self.context, None, data_future=data_future)
         else:
             assert index is not None
             return self.context.apps(Dataset, 'read_dataset')(
@@ -262,14 +287,14 @@ class Dataset(Container):
 
     def get_errors(
             self,
-            intrinsic=False,
-            atom_indices=None,
-            elements=None,
-            metric='rmse',
-            suffix_0='', # use QM reference by default
-            suffix_1='_model', # use single model by default 
-            properties=['energy', 'forces', 'stress'],
-            ):
+            intrinsic: bool = False,
+            atom_indices: Optional[List[int]] = None,
+            elements: Optional[List[str]] = None,
+            metric: str = 'rmse',
+            suffix_0: str = '', # use QM reference by default
+            suffix_1: str = '_model', # use single model by default 
+            properties: List[str] = ['energy', 'forces', 'stress'],
+            ) -> AppFuture:
         return self.context.apps(Dataset, 'compute_metrics')(
                 intrinsic=intrinsic,
                 atom_indices=atom_indices,
@@ -281,7 +306,11 @@ class Dataset(Container):
                 inputs=[self.data_future],
                 )
 
-    def save(self, path_dataset, require_done=True):
+    def save(
+            self,
+            path_dataset: Union[Path, str],
+            require_done: bool = True,
+            ) -> AppFuture:
         future = copy_data_future(
                 inputs=[self.data_future],
                 outputs=[File(str(path_dataset))],
@@ -290,7 +319,7 @@ class Dataset(Container):
             future.result()
         return future
 
-    def append(self, dataset):
+    def append(self, dataset: Dataset) -> None:
         path_new = _new_file(self.context.path, prefix='data_', suffix='.xyz')
         self.data_future = self.context.apps(Dataset, 'join_dataset')(
                 inputs=[self.data_future, dataset.data_future],
@@ -298,26 +327,30 @@ class Dataset(Container):
                 ).outputs[0]
 
     @property
-    def success(self):
+    def success(self) -> AppFuture:
         return self.context.apps(Dataset, 'get_indices_per_flag')(
                 'success',
                 inputs=[self.data_future],
                 )
 
     @property
-    def failed(self):
+    def failed(self) -> AppFuture:
         return self.context.apps(Dataset, 'get_indices_per_flag')(
                 'failed',
                 inputs=[self.data_future],
                 )
 
     @classmethod
-    def load(cls, context, path_xyz):
+    def load(
+            cls,
+            context: ExecutionContext,
+            path_xyz: Union[Path, str],
+            ) -> Dataset:
         assert os.path.isfile(path_xyz) # needs to be locally accessible
-        return cls(context, data_future=File(str(path_xyz)))
+        return cls(context, None, data_future=File(str(path_xyz)))
 
     @staticmethod
-    def merge(*datasets):
+    def merge(*datasets: Dataset) -> Dataset:
         assert len(datasets) > 0
         context = datasets[0].context
         path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
@@ -325,10 +358,10 @@ class Dataset(Container):
                 inputs=[item.data_future for item in datasets],
                 outputs=[File(path_new)],
                 ).outputs[0]
-        return Dataset(context, data_future=data_future)
+        return Dataset(context, None, data_future=data_future)
 
     @staticmethod
-    def create_apps(context):
+    def create_apps(context: ExecutionContext) -> None:
         label = 'default'
         app_save_dataset = python_app(save_dataset, executors=[label])
         context.register_app(Dataset, 'save_dataset', app_save_dataset)

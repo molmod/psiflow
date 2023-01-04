@@ -1,26 +1,25 @@
 [build-system]
-requires = ['setuptools']
-build-backend = 'setuptools.build_meta'
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 
 [project]
-name = 'flower'
-version = '0.0.1'
-description = 'Library for developing interatomic potentials'
-readme = 'README.md'
-requires-python = '>=3.8'
+name = "flower"
+version = "0.0.1"
+description = "Library for developing interatomic potentials"
+readme = "README.md"
+requires-python = ">=3.9"
 
 
 [tool.setuptools.packages.find]
-#where = ['flower']
-include = ['flower*']
+include = ["flower*"]
 
 
 [tool.pytest.ini_options]
 addopts = [
-    '--basetemp=pytest-tmp', # /tmp/ may be different for each worker!
-    '--import-mode=importlib',
-    '--parsl-config=configs/local_threadpool.py',
-    '-vv',
+    "--basetemp=pytest-tmp", # /tmp/ may be different for each worker!
+    "--import-mode=importlib",
+    "--parsl-config=configs/local_threadpool.py",
+    "-vv",
 ]
-testpaths = ['tests']
+testpaths = ["tests"]
