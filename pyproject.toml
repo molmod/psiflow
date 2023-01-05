@@ -12,7 +12,12 @@ requires-python = ">=3.9"
 
 
 [tool.setuptools.packages.find]
-include = ["flower"]
+include = [
+    "flower",
+    "flower.models",
+    "flower.reference",
+    "flower.sampling",
+    ]
 
 
 [tool.pytest.ini_options]
