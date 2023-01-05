@@ -1,0 +1,5 @@
+[run]
+include = flower/*
+omit = tests/*, configs/*
+
+[report]
