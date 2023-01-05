@@ -66,7 +66,7 @@ class FlowerAtoms(Atoms):
 @typeguard.typechecked
 def save_dataset(
         states: Optional[List[Optional[FlowerAtoms]]],
-        inputs: List[FlowerAtoms] = [],
+        inputs: List[Optional[FlowerAtoms]] = [], # allow None
         outputs: List[File] = [],
         ) -> None:
     from ase.io.extxyz import write_extxyz
@@ -82,6 +82,13 @@ def save_dataset(
             i += 1
     with open(outputs[0], 'w') as f:
         write_extxyz(f, _data)
+
+
+@typeguard.typechecked
+def _save_atoms(atoms: FlowerAtoms, outputs=[]):
+    from ase.io import write
+    write(outputs[0].filepath, atoms)
+save_atoms = python_app(_save_atoms, executors=['default'])
 
 
 @typeguard.typechecked
@@ -250,7 +257,11 @@ class Dataset(Container):
                     ).outputs[0]
         else:
             assert atoms_list is None # do not allow additional atoms
-            self.data_future = data_future
+            path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
+            self.data_future = copy_data_future(
+                    inputs=[data_future],
+                    outputs=[File(path_new)],
+                    ).outputs[0] # ensure type(data_future) == DataFuture
 
     def length(self) -> AppFuture:
         return self.context.apps(Dataset, 'length_dataset')(inputs=[self.data_future])

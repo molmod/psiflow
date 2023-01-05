@@ -18,9 +18,8 @@ from flower.utils import save_yaml, copy_app_future
 from flower.models import load_model
 
 
-@python_app(executors=['default'])
 @typeguard.typechecked
-def update_npasses(
+def _update_npasses(
         npasses: int,
         state: Optional[FlowerAtoms],
         checked_state: Optional[FlowerAtoms],
@@ -29,11 +28,11 @@ def update_npasses(
         return npasses
     else:
         return npasses + 1
+update_npasses = python_app(_update_npasses, executors=['default'])
 
 
-@python_app(executors=['default'])
 @typeguard.typechecked
-def update_states(
+def _update_states(
         states: List[FlowerAtoms],
         state: Optional[FlowerAtoms],
         checked_state: Optional[FlowerAtoms],
@@ -41,6 +40,7 @@ def update_states(
     if (state is not None) and (checked_state is None):
         states.append(state)
     return states
+update_states = python_app(_update_states, executors=['default'])
 
 
 @typeguard.typechecked
@@ -98,9 +98,8 @@ class Check:
         return {}
 
 
-@python_app(executors=['default'])
 @typeguard.typechecked
-def check_distances(
+def _check_distances(
         state: Optional[FlowerAtoms],
         threshold: float,
         ) -> Optional[FlowerAtoms]:
@@ -122,6 +121,7 @@ def check_distances(
         return state
     else:
         return None
+check_distances = python_app(_check_distances, executors=['default'])
 
 
 @typeguard.typechecked
@@ -143,9 +143,8 @@ class InteratomicDistanceCheck(Check):
         return {'threshold': self.threshold}
 
 
-@python_app(executors=['default'])
 @typeguard.typechecked
-def check_discrepancy(
+def _check_discrepancy(
         state: Optional[FlowerAtoms],
         errors: np.ndarray,
         thresholds: List[float],
@@ -162,6 +161,7 @@ def check_discrepancy(
         return state
     else:
         return None
+check_discrepancy = python_app(_check_discrepancy, executors=['default'])
 
 
 @typeguard.typechecked
@@ -250,15 +250,15 @@ class DiscrepancyCheck(Check):
                 }
 
 
-@python_app(executors=['default'])
 @typeguard.typechecked
-def check_safety(state: Optional[FlowerAtoms], tag: str):
+def _check_safety(state: Optional[FlowerAtoms], tag: str):
     if state is None:
         return None
     if tag == 'unsafe':
         return None
     else:
         return state
+check_safety = python_app(_check_safety, executors=['default'])
 
 
 @typeguard.typechecked

@@ -1,12 +1,21 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Tuple
+import typeguard
 from dataclasses import dataclass
 
 from parsl.app.app import python_app
+from parsl.dataflow.futures import AppFuture
 
-from flower.execution import ModelExecutionDefinition
+from flower.data import FlowerAtoms
+from flower.execution import ModelExecutionDefinition, ExecutionContext
 from flower.sampling import BaseWalker
 
 
-def random_perturbation(state, parameters):
+@typeguard.typechecked
+def random_perturbation(
+        state: FlowerAtoms,
+        parameters: RandomParameters,
+        ) -> Tuple[FlowerAtoms, str]:
     import numpy as np
     from flower.sampling.utils import apply_strain
     np.random.seed(parameters.seed)
@@ -38,18 +47,25 @@ class RandomParameters:
     seed         : int = 0
 
 
+@typeguard.typechecked
 class RandomWalker(BaseWalker):
     parameters_cls = RandomParameters
 
     @classmethod
-    def create_apps(cls, context):
+    def create_apps(cls, context: ExecutionContext) -> None:
         label = context[ModelExecutionDefinition].label
 
         app_propagate = python_app(
                 random_perturbation,
                 executors=[label],
                 )
-        def propagate_wrapped(state, parameters, keep_trajectory=False, **kwargs):
+        @typeguard.typechecked
+        def propagate_wrapped(
+                state: AppFuture,
+                parameters: RandomParameters,
+                keep_trajectory: bool = False,
+                **kwargs,
+                ) -> Tuple[AppFuture, None]:
             # ignore additional kwargs; return None as dataset
             assert not keep_trajectory
             return app_propagate(state, parameters), None

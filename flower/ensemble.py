@@ -1,31 +1,43 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Any, Dict
+import typeguard
 from copy import deepcopy
 from pathlib import Path
 
 from parsl.app.app import join_app, python_app
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
-from flower.data import Dataset, save_dataset
-from flower.sampling import load_walker
+from flower.execution import ExecutionContext
+from flower.models import BaseModel
+from flower.checks import Check
+from flower.data import Dataset, save_dataset, FlowerAtoms
+from flower.sampling import load_walker, BaseWalker, PlumedBias
 from flower.utils import _new_file, copy_app_future
 
 
-@python_app(executors=['default'])
-def count_nstates(inputs=[], outputs=[]):
+@typeguard.typechecked
+def _count_nstates(
+        inputs: List[Optional[FlowerAtoms]] = [],
+        outputs: List[File] = [],
+        ) -> int:
     return sum([state is not None for state in inputs])
+count_nstates = python_app(_count_nstates, executors=['default'])
 
 
 @join_app
+@typeguard.typechecked
 def conditional_sample(
-        context,
-        nstates,
-        nstates_effective,
-        walkers,
-        biases,
-        model,
-        checks,
-        inputs=[],
-        outputs=[],
-        ):
+        context: ExecutionContext,
+        nstates: int,
+        nstates_effective: Union[int, AppFuture],
+        walkers: List[BaseWalker],
+        biases: List[Optional[PlumedBias]],
+        model: Optional[BaseModel], # None for e.g. RandomWalker
+        checks: List[Check],
+        inputs: List[Optional[FlowerAtoms]] = [],
+        outputs: List[File] = [],
+        ): # recursive
     import numpy as np
     from flower.data import read_dataset
     from flower.ensemble import count_nstates
@@ -59,7 +71,7 @@ def conditional_sample(
         for i in range(batch_size):
             index = np.random.randint(0, len(walkers))
             walker = walkers[index]
-            bias   = biases[index]
+            bias  = biases[index]
             state = walker.propagate(
                     safe_return=False,
                     bias=bias,
@@ -84,27 +96,42 @@ def conditional_sample(
 
 
 @join_app
-def reset_walkers(walkers, indices):
+@typeguard.typechecked
+def reset_walkers(
+        walkers: List[BaseWalker],
+        indices: Union[List[int], AppFuture],
+        ) -> AppFuture:
     for i, walker in enumerate(walkers):
         if i in indices:
             future = walker.reset()
     return future # return last future to enforce execution
 
 
+@typeguard.typechecked
 class Ensemble:
     """Wraps a set of walkers"""
 
-    def __init__(self, context, walkers, biases=[]):
+    def __init__(
+            self,
+            context: ExecutionContext,
+            walkers: List[BaseWalker],
+            biases: Optional[List[Optional[PlumedBias]]] = None,
+            ) -> None:
         assert len(walkers) > 0
         self.context = context
         self.walkers = walkers
-        if len(biases) > 0:
+        if biases is not None:
             assert len(biases) == len(walkers)
         else:
             biases = [None] * len(walkers)
         self.biases = biases
 
-    def sample(self, nstates, model=None, checks=None):
+    def sample(
+            self,
+            nstates: int,
+            model: Optional[BaseModel] = None,
+            checks: Optional[List[Check]] = None,
+            ) -> Dataset:
         data_future = conditional_sample(
                 self.context,
                 nstates,
@@ -116,9 +143,9 @@ class Ensemble:
                 inputs=[],
                 outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                 ).outputs[0]
-        return Dataset(self.context, data_future=data_future)
+        return Dataset(self.context, None, data_future=data_future)
 
-    def as_dataset(self, checks=None):
+    def as_dataset(self, checks: Optional[List[Check]] = None) -> Dataset:
         context = self.walkers[0].context
         states = []
         for i, walker in enumerate(self.walkers):
@@ -132,7 +159,7 @@ class Ensemble:
                 atoms_list=states,
                 )
 
-    def save(self, path, require_done=True):
+    def save(self, path: Union[Path, str], require_done: bool = True) -> None:
         path = Path(path)
         assert path.is_dir()
         for i, (walker, bias) in enumerate(zip(self.walkers, self.biases)):
@@ -142,11 +169,11 @@ class Ensemble:
             if bias is not None:
                 bias.save(path_walker, require_done=require_done)
 
-    def reset(self, indices):
+    def reset(self, indices: Union[List[int], AppFuture]) -> AppFuture:
         return reset_walkers(self.walkers, indices)
 
     @classmethod
-    def load(cls, context, path):
+    def load(cls, context: ExecutionContext, path: Union[Path, str]) -> Ensemble:
         path = Path(path)
         assert path.is_dir()
         walkers = []
@@ -166,11 +193,16 @@ class Ensemble:
         return cls(context, walkers, biases)
 
     @property
-    def nwalkers(self):
+    def nwalkers(self) -> int:
         return len(self.walkers)
 
     @classmethod
-    def from_walker(cls, walker, nwalkers, dataset=None):
+    def from_walker(
+            cls,
+            walker: BaseWalker,
+            nwalkers: int,
+            dataset: Optional[Dataset] = None,
+            ):
         """Initialize ensemble based on single walker"""
         walkers = []
         for i in range(nwalkers):

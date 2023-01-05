@@ -1,25 +1,31 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Callable, Dict, Tuple
+import typeguard
 import yaml
 import tempfile
 from copy import deepcopy
 from pathlib import Path
 
 from parsl.app.app import python_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
-from flower.execution import Container, ModelExecutionDefinition
+from flower.execution import Container, ModelExecutionDefinition, \
+        ExecutionContext
 from flower.data import Dataset, _new_file
 from flower.utils import copy_app_future, save_yaml, copy_data_future
 
 
+@typeguard.typechecked
 def evaluate_dataset(
-        device,
-        dtype,
-        ncores,
-        load_calculator,
-        suffix,
-        inputs=[],
-        outputs=[],
-        ):
+        device: str,
+        dtype: str,
+        ncores: int,
+        load_calculator: Callable,
+        suffix: str,
+        inputs: List[File] = [],
+        outputs: List[File] = [],
+        ) -> None:
     import torch
     import numpy as np
     from flower.data import read_dataset, save_dataset
@@ -51,25 +57,26 @@ def evaluate_dataset(
         save_dataset(dataset, outputs=[outputs[0]])
 
 
+@typeguard.typechecked
 class BaseModel(Container):
     """Base Container for a trainable interaction potential"""
 
-    def __init__(self, context, config):
+    def __init__(self, context: ExecutionContext, config: Dict) -> None:
         super().__init__(context)
         self.config_raw    = deepcopy(config)
         self.config_future = None
         self.model_future  = None
         self.deploy_future = {} # deployed models in float32 and float64
 
-    def train(self, training, validation):
+    def train(self, training: Dataset, validation: Dataset) -> None:
         """Trains a model and returns it as an AppFuture"""
         raise NotImplementedError
 
-    def initialize(self, dataset):
+    def initialize(self, dataset: Dataset) -> None:
         """Initializes the model based on a dataset"""
         raise NotImplementedError
 
-    def evaluate(self, dataset, suffix='_model'):
+    def evaluate(self, dataset: Dataset, suffix: str = '_model') -> Dataset:
         """Evaluates a dataset using a model and returns it as a covalent electron"""
         path_xyz = _new_file(self.context.path, 'data_', '.xyz')
         dtype = self.context[ModelExecutionDefinition].dtype
@@ -81,7 +88,11 @@ class BaseModel(Container):
                 ).outputs[0]
         return Dataset(self.context, None, data_future=data_future)
 
-    def save(self, path, require_done=True):
+    def save(
+            self,
+            path: Union[Path, str],
+            require_done: bool = True,
+            ) -> Tuple[DataFuture, Optional[DataFuture], Optional[DataFuture]]:
         path = Path(path)
         assert path.is_dir()
         path_config_raw = path / (self.__class__.__name__ + '.yaml')
@@ -110,7 +121,7 @@ class BaseModel(Container):
                 future_model.result()
         return future_raw, future_config, future_model
 
-    def copy(self):
+    def copy(self) -> BaseModel:
         model = self.__class__(self.context, self.config_raw)
         if self.config_future is not None:
             model.config_future = copy_app_future(self.config_future)

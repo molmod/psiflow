@@ -181,7 +181,7 @@ RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
             )
 
 
-def test_bias_external(context, dataset, tmpdir):
+def test_bias_external(context, dataset, tmp_path):
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -197,8 +197,8 @@ external: EXTERNAL ARG=CV FILE=test_grid
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(bias_function(values[:, 0]), values[:, 1])
-    input_future, data_futures = bias.save(tmpdir)
-    bias_ = PlumedBias.load(context, tmpdir)
+    input_future, data_futures = bias.save(tmp_path)
+    bias_ = PlumedBias.load(context, tmp_path)
     values_ = bias_.evaluate(dataset, variable='CV').result()
     assert np.allclose(values, values_)
 
@@ -218,8 +218,8 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
         assert np.allclose(volume, values[i, 0])
     reference = bias_function(values[:, 0]) + 0.5 * (values[:, 0] - 150) ** 2
     assert np.allclose(reference, values[:, 1])
-    bias.save(tmpdir)
-    bias_ = PlumedBias.load(context, tmpdir)
+    bias.save(tmp_path)
+    bias_ = PlumedBias.load(context, tmp_path)
     values_ = bias_.evaluate(dataset, variable='CV').result()
     assert np.allclose(values, values_)
 

@@ -51,7 +51,6 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
     wandb_id = wandb.util.generate_id()
     future = log_data(
             dataset,
-            dataset.length(),
             bias=bias,
             model=model,
             error_kwargs=error_kwargs,

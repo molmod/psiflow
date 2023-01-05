@@ -1,28 +1,34 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Callable, Dict, Tuple, Any
+import typeguard
 import os
 from dataclasses import dataclass, field
-from typing import Optional, List
 from pathlib import Path
 import shutil
 import wandb
+import numpy as np
 
 from parsl.app.app import python_app
+from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
+from flower.execution import ExecutionContext
 from flower.models import BaseModel, load_model
 from flower.reference.base import BaseReference
-from flower.sampling import RandomWalker
+from flower.sampling import RandomWalker, PlumedBias
 from flower.ensemble import Ensemble
 from flower.data import Dataset
 from flower.checks import Check, load_checks, SafetyCheck
 from flower.utils import copy_app_future, log_data_to_wandb
 
 
-@python_app(executors=['default'])
-def app_log_data(
-        errors=None,
-        error_labels=None,
-        bias_labels=None,
-        inputs=[],
-        ):
+@typeguard.typechecked
+def _app_log_data(
+        errors: Optional[np.ndarray] = None,
+        error_labels: Optional[List[str]] = None,
+        bias_labels: Optional[List[str]] = None,
+        inputs: List[Union[File, np.ndarray]] = [],
+        ) -> List[List]:
     from ase.data import chemical_symbols
     from ase.io import write
     from flower.data import read_dataset
@@ -53,15 +59,16 @@ def app_log_data(
         assert len(columns) == len(row)
         table_data.append(row)
     return [columns] + table_data
+app_log_data = python_app(_app_log_data, executors=['default'])
 
 
-@python_app(executors=['default'])
-def app_log_ensemble(
-        errors=None,
-        error_labels=None,
-        bias_labels=None,
-        inputs=[],
-        ):
+@typeguard.typechecked
+def _app_log_ensemble(
+        errors: Optional[np.ndarray] = None,
+        error_labels: Optional[List[str]] = None,
+        bias_labels: Optional[List[str]] = None,
+        inputs: List[Union[File, np.ndarray, str, bool]] = [],
+        ) -> List[List]:
     import numpy as np
     from ase.data import chemical_symbols
     from ase.io import write
@@ -98,9 +105,16 @@ def app_log_ensemble(
         assert len(columns) == len(row)
         table_data.append(row)
     return [columns] + table_data
+app_log_ensemble = python_app(_app_log_ensemble, executors=['default'])
 
 
-def log_data(dataset, length, bias, model, error_kwargs):
+@typeguard.typechecked
+def log_data(
+        dataset: Dataset,
+        bias: Optional[PlumedBias],
+        model: Optional[BaseModel],
+        error_kwargs: Optional[dict[str, Any]],
+        ) -> AppFuture:
     inputs = []
     if bias is not None:
         bias_labels = []
@@ -128,7 +142,8 @@ def log_data(dataset, length, bias, model, error_kwargs):
             )
 
 
-def log_ensemble(ensemble):
+@typeguard.typechecked
+def log_ensemble(ensemble: Ensemble) -> AppFuture:
     assert len(ensemble.walkers) > 0
     dataset = ensemble.as_dataset()
     inputs = []
@@ -152,7 +167,7 @@ def log_ensemble(ensemble):
             for i, variable in enumerate(variables):
                 if (bias is not None) and (variable in bias.variables):
                     inputs.append(bias.evaluate(
-                        Dataset(bias.context, atoms_list=[walker.state_future]),
+                        Dataset(bias.context, [walker.state_future]),
                         variable=variable,
                         ))
                 else:
@@ -163,21 +178,21 @@ def log_ensemble(ensemble):
     # double check inputs contains tag info + bias info
     assert len(inputs) == len(ensemble.walkers) * (len(variables) + 1)
     return app_log_ensemble(
-            'ensemble',
             bias_labels=bias_labels,
             inputs=[dataset.data_future] + inputs,
             )
 
 
+@typeguard.typechecked
 class Manager:
 
     def __init__(
             self,
-            path_output,
-            wandb_project,
-            wandb_group,
-            error_kwargs=None,
-            ):
+            path_output: Union[Path, str],
+            wandb_project: str,
+            wandb_group: str,
+            error_kwargs: Optional[dict[str, Any]] = None,
+            ) -> None:
         self.path_output = Path(path_output)
         self.path_output.mkdir(parents=True, exist_ok=True)
         self.wandb_project = wandb_project
@@ -189,21 +204,17 @@ class Manager:
                     'properties': ['energy', 'forces', 'stress'],
                     }
         self.error_kwargs = error_kwargs
-        #self.wandb_dir = self.path_output / 'wandb'
-        #if self.wandb_dir.is_dir():
-        #    shutil.rmtree(self.wandb_dir)
-        #self.wandb_dir.mkdir(exist_ok=False)
 
     def dry_run(
             self,
             model: BaseModel,
             reference: BaseReference,
-            ensemble: Ensemble = None,
-            random_walker: RandomWalker = None,
+            ensemble: Optional[Ensemble] = None,
+            random_walker: Optional[RandomWalker] = None,
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
-            checks: Optional[list] = None,
-            ):
+            checks: Optional[list[Check]] = None,
+            ) -> None:
         context = model.context
         if random_walker is None:
             assert ensemble is not None
@@ -276,14 +287,14 @@ class Manager:
 
     def save(
             self,
-            name,
+            name: str,
             model: BaseModel,
             ensemble: Ensemble,
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
-            checks: Optional[list] = None,
-            ):
+            checks: Optional[list[Check]] = None,
+            ) -> None:
         path = self.path_output / name
         path.mkdir(parents=False, exist_ok=False) # parent should exist
 
@@ -310,7 +321,17 @@ class Manager:
             for check in checks:
                 check.save(path_checks) # all checks may be stored in same dir
 
-    def load(self, name, context):
+    def load(
+            self,
+            name: str,
+            context: ExecutionContext,
+            ) -> Tuple[
+                    BaseModel,
+                    Ensemble,
+                    Optional[Dataset],
+                    Optional[Dataset],
+                    Optional[list[Check]],
+                    ]:
         path = self.path_output / name
         assert path.is_dir() # needs to exist
 
@@ -326,12 +347,12 @@ class Manager:
         if path_train.is_file():
             data_train = Dataset.load(context, path_train)
         else:
-            data_train = Dataset(context)
+            data_train = Dataset(context, []) # empty dataset
         path_valid = path / 'validate.xyz'
         if path_valid.is_file():
             data_valid = Dataset.load(context, path_valid)
         else:
-            data_valid = Dataset(context)
+            data_valid = Dataset(context, [])
 
         # checks; optional
         path_checks = path / 'checks'
@@ -341,20 +362,19 @@ class Manager:
 
     def log(
             self,
-            run_name,
+            run_name: str,
             model: BaseModel,
             ensemble: Ensemble,
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
-            checks: Optional[list] = None,
-            bias=None,
-            ):
+            checks: Optional[list[Check]] = None,
+            bias: Optional[PlumedBias] = None,
+            ) -> AppFuture:
         log_futures = {}
         if data_train is not None:
             log_futures['training'] = log_data( # log training and validation data as tables
                     dataset=data_train,
-                    length=data_train.length(),
                     bias=bias,
                     model=model,
                     error_kwargs=self.error_kwargs,
@@ -362,7 +382,6 @@ class Manager:
         if data_valid is not None:
             log_futures['validation'] = log_data(
                     dataset=data_valid,
-                    length=data_valid.length(),
                     bias=bias,
                     model=model,
                     error_kwargs=self.error_kwargs,
@@ -370,7 +389,6 @@ class Manager:
         if data_failed is not None:
             log_futures['failed'] = log_data( # log states with failed reference calculation
                     dataset=data_failed,
-                    length=data_failed.length(),
                     bias=bias,
                     model=model,
                     error_kwargs=self.error_kwargs,
@@ -380,10 +398,9 @@ class Manager:
         if checks is not None:
             for check in checks:
                 name = check.__class__.__name__
-                dataset = Dataset(model.context, atoms_list=check.states)
+                dataset = Dataset(model.context, check.states)
                 log_futures[name] = log_data(
                         dataset,
-                        dataset.length(),
                         bias=bias,
                         model=None,
                         error_kwargs=None,

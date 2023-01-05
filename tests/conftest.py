@@ -87,4 +87,4 @@ def dataset(context, tmp_path):
     data_ = [FlowerAtoms.from_atoms(atoms) for atoms in data]
     for atoms in data_:
         atoms.evaluation_flag = 'success'
-    return Dataset(context, atoms_list=data_)
+    return Dataset(context, data_)

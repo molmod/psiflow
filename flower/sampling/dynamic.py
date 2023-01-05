@@ -1,26 +1,31 @@
-from typing import Optional
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Callable, Tuple
+import typeguard
 from dataclasses import dataclass
 
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
-from flower.data import Dataset
-from flower.execution import ModelExecutionDefinition
+from flower.data import Dataset, FlowerAtoms
+from flower.execution import ModelExecutionDefinition, ExecutionContext
 from flower.utils import copy_data_future, unpack_i, _new_file
-from flower.sampling import BaseWalker
+from flower.sampling import BaseWalker, PlumedBias
+from flower.models import BaseModel
 
 
+@typeguard.typechecked
 def simulate_model(
-        device,
-        ncores,
-        dtype,
-        state,
-        parameters,
-        load_calculator,
-        plumed_input='',
-        inputs=[],
-        outputs=[],
-        ):
+        device: str,
+        ncores: int,
+        dtype: str,
+        state: FlowerAtoms,
+        parameters: DynamicParameters,
+        load_calculator: Callable,
+        plumed_input: str = '',
+        inputs: List[File] =[],
+        outputs: List[File] = [],
+        ) -> Tuple[FlowerAtoms, str]:
     import torch
     import os
     import tempfile
@@ -128,9 +133,10 @@ def simulate_model(
     # write data to output xyz
     with open(outputs[0], 'w+') as f:
         write_extxyz(f, datahook.data)
-    return state, tag
+    return FlowerAtoms.from_atoms(state), tag
 
 
+@typeguard.typechecked
 @dataclass
 class DynamicParameters: # container dataclass for simulation parameters
     timestep           : float = 0.5
@@ -144,11 +150,12 @@ class DynamicParameters: # container dataclass for simulation parameters
     seed               : int = 0 # seed for randomized initializations
 
 
+@typeguard.typechecked
 class DynamicWalker(BaseWalker):
     parameters_cls = DynamicParameters
 
     @classmethod
-    def create_apps(cls, context):
+    def create_apps(cls, context: ExecutionContext) -> None:
         label = context[ModelExecutionDefinition].label
         device = context[ModelExecutionDefinition].device
         ncores = context[ModelExecutionDefinition].ncores
@@ -160,14 +167,15 @@ class DynamicWalker(BaseWalker):
                 simulate_model,
                 executors=[label],
                 )
+        @typeguard.typechecked
         def propagate_wrapped(
-                state,
-                parameters,
-                model=None,
-                bias=None,
-                keep_trajectory=False,
+                state: AppFuture,
+                parameters: DynamicParameters,
+                model: BaseModel = None,
+                bias: Optional[PlumedBias] = None,
+                keep_trajectory: bool = False,
                 **kwargs,
-                ):
+                ) -> Tuple[AppFuture, Optional[Dataset]]:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
             inputs = [model.deploy_future[dtype]]
@@ -195,7 +203,7 @@ class DynamicWalker(BaseWalker):
             if not keep_trajectory:
                 dataset = None
             else:
-                dataset = Dataset(context, data_future=result.outputs[0])
+                dataset = Dataset(context, None, data_future=result.outputs[0])
             return result, dataset
 
         context.register_app(cls, 'propagate', propagate_wrapped)

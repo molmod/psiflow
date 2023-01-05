@@ -14,16 +14,16 @@ from flower.ensemble import Ensemble
 from flower.checks import SafetyCheck
 
 
-def test_save_load(context, dataset, tmpdir):
+def test_save_load(context, dataset, tmp_path):
     walker = DynamicWalker(context, dataset[0], steps=10, step=1)
-    path_start = tmpdir / 'start.xyz'
-    path_state = tmpdir / 'state.xyz'
-    path_pars  = tmpdir / 'DynamicWalker.yaml' # has name of walker class
-    futures = walker.save(tmpdir)
+    path_start = tmp_path / 'start.xyz'
+    path_state = tmp_path / 'state.xyz'
+    path_pars  = tmp_path / 'DynamicWalker.yaml' # has name of walker class
+    future, future, future = walker.save(tmp_path)
     assert os.path.exists(path_start)
     assert os.path.exists(path_state)
     assert os.path.exists(path_pars)
-    walker_ = load_walker(context, tmpdir)
+    walker_ = load_walker(context, tmp_path)
     assert type(walker_) == DynamicWalker
     assert np.allclose(
             walker.start_future.result().positions,

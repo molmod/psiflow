@@ -1,3 +1,6 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Tuple, Dict, Callable
+import typeguard
 import os
 import tempfile
 import yaff
@@ -9,13 +12,16 @@ from collections import OrderedDict
 from parsl.app.app import python_app, join_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
-from flower.execution import Container, ModelExecutionDefinition
+from flower.execution import Container, ModelExecutionDefinition, \
+        ExecutionContext
 from flower.utils import _new_file, copy_data_future, save_txt
-from flower.data import read_dataset
+from flower.data import read_dataset, Dataset
 
 
-def try_manual_plumed_linking():
+@typeguard.typechecked
+def try_manual_plumed_linking() -> None:
     if 'PLUMED_KERNEL' not in os.environ.keys():
         # try linking manually
         if 'CONDA_PREFIX' in os.environ.keys(): # for conda environments
@@ -30,7 +36,8 @@ def try_manual_plumed_linking():
             print('plumed kernel manually set at at : {}'.format(path))
 
 
-def set_path_in_plumed(plumed_input, keyword, path_to_set):
+@typeguard.typechecked
+def set_path_in_plumed(plumed_input: str, keyword: str, path_to_set: str) -> str:
     lines = plumed_input.split('\n')
     for i, line in enumerate(lines):
         if keyword in line.split():
@@ -43,7 +50,8 @@ def set_path_in_plumed(plumed_input, keyword, path_to_set):
     return '\n'.join(lines)
 
 
-def parse_plumed_input(plumed_input):
+@typeguard.typechecked
+def parse_plumed_input(plumed_input: str) -> List[Tuple]:
     allowed_keywords = ['METAD', 'RESTRAINT', 'EXTERNAL', 'UPPER_WALLS']
     biases = []
     for key in allowed_keywords:
@@ -57,7 +65,13 @@ def parse_plumed_input(plumed_input):
     return biases
 
 
-def generate_external_grid(bias_function, variable, variable_label, periodic=False):
+@typeguard.typechecked
+def generate_external_grid(
+        bias_function: Callable,
+        variable: np.ndarray,
+        variable_label: str,
+        periodic: bool = False,
+        ) -> str:
     _periodic = 'false' if not periodic else 'true'
     grid = ''
     grid += '#! FIELDS {} external.bias der_{}\n'.format(variable_label, variable_label)
@@ -70,7 +84,12 @@ def generate_external_grid(bias_function, variable, variable_label, periodic=Fal
     return grid
 
 
-def evaluate_bias(plumed_input, variable, inputs=[]):
+@typeguard.typechecked
+def evaluate_bias(
+        plumed_input: str,
+        variable: str,
+        inputs: List[File] = [],
+        ) -> np.ndarray:
     import tempfile
     import os
     import numpy as np
@@ -123,7 +142,14 @@ def evaluate_bias(plumed_input, variable, inputs=[]):
     return values
 
 
-def find_states_in_data(plumed_input, variable, targets, slack, inputs=[]):
+@typeguard.typechecked
+def find_states_in_data(
+        plumed_input: str,
+        variable: str,
+        targets: np.ndarray,
+        slack: float,
+        inputs: List[File] = [],
+        ) -> List[int]:
     import numpy as np
     from flower.sampling.bias import evaluate_bias
     variable_values = evaluate_bias(plumed_input, variable, inputs=inputs)[:, 0]
@@ -141,11 +167,17 @@ def find_states_in_data(plumed_input, variable, targets, slack, inputs=[]):
     return to_extract
 
 
+@typeguard.typechecked
 class PlumedBias(Container):
     """Represents a PLUMED bias potential"""
     keys_with_future = ['EXTERNAL', 'METAD']
 
-    def __init__(self, context, plumed_input, data={}):
+    def __init__(
+            self,
+            context: ExecutionContext,
+            plumed_input: str,
+            data: Optional[Dict] = None,
+            ):
         super().__init__(context)
         assert 'PRINT' not in plumed_input
         components = parse_plumed_input(plumed_input)
@@ -158,24 +190,33 @@ class PlumedBias(Container):
 
         # initialize data future for each component
         self.data_futures = OrderedDict()
-        for key, value in data.items():
-            assert key in self.keys
-            if type(value) == str:
-                path_new = _new_file(context.path, key + '_', '.txt')
-                with open(path_new, 'w') as f:
-                    f.write(value)
-                self.data_futures[key] = File(path_new)
-            else:
-                assert (isinstance(value, DataFuture) or isinstance(value, File))
-                self.data_futures[key] = value
+        if data is None:
+            data = {}
+        else:
+            for key, value in data.items():
+                assert key in self.keys
+                if type(value) == str:
+                    path_new = _new_file(context.path, key + '_', '.txt')
+                    with open(path_new, 'w') as f:
+                        f.write(value)
+                    self.data_futures[key] = File(path_new)
+                else:
+                    assert (isinstance(value, DataFuture) or isinstance(value, File))
+                    self.data_futures[key] = value
         for key in self.keys:
             if (key not in self.data_futures.keys()) and (key in PlumedBias.keys_with_future):
                 assert key != 'EXTERNAL' # has to be initialized by user
                 self.data_futures[key] = File(_new_file(context.path, key + '_', '.txt'))
+        for key, value in self.data_futures.items():
+            if isinstance(value, File): # conver to DataFuture for consistency
+                self.data_futures[key] = copy_data_future(
+                        inputs=[value],
+                        outputs=[File(_new_file(context.path, key + '_', '.txt'))],
+                        ).outputs[0]
         if 'METAD' in self.keys:
             self.data_futures.move_to_end('METAD', last=False)
 
-    def evaluate(self, dataset, variable):
+    def evaluate(self, dataset: Dataset, variable: str) -> AppFuture:
         assert variable in [c[1] for c in self.components]
         plumed_input = self.prepare_input()
         lines = plumed_input.split('\n')
@@ -197,7 +238,7 @@ class PlumedBias(Container):
                 inputs=[dataset.data_future] + self.futures,
                 )
 
-    def prepare_input(self):
+    def prepare_input(self) -> str:
         plumed_input = str(self.plumed_input)
         for key in self.keys:
             if key in ['METAD', 'EXTERNAL']: # keys for which path needs to be set
@@ -211,7 +252,7 @@ class PlumedBias(Container):
             plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
         return plumed_input
 
-    def copy(self):
+    def copy(self) -> PlumedBias:
         new_futures = OrderedDict()
         for key, future in self.data_futures.items():
             new_futures[key] = copy_data_future(
@@ -224,7 +265,7 @@ class PlumedBias(Container):
                 data=new_futures,
                 )
 
-    def adjust_restraint(self, variable, kappa, center):
+    def adjust_restraint(self, variable: str, kappa: float, center: float) -> None:
         plumed_input = str(self.plumed_input)
         lines = plumed_input.split('\n')
         found = False
@@ -244,7 +285,13 @@ class PlumedBias(Container):
         assert found
         self.plumed_input = '\n'.join(lines)
 
-    def extract_states(self, dataset, variable, targets, slack=0.1):
+    def extract_states(
+            self,
+            dataset: Dataset,
+            variable: str,
+            targets: np.ndarray,
+            slack: float = 0.1,
+            ) -> Dataset:
         assert variable in self.variables
         plumed_input = self.prepare_input()
         lines = plumed_input.split('\n')
@@ -268,7 +315,11 @@ class PlumedBias(Container):
                 )
         return dataset[indices]
 
-    def save(self, path, require_done=True):
+    def save(
+            self,
+            path: Union[Path, str],
+            require_done: bool = True,
+            ) -> Tuple[DataFuture, Dict[str, DataFuture]]:
         path = Path(path)
         assert path.is_dir()
         path_input = path / 'plumed_input.txt'
@@ -290,7 +341,7 @@ class PlumedBias(Container):
         return input_future, data_futures
 
     @classmethod
-    def load(cls, context, path):
+    def load(cls, context: ExecutionContext, path: Union[Path, str]) -> PlumedBias:
         path = Path(path)
         assert path.is_dir()
         path_input = path / 'plumed_input.txt'
@@ -306,7 +357,7 @@ class PlumedBias(Container):
         return cls(context, plumed_input, data=data)
 
     @property
-    def keys(self):
+    def keys(self) -> List[str]:
         keys = sorted([c[0] for c in self.components])
         assert len(set(keys)) == len(keys) # keys should be unique!
         if 'METAD' in keys:
@@ -316,15 +367,15 @@ class PlumedBias(Container):
             return keys
 
     @property
-    def variables(self): # not sorted
+    def variables(self) -> List[str]: # not sorted
         return list(set([c[1] for c in self.components]))
 
     @property
-    def futures(self):
+    def futures(self) -> List[DataFuture]:
         return [value for _, value in self.data_futures.items()] # MTD first
 
     @classmethod
-    def create_apps(cls, context):
+    def create_apps(cls, context: ExecutionContext) -> None:
         label = context[ModelExecutionDefinition].label
         app_evaluate = python_app(evaluate_bias, executors=[label])
         context.register_app(cls, 'evaluate', app_evaluate)

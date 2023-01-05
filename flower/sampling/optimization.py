@@ -1,23 +1,31 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Tuple, List, Callable
+import typeguard
 from dataclasses import dataclass
 
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
-from flower.execution import Container, ModelExecutionDefinition
+from flower.data import Dataset, FlowerAtoms
+from flower.execution import Container, ModelExecutionDefinition, \
+        ExecutionContext
 from flower.sampling.base import BaseWalker
+from flower.models import BaseModel
 from flower.utils import _new_file
 
 
+@typeguard.typechecked
 def optimize_geometry(
-        device,
-        ncores,
-        state,
-        parameters,
-        load_calculator,
-        plumed_input='',
-        inputs=[],
-        outputs=[],
-        ):
+        device: str,
+        ncores: int,
+        state: FlowerAtoms,
+        parameters: OptimizationParameters,
+        load_calculator: Callable,
+        plumed_input: str = '',
+        inputs: List[File] = [],
+        outputs: List[File] = [],
+        ) -> Tuple[FlowerAtoms, str]:
     import os
     import tempfile
     import torch
@@ -26,6 +34,7 @@ def optimize_geometry(
     from ase.constraints import ExpCellFilter
     from ase.io import read
     from ase.io.extxyz import write_extxyz
+    from flower.data import FlowerAtoms
     torch.set_default_dtype(torch.float64) # optimization always in double
     if device == 'cpu':
         torch.set_num_threads(ncores)
@@ -69,21 +78,23 @@ def optimize_geometry(
         trajectory = read(path_traj)
         write_extxyz(f, trajectory)
     os.unlink(path_traj)
-    return atoms, tag
+    return FlowerAtoms.from_atoms(atoms), tag
 
 
+@typeguard.typechecked
 @dataclass
 class OptimizationParameters:
     optimize_cell: bool = True # include cell DOFs in optimization
     fmax         : float = 1e-2 # max residual norm of forces before termination
-    seed               : int = 0 # seed for randomized initializations
+    seed         : int = 0 # seed for randomized initializations
 
 
+@typeguard.typechecked
 class OptimizationWalker(BaseWalker):
     parameters_cls = OptimizationParameters
 
     @classmethod
-    def create_apps(cls, context):
+    def create_apps(cls, context: ExecutionContext):
         label = context[ModelExecutionDefinition].label
         device = context[ModelExecutionDefinition].device
         ncores = context[ModelExecutionDefinition].ncores
@@ -93,13 +104,14 @@ class OptimizationWalker(BaseWalker):
                 optimize_geometry,
                 executors=[label],
                 )
+        @typeguard.typechecked
         def optimize_wrapped(
-                state,
-                parameters,
-                model=None,
-                keep_trajectory=False,
+                state: AppFuture,
+                parameters: OptimizationParameters,
+                model: BaseModel = None,
+                keep_trajectory: bool = False,
                 **kwargs,
-                ):
+                ) -> Tuple[AppFuture, Optional[Dataset]]:
             assert model is not None # model is required
             assert 'float64' in model.deploy_future.keys() # has to be deployed
             inputs = [model.deploy_future['float64']]

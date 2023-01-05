@@ -1,48 +1,69 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Tuple
+import typeguard
 from dataclasses import dataclass, asdict
 from copy import deepcopy
 from pathlib import Path
 
 from parsl.app.app import python_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
-from flower.execution import ModelExecutionDefinition, Container
+from flower.execution import ModelExecutionDefinition, Container, \
+        ExecutionContext
 from flower.utils import copy_app_future, unpack_i, copy_data_future, \
-        save_yaml, save_atoms
+        save_yaml
+from flower.data import save_atoms, FlowerAtoms, Dataset
 
 
-@python_app(executors=['default'])
-def app_safe_return(state, start, tag):
+@typeguard.typechecked
+def _app_safe_return(
+        state: FlowerAtoms,
+        start: FlowerAtoms,
+        tag: str,
+        ) -> FlowerAtoms:
     if tag == 'unsafe':
         return start
     else:
         return state
+app_safe_return = python_app(_app_safe_return, executors=['default'])
 
 
-@python_app(executors=['default'])
-def is_reset(state, start):
+@typeguard.typechecked
+def _is_reset(state: FlowerAtoms, start: FlowerAtoms) -> bool:
     if state == start: # positions, numbers, cell, pbc
         return True
     else:
         return False
+is_reset = python_app(_is_reset, executors=['default'])
 
 
-@python_app
-def update_tag(existing_tag, new_tag):
+@typeguard.typechecked
+def _update_tag(existing_tag: str, new_tag: str) -> str:
     if (existing_tag == 'safe') and (new_tag == 'safe'):
         return 'safe'
     else:
         return 'unsafe'
+update_tag = python_app(_update_tag, executors=['default'])
 
 
+@typeguard.typechecked
 @dataclass
 class EmptyParameters:
     pass
 
 
+@typeguard.typechecked
 class BaseWalker(Container):
     parameters_cls = EmptyParameters
 
-    def __init__(self, context, atoms, **kwargs):
+    def __init__(
+            self,
+            context: ExecutionContext,
+            atoms: Union[FlowerAtoms, AppFuture],
+            **kwargs,
+            ) -> None:
         super().__init__(context)
         self.context = context
 
@@ -54,7 +75,12 @@ class BaseWalker(Container):
         # parameters
         self.parameters = self.parameters_cls(**deepcopy(kwargs))
 
-    def propagate(self, safe_return=False, keep_trajectory=False, **kwargs):
+    def propagate(
+            self,
+            safe_return: bool = False,
+            keep_trajectory: bool = False,
+            **kwargs,
+            ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
         app = self.context.apps(self.__class__, 'propagate')
         result, dataset = app(
                 self.state_future,
@@ -80,13 +106,13 @@ class BaseWalker(Container):
         else:
             return future
 
-    def tag_unsafe(self):
+    def tag_unsafe(self) -> None:
         self.tag_future = copy_app_future('unsafe')
 
-    def tag_safe(self):
+    def tag_safe(self) -> None:
         self.tag_future = copy_app_future('safe')
 
-    def reset_if_unsafe(self):
+    def reset_if_unsafe(self) -> None:
         self.state_future = app_safe_return(
                 self.state_future,
                 self.start_future,
@@ -94,15 +120,15 @@ class BaseWalker(Container):
                 )
         self.tag_future = copy_app_future('safe')
 
-    def is_reset(self):
+    def is_reset(self) -> AppFuture:
         return is_reset(self.state_future, self.start_future)
 
-    def reset(self):
+    def reset(self) -> AppFuture:
         self.state_future = copy_app_future(self.start_future)
         self.tag = copy_app_future('safe')
         return self.state_future
 
-    def copy(self):
+    def copy(self) -> BaseWalker:
         walker = self.__class__(
                 self.context,
                 self.state_future,
@@ -112,7 +138,11 @@ class BaseWalker(Container):
         walker.parameters   = deepcopy(self.parameters)
         return walker
 
-    def save(self, path, require_done=True):
+    def save(
+            self,
+            path: Union[Path, str],
+            require_done: bool = True,
+            ) -> Tuple[DataFuture, DataFuture, DataFuture]:
         path = Path(path)
         assert path.is_dir()
         name = self.__class__.__name__
@@ -138,6 +168,6 @@ class BaseWalker(Container):
         return future_start, future_state, future_pars
 
     @classmethod
-    def create_apps(cls, context):
+    def create_apps(cls, context: ExecutionContext) -> None:
         assert not (cls == BaseWalker) # should never be called directly
         pass

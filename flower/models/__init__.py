@@ -1,8 +1,15 @@
+from typing import Union
+import typeguard
+from pathlib import Path
+
+from flower.execution import ExecutionContext
+
 from .base import BaseModel
 from ._nequip import NequIPModel
 
 
-def load_model(context, path):
+@typeguard.typechecked
+def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
     from pathlib import Path
     import yaml
     from parsl.data_provider.files import File
@@ -29,7 +36,7 @@ def load_model(context, path):
             config_init = yaml.load(f, Loader=yaml.FullLoader)
         model.config_future = copy_app_future(config_init)
         model.model_future = copy_data_future(
-                inputs=[path_model],
+                inputs=[File(str(path_model))],
                 outputs=[File(_new_file(context.path, 'model_', '.pth'))],
                 ).outputs[0]
     return model

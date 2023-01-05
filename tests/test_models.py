@@ -90,24 +90,24 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     assert os.path.isfile(path_deployed)
 
 
-def test_nequip_save_load(context, nequip_config, dataset, tmpdir):
+def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
     model = NequIPModel(context, nequip_config)
-    future_raw, _, _ = model.save(tmpdir)
+    future_raw, _, _ = model.save(tmp_path)
     assert future_raw.done()
     assert _ is None
     model.initialize(dataset[:2])
     model.deploy()
     e0 = model.evaluate(dataset.get(indices=[3]))[0].result().info['energy_model']
 
-    path_config_raw = tmpdir / 'NequIPModel.yaml'
-    path_config     = tmpdir / 'config_after_init.yaml'
-    path_model      = tmpdir / 'model_undeployed.pth'
-    futures = model.save(tmpdir)
+    path_config_raw = tmp_path / 'NequIPModel.yaml'
+    path_config     = tmp_path / 'config_after_init.yaml'
+    path_model      = tmp_path / 'model_undeployed.pth'
+    futures = model.save(tmp_path)
     assert os.path.exists(path_config_raw)
     assert os.path.exists(path_config)
     assert os.path.exists(path_model)
 
-    model_ = load_model(context, tmpdir)
+    model_ = load_model(context, tmp_path)
     assert type(model_) == NequIPModel
     assert model_.model_future is not None
     model_.deploy()

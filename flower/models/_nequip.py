@@ -1,21 +1,33 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Any, Dict
+import typeguard
+from pathlib import Path
+
 from parsl.app.app import python_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
+
+from ase.calculators.calculator import BaseCalculator
 
 from flower.models.base import evaluate_dataset
 from flower.models import BaseModel
-from flower.execution import ModelExecutionDefinition, \
+from flower.data import FlowerAtoms, Dataset
+from flower.execution import ModelExecutionDefinition, ExecutionContext, \
         TrainingExecutionDefinition
 from flower.utils import copy_data_future, _new_file
 
 
-def get_elements(data):
+@typeguard.typechecked
+def get_elements(data: List[FlowerAtoms]) -> List[str]:
     from ase.data import chemical_symbols
     _all = [set(a.numbers) for a in data]
     numbers = sorted(list(set(b for a in _all for b in a)))
     return [chemical_symbols[n] for n in numbers]
 
-
-def to_nequip_dataset(data, nequip_config):
+# do not type hint ASEDataset to avoid having to import nequip types outside
+# of the function
+@typeguard.typechecked
+def to_nequip_dataset(data: List[FlowerAtoms], nequip_config: Any):
     import tempfile
     from nequip.utils import Config, instantiate
     from nequip.data.transforms import TypeMapper
@@ -41,7 +53,12 @@ def to_nequip_dataset(data, nequip_config):
     return ase_dataset
 
 
-def initialize(config, inputs=[], outputs=[]):
+@typeguard.typechecked
+def initialize(
+        config: Dict,
+        inputs: List[File] = [],
+        outputs: List[File] = [],
+        ) -> Dict:
     import torch
     import numpy as np
     from nequip.utils import Config
@@ -72,7 +89,14 @@ def initialize(config, inputs=[], outputs=[]):
     return nequip_config
 
 
-def deploy(device, dtype, nequip_config, inputs=[], outputs=[]):
+@typeguard.typechecked
+def deploy(
+        device: str,
+        dtype: str,
+        nequip_config: Dict,
+        inputs: List[File] = [],
+        outputs: List[File] = [],
+        ) -> None:
     import torch
     import ase
     import yaml
@@ -142,7 +166,14 @@ def deploy(device, dtype, nequip_config, inputs=[], outputs=[]):
     torch.jit.save(model, outputs[0].filepath, _extra_files=metadata)
 
 
-def train(device, dtype, nequip_config, inputs=[], outputs=[]):
+@typeguard.typechecked
+def train(
+        device: str,
+        dtype: str,
+        nequip_config: Dict,
+        inputs: List[File] = [],
+        outputs: List[File] = [],
+        ) -> None:
     import torch
     import tempfile
     from nequip.utils import Config
@@ -190,10 +221,11 @@ def train(device, dtype, nequip_config, inputs=[], outputs=[]):
     torch.save(trainer.model.to('cpu').state_dict(), outputs[0].filepath)
 
 
+@typeguard.typechecked
 class NequIPModel(BaseModel):
     """Container class for NequIP models"""
 
-    def __init__(self, context, config):
+    def __init__(self, context: ExecutionContext, config: Dict) -> None:
         config = dict(config)
         config['dataset_include_keys'] = ['total_energy', 'forces', 'virial']
         config['dataset_key_mapping'] = {
@@ -203,7 +235,7 @@ class NequIPModel(BaseModel):
                 }
         super().__init__(context, config)
 
-    def initialize(self, dataset):
+    def initialize(self, dataset: Dataset) -> None:
         assert self.config_future is None
         assert self.model_future is None
         self.deploy_future = {}
@@ -214,7 +246,7 @@ class NequIPModel(BaseModel):
                 )
         self.model_future = self.config_future.outputs[0] # to undeployed model
 
-    def deploy(self):
+    def deploy(self) -> None:
         assert self.config_future is not None
         assert self.model_future is not None
         self.deploy_future['float32'] = self.context.apps(NequIPModel, 'deploy_float32')(
@@ -228,7 +260,7 @@ class NequIPModel(BaseModel):
                 outputs=[File(_new_file(self.context.path, 'deployed_', '.pth'))],
                 ).outputs[0]
 
-    def train(self, training, validation):
+    def train(self, training: Dataset, validation: Dataset) -> None:
         self.deploy_future = {} # no longer valid
         self.model_future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
                 self.config_future,
@@ -236,23 +268,27 @@ class NequIPModel(BaseModel):
                 outputs=[File(_new_file(self.context.path, 'model_', '.pth'))]
                 ).outputs[0]
 
-    def save_deployed(self, path_deployed, dtype='float32'):
+    def save_deployed(
+            self,
+            path_deployed: Union[Path, str],
+            dtype: str = 'float32',
+            ) -> DataFuture:
         return copy_data_future(
                 inputs=[self.deploy_future[dtype]],
                 outputs=[File(str(path_deployed))],
-                )
+                ).outputs[0] # return data future
 
-    def reset(self):
+    def reset(self) -> None:
         self.config_future = None
         self.model_future = None
         self.deploy_future = {}
 
-    def set_seed(self, seed):
+    def set_seed(self, seed: int) -> None:
         self.config_raw['seed'] = seed
         self.config_raw['dataset_seed'] = seed
 
     @classmethod
-    def create_apps(cls, context):
+    def create_apps(cls, context: ExecutionContext) -> None:
         training_label  = context[TrainingExecutionDefinition].label
         training_device = context[TrainingExecutionDefinition].device
         training_dtype  = context[TrainingExecutionDefinition].dtype
@@ -307,7 +343,13 @@ class NequIPModel(BaseModel):
         context.register_app(cls, 'evaluate', evaluate_wrapped)
 
     @classmethod
-    def load_calculator(cls, path_model, device, dtype, set_global_options='warn'):
+    def load_calculator(
+            cls,
+            path_model: Union[Path, str],
+            device: str,
+            dtype: str,
+            set_global_options: str = 'warn',
+            ) -> BaseCalculator:
         from nequip.ase import NequIPCalculator
         return NequIPCalculator.from_deployed_model(
                 model_path=path_model,

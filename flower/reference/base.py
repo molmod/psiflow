@@ -1,3 +1,6 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List
+import typeguard
 from dataclasses import dataclass
 from copy import deepcopy
 
@@ -7,25 +10,30 @@ from parsl.data_provider.files import File
 
 from ase import Atoms
 
-from flower.execution import Container
+from flower.execution import Container, ExecutionContext
 from flower.data import FlowerAtoms, Dataset, read_dataset, save_dataset, \
         get_length_dataset
 from flower.utils import _new_file
 
 
+@typeguard.typechecked
 @dataclass
 class EmptyParameters:
     pass
 
 
+@typeguard.typechecked
 class BaseReference(Container):
     parameters_cls = EmptyParameters
 
-    def __init__(self, context, **kwargs):
+    def __init__(self, context: ExecutionContext, **kwargs) -> None:
         super().__init__(context)
         self.parameters = self.parameters_cls(**deepcopy(kwargs))
 
-    def evaluate(self, arg):
+    def evaluate(
+            self,
+            arg: Union[Dataset, Atoms, FlowerAtoms, AppFuture],
+            ) -> Union[Dataset, AppFuture]:
         parameters = deepcopy(self.parameters)
         if isinstance(arg, Dataset):
             data_future = self.context.apps(self.__class__, 'evaluate_multiple')(
@@ -34,7 +42,7 @@ class BaseReference(Container):
                     inputs=[arg.data_future],
                     outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                     ).outputs[0]
-            return Dataset(self.context, data_future=data_future)
+            return Dataset(self.context, None, data_future=data_future)
         else:
             if type(arg) == Atoms: # convert to FlowerAtoms
                 arg = FlowerAtoms.from_atoms(arg)
@@ -47,7 +55,7 @@ class BaseReference(Container):
                     )
 
     @classmethod
-    def create_apps(cls, context):
+    def create_apps(cls, context: ExecutionContext) -> None:
         assert not (cls == BaseReference) # should never be called directly
         def evaluate_multiple(parameters, nstates, inputs=[], outputs=[]):
             assert len(outputs) == 1

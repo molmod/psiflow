@@ -1,3 +1,6 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union, List, Any, Tuple, Dict
+import typeguard
 import os
 import tempfile
 import numpy as np
@@ -7,9 +10,15 @@ from pathlib import Path
 from ase.data import atomic_numbers
 
 from parsl.app.app import python_app
+from parsl.data_provider.files import File
 
 
-def get_index_element_mask(numbers, elements, atom_indices):
+@typeguard.typechecked
+def get_index_element_mask(
+        numbers: np.ndarray,
+        elements: Optional[List[str]],
+        atom_indices: Optional[List[int]],
+        ) -> np.ndarray:
     mask = np.array([True] * len(numbers))
 
     if elements is not None:
@@ -26,7 +35,8 @@ def get_index_element_mask(numbers, elements, atom_indices):
     return mask
 
 
-def _new_file(path, prefix, suffix):
+@typeguard.typechecked
+def _new_file(path: Union[Path, str], prefix: str, suffix: str) -> str:
     _, name = tempfile.mkstemp(
             suffix=suffix,
             prefix=prefix,
@@ -35,49 +45,50 @@ def _new_file(path, prefix, suffix):
     return name
 
 
-@python_app(executors=['default'])
-def sum_inputs(inputs=[]):
-    return sum(inputs)
-
-
-@python_app(executors=['default'])
-def copy_data_future(inputs=[], outputs=[]):
+@typeguard.typechecked
+def _copy_data_future(inputs: List[File] = [], outputs: List[File] = []) -> None:
     import shutil
+    assert len(inputs)  == 1
+    assert len(outputs) == 1
     shutil.copyfile(inputs[0], outputs[0])
+copy_data_future = python_app(_copy_data_future, executors=['default'])
 
 
-@python_app(executors=['default'])
-def copy_app_future(future):
+@typeguard.typechecked
+def _copy_app_future(future: Any) -> Any:
     from copy import deepcopy
     return deepcopy(future)
+copy_app_future = python_app(_copy_app_future, executors=['default'])
 
 
-@python_app(executors=['default'])
-def unpack_i(result, i):
+@typeguard.typechecked
+def _unpack_i(result: Union[List, Tuple], i: int) -> Any:
     return result[i]
+unpack_i = python_app(_unpack_i, executors=['default'])
 
 
-@python_app(executors=['default'])
-def save_yaml(input_dict, outputs=[]):
+@typeguard.typechecked
+def _save_yaml(input_dict: Dict, outputs: List[File] = []) -> None:
     import yaml
     with open(outputs[0], 'w') as f:
         yaml.dump(input_dict, f, default_flow_style=False)
+save_yaml = python_app(_save_yaml, executors=['default'])
 
 
-@python_app(executors=['default'])
-def save_atoms(atoms, outputs=[]):
-    from ase.io import write
-    write(outputs[0].filepath, atoms)
-
-
-@python_app(executors=['default'])
-def save_txt(data, outputs=[]):
+@typeguard.typechecked
+def _save_txt(data: str, outputs: List[File] = []) -> None:
     with open(outputs[0], 'w') as f:
         f.write(data)
+save_txt = python_app(_save_txt, executors=['default'])
 
-
-@python_app(executors=['default'])
-def log_data_to_wandb(run_name, group, project, names, inputs=[]):
+@typeguard.typechecked
+def _log_data_to_wandb(
+        run_name: str,
+        group: str,
+        project: str,
+        names: List[str],
+        inputs: List[List[List]] = [], # list of 2D tables
+        ) -> None:
     wandb_log = {}
     assert len(names) == len(inputs)
     for name, data in zip(names, inputs):
@@ -95,3 +106,4 @@ def log_data_to_wandb(run_name, group, project, names, inputs=[]):
             )
     wandb.log(wandb_log)
     wandb.finish()
+log_data_to_wandb = python_app(_log_data_to_wandb, executors=['default'])

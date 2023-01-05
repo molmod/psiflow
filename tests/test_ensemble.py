@@ -5,12 +5,12 @@ import numpy as np
 from flower.sampling import RandomWalker, PlumedBias
 from flower.ensemble import Ensemble
 from flower.checks import SafetyCheck, InteratomicDistanceCheck
-from flower.data import Dataset
+from flower.data import Dataset, FlowerAtoms
 
 from tests.conftest import generate_emt_cu_data
 
 
-def test_ensemble_sampling(context, dataset, tmpdir):
+def test_ensemble_sampling(context, dataset, tmp_path):
     walker = RandomWalker(context, dataset[0])
     nwalkers = 10
     ensemble = Ensemble.from_walker(walker, nwalkers=nwalkers)
@@ -29,10 +29,10 @@ def test_ensemble_sampling(context, dataset, tmpdir):
                     )
 
     # test save and load
-    ensemble.save(tmpdir)
-    ensemble_ = Ensemble.load(context, tmpdir)
+    ensemble.save(tmp_path)
+    ensemble_ = Ensemble.load(context, tmp_path)
     assert ensemble_.nwalkers == nwalkers
-    ndirs = len([f for f in os.listdir(tmpdir) if os.path.isdir(tmpdir / f)])
+    ndirs = len([f for f in os.listdir(tmp_path) if os.path.isdir(tmp_path / f)])
     assert ndirs == nwalkers
 
     ensemble.walkers[3].tag_unsafe()
@@ -67,7 +67,8 @@ def test_ensemble_sampling(context, dataset, tmpdir):
 
 def test_generate_distributed(context):
     data = generate_emt_cu_data(1000, 1)
-    dataset = Dataset(context, atoms_list=data)
+    data = [FlowerAtoms.from_atoms(a) for a in data]
+    dataset = Dataset(context, data)
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
