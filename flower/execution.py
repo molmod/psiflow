@@ -3,9 +3,14 @@ from typing import Optional, Callable, Union
 import typeguard
 from dataclasses import dataclass
 from pathlib import Path
+import logging
 
 from parsl.executors import HighThroughputExecutor
 from parsl.config import Config
+
+
+logger = logging.getLogger(__name__) # logging per module
+logger.setLevel(logging.INFO)
 
 
 class ExecutionDefinition:
@@ -40,7 +45,12 @@ class ReferenceExecutionDefinition(ExecutionDefinition):
 @typeguard.typechecked
 class ExecutionContext:
 
-    def __init__(self, config: Config, path: Union[Path, str]) -> None:
+    def __init__(
+            self,
+            config: Config,
+            path: Union[Path, str],
+            enable_logging: bool = True,
+            ) -> None:
         self.config = config
         Path.mkdir(Path(path), parents=True, exist_ok=True)
         self.path = path
@@ -48,6 +58,8 @@ class ExecutionContext:
         self.execution_definitions = {}
         self._apps = {}
         assert 'default' in self.executor_labels
+        logging.basicConfig(format='%(name)s - %(message)s')
+        logging.getLogger('parsl').setLevel(logging.WARNING)
 
     def __getitem__(
             self,

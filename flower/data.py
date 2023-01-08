@@ -3,6 +3,7 @@ from typing import Optional, Union, List
 import typeguard
 import os
 import tempfile
+import logging
 import numpy as np
 from pathlib import Path
 
@@ -15,6 +16,10 @@ from ase import Atoms
 
 from flower.execution import Container, ExecutionContext
 from flower.utils import copy_data_future, _new_file
+
+
+logger = logging.getLogger(__name__) # logging per module
+logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
@@ -336,6 +341,9 @@ class Dataset(Container):
                 inputs=[self.data_future, dataset.data_future],
                 outputs=[File(path_new)],
                 ).outputs[0]
+
+    def log(self, name):
+        logger.info('dataset {} contains {} states'.format(name, self.length().result()))
 
     @property
     def success(self) -> AppFuture:

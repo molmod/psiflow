@@ -2,6 +2,7 @@ from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Callable, Dict, Tuple, Any
 import typeguard
 import os
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 import shutil
@@ -20,6 +21,10 @@ from flower.ensemble import Ensemble
 from flower.data import Dataset
 from flower.checks import Check, load_checks, SafetyCheck
 from flower.utils import copy_app_future, log_data_to_wandb
+
+
+logger = logging.getLogger(__name__) # logging per module
+logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
@@ -192,6 +197,7 @@ class Manager:
             wandb_project: str,
             wandb_group: str,
             error_kwargs: Optional[dict[str, Any]] = None,
+            error_x_axis: Optional[str] = 'index',
             ) -> None:
         self.path_output = Path(path_output)
         self.path_output.mkdir(parents=True, exist_ok=True)
@@ -204,6 +210,7 @@ class Manager:
                     'properties': ['energy', 'forces', 'stress'],
                     }
         self.error_kwargs = error_kwargs
+        self.error_x_axis = error_x_axis
 
     def dry_run(
             self,
@@ -267,7 +274,7 @@ class Manager:
         # log and save objects
         if ensemble is None:
             ensemble = _ensemble
-        log = self.log(
+        log = self.log_wandb(
                 'dry_run',
                 model,
                 ensemble,
@@ -312,7 +319,7 @@ class Manager:
         if data_valid is not None:
             data_valid.save(path / 'validate.xyz')
         if data_failed is not None:
-            data_valid.save(path / 'failed.xyz')
+            data_failed.save(path / 'failed.xyz')
 
         # save checks if necessary
         if checks is not None:
@@ -360,7 +367,7 @@ class Manager:
             checks = load_checks(path_checks, context)
         return model, ensemble, data_train, data_valid, checks
 
-    def log(
+    def log_wandb(
             self,
             run_name: str,
             model: BaseModel,
@@ -372,6 +379,7 @@ class Manager:
             bias: Optional[PlumedBias] = None,
             ) -> AppFuture:
         log_futures = {}
+        logger.info('logging data to wandb')
         if data_train is not None:
             log_futures['training'] = log_data( # log training and validation data as tables
                     dataset=data_train,
@@ -409,6 +417,7 @@ class Manager:
                 run_name,
                 self.wandb_group,
                 self.wandb_project,
+                self.error_x_axis,
                 list(log_futures.keys()),
                 inputs=list(log_futures.values()),
                 )

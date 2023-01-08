@@ -1,6 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Any, Dict
 import typeguard
+import logging
 from pathlib import Path
 
 from parsl.app.app import python_app
@@ -15,6 +16,10 @@ from flower.data import FlowerAtoms, Dataset
 from flower.execution import ModelExecutionDefinition, ExecutionContext, \
         TrainingExecutionDefinition
 from flower.utils import copy_data_future, _new_file
+
+
+logger = logging.getLogger(__name__) # logging per module
+logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
@@ -239,6 +244,8 @@ class NequIPModel(BaseModel):
         assert self.config_future is None
         assert self.model_future is None
         self.deploy_future = {}
+        logger.info('initializing {} using dataset of {} states'.format(
+            self.__class__.__name__, dataset.length().result()))
         self.config_future = self.context.apps(NequIPModel, 'initialize')( # to initialized config
                 self.config_raw,
                 inputs=[dataset.data_future],
@@ -261,6 +268,11 @@ class NequIPModel(BaseModel):
                 ).outputs[0]
 
     def train(self, training: Dataset, validation: Dataset) -> None:
+        logger.info('training {} using {} states for training and {} for validation'.format(
+            self.__class__.__name__,
+            training.length().result(),
+            validation.length().result(),
+            ))
         self.deploy_future = {} # no longer valid
         self.model_future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
                 self.config_future,

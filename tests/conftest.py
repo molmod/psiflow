@@ -1,12 +1,10 @@
 import pytest
-import sys
 import parsl
 import requests
 import yaml
 import torch
 import numpy as np
 import tempfile
-import importlib
 from pathlib import Path
 
 from ase import Atoms
@@ -16,6 +14,7 @@ from ase.calculators.emt import EMT
 from flower.execution import ExecutionContext, TrainingExecutionDefinition, \
         ModelExecutionDefinition, ReferenceExecutionDefinition
 from flower.data import Dataset, FlowerAtoms
+from flower.utils import get_parsl_config_from_file
 
 
 def pytest_addoption(parser):
@@ -28,21 +27,18 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope='session')
-def parsl_config(request, tmpdir_factory):
+def parsl_config(request, tmp_path_factory):
     parsl_config_path = Path(request.config.getoption('--parsl-config'))
-    assert parsl_config_path.is_file()
-    # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
-    spec = importlib.util.spec_from_file_location('module.name', parsl_config_path)
-    parsl_config_module = importlib.util.module_from_spec(spec)
-    sys.modules['module.name'] = parsl_config_module
-    spec.loader.exec_module(parsl_config_module)
-    return parsl_config_module.get_config(tmpdir_factory.mktemp('parsl_config_dir'))
+    return get_parsl_config_from_file(
+            parsl_config_path,
+            tmp_path_factory.mktemp('parsl_internal'),
+            )
 
 
 @pytest.fixture(scope='session')
 def context(parsl_config, tmpdir_factory):
     parsl.load(parsl_config)
-    path = str(tmpdir_factory.mktemp('internal'))
+    path = str(tmpdir_factory.mktemp('context_dir'))
     context = ExecutionContext(parsl_config, path=path)
     context.register(ModelExecutionDefinition())
     context.register(ReferenceExecutionDefinition(ncores=4, time_per_singlepoint=30))

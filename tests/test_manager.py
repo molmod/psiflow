@@ -59,6 +59,7 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
             'run_name',
             'test_log_dataset_ensemble',
             'pytest',
+            'CV',
             ['training'],
             inputs=[future],
             )
@@ -80,6 +81,7 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
             'run_name',
             'test_log_dataset_ensemble',
             'pytest',
+            'dummy',
             ['ensemble'],
             inputs=[future],
             )

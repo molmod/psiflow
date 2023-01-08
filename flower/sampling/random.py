@@ -8,7 +8,8 @@ from parsl.dataflow.futures import AppFuture
 
 from flower.data import FlowerAtoms
 from flower.execution import ModelExecutionDefinition, ExecutionContext
-from flower.sampling import BaseWalker
+from flower.sampling import BaseWalker, PlumedBias
+from flower.models import BaseModel
 
 
 @typeguard.typechecked

@@ -1,6 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Any, Dict
 import typeguard
+import logging
 from copy import deepcopy
 from pathlib import Path
 
@@ -16,6 +17,10 @@ from flower.sampling import load_walker, BaseWalker, PlumedBias
 from flower.utils import _new_file, copy_app_future
 
 
+logger = logging.getLogger(__name__) # logging per module
+logger.setLevel(logging.INFO)
+
+
 @typeguard.typechecked
 def _count_nstates(
         inputs: List[Optional[FlowerAtoms]] = [],
@@ -23,6 +28,15 @@ def _count_nstates(
         ) -> int:
     return sum([state is not None for state in inputs])
 count_nstates = python_app(_count_nstates, executors=['default'])
+
+
+@typeguard.typechecked
+def _dependency_dummy(inputs: List[Any]) -> bool:
+    from pathlib import Path
+    for input_ in inputs:
+        assert Path(input_.filepath).is_file()
+    return True
+dependency_dummy = python_app(_dependency_dummy, executors=['default'])
 
 
 @join_app
@@ -35,6 +49,7 @@ def conditional_sample(
         biases: List[Optional[PlumedBias]],
         model: Optional[BaseModel], # None for e.g. RandomWalker
         checks: List[Check],
+        #dependency: bool:
         inputs: List[Optional[FlowerAtoms]] = [],
         outputs: List[File] = [],
         ): # recursive
@@ -51,6 +66,7 @@ def conditional_sample(
             state = walker.propagate(
                     safe_return=False,
                     bias=bias,
+                    model=model,
                     keep_trajectory=False,
                     )
             walker.parameters.seed += len(walkers) # avoid generating same states
@@ -75,6 +91,7 @@ def conditional_sample(
             state = walker.propagate(
                     safe_return=False,
                     bias=bias,
+                    model=model,
                     keep_trajectory=False,
                     )
             walker.parameters.seed += len(walkers) # avoid generating same states
@@ -132,18 +149,32 @@ class Ensemble:
             model: Optional[BaseModel] = None,
             checks: Optional[List[Check]] = None,
             ) -> Dataset:
+        if model is not None: # copy model to avoid race condition!
+            model_ = model.copy()
+        else:
+            model_ = None
+        logger.info('sampling {} states with model: {} '.format(
+            nstates, model.__class__.__name__),
+            )
+        if checks is not None:
+            logger.info('using checks:')
+            for check in checks:
+                logger.info('\t{}'.format(check.__class__.__name__))
+        else:
+            logger.info('no checks applied to obtained states')
         data_future = conditional_sample(
                 self.context,
                 nstates,
                 0,
                 self.walkers,
                 self.biases,
-                model=model,
+                model=model_,
                 checks=checks if checks is not None else [],
                 inputs=[],
                 outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
                 ).outputs[0]
-        return Dataset(self.context, None, data_future=data_future)
+        dataset = Dataset(self.context, None, data_future=data_future)
+        return dataset # possible race condition on checks!
 
     def as_dataset(self, checks: Optional[List[Check]] = None) -> Dataset:
         context = self.walkers[0].context
@@ -171,6 +202,16 @@ class Ensemble:
 
     def reset(self, indices: Union[List[int], AppFuture]) -> AppFuture:
         return reset_walkers(self.walkers, indices)
+
+    def log(self):
+        if self.biases[0] is not None:
+            word = 'biased'
+        else:
+            word = 'unbiased'
+        logger.info('ensemble with {} {} walkers:'.format(len(self.walkers), word))
+        for i, walker in enumerate(self.walkers):
+            logger.info('\twalker {} is tagged as {}'.format(i, walker.tag_future.result()))
+        logger.info('')
 
     @classmethod
     def load(cls, context: ExecutionContext, path: Union[Path, str]) -> Ensemble:

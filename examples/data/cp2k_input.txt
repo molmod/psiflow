@@ -1,0 +1,57 @@
+&FORCE_EVAL
+   METHOD Quickstep
+   STRESS_TENSOR ANALYTICAL
+   &DFT
+      UKS  F
+      MULTIPLICITY  1
+      BASIS_SET_FILE_NAME  dummy
+      POTENTIAL_FILE_NAME  dummy
+      &SCF
+         MAX_SCF  10
+         MAX_DIIS  8
+         EPS_SCF  1.0E-06
+         SCF_GUESS  RESTART
+         &OT
+            MINIMIZER  CG
+            PRECONDITIONER  FULL_SINGLE_INVERSE
+         &END OT
+         &OUTER_SCF T
+            MAX_SCF  10
+            EPS_SCF  1.0E-06
+         &END OUTER_SCF
+      &END SCF
+      &QS
+         METHOD  GPW
+         EPS_DEFAULT  1.0E-4
+         EXTRAPOLATION  USE_GUESS
+      &END QS
+      &MGRID
+         REL_CUTOFF [Ry]  60.0
+         NGRIDS  5
+         CUTOFF [Ry] 500
+      &END MGRID
+      &XC
+         DENSITY_CUTOFF   1.0E-10
+         GRADIENT_CUTOFF  1.0E-10
+         TAU_CUTOFF       1.0E-10
+         &XC_FUNCTIONAL PBE
+         &END XC_FUNCTIONAL
+         &VDW_POTENTIAL
+            POTENTIAL_TYPE  PAIR_POTENTIAL
+            &PAIR_POTENTIAL
+               TYPE  DFTD3(BJ)
+               PARAMETER_FILE_NAME  parameter
+               REFERENCE_FUNCTIONAL PBE
+               R_CUTOFF  25
+            &END PAIR_POTENTIAL
+         &END VDW_POTENTIAL
+      &END XC
+   &END DFT
+   &SUBSYS
+      &KIND H
+         ELEMENT  H
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q1
+         POTENTIAL GTH-PBE-q1
+      &END KIND
+   &END SUBSYS
+&END FORCE_EVAL
