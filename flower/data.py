@@ -239,7 +239,18 @@ class Dataset(Container):
             atoms_list: Optional[Union[List[AppFuture], List[FlowerAtoms], AppFuture]],
             data_future: Optional[Union[DataFuture, File]] = None,
             ) -> None:
-        """Constructor"""
+        """Constructor
+
+        Args:
+            context: an `ExecutionContext` instance with a 'default' executor.
+            atoms_list: a list of `Atoms` instances which represent the dataset.
+            data_future: a `parsl.app.futures.DataFuture` instance that points
+                to an `.xyz` file.
+
+        Returns:
+            None
+
+        """
         super().__init__(context)
 
         if data_future is None: # generate new DataFuture

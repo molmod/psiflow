@@ -1,0 +1,9 @@
+site_name: Flower
+theme:
+  name: material
+
+nav:
+  - reference.md
+
+plugins:
+  - mkdocstrings
