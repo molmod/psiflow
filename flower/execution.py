@@ -29,7 +29,7 @@ class TrainingExecutionDefinition(ExecutionDefinition):
 class ModelExecutionDefinition(ExecutionDefinition):
     label : str = 'model'
     device: str = 'cpu'
-    ncores: int = 1
+    ncores: int = None
     dtype : str = 'float32'
 
 
@@ -76,8 +76,12 @@ class ExecutionContext:
             found = False
             for executor in self.config.executors:
                 if executor.label == execution.label:
-                    if type(executor) == HighThroughputExecutor:
-                        assert executor.cores_per_worker == execution.ncores
+                    if execution.ncores is None:
+                        assert type(executor) == HighThroughputExecutor:
+                        execution.ncores == executor.cores_per_worker
+                    else:
+                        if type(executor) == HighThroughputExecutor:
+                            assert executor.cores_per_worker == execution.ncores
         assert key not in self.execution_definitions.keys()
         self.execution_definitions[key] = execution
 
