@@ -144,6 +144,8 @@ def test_bias_evaluate(context, dataset):
             }
     walker = RandomWalker(context, dataset[0], **kwargs)
     ensemble = Ensemble.from_walker(walker, nwalkers=10)
+    for walker in ensemble.walkers:
+        print(walker.tag_future.result())
     dataset = ensemble.sample(nstates=10)
 
     plumed_input = """

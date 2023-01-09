@@ -12,7 +12,6 @@ from psiflow.execution import Container, ModelExecutionDefinition, \
         ExecutionContext
 from psiflow.sampling.base import BaseWalker
 from psiflow.models import BaseModel
-from psiflow.utils import _new_file
 
 
 @typeguard.typechecked
@@ -22,6 +21,7 @@ def optimize_geometry(
         state: FlowAtoms,
         parameters: OptimizationParameters,
         load_calculator: Callable,
+        keep_trajectory: bool = False,
         plumed_input: str = '',
         inputs: List[File] = [],
         outputs: List[File] = [],
@@ -74,9 +74,11 @@ def optimize_geometry(
         tag = 'unsafe'
         pass
     atoms.calc = None
-    with open(outputs[0], 'w') as f:
-        trajectory = read(path_traj)
-        write_extxyz(f, trajectory)
+    if keep_trajectory:
+        assert str(outputs[0].filepath).endswith('.xyz')
+        with open(outputs[0], 'w') as f:
+            trajectory = read(path_traj)
+            write_extxyz(f, trajectory)
     os.unlink(path_traj)
     return FlowAtoms.from_atoms(atoms), tag
 
@@ -98,7 +100,6 @@ class OptimizationWalker(BaseWalker):
         label = context[ModelExecutionDefinition].label
         device = context[ModelExecutionDefinition].device
         ncores = context[ModelExecutionDefinition].ncores
-        path = context.path
 
         app_optimize = python_app(
                 optimize_geometry,
@@ -110,26 +111,27 @@ class OptimizationWalker(BaseWalker):
                 parameters: OptimizationParameters,
                 model: BaseModel = None,
                 keep_trajectory: bool = False,
+                file: Optional[File] = None,
                 **kwargs,
-                ) -> Tuple[AppFuture, Optional[Dataset]]:
+                ) -> AppFuture:
             assert model is not None # model is required
             assert 'float64' in model.deploy_future.keys() # has to be deployed
             inputs = [model.deploy_future['float64']]
-            outputs = [File(_new_file(path, 'traj_', '.xyz'))]
+            outputs = []
+            if keep_trajectory:
+                assert file is not None
+                outputs.append(file)
             result = app_optimize(
                     device,
                     ncores,
                     state,
                     parameters,
                     model.load_calculator, # load function
+                    keep_trajectory=keep_trajectory,
                     inputs=inputs,
                     outputs=outputs,
                     )
-            if not keep_trajectory:
-                dataset = None
-            else:
-                dataset = Dataset(context, data_future=result.outputs[0])
-            return result, dataset
+            return result
 
         context.register_app(cls, 'propagate', optimize_wrapped)
         super(OptimizationWalker, cls).create_apps(context)

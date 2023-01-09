@@ -14,7 +14,7 @@ from psiflow.models import BaseModel
 from psiflow.checks import Check
 from psiflow.data import Dataset, save_dataset, FlowAtoms
 from psiflow.sampling import load_walker, BaseWalker, PlumedBias
-from psiflow.utils import _new_file, copy_app_future
+from psiflow.utils import copy_app_future
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -56,7 +56,6 @@ def conditional_sample(
     import numpy as np
     from psiflow.data import read_dataset
     from psiflow.ensemble import count_nstates
-    from psiflow.utils import _new_file
     states = inputs
     if nstates_effective == 0:
         for i in range(len(walkers)):
@@ -84,6 +83,7 @@ def conditional_sample(
                     outputs=[outputs[0]],
                     )
             return data_future
+        np.random.seed(batch_size) # ensure reproducibility
         for i in range(batch_size):
             index = np.random.randint(0, len(walkers))
             walker = walkers[index]
@@ -171,7 +171,7 @@ class Ensemble:
                 model=model_,
                 checks=checks if checks is not None else [],
                 inputs=[],
-                outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
+                outputs=[self.context.new_file('data_', '.xyz')],
                 ).outputs[0]
         dataset = Dataset(self.context, None, data_future=data_future)
         return dataset # possible race condition on checks!

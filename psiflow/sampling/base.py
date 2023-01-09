@@ -82,11 +82,16 @@ class BaseWalker(Container):
             **kwargs,
             ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
         app = self.context.apps(self.__class__, 'propagate')
-        result, dataset = app(
+        if keep_trajectory:
+            file = self.context.new_file('data_', '.xyz')
+        else:
+            file = None
+        result = app(
                 self.state_future,
                 deepcopy(self.parameters),
-                **kwargs, # Model or Bias instance
                 keep_trajectory=keep_trajectory,
+                file=file,
+                **kwargs, # Model or Bias instance
                 )
         self.state_future = unpack_i(result, 0)
         self.tag_future   = update_tag(self.tag_future, unpack_i(result, 1))
@@ -101,8 +106,7 @@ class BaseWalker(Container):
             future = self.state_future
         future = copy_app_future(future) # necessary
         if keep_trajectory:
-            assert dataset is not None
-            return future, dataset
+            return future, Dataset(self.context, None, data_future=result.outputs[0])
         else:
             return future
 

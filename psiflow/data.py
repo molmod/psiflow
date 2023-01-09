@@ -15,7 +15,7 @@ from parsl.dataflow.futures import AppFuture
 from ase import Atoms
 
 from psiflow.execution import Container, ExecutionContext
-from psiflow.utils import copy_data_future, _new_file
+from psiflow.utils import copy_data_future
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -265,18 +265,16 @@ class Dataset(Container):
                 else:
                     states = [FlowAtoms.from_atoms(a) for a in atoms_list]
                     inputs = []
-            path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
             self.data_future = context.apps(Dataset, 'save_dataset')(
                     states,
                     inputs=inputs,
-                    outputs=[File(path_new)],
+                    outputs=[context.new_file('data_', '.xyz')],
                     ).outputs[0]
         else:
             assert atoms_list is None # do not allow additional atoms
-            path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
             self.data_future = copy_data_future(
                     inputs=[data_future],
-                    outputs=[File(path_new)],
+                    outputs=[context.new_file('data_', '.xyz')],
                     ).outputs[0] # ensure type(data_future) == DataFuture
 
     def length(self) -> AppFuture:
@@ -298,11 +296,10 @@ class Dataset(Container):
             ) -> Union[Dataset, AppFuture]:
         if indices is not None:
             assert index is None
-            path_new = _new_file(self.context.path, 'data_', '.xyz')
             data_future = self.context.apps(Dataset, 'read_dataset')(
                     indices,
                     inputs=[self.data_future],
-                    outputs=[File(path_new)],
+                    outputs=[self.context.new_file('data_', '.xyz')],
                     ).outputs[0]
             return Dataset(self.context, None, data_future=data_future)
         else:
@@ -347,10 +344,9 @@ class Dataset(Container):
         return future
 
     def append(self, dataset: Dataset) -> None:
-        path_new = _new_file(self.context.path, prefix='data_', suffix='.xyz')
         self.data_future = self.context.apps(Dataset, 'join_dataset')(
                 inputs=[self.data_future, dataset.data_future],
-                outputs=[File(path_new)],
+                outputs=[self.context.new_file('data_', '.xyz')],
                 ).outputs[0]
 
     def log(self, name):
@@ -383,10 +379,9 @@ class Dataset(Container):
     def merge(*datasets: Dataset) -> Dataset:
         assert len(datasets) > 0
         context = datasets[0].context
-        path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
         data_future = context.apps(Dataset, 'join_dataset')(
                 inputs=[item.data_future for item in datasets],
-                outputs=[File(path_new)],
+                outputs=[context.new_file('data_', '.xyz')],
                 ).outputs[0]
         return Dataset(context, None, data_future=data_future)
 

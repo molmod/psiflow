@@ -6,6 +6,7 @@ from pathlib import Path
 import logging
 
 from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
+from parsl.data_provider.files import File
 from parsl.config import Config
 
 
@@ -55,10 +56,11 @@ class ExecutionContext:
             ) -> None:
         self.config = config
         Path.mkdir(Path(path), parents=True, exist_ok=True)
-        self.path = path
+        self.path = Path(path)
         self.executor_labels = [e.label for e in config.executors]
         self.execution_definitions = {}
         self._apps = {}
+        self.file_index = {}
         assert 'default' in self.executor_labels
         logging.basicConfig(format='%(name)s - %(message)s')
         logging.getLogger('parsl').setLevel(logging.WARNING)
@@ -104,6 +106,19 @@ class ExecutionContext:
             self._apps[container] = {}
         assert app_name not in self._apps[container].keys()
         self._apps[container][app_name] = app
+
+    def new_file(self, prefix: str, suffix: str) -> File:
+        assert prefix[-1] == '_'
+        assert suffix[0]  == '.'
+        key = (prefix, suffix)
+        if key not in self.file_index.keys():
+            self.file_index[key] = 0
+        padding = 6
+        assert self.file_index[key] < (16 ** padding)
+        identifier = '{0:0{1}x}'.format(self.file_index[key], padding)
+        self.file_index[key] += 1
+        print(prefix + identifier + suffix)
+        return File(str(self.path / (prefix + identifier + suffix)))
 
 
 @typeguard.typechecked

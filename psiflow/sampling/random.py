@@ -66,10 +66,10 @@ class RandomWalker(BaseWalker):
                 parameters: RandomParameters,
                 keep_trajectory: bool = False,
                 **kwargs,
-                ) -> Tuple[AppFuture, None]:
+                ) -> AppFuture:
             # ignore additional kwargs; return None as dataset
             assert not keep_trajectory
-            return app_propagate(state, parameters), None
+            return app_propagate(state, parameters)
 
         context.register_app(cls, 'propagate', propagate_wrapped)
         super(RandomWalker, cls).create_apps(context)

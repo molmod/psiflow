@@ -17,7 +17,7 @@ from psiflow.models import BaseModel
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.execution import ModelExecutionDefinition, ExecutionContext, \
         TrainingExecutionDefinition
-from psiflow.utils import copy_data_future, _new_file
+from psiflow.utils import copy_data_future
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -258,7 +258,7 @@ class NequIPModel(BaseModel):
         self.config_future = self.context.apps(NequIPModel, 'initialize')( # to initialized config
                 self.config_raw,
                 inputs=[dataset.data_future],
-                outputs=[File(_new_file(self.context.path, 'model_', '.pth'))],
+                outputs=[self.context.new_file('model_', '.pth')],
                 )
         self.model_future = self.config_future.outputs[0] # to undeployed model
 
@@ -268,12 +268,12 @@ class NequIPModel(BaseModel):
         self.deploy_future['float32'] = self.context.apps(NequIPModel, 'deploy_float32')(
                 self.config_future,
                 inputs=[self.model_future],
-                outputs=[File(_new_file(self.context.path, 'deployed_', '.pth'))],
+                outputs=[self.context.new_file('deployed_', '.pth')],
                 ).outputs[0]
         self.deploy_future['float64'] = self.context.apps(NequIPModel, 'deploy_float64')(
                 self.config_future,
                 inputs=[self.model_future],
-                outputs=[File(_new_file(self.context.path, 'deployed_', '.pth'))],
+                outputs=[self.context.new_file('deployed_', '.pth')],
                 ).outputs[0]
 
     def train(self, training: Dataset, validation: Dataset) -> AppFuture:
@@ -286,7 +286,7 @@ class NequIPModel(BaseModel):
         future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
                 self.config_future,
                 inputs=[self.model_future, training.data_future, validation.data_future],
-                outputs=[File(_new_file(self.context.path, 'model_', '.pth'))]
+                outputs=[self.context.new_file('model_', '.pth')]
                 )
         self.model_future = future.outputs[0]
         return future # represents number of trained epochs 

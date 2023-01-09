@@ -12,7 +12,7 @@ from parsl.data_provider.files import File
 
 from psiflow.execution import Container, ModelExecutionDefinition, \
         ExecutionContext
-from psiflow.data import Dataset, _new_file
+from psiflow.data import Dataset
 from psiflow.utils import copy_app_future, save_yaml, copy_data_future
 
 
@@ -78,13 +78,12 @@ class BaseModel(Container):
 
     def evaluate(self, dataset: Dataset, suffix: str = '_model') -> Dataset:
         """Evaluates a dataset using a model and returns it as a covalent electron"""
-        path_xyz = _new_file(self.context.path, 'data_', '.xyz')
         dtype = self.context[ModelExecutionDefinition].dtype
         assert dtype in self.deploy_future.keys()
         data_future = self.context.apps(self.__class__, 'evaluate')(
                 suffix=suffix,
                 inputs=[dataset.data_future, self.deploy_future[dtype]],
-                outputs=[File(path_xyz)],
+                outputs=[self.context.new_file('data_', '.xyz')],
                 ).outputs[0]
         return Dataset(self.context, None, data_future=data_future)
 
@@ -127,12 +126,12 @@ class BaseModel(Container):
             model.config_future = copy_app_future(self.config_future)
             model.model_future = copy_data_future(
                     inputs=[self.model_future],
-                    outputs=[File(_new_file(self.context.path, 'model_', '.pth'))],
+                    outputs=[self.context.new_file('model_', '.pth')],
                     ).outputs[0]
         if len(self.deploy_future) > 0:
             for key, future in self.deploy_future.items():
                 model.deploy_future[key] = copy_data_future(
                         inputs=[self.deploy_future[key]],
-                        outputs=[File(_new_file(self.context.path, 'model_', '.pth'))],
+                        outputs=[self.context.new_file('model_', '.pth')],
                         ).outputs[0]
         return model

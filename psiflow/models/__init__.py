@@ -13,7 +13,7 @@ def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
     from pathlib import Path
     import yaml
     from parsl.data_provider.files import File
-    from psiflow.utils import copy_app_future, copy_data_future, _new_file
+    from psiflow.utils import copy_app_future, copy_data_future
     path = Path(path)
     assert path.is_dir()
     classes = [
@@ -37,6 +37,6 @@ def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
         model.config_future = copy_app_future(config_init)
         model.model_future = copy_data_future(
                 inputs=[File(str(path_model))],
-                outputs=[File(_new_file(context.path, 'model_', '.pth'))],
+                outputs=[context.new_file('model_', '.pth')],
                 ).outputs[0]
     return model

@@ -16,7 +16,7 @@ from parsl.dataflow.futures import AppFuture
 
 from psiflow.execution import Container, ModelExecutionDefinition, \
         ExecutionContext
-from psiflow.utils import _new_file, copy_data_future, save_txt
+from psiflow.utils import copy_data_future, save_txt, create_if_empty
 from psiflow.data import read_dataset, Dataset
 
 
@@ -196,25 +196,30 @@ class PlumedBias(Container):
             for key, value in data.items():
                 assert key in self.keys
                 if type(value) == str:
-                    path_new = _new_file(context.path, key + '_', '.txt')
-                    with open(path_new, 'w') as f:
-                        f.write(value)
-                    self.data_futures[key] = File(path_new)
+                    self.data_futures[key] = save_txt(
+                            value,
+                            outputs=[context.new_file(key + '_', '.txt')],
+                            ).outputs[0]
                 else:
                     assert (isinstance(value, DataFuture) or isinstance(value, File))
                     self.data_futures[key] = value
         for key in self.keys:
             if (key not in self.data_futures.keys()) and (key in PlumedBias.keys_with_future):
                 assert key != 'EXTERNAL' # has to be initialized by user
-                self.data_futures[key] = File(_new_file(context.path, key + '_', '.txt'))
+                self.data_futures[key] = save_txt(
+                        '',
+                        outputs=[context.new_file(key + '_', '.txt')],
+                        ).outputs[0]
         for key, value in self.data_futures.items():
-            if isinstance(value, File): # conver to DataFuture for consistency
+            if isinstance(value, File): # convert to DataFuture for consistency
                 self.data_futures[key] = copy_data_future(
                         inputs=[value],
-                        outputs=[File(_new_file(context.path, key + '_', '.txt'))],
+                        outputs=[context.new_file(key + '_', '.txt')],
                         ).outputs[0]
         if 'METAD' in self.keys:
             self.data_futures.move_to_end('METAD', last=False)
+        #for key, value in self.data_futures.items(): # some are empty
+        #    create_if_empty(outputs=[value]).result()
 
     def evaluate(self, dataset: Dataset, variable: str) -> AppFuture:
         assert variable in [c[1] for c in self.components]
@@ -257,7 +262,7 @@ class PlumedBias(Container):
         for key, future in self.data_futures.items():
             new_futures[key] = copy_data_future(
                     inputs=[future],
-                    outputs=[File(_new_file(self.context.path, 'bias_', '.txt'))],
+                    outputs=[self.context.new_file('bias_', '.txt')],
                     ).outputs[0]
         return PlumedBias(
                 self.context,

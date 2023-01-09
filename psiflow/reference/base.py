@@ -13,7 +13,6 @@ from ase import Atoms
 from psiflow.execution import Container, ExecutionContext
 from psiflow.data import FlowAtoms, Dataset, read_dataset, save_dataset, \
         get_length_dataset
-from psiflow.utils import _new_file
 
 
 @typeguard.typechecked
@@ -40,7 +39,7 @@ class BaseReference(Container):
                     parameters,
                     arg.length(),
                     inputs=[arg.data_future],
-                    outputs=[File(_new_file(self.context.path, 'data_', '.xyz'))],
+                    outputs=[self.context.new_file('data_', '.xyz')],
                     ).outputs[0]
             return Dataset(self.context, None, data_future=data_future)
         else:

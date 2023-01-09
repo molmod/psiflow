@@ -5,6 +5,8 @@ import yaml
 from pathlib import Path
 import numpy as np
 
+from ase.io import read
+
 import parsl
 
 from psiflow.manager import Manager

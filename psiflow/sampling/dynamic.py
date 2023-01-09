@@ -9,7 +9,7 @@ from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.execution import ModelExecutionDefinition, ExecutionContext
-from psiflow.utils import copy_data_future, unpack_i, _new_file
+from psiflow.utils import copy_data_future, unpack_i
 from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 
@@ -22,6 +22,7 @@ def simulate_model(
         state: FlowAtoms,
         parameters: DynamicParameters,
         load_calculator: Callable,
+        keep_trajectory: bool = False,
         plumed_input: str = '',
         inputs: List[File] =[],
         outputs: List[File] = [],
@@ -59,8 +60,12 @@ def simulate_model(
     if len(plumed_input) > 0: # add bias if present
         try_manual_plumed_linking()
         if len(inputs) > 1: # item 1 is hills file; only one to backup
-            with open(inputs[1], 'r') as f:
+            with open(inputs[1], 'r') as f: # always exists
                 backup_data = f.read() # backup data
+            #except FileNotFoundError:
+            #    backup_data = ''
+            #    with open(inputs[1], 'w+') as f: # create it if it doesn't exist
+            #        f.write(backup_data) # otherwise, plumed complains
         with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
             f.write(plumed_input) # write input
         path_plumed = f.name
@@ -131,8 +136,10 @@ def simulate_model(
         state.set_cell(datahook.data[-1].get_cell())
 
     # write data to output xyz
-    with open(outputs[0], 'w+') as f:
-        write_extxyz(f, datahook.data)
+    if keep_trajectory:
+        assert str(outputs[0].filepath).endswith('.xyz')
+        with open(outputs[0], 'w+') as f:
+            write_extxyz(f, datahook.data)
     return FlowAtoms.from_atoms(state), tag
 
 
@@ -161,8 +168,6 @@ class DynamicWalker(BaseWalker):
         ncores = context[ModelExecutionDefinition].ncores
         dtype = context[ModelExecutionDefinition].dtype
 
-        path = context.path
-
         app_propagate = python_app(
                 simulate_model,
                 executors=[label],
@@ -174,12 +179,16 @@ class DynamicWalker(BaseWalker):
                 model: BaseModel = None,
                 bias: Optional[PlumedBias] = None,
                 keep_trajectory: bool = False,
+                file: Optional[File] = None,
                 **kwargs,
-                ) -> Tuple[AppFuture, Optional[Dataset]]:
+                ) -> AppFuture:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
             inputs = [model.deploy_future[dtype]]
-            outputs = [File(_new_file(path, 'traj_', '.xyz'))]
+            outputs = []
+            if keep_trajectory:
+                assert file is not None
+                outputs.append(file)
             if bias is not None:
                 plumed_input = bias.prepare_input()
                 inputs += list(bias.data_futures.values())
@@ -193,18 +202,19 @@ class DynamicWalker(BaseWalker):
                     state,
                     parameters,
                     model.load_calculator, # load function
+                    keep_trajectory=keep_trajectory,
                     plumed_input=plumed_input,
                     inputs=inputs,
                     outputs=outputs,
                     )
             if bias is not None: # ensure dependency on new hills is set
                 if 'METAD' in bias.keys:
-                    bias.data_futures['METAD'] = result.outputs[1]
-            if not keep_trajectory:
-                dataset = None
-            else:
-                dataset = Dataset(context, None, data_future=result.outputs[0])
-            return result, dataset
+                    if keep_trajectory:
+                        index = 1
+                    else:
+                        index = 0
+                    bias.data_futures['METAD'] = result.outputs[index]
+            return result
 
         context.register_app(cls, 'propagate', propagate_wrapped)
         super(DynamicWalker, cls).create_apps(context)
