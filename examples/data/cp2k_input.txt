@@ -53,5 +53,15 @@
          BASIS_SET TZVP-MOLOPT-PBE-GTH-q1
          POTENTIAL GTH-PBE-q1
       &END KIND
+      &KIND O
+         ELEMENT  O
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q6
+         POTENTIAL GTH-PBE-q6
+      &END KIND
+      &KIND Si
+         ELEMENT  Si
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q4
+         POTENTIAL GTH-PBE-q4
+      &END KIND
    &END SUBSYS
 &END FORCE_EVAL

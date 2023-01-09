@@ -176,6 +176,10 @@ class Ensemble:
         dataset = Dataset(self.context, None, data_future=data_future)
         return dataset # possible race condition on checks!
 
+    def add_bias(self, bias):
+        for i in range(len(self.walkers)):
+            self.biases[i] = bias.copy()
+
     def as_dataset(self, checks: Optional[List[Check]] = None) -> Dataset:
         context = self.walkers[0].context
         states = []

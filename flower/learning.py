@@ -127,6 +127,8 @@ class OnlineLearning(BaseLearning):
             if self.parameters.retrain_model_per_iteration:
                 model.reset()
                 model.initialize(data_train)
+            data_train.log('data_train')
+            data_valid.log('data_valid')
             epochs = model.train(data_train, data_valid)
             logger.info('trained model for {} epochs'.format(epochs.result()))
             manager.save(

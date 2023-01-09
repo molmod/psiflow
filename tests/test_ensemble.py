@@ -91,6 +91,16 @@ RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
             dataset=extracted,
             )
 
+    # test adding bias
+    ensemble.add_bias(bias)
+    for i in range(len(ensemble.biases) - 1):
+        for j in range(i + 1, len(ensemble.biases)):
+            assert ensemble.biases[i] is not None
+            assert ensemble.biases[j] is not None
+            assert id(ensemble.biases[i]) != id(ensemble.biases[j])
+            assert 'CV' in ensemble.biases[i].variables
+            assert 'RESTRAINT' in ensemble.biases[i].keys
+
     # verify OK
     as_dataset = ensemble.as_dataset()
     values_extracted = bias.evaluate(extracted, variable='CV').result()

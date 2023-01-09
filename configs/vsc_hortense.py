@@ -283,14 +283,12 @@ def get_config(path_internal):
             channel=channel,
             nodes_per_block=1,
             cores_per_node=8,
-            min_blocks=0,
+            min_blocks=2,
             max_blocks=512,
             parallelism=1,
-            walltime='00:30:00',
+            walltime='02:00:00',
             worker_init=worker_init,
             exclusive=False,
-            #scheduler_options='#SBATCH --export=None',
-            #script_dir='/home/sandervandenhaute/doctorate/source/test/test_parsl/slurm_scripts',
             )
     default = HighThroughputExecutor(
             label='default',
@@ -304,7 +302,7 @@ def get_config(path_internal):
             provider=provider,
             address=os.environ['HOSTNAME'],
             working_dir=str(path_internal / 'model_executor'),
-            cores_per_worker=1,
+            cores_per_worker=4,
             )
 
     worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml Flower-develop/10Dec2022-CUDA-11.3.1'
@@ -317,7 +315,7 @@ def get_config(path_internal):
             min_blocks=0,
             max_blocks=4,
             parallelism=1.0,
-            walltime='01:00:00',
+            walltime='01:05:00', # slightly larger than walltime in train app
             worker_init=worker_init,
             exclusive=False,
             scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n#SBATCH --export=None', # request gpu
@@ -330,29 +328,25 @@ def get_config(path_internal):
             cores_per_worker=12,
             )
 
-    #worker_init = 'module swap cluster/dodrio/cpu_rome; ml CP2K/8.2-foss-2021a; ml Flower-develop/10Dec2022-CPU'
     worker_init = 'ml CP2K/8.2-foss-2021a; ml Flower-develop/10Dec2022-CPU'
     provider = SlurmProvider(
             partition='cpu_rome',
             account='2022_050',
             channel=channel,
             nodes_per_block=1,
-            cores_per_node=4,
+            cores_per_node=64,
             min_blocks=0,
             max_blocks=16,
             parallelism=1,
             walltime='01:00:00',
             worker_init=worker_init,
             exclusive=False,
-            #scheduler_options='\nprintenv\nml',
-            #scheduler_options='#SBATCH --export=None',
-            #script_dir='/home/sandervandenhaute/doctorate/source/test/test_parsl/slurm_scripts',
             )
     reference = HighThroughputExecutor(
             label='reference',
             provider=provider,
             address=os.environ['HOSTNAME'],
             working_dir=str(path_internal / 'reference_executor'),
-            cores_per_worker=4,
+            cores_per_worker=32,
             )
     return Config(executors=[default, model, reference, training], usage_tracking=True, run_dir=str(path_internal))
