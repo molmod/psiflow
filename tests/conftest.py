@@ -42,7 +42,7 @@ def context(parsl_config, tmpdir_factory):
     context = ExecutionContext(parsl_config, path=path)
     context.register(ModelExecutionDefinition())
     context.register(ReferenceExecutionDefinition(ncores=4, time_per_singlepoint=30))
-    context.register(TrainingExecutionDefinition())
+    context.register(TrainingExecutionDefinition(walltime=30))
     yield context
     parsl.clear()
 
@@ -53,6 +53,8 @@ def nequip_config(tmp_path):
     config = yaml.load(config_text, Loader=yaml.FullLoader)
     config['r_max'] = 3.5 # reduce computational cost of data processing
     config['chemical_symbols'] = ['X'] # should get overridden
+    config['l_max'] = 1
+    config['max_epochs'] = 10000
     return config
 
 

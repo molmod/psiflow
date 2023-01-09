@@ -62,7 +62,8 @@ class RandomLearning(BaseLearning):
         data_train.log('data_train')
         data_valid.log('data_valid')
         model.initialize(data_train)
-        model.train(data_train, data_valid)
+        epochs = model.train(data_train, data_valid)
+        logger.info('trained model for {} epochs'.format(epochs.result()))
         manager.save(
                 name='random',
                 model=model,
@@ -126,7 +127,8 @@ class OnlineLearning(BaseLearning):
             if self.parameters.retrain_model_per_iteration:
                 model.reset()
                 model.initialize(data_train)
-            model.train(data_train, data_valid)
+            epochs = model.train(data_train, data_valid)
+            logger.info('trained model for {} epochs'.format(epochs.result()))
             manager.save(
                     name=str(i),
                     model=model,

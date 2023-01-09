@@ -77,8 +77,10 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     with pytest.raises(AssertionError):
         validation_evaluated.get_errors().result() # nonexisting suffix
     errors0 = validation_evaluated.get_errors(suffix_1='_my_model')
-    model.train(training, validation)
+    epochs = model.train(training, validation).result()
     assert len(model.deploy_future) == 0
+    assert epochs < nequip_config['max_epochs'] # terminates by app timeout
+    assert epochs > 0
     model.deploy()
     errors1 = model.evaluate(validation).get_errors()
     evaluated = model.evaluate(validation)

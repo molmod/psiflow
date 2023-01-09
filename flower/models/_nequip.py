@@ -4,9 +4,11 @@ import typeguard
 import logging
 from pathlib import Path
 
+import parsl
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
 from ase.calculators.calculator import BaseCalculator
 
@@ -178,7 +180,8 @@ def train(
         nequip_config: Dict,
         inputs: List[File] = [],
         outputs: List[File] = [],
-        ) -> None:
+        walltime: float = 3600,
+        ) -> int:
     import torch
     import tempfile
     from nequip.utils import Config
@@ -222,8 +225,14 @@ def train(
 
         # Store any updated config information in the trainer
         trainer.update_kwargs(nequip_config)
-        trainer.train()
-    torch.save(trainer.model.to('cpu').state_dict(), outputs[0].filepath)
+        try:
+            trainer.train()
+        except parsl.app.errors.AppTimeout as e:
+            # uncaught app timeouts are still possible before train.train(),
+            # especially when large datasets need to be processed. 
+            pass
+        torch.save(trainer.model.to('cpu').state_dict(), outputs[0].filepath)
+        return trainer.iepoch
 
 
 @typeguard.typechecked
@@ -267,18 +276,20 @@ class NequIPModel(BaseModel):
                 outputs=[File(_new_file(self.context.path, 'deployed_', '.pth'))],
                 ).outputs[0]
 
-    def train(self, training: Dataset, validation: Dataset) -> None:
+    def train(self, training: Dataset, validation: Dataset) -> AppFuture:
         logger.info('training {} using {} states for training and {} for validation'.format(
             self.__class__.__name__,
             training.length().result(),
             validation.length().result(),
             ))
         self.deploy_future = {} # no longer valid
-        self.model_future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
+        future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
                 self.config_future,
                 inputs=[self.model_future, training.data_future, validation.data_future],
                 outputs=[File(_new_file(self.context.path, 'model_', '.pth'))]
-                ).outputs[0]
+                )
+        self.model_future = future.outputs[0]
+        return future # represents number of trained epochs 
 
     def save_deployed(
             self,
@@ -304,6 +315,7 @@ class NequIPModel(BaseModel):
         training_label  = context[TrainingExecutionDefinition].label
         training_device = context[TrainingExecutionDefinition].device
         training_dtype  = context[TrainingExecutionDefinition].dtype
+        training_walltime = context[TrainingExecutionDefinition].walltime
 
         model_label  = context[ModelExecutionDefinition].label
         model_device = context[ModelExecutionDefinition].device
@@ -339,6 +351,7 @@ class NequIPModel(BaseModel):
                     config,
                     inputs=inputs,
                     outputs=outputs,
+                    walltime=training_walltime,
                     )
         context.register_app(cls, 'train', train_wrapped)
         evaluate_unwrapped = python_app(evaluate_dataset, executors=[model_label])

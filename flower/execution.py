@@ -22,6 +22,7 @@ class TrainingExecutionDefinition(ExecutionDefinition):
     label : str = 'training'
     device: str = 'cuda'
     dtype : str = 'float32'
+    walltime: float = 3600
 
 
 @dataclass(frozen=True)
