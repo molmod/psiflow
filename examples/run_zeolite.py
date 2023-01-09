@@ -36,10 +36,7 @@ def get_context_and_manager(args):
     config.initialize_logging = False
     context = ExecutionContext(config, path=path_context)
     context.register(ModelExecutionDefinition())
-    context.register(ReferenceExecutionDefinition(
-        ncores=32,
-        time_per_singlepoint=500, # raise timeout after 8 minutes
-        ))
+    context.register(ReferenceExecutionDefinition(time_per_singlepoint=500))
     context.register(TrainingExecutionDefinition(walltime=3600))
 
     # setup manager for IO, wandb logging
