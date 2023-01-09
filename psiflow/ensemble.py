@@ -9,12 +9,12 @@ from parsl.app.app import join_app, python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from flower.execution import ExecutionContext
-from flower.models import BaseModel
-from flower.checks import Check
-from flower.data import Dataset, save_dataset, FlowerAtoms
-from flower.sampling import load_walker, BaseWalker, PlumedBias
-from flower.utils import _new_file, copy_app_future
+from psiflow.execution import ExecutionContext
+from psiflow.models import BaseModel
+from psiflow.checks import Check
+from psiflow.data import Dataset, save_dataset, FlowAtoms
+from psiflow.sampling import load_walker, BaseWalker, PlumedBias
+from psiflow.utils import _new_file, copy_app_future
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -23,7 +23,7 @@ logger.setLevel(logging.INFO)
 
 @typeguard.typechecked
 def _count_nstates(
-        inputs: List[Optional[FlowerAtoms]] = [],
+        inputs: List[Optional[FlowAtoms]] = [],
         outputs: List[File] = [],
         ) -> int:
     return sum([state is not None for state in inputs])
@@ -50,13 +50,13 @@ def conditional_sample(
         model: Optional[BaseModel], # None for e.g. RandomWalker
         checks: List[Check],
         #dependency: bool:
-        inputs: List[Optional[FlowerAtoms]] = [],
+        inputs: List[Optional[FlowAtoms]] = [],
         outputs: List[File] = [],
         ): # recursive
     import numpy as np
-    from flower.data import read_dataset
-    from flower.ensemble import count_nstates
-    from flower.utils import _new_file
+    from psiflow.data import read_dataset
+    from psiflow.ensemble import count_nstates
+    from psiflow.utils import _new_file
     states = inputs
     if nstates_effective == 0:
         for i in range(len(walkers)):

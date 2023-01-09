@@ -10,19 +10,19 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from flower.execution import ModelExecutionDefinition, Container, \
+from psiflow.execution import ModelExecutionDefinition, Container, \
         ExecutionContext
-from flower.utils import copy_app_future, unpack_i, copy_data_future, \
+from psiflow.utils import copy_app_future, unpack_i, copy_data_future, \
         save_yaml
-from flower.data import save_atoms, FlowerAtoms, Dataset
+from psiflow.data import save_atoms, FlowAtoms, Dataset
 
 
 @typeguard.typechecked
 def _app_safe_return(
-        state: FlowerAtoms,
-        start: FlowerAtoms,
+        state: FlowAtoms,
+        start: FlowAtoms,
         tag: str,
-        ) -> FlowerAtoms:
+        ) -> FlowAtoms:
     if tag == 'unsafe':
         return start
     else:
@@ -31,7 +31,7 @@ app_safe_return = python_app(_app_safe_return, executors=['default'])
 
 
 @typeguard.typechecked
-def _is_reset(state: FlowerAtoms, start: FlowerAtoms) -> bool:
+def _is_reset(state: FlowAtoms, start: FlowAtoms) -> bool:
     if state == start: # positions, numbers, cell, pbc
         return True
     else:
@@ -61,7 +61,7 @@ class BaseWalker(Container):
     def __init__(
             self,
             context: ExecutionContext,
-            atoms: Union[FlowerAtoms, AppFuture],
+            atoms: Union[FlowAtoms, AppFuture],
             **kwargs,
             ) -> None:
         super().__init__(context)

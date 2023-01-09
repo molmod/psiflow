@@ -1,5 +1,5 @@
 [run]
-include = flower/*
+include = psiflow/*
 omit = tests/*, configs/*, examples/*
 
 [report]

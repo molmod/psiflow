@@ -1,3 +1,3 @@
-:::flower.manager.Manager
-:::flower.data.FlowerAtoms
-:::flower.data.Dataset
+:::psiflow.manager.Manager
+:::psiflow.data.FlowAtoms
+:::psiflow.data.Dataset

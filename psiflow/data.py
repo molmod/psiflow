@@ -14,8 +14,8 @@ from parsl.dataflow.futures import AppFuture
 
 from ase import Atoms
 
-from flower.execution import Container, ExecutionContext
-from flower.utils import copy_data_future, _new_file
+from psiflow.execution import Container, ExecutionContext
+from psiflow.utils import copy_data_future, _new_file
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -23,7 +23,7 @@ logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
-class FlowerAtoms(Atoms):
+class FlowAtoms(Atoms):
     """Wrapper class around ase Atoms with additional attributes for QM logs"""
 
     def __init__(self, **kwargs) -> None:
@@ -41,8 +41,8 @@ class FlowerAtoms(Atoms):
         self.info['evaluation_flag'] = flag
 
     @classmethod
-    def from_atoms(cls, atoms: Atoms) -> FlowerAtoms:
-        flower_atoms = cls(
+    def from_atoms(cls, atoms: Atoms) -> FlowAtoms:
+        flow_atoms = cls(
                 numbers=atoms.numbers,
                 positions=atoms.get_positions(),
                 cell=atoms.get_cell(),
@@ -52,26 +52,26 @@ class FlowerAtoms(Atoms):
         for property_ in properties:
             for key in atoms.info.keys():
                 if key.startswith(property_):
-                    flower_atoms.info[key] = atoms.info[key]
+                    flow_atoms.info[key] = atoms.info[key]
         properties = ['forces']
         for property_ in properties:
             for key in atoms.arrays.keys():
                 if key.startswith(property_):
-                    flower_atoms.arrays[key] = atoms.arrays[key]
+                    flow_atoms.arrays[key] = atoms.arrays[key]
 
         if 'evaluation_flag' in atoms.info.keys():
             # default ASE value is True; should be converted to None
             value = atoms.info['evaluation_flag']
             if value == True:
                 value = None
-            flower_atoms.evaluation_flag = value
-        return flower_atoms
+            flow_atoms.evaluation_flag = value
+        return flow_atoms
 
 
 @typeguard.typechecked
 def save_dataset(
-        states: Optional[List[Optional[FlowerAtoms]]],
-        inputs: List[Optional[FlowerAtoms]] = [], # allow None
+        states: Optional[List[Optional[FlowAtoms]]],
+        inputs: List[Optional[FlowAtoms]] = [], # allow None
         outputs: List[File] = [],
         ) -> None:
     from ase.io.extxyz import write_extxyz
@@ -90,7 +90,7 @@ def save_dataset(
 
 
 @typeguard.typechecked
-def _save_atoms(atoms: FlowerAtoms, outputs=[]):
+def _save_atoms(atoms: FlowAtoms, outputs=[]):
     from ase.io import write
     write(outputs[0].filepath, atoms)
 save_atoms = python_app(_save_atoms, executors=['default'])
@@ -101,13 +101,13 @@ def read_dataset(
         index_or_indices: Union[int, List[int], slice],
         inputs: List[File] = [],
         outputs: List[File] = [],
-        ) -> Union[FlowerAtoms, List[FlowerAtoms]]:
+        ) -> Union[FlowAtoms, List[FlowAtoms]]:
     from ase.io.extxyz import read_extxyz, write_extxyz
-    from flower.data import FlowerAtoms
+    from psiflow.data import FlowAtoms
     with open(inputs[0], 'r' ) as f:
         if type(index_or_indices) == int:
             atoms = list(read_extxyz(f, index=index_or_indices))[0]
-            data  = FlowerAtoms.from_atoms(atoms) # single atoms instance
+            data  = FlowAtoms.from_atoms(atoms) # single atoms instance
         else:
             if type(index_or_indices) == list:
                 data = [list(read_extxyz(f, index=i))[0] for i in index_or_indices]
@@ -115,7 +115,7 @@ def read_dataset(
                 data = list(read_extxyz(f, index=index_or_indices))
             else:
                 raise ValueError
-            data = [FlowerAtoms.from_atoms(a) for a in data] # list of atoms
+            data = [FlowAtoms.from_atoms(a) for a in data] # list of atoms
     if len(outputs) > 0: # save to file
         with open(outputs[0], 'w') as f:
             write_extxyz(f, data)
@@ -163,8 +163,8 @@ def compute_metrics(
         ) -> np.ndarray:
     import numpy as np
     from ase.units import Pascal
-    from flower.data import read_dataset
-    from flower.utils import get_index_element_mask
+    from psiflow.data import read_dataset
+    from psiflow.utils import get_index_element_mask
     data = read_dataset(slice(None), inputs=[inputs[0]])
     errors = np.zeros((len(data), len(properties)))
     outer_mask = np.array([True] * len(data))
@@ -236,7 +236,7 @@ class Dataset(Container):
     def __init__(
             self,
             context: ExecutionContext,
-            atoms_list: Optional[Union[List[AppFuture], List[FlowerAtoms], AppFuture]],
+            atoms_list: Optional[Union[List[AppFuture], List[FlowAtoms], AppFuture]],
             data_future: Optional[Union[DataFuture, File]] = None,
             ) -> None:
         """Constructor
@@ -263,7 +263,7 @@ class Dataset(Container):
                     states = None
                     inputs = atoms_list
                 else:
-                    states = [FlowerAtoms.from_atoms(a) for a in atoms_list]
+                    states = [FlowAtoms.from_atoms(a) for a in atoms_list]
                     inputs = []
             path_new = _new_file(context.path, prefix='data_', suffix='.xyz')
             self.data_future = context.apps(Dataset, 'save_dataset')(

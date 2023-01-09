@@ -7,13 +7,13 @@ import logging
 
 from parsl.app.app import python_app
 
-from flower.utils import get_train_valid_indices
-from flower.data import Dataset
-from flower.manager import Manager
-from flower.models import BaseModel
-from flower.reference import BaseReference
-from flower.sampling import RandomWalker, PlumedBias
-from flower.ensemble import Ensemble
+from psiflow.utils import get_train_valid_indices
+from psiflow.data import Dataset
+from psiflow.manager import Manager
+from psiflow.models import BaseModel
+from psiflow.reference import BaseReference
+from psiflow.sampling import RandomWalker, PlumedBias
+from psiflow.ensemble import Ensemble
 
 
 logger = logging.getLogger(__name__) # logging per module

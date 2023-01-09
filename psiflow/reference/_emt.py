@@ -6,14 +6,14 @@ from ase import Atoms
 
 from parsl.app.app import python_app
 
-from flower.data import FlowerAtoms
-from flower.execution import ReferenceExecutionDefinition, ExecutionContext
-from flower.reference.base import BaseReference, EmptyParameters
+from psiflow.data import FlowAtoms
+from psiflow.execution import ReferenceExecutionDefinition, ExecutionContext
+from psiflow.reference.base import BaseReference, EmptyParameters
 
 
 @typeguard.typechecked
 def evaluate_emt(
-        atoms: Union[Atoms, FlowerAtoms],
+        atoms: Union[Atoms, FlowAtoms],
         parameters: EmptyParameters,
         inputs: List = [],
         outputs: List = [],

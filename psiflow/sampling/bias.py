@@ -14,10 +14,10 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from flower.execution import Container, ModelExecutionDefinition, \
+from psiflow.execution import Container, ModelExecutionDefinition, \
         ExecutionContext
-from flower.utils import _new_file, copy_data_future, save_txt
-from flower.data import read_dataset, Dataset
+from psiflow.utils import _new_file, copy_data_future, save_txt
+from psiflow.data import read_dataset, Dataset
 
 
 @typeguard.typechecked
@@ -96,10 +96,10 @@ def evaluate_bias(
     import yaff
     yaff.log.set_level(yaff.log.silent)
     import molmod
-    from flower.sampling.utils import ForcePartASE, create_forcefield, \
+    from psiflow.sampling.utils import ForcePartASE, create_forcefield, \
             ForceThresholdExceededException, ForcePartPlumed
-    from flower.sampling.bias import try_manual_plumed_linking
-    from flower.data import read_dataset
+    from psiflow.sampling.bias import try_manual_plumed_linking
+    from psiflow.data import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     values = np.zeros((len(dataset), 2)) # column 0 for CV, 1 for bias
     system = yaff.System(
@@ -151,7 +151,7 @@ def find_states_in_data(
         inputs: List[File] = [],
         ) -> List[int]:
     import numpy as np
-    from flower.sampling.bias import evaluate_bias
+    from psiflow.sampling.bias import evaluate_bias
     variable_values = evaluate_bias(plumed_input, variable, inputs=inputs)[:, 0]
     nstates = len(targets)
     deltas  = np.abs(targets[:, np.newaxis] - variable_values[np.newaxis, :])

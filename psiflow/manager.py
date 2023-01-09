@@ -13,14 +13,14 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from flower.execution import ExecutionContext
-from flower.models import BaseModel, load_model
-from flower.reference.base import BaseReference
-from flower.sampling import RandomWalker, PlumedBias
-from flower.ensemble import Ensemble
-from flower.data import Dataset
-from flower.checks import Check, load_checks, SafetyCheck
-from flower.utils import copy_app_future, log_data_to_wandb
+from psiflow.execution import ExecutionContext
+from psiflow.models import BaseModel, load_model
+from psiflow.reference.base import BaseReference
+from psiflow.sampling import RandomWalker, PlumedBias
+from psiflow.ensemble import Ensemble
+from psiflow.data import Dataset
+from psiflow.checks import Check, load_checks, SafetyCheck
+from psiflow.utils import copy_app_future, log_data_to_wandb
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -36,7 +36,7 @@ def _app_log_data(
         ) -> List[List]:
     from ase.data import chemical_symbols
     from ase.io import write
-    from flower.data import read_dataset
+    from psiflow.data import read_dataset
     data = read_dataset(slice(None), inputs=[inputs[0]])
     columns = ['index', 'location', 'elements', 'natoms']
     if error_labels is not None:
@@ -77,7 +77,7 @@ def _app_log_ensemble(
     import numpy as np
     from ase.data import chemical_symbols
     from ase.io import write
-    from flower.data import read_dataset
+    from psiflow.data import read_dataset
     data = read_dataset(slice(None), inputs=[inputs[0]])
     columns = ['walker index', 'elements', 'natoms', 'tag']
     if error_labels is not None:

@@ -12,12 +12,12 @@ from parsl.dataflow.futures import AppFuture
 
 from ase.calculators.calculator import BaseCalculator
 
-from flower.models.base import evaluate_dataset
-from flower.models import BaseModel
-from flower.data import FlowerAtoms, Dataset
-from flower.execution import ModelExecutionDefinition, ExecutionContext, \
+from psiflow.models.base import evaluate_dataset
+from psiflow.models import BaseModel
+from psiflow.data import FlowAtoms, Dataset
+from psiflow.execution import ModelExecutionDefinition, ExecutionContext, \
         TrainingExecutionDefinition
-from flower.utils import copy_data_future, _new_file
+from psiflow.utils import copy_data_future, _new_file
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -25,7 +25,7 @@ logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
-def get_elements(data: List[FlowerAtoms]) -> List[str]:
+def get_elements(data: List[FlowAtoms]) -> List[str]:
     from ase.data import chemical_symbols
     _all = [set(a.numbers) for a in data]
     numbers = sorted(list(set(b for a in _all for b in a)))
@@ -34,7 +34,7 @@ def get_elements(data: List[FlowerAtoms]) -> List[str]:
 # do not type hint ASEDataset to avoid having to import nequip types outside
 # of the function
 @typeguard.typechecked
-def to_nequip_dataset(data: List[FlowerAtoms], nequip_config: Any):
+def to_nequip_dataset(data: List[FlowAtoms], nequip_config: Any):
     import tempfile
     from nequip.utils import Config, instantiate
     from nequip.data.transforms import TypeMapper
@@ -72,8 +72,8 @@ def initialize(
     from nequip.scripts.train import default_config
     from nequip.model import model_from_config
 
-    from flower.data import read_dataset
-    from flower.models._nequip import to_nequip_dataset
+    from psiflow.data import read_dataset
+    from psiflow.models._nequip import to_nequip_dataset
 
     torch.manual_seed(config['seed']) # necessary to ensure reproducible init!
     np.random.seed(config['seed'])
@@ -189,8 +189,8 @@ def train(
     from nequip.utils.versions import check_code_version
     from nequip.utils._global_options import _set_global_options
     from nequip.train.trainer import Trainer
-    from flower.data import read_dataset
-    from flower.models._nequip import to_nequip_dataset
+    from psiflow.data import read_dataset
+    from psiflow.models._nequip import to_nequip_dataset
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 

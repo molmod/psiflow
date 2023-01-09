@@ -10,12 +10,12 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 
 from ase import Atoms
 
-from flower.data import FlowerAtoms
-from flower.reference import EMTReference, CP2KReference
-from flower.reference._cp2k import insert_filepaths_in_input, \
+from psiflow.data import FlowAtoms
+from psiflow.reference import EMTReference, CP2KReference
+from psiflow.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
-from flower.data import Dataset
-from flower.execution import ReferenceExecutionDefinition
+from psiflow.data import Dataset
+from psiflow.execution import ReferenceExecutionDefinition
 
 
 @pytest.fixture
@@ -136,7 +136,7 @@ def test_reference_emt(context, dataset):
     reference = EMTReference(context)
     atoms = reference.evaluate(dataset[0])
     assert isinstance(atoms, AppFuture)
-    assert isinstance(atoms.result(), FlowerAtoms)
+    assert isinstance(atoms.result(), FlowAtoms)
     assert atoms.result().info['evaluation_flag'] == 'success'
     assert atoms.result().evaluation_log == ''
 
@@ -192,7 +192,7 @@ def test_cp2k_insert_filepaths(fake_cp2k_input):
 
 
 def test_cp2k_insert_atoms(tmp_path, fake_cp2k_input):
-    atoms = FlowerAtoms(numbers=np.ones(3), cell=np.eye(3), positions=np.eye(3), pbc=True)
+    atoms = FlowAtoms(numbers=np.ones(3), cell=np.eye(3), positions=np.eye(3), pbc=True)
     sample = Cp2kInput.from_string(insert_atoms_in_input(fake_cp2k_input, atoms))
     assert 'COORD' in sample['FORCE_EVAL']['SUBSYS'].subsections.keys()
     assert 'CELL' in sample['FORCE_EVAL']['SUBSYS'].subsections.keys()
@@ -202,7 +202,7 @@ def test_cp2k_insert_atoms(tmp_path, fake_cp2k_input):
 
 def test_cp2k_success(context, cp2k_input, cp2k_data):
     reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
-    atoms = FlowerAtoms( # simple H2 at ~optimized interatomic distance
+    atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=5 * np.eye(3),
             positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
@@ -313,7 +313,7 @@ def test_cp2k_failure(context, cp2k_data):
 &END FORCE_EVAL
 """ # incorrect input file
     reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
-    atoms = FlowerAtoms( # simple H2 at ~optimized interatomic distance
+    atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=5 * np.eye(3),
             positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
@@ -330,7 +330,7 @@ def test_cp2k_failure(context, cp2k_data):
 
 def test_cp2k_timeout(context, cp2k_data, cp2k_input):
     reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
-    atoms = FlowerAtoms( # simple H2 at ~optimized interatomic distance
+    atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=20 * np.eye(3), # box way too large
             positions=np.array([[0, 0, 0], [3, 0, 0]]),

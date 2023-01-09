@@ -2,7 +2,7 @@ from typing import Union
 import typeguard
 from pathlib import Path
 
-from flower.execution import ExecutionContext
+from psiflow.execution import ExecutionContext
 
 from .base import BaseModel
 from ._nequip import NequIPModel
@@ -13,7 +13,7 @@ def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
     from pathlib import Path
     import yaml
     from parsl.data_provider.files import File
-    from flower.utils import copy_app_future, copy_data_future, _new_file
+    from psiflow.utils import copy_app_future, copy_data_future, _new_file
     path = Path(path)
     assert path.is_dir()
     classes = [

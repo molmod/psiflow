@@ -6,19 +6,19 @@ from dataclasses import dataclass
 from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
-from flower.data import FlowerAtoms
-from flower.execution import ModelExecutionDefinition, ExecutionContext
-from flower.sampling import BaseWalker, PlumedBias
-from flower.models import BaseModel
+from psiflow.data import FlowAtoms
+from psiflow.execution import ModelExecutionDefinition, ExecutionContext
+from psiflow.sampling import BaseWalker, PlumedBias
+from psiflow.models import BaseModel
 
 
 @typeguard.typechecked
 def random_perturbation(
-        state: FlowerAtoms,
+        state: FlowAtoms,
         parameters: RandomParameters,
-        ) -> Tuple[FlowerAtoms, str]:
+        ) -> Tuple[FlowAtoms, str]:
     import numpy as np
-    from flower.sampling.utils import apply_strain
+    from psiflow.sampling.utils import apply_strain
     np.random.seed(parameters.seed)
     frac = state.positions @ np.linalg.inv(state.cell)
     strain = np.random.uniform(

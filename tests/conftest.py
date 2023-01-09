@@ -11,10 +11,10 @@ from ase import Atoms
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
-from flower.execution import ExecutionContext, TrainingExecutionDefinition, \
+from psiflow.execution import ExecutionContext, TrainingExecutionDefinition, \
         ModelExecutionDefinition, ReferenceExecutionDefinition
-from flower.data import Dataset, FlowerAtoms
-from flower.utils import get_parsl_config_from_file
+from psiflow.data import Dataset, FlowAtoms
+from psiflow.utils import get_parsl_config_from_file
 
 
 def pytest_addoption(parser):
@@ -82,7 +82,7 @@ def generate_emt_cu_data(nstates, amplitude):
 @pytest.fixture
 def dataset(context, tmp_path):
     data = generate_emt_cu_data(20, 0.2)
-    data_ = [FlowerAtoms.from_atoms(atoms) for atoms in data]
+    data_ = [FlowAtoms.from_atoms(atoms) for atoms in data]
     for atoms in data_:
         atoms.evaluation_flag = 'success'
     return Dataset(context, data_)

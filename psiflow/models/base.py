@@ -10,10 +10,10 @@ from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
-from flower.execution import Container, ModelExecutionDefinition, \
+from psiflow.execution import Container, ModelExecutionDefinition, \
         ExecutionContext
-from flower.data import Dataset, _new_file
-from flower.utils import copy_app_future, save_yaml, copy_data_future
+from psiflow.data import Dataset, _new_file
+from psiflow.utils import copy_app_future, save_yaml, copy_data_future
 
 
 @typeguard.typechecked
@@ -28,7 +28,7 @@ def evaluate_dataset(
         ) -> None:
     import torch
     import numpy as np
-    from flower.data import read_dataset, save_dataset
+    from psiflow.data import read_dataset, save_dataset
     if device == 'cpu':
         torch.set_num_threads(ncores)
     if dtype == 'float64':

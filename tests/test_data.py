@@ -6,16 +6,16 @@ from parsl.app.futures import DataFuture
 from ase import Atoms
 from ase.io.extxyz import write_extxyz
 
-from flower.data import FlowerAtoms, Dataset
-from flower.utils import get_index_element_mask
+from psiflow.data import FlowAtoms, Dataset
+from psiflow.utils import get_index_element_mask
 
 from tests.conftest import generate_emt_cu_data # explicit import for regular function
 
 
-def test_flower_atoms(context, dataset):
+def test_flow_atoms(context, dataset):
     for i in range(dataset.length().result()):
         atoms = dataset[i].result()
-        assert isinstance(atoms, FlowerAtoms)
+        assert isinstance(atoms, FlowAtoms)
         assert atoms.evaluation_log is None
         assert atoms.evaluation_flag == 'success'
     assert np.allclose(
@@ -91,7 +91,7 @@ def test_dataset_metric(context, dataset):
         errors = dataset.get_errors(intrinsic=True, elements=['O'], properties=['forces']) # Cu present
         errors.result()
 
-    atoms = FlowerAtoms(numbers=30 * np.ones(10), positions=np.zeros((10, 3)), pbc=False)
+    atoms = FlowAtoms(numbers=30 * np.ones(10), positions=np.zeros((10, 3)), pbc=False)
     atoms.info['forces'] = np.random.uniform(-1, 1, size=(10, 3))
     dataset_ = Dataset(context, [atoms])
     merged = Dataset.merge(dataset, dataset_)

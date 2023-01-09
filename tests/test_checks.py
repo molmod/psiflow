@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from flower.checks import InteratomicDistanceCheck, DiscrepancyCheck, \
+from psiflow.checks import InteratomicDistanceCheck, DiscrepancyCheck, \
         SafetyCheck, load_checks
-from flower.models import NequIPModel
-from flower.sampling import RandomWalker
+from psiflow.models import NequIPModel
+from psiflow.sampling import RandomWalker
 
 
 def test_distance_check(context, dataset, tmpdir):

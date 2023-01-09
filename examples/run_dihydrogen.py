@@ -7,16 +7,16 @@ import numpy as np
 
 import parsl
 
-from flower.manager import Manager
-from flower.learning import RandomLearning, OnlineLearning
-from flower.models import NequIPModel
-from flower.reference import CP2KReference
-from flower.data import FlowerAtoms
-from flower.sampling import RandomWalker, DynamicWalker, PlumedBias
-from flower.ensemble import Ensemble
-from flower.execution import ExecutionContext, ModelExecutionDefinition, \
+from psiflow.manager import Manager
+from psiflow.learning import RandomLearning, OnlineLearning
+from psiflow.models import NequIPModel
+from psiflow.reference import CP2KReference
+from psiflow.data import FlowAtoms
+from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
+from psiflow.ensemble import Ensemble
+from psiflow.execution import ExecutionContext, ModelExecutionDefinition, \
         ReferenceExecutionDefinition, TrainingExecutionDefinition
-from flower.utils import get_parsl_config_from_file
+from psiflow.utils import get_parsl_config_from_file
 
 
 def get_context_and_manager(args):
@@ -87,7 +87,7 @@ def get_model(context):
 
 
 def main(context, manager):
-    atoms = FlowerAtoms(
+    atoms = FlowAtoms(
             numbers=np.ones(2),
             positions=np.array([[0, 0, 0], [0, 0, 0.8]]),
             cell=np.eye(3) * 6,

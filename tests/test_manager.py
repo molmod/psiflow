@@ -4,14 +4,14 @@ from pathlib import Path
 import wandb
 import numpy as np
 
-from flower.models import NequIPModel
-from flower.manager import Manager, log_data, log_ensemble
-from flower.reference import EMTReference
-from flower.sampling import RandomWalker, DynamicWalker, PlumedBias
-from flower.ensemble import Ensemble
-from flower.checks import SafetyCheck, DiscrepancyCheck, \
+from psiflow.models import NequIPModel
+from psiflow.manager import Manager, log_data, log_ensemble
+from psiflow.reference import EMTReference
+from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
+from psiflow.ensemble import Ensemble
+from psiflow.checks import SafetyCheck, DiscrepancyCheck, \
         InteratomicDistanceCheck
-from flower.utils import log_data_to_wandb
+from psiflow.utils import log_data_to_wandb
 
 
 @pytest.fixture

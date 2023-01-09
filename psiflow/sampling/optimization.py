@@ -7,25 +7,25 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from flower.data import Dataset, FlowerAtoms
-from flower.execution import Container, ModelExecutionDefinition, \
+from psiflow.data import Dataset, FlowAtoms
+from psiflow.execution import Container, ModelExecutionDefinition, \
         ExecutionContext
-from flower.sampling.base import BaseWalker
-from flower.models import BaseModel
-from flower.utils import _new_file
+from psiflow.sampling.base import BaseWalker
+from psiflow.models import BaseModel
+from psiflow.utils import _new_file
 
 
 @typeguard.typechecked
 def optimize_geometry(
         device: str,
         ncores: int,
-        state: FlowerAtoms,
+        state: FlowAtoms,
         parameters: OptimizationParameters,
         load_calculator: Callable,
         plumed_input: str = '',
         inputs: List[File] = [],
         outputs: List[File] = [],
-        ) -> Tuple[FlowerAtoms, str]:
+        ) -> Tuple[FlowAtoms, str]:
     import os
     import tempfile
     import torch
@@ -34,7 +34,7 @@ def optimize_geometry(
     from ase.constraints import ExpCellFilter
     from ase.io import read
     from ase.io.extxyz import write_extxyz
-    from flower.data import FlowerAtoms
+    from psiflow.data import FlowAtoms
     torch.set_default_dtype(torch.float64) # optimization always in double
     if device == 'cpu':
         torch.set_num_threads(ncores)
@@ -78,7 +78,7 @@ def optimize_geometry(
         trajectory = read(path_traj)
         write_extxyz(f, trajectory)
     os.unlink(path_traj)
-    return FlowerAtoms.from_atoms(atoms), tag
+    return FlowAtoms.from_atoms(atoms), tag
 
 
 @typeguard.typechecked

@@ -3,8 +3,8 @@ from typing import Optional, Union, List
 import typeguard
 from pathlib import Path
 
-from flower.data import FlowerAtoms
-from flower.execution import ExecutionContext
+from psiflow.data import FlowAtoms
+from psiflow.execution import ExecutionContext
 
 from .base import BaseWalker # import base and bias before walkers
 from .bias import PlumedBias
@@ -22,7 +22,7 @@ def load_walker(
     from pathlib import Path
     from ase.io import read
     import yaml
-    from flower.utils import copy_app_future
+    from psiflow.utils import copy_app_future
     path = Path(path)
     assert path.is_dir()
     path_start = path / 'start.xyz'
@@ -40,8 +40,8 @@ def load_walker(
         path_pars  = path / (walker_cls.__name__ + '.yaml')
         if path_pars.is_file():
             break
-    start = FlowerAtoms.from_atoms(read(str(path_start)))
-    state = FlowerAtoms.from_atoms(read(str(path_state)))
+    start = FlowAtoms.from_atoms(read(str(path_start)))
+    state = FlowAtoms.from_atoms(read(str(path_state)))
     with open(path_pars, 'r') as f:
         pars_dict = yaml.load(f, Loader=yaml.FullLoader)
     walker = walker_cls(context, state, **pars_dict)

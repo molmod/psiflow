@@ -7,11 +7,11 @@ from parsl.dataflow.futures import AppFuture
 
 from ase import Atoms
 
-from flower.models import NequIPModel
-from flower.sampling import BaseWalker, RandomWalker, DynamicWalker, \
+from psiflow.models import NequIPModel
+from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, load_walker
-from flower.ensemble import Ensemble
-from flower.checks import SafetyCheck
+from psiflow.ensemble import Ensemble
+from psiflow.checks import SafetyCheck
 
 
 def test_save_load(context, dataset, tmp_path):

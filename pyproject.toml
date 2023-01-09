@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "flower"
+name = "psiflow"
 version = "0.0.1"
 description = "Library for developing interatomic potentials"
 readme = "README.md"
@@ -13,10 +13,10 @@ requires-python = ">=3.9"
 
 [tool.setuptools.packages.find]
 include = [
-    "flower",
-    "flower.models",
-    "flower.reference",
-    "flower.sampling",
+    "psiflow",
+    "psiflow.models",
+    "psiflow.reference",
+    "psiflow.sampling",
     ]
 
 

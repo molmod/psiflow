@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from parsl.app.app import python_app
 
-from flower.execution import ReferenceExecutionDefinition
+from psiflow.execution import ReferenceExecutionDefinition
 from .base import BaseReference
 
 
@@ -84,7 +84,7 @@ def cp2k_singlepoint(
     import numpy as np
     from ase.units import Hartree, Bohr
     from pymatgen.io.cp2k.outputs import Cp2kOutput
-    from flower.reference._cp2k import insert_filepaths_in_input, \
+    from psiflow.reference._cp2k import insert_filepaths_in_input, \
             insert_atoms_in_input, set_global_section
 
     command_list = [command]

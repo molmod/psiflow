@@ -2,10 +2,10 @@ import pytest
 import os
 import numpy as np
 
-from flower.sampling import RandomWalker, PlumedBias
-from flower.ensemble import Ensemble
-from flower.checks import SafetyCheck, InteratomicDistanceCheck
-from flower.data import Dataset, FlowerAtoms
+from psiflow.sampling import RandomWalker, PlumedBias
+from psiflow.ensemble import Ensemble
+from psiflow.checks import SafetyCheck, InteratomicDistanceCheck
+from psiflow.data import Dataset, FlowAtoms
 
 from tests.conftest import generate_emt_cu_data
 
@@ -67,7 +67,7 @@ def test_ensemble_sampling(context, dataset, tmp_path):
 
 def test_generate_distributed(context):
     data = generate_emt_cu_data(1000, 1)
-    data = [FlowerAtoms.from_atoms(a) for a in data]
+    data = [FlowAtoms.from_atoms(a) for a in data]
     dataset = Dataset(context, data)
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs

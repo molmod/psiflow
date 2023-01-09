@@ -10,9 +10,9 @@ from ase.io.extxyz import read_extxyz
 
 from nequip.ase import NequIPCalculator
 
-from flower.data import Dataset
-from flower.models import NequIPModel, load_model
-from flower.execution import ModelExecutionDefinition
+from psiflow.data import Dataset
+from psiflow.models import NequIPModel, load_model
+from psiflow.execution import ModelExecutionDefinition
 
 
 def test_nequip_init(context, nequip_config, dataset):

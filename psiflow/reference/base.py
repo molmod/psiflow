@@ -10,10 +10,10 @@ from parsl.data_provider.files import File
 
 from ase import Atoms
 
-from flower.execution import Container, ExecutionContext
-from flower.data import FlowerAtoms, Dataset, read_dataset, save_dataset, \
+from psiflow.execution import Container, ExecutionContext
+from psiflow.data import FlowAtoms, Dataset, read_dataset, save_dataset, \
         get_length_dataset
-from flower.utils import _new_file
+from psiflow.utils import _new_file
 
 
 @typeguard.typechecked
@@ -32,7 +32,7 @@ class BaseReference(Container):
 
     def evaluate(
             self,
-            arg: Union[Dataset, Atoms, FlowerAtoms, AppFuture],
+            arg: Union[Dataset, Atoms, FlowAtoms, AppFuture],
             ) -> Union[Dataset, AppFuture]:
         parameters = deepcopy(self.parameters)
         if isinstance(arg, Dataset):
@@ -44,9 +44,9 @@ class BaseReference(Container):
                     ).outputs[0]
             return Dataset(self.context, None, data_future=data_future)
         else:
-            if type(arg) == Atoms: # convert to FlowerAtoms
-                arg = FlowerAtoms.from_atoms(arg)
-            assert (isinstance(arg, FlowerAtoms) or isinstance(arg, AppFuture))
+            if type(arg) == Atoms: # convert to FlowAtoms
+                arg = FlowAtoms.from_atoms(arg)
+            assert (isinstance(arg, FlowAtoms) or isinstance(arg, AppFuture))
             return self.context.apps(self.__class__, 'evaluate_single')(
                     arg,
                     parameters,

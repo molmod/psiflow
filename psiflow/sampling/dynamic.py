@@ -7,11 +7,11 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from flower.data import Dataset, FlowerAtoms
-from flower.execution import ModelExecutionDefinition, ExecutionContext
-from flower.utils import copy_data_future, unpack_i, _new_file
-from flower.sampling import BaseWalker, PlumedBias
-from flower.models import BaseModel
+from psiflow.data import Dataset, FlowAtoms
+from psiflow.execution import ModelExecutionDefinition, ExecutionContext
+from psiflow.utils import copy_data_future, unpack_i, _new_file
+from psiflow.sampling import BaseWalker, PlumedBias
+from psiflow.models import BaseModel
 
 
 @typeguard.typechecked
@@ -19,13 +19,13 @@ def simulate_model(
         device: str,
         ncores: int,
         dtype: str,
-        state: FlowerAtoms,
+        state: FlowAtoms,
         parameters: DynamicParameters,
         load_calculator: Callable,
         plumed_input: str = '',
         inputs: List[File] =[],
         outputs: List[File] = [],
-        ) -> Tuple[FlowerAtoms, str]:
+        ) -> Tuple[FlowAtoms, str]:
     import torch
     import os
     import tempfile
@@ -35,9 +35,9 @@ def simulate_model(
     yaff.log.set_level(yaff.log.silent)
     import molmod
     from ase.io.extxyz import write_extxyz
-    from flower.sampling.utils import ForcePartASE, DataHook, \
+    from psiflow.sampling.utils import ForcePartASE, DataHook, \
             create_forcefield, ForceThresholdExceededException, ForcePartPlumed
-    from flower.sampling.bias import try_manual_plumed_linking
+    from psiflow.sampling.bias import try_manual_plumed_linking
     if device == 'cpu':
         torch.set_num_threads(ncores)
     if dtype == 'float64':
@@ -133,7 +133,7 @@ def simulate_model(
     # write data to output xyz
     with open(outputs[0], 'w+') as f:
         write_extxyz(f, datahook.data)
-    return FlowerAtoms.from_atoms(state), tag
+    return FlowAtoms.from_atoms(state), tag
 
 
 @typeguard.typechecked

@@ -11,18 +11,18 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from flower.execution import ExecutionContext
-from flower.models import BaseModel
-from flower.data import Dataset, FlowerAtoms
-from flower.utils import save_yaml, copy_app_future
-from flower.models import load_model
+from psiflow.execution import ExecutionContext
+from psiflow.models import BaseModel
+from psiflow.data import Dataset, FlowAtoms
+from psiflow.utils import save_yaml, copy_app_future
+from psiflow.models import load_model
 
 
 @typeguard.typechecked
 def _update_npasses(
         npasses: int,
-        state: Optional[FlowerAtoms],
-        checked_state: Optional[FlowerAtoms],
+        state: Optional[FlowAtoms],
+        checked_state: Optional[FlowAtoms],
         ) -> int:
     if (state is not None) and (checked_state is None):
         return npasses
@@ -33,10 +33,10 @@ update_npasses = python_app(_update_npasses, executors=['default'])
 
 @typeguard.typechecked
 def _update_states(
-        states: List[FlowerAtoms],
-        state: Optional[FlowerAtoms],
-        checked_state: Optional[FlowerAtoms],
-        ) -> List[FlowerAtoms]:
+        states: List[FlowAtoms],
+        state: Optional[FlowAtoms],
+        checked_state: Optional[FlowAtoms],
+        ) -> List[FlowAtoms]:
     if (state is not None) and (checked_state is None):
         states.append(state)
     return states
@@ -100,9 +100,9 @@ class Check:
 
 @typeguard.typechecked
 def _check_distances(
-        state: Optional[FlowerAtoms],
+        state: Optional[FlowAtoms],
         threshold: float,
-        ) -> Optional[FlowerAtoms]:
+        ) -> Optional[FlowAtoms]:
     import numpy as np
     from ase.geometry.geometry import find_mic
     if state is None:
@@ -145,10 +145,10 @@ class InteratomicDistanceCheck(Check):
 
 @typeguard.typechecked
 def _check_discrepancy(
-        state: Optional[FlowerAtoms],
+        state: Optional[FlowAtoms],
         errors: np.ndarray,
         thresholds: List[float],
-        ) -> Optional[FlowerAtoms]:
+        ) -> Optional[FlowAtoms]:
     if state is None:
         return None
     assert len(thresholds) == errors.shape[1]
@@ -251,7 +251,7 @@ class DiscrepancyCheck(Check):
 
 
 @typeguard.typechecked
-def _check_safety(state: Optional[FlowerAtoms], tag: str):
+def _check_safety(state: Optional[FlowAtoms], tag: str):
     if state is None:
         return None
     if tag == 'unsafe':
