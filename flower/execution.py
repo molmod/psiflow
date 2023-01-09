@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import logging
 
-from parsl.executors import HighThroughputExecutor
+from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
 from parsl.config import Config
 
 
@@ -17,7 +17,7 @@ class ExecutionDefinition:
     pass
 
 
-@dataclass(frozen=True)
+@dataclass
 class TrainingExecutionDefinition(ExecutionDefinition):
     label : str = 'training'
     device: str = 'cuda'
@@ -25,7 +25,7 @@ class TrainingExecutionDefinition(ExecutionDefinition):
     walltime: float = 3600
 
 
-@dataclass(frozen=True)
+@dataclass
 class ModelExecutionDefinition(ExecutionDefinition):
     label : str = 'model'
     device: str = 'cpu'
@@ -33,7 +33,7 @@ class ModelExecutionDefinition(ExecutionDefinition):
     dtype : str = 'float32'
 
 
-@dataclass(frozen=True)
+@dataclass
 class ReferenceExecutionDefinition(ExecutionDefinition):
     device     : str = 'cpu'
     label      : str = 'reference'
@@ -77,8 +77,10 @@ class ExecutionContext:
             for executor in self.config.executors:
                 if executor.label == execution.label:
                     if execution.ncores is None:
-                        assert type(executor) == HighThroughputExecutor:
-                        execution.ncores == executor.cores_per_worker
+                        if type(executor) == HighThroughputExecutor:
+                            execution.ncores = int(executor.cores_per_worker)
+                        elif type(executor) == ThreadPoolExecutor:
+                            execution.ncores = 1
                     else:
                         if type(executor) == HighThroughputExecutor:
                             assert executor.cores_per_worker == execution.ncores
