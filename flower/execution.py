@@ -22,6 +22,7 @@ class TrainingExecutionDefinition(ExecutionDefinition):
     label : str = 'training'
     device: str = 'cuda'
     dtype : str = 'float32'
+    ncores: int = None # depends on GPU node architecture
     walltime: float = 3600
 
 
