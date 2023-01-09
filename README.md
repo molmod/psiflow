@@ -1,7 +1,5 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/svandenhaute/psiflow/blob/main/docs/logo_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/svandenhaute/psiflow/blob/main/docs/logo_light.png">
-</picture>
+![psiflow](./docs/logo_light.png#gh-light-mode-only)
+![psiflow](./docs/logo_dark.png#gh-dark-mode-only)
 
 [![Coverage Status](https://coveralls.io/repos/github/svandenhaute/psiflow/badge.svg?branch=main)](https://coveralls.io/github/svandenhaute/psiflow?branch=main)
 
