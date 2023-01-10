@@ -45,7 +45,7 @@ def get_context_and_manager(args):
     config.retries = args.retries
     context = ExecutionContext(config, path=path_context)
     context.register(ModelExecutionDefinition())
-    context.register(ReferenceExecutionDefinition(time_per_singlepoint=30))
+    context.register(ReferenceExecutionDefinition(time_per_singlepoint=800))
     context.register(TrainingExecutionDefinition())
 
     # setup manager for IO, wandb logging
