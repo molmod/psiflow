@@ -11,6 +11,7 @@ from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
+from parsl.dataflow.memoization import id_for_memo
 
 from ase import Atoms
 
@@ -66,6 +67,31 @@ class FlowAtoms(Atoms):
                 value = None
             flow_atoms.evaluation_flag = value
         return flow_atoms
+
+
+@id_for_memo.register(FlowAtoms)
+def id_for_memo_flowatoms(atoms: FlowAtoms, output_ref=False):
+    assert not output_ref
+    string = ''
+    string += str(atoms.numbers)
+    string += str(atoms.cell.round(decimals=4))
+    string += str(atoms.positions.round(decimals=4))
+    return bytes(string, 'utf-8')
+
+
+@typeguard.typechecked
+def parse_evaluation_logs(atoms_list: List[FlowAtoms]) -> str:
+    _all = []
+    for i, atoms in enumerate(atoms_list):
+        log = atoms.evaluation_log
+        if log is None:
+            log = ''
+        lines = log.split('\n')
+        prefix = 'INDEX {:05} - '.format(i)
+        for line in lines:
+            _all.append(prefix + line)
+        _all.append('\n\n')
+    return '\n'.join(_all)
 
 
 @typeguard.typechecked
@@ -342,6 +368,12 @@ class Dataset(Container):
         if require_done:
             future.result()
         return future
+
+    def as_list(self) -> List[FlowAtoms]:
+        return self.context.apps(Dataset, 'read_dataset')(
+                index_or_indices=slice(None),
+                inputs=[self.data_future],
+                ).result()
 
     def append(self, dataset: Dataset) -> None:
         self.data_future = self.context.apps(Dataset, 'join_dataset')(

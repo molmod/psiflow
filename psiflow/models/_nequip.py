@@ -2,15 +2,17 @@ from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Any, Dict
 import typeguard
 import logging
+import inspect
 from pathlib import Path
+
+from ase.calculators.calculator import BaseCalculator
 
 import parsl
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-
-from ase.calculators.calculator import BaseCalculator
+from parsl.dataflow.memoization import id_for_memo
 
 from psiflow.models.base import evaluate_dataset
 from psiflow.models import BaseModel
@@ -322,9 +324,9 @@ class NequIPModel(BaseModel):
         model_dtype  = context[ModelExecutionDefinition].dtype
         model_ncores = context[ModelExecutionDefinition].ncores
 
-        app_initialize = python_app(initialize, executors=[model_label])
+        app_initialize = python_app(initialize, executors=[model_label], cache=True)
         context.register_app(cls, 'initialize', app_initialize)
-        deploy_unwrapped = python_app(deploy, executors=[model_label])
+        deploy_unwrapped = python_app(deploy, executors=[model_label], cache=False)
         def deploy_float32(config, inputs=[], outputs=[]):
             return deploy_unwrapped(
                     model_device,
@@ -343,7 +345,7 @@ class NequIPModel(BaseModel):
                     outputs=outputs,
                     )
         context.register_app(cls, 'deploy_float64', deploy_float64)
-        train_unwrapped = python_app(train, executors=[training_label])
+        train_unwrapped = python_app(train, executors=[training_label], cache=True)
         def train_wrapped(config, inputs=[], outputs=[]):
             return train_unwrapped(
                     training_device,
@@ -354,7 +356,11 @@ class NequIPModel(BaseModel):
                     walltime=training_walltime,
                     )
         context.register_app(cls, 'train', train_wrapped)
-        evaluate_unwrapped = python_app(evaluate_dataset, executors=[model_label])
+        evaluate_unwrapped = python_app(
+                evaluate_dataset,
+                executors=[model_label],
+                cache=False,
+                )
         def evaluate_wrapped(suffix, inputs=[], outputs=[]):
             return evaluate_unwrapped(
                     model_device,
@@ -381,3 +387,9 @@ class NequIPModel(BaseModel):
                 device=device,
                 set_global_options=set_global_options,
                 )
+
+
+@id_for_memo.register(type(NequIPModel.load_calculator))
+def id_for_memo_method(method, output_ref=False):
+    string = inspect.getsource(method)
+    return bytes(string, 'utf-8')

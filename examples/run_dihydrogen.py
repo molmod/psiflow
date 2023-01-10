@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 import parsl
+from parsl.utils import get_all_checkpoints
 
 from psiflow.manager import Manager
 from psiflow.learning import RandomLearning, OnlineLearning
@@ -21,19 +22,25 @@ from psiflow.utils import get_parsl_config_from_file
 
 def get_context_and_manager(args):
     path_run = Path.cwd() / args.name
-    if path_run.is_dir():
-        shutil.rmtree(path_run)
-    path_run.mkdir()
+    if not args.restart:
+        if path_run.is_dir():
+            shutil.rmtree(path_run)
+        path_run.mkdir()
+    else:
+        assert path_run.is_dir()
     path_internal = path_run / 'parsl_internal'
     path_context  = path_run / 'context_dir'
     config = get_parsl_config_from_file(
             args.parsl_config,
             path_internal,
             )
+    config.initialize_logging = False
+    config.checkpoint_mode = 'task_exit'
+    if args.restart:
+        config.checkpoint_files = get_all_checkpoints(str(path_internal))
+        print('found {} checkpoint files'.format(len(config.checkpoint_files)))
     parsl.load(config)
     config.retries = args.retries
-    config.cache=True
-    config.initialize_logging = False
     context = ExecutionContext(config, path=path_context)
     context.register(ModelExecutionDefinition())
     context.register(ReferenceExecutionDefinition(time_per_singlepoint=30))
@@ -45,6 +52,7 @@ def get_context_and_manager(args):
             path_output,
             wandb_project='dihydrogen',
             wandb_group=args.name,
+            restart=args.restart,
             error_x_axis='CV', # plot errors w.r.t CV value
             )
     return context, manager
@@ -77,11 +85,11 @@ def get_reference(context):
 def get_model(context):
     config_text = requests.get('https://raw.githubusercontent.com/mir-group/nequip/v0.5.5/configs/minimal.yaml').text
     config = yaml.load(config_text, Loader=yaml.FullLoader)
-    config['r_max'] = 4.0 # reduce computational cost of data processing
+    config['r_max'] = 5.0 # reduce computational cost of data processing
     config['chemical_symbols'] = ['X'] # should get overridden
     config['num_layers'] = 2
     config['num_features'] = 8
-    config['invariant_neurons'] = 16
+    config['invariant_neurons'] = 16 #16
     config['invariant_layers'] = 1
     return NequIPModel(context, config)
 
@@ -139,6 +147,9 @@ def main(context, manager):
             data_train=data_train,
             data_valid=data_valid,
             )
+    evaluated = model.evaluate(data_train)
+    for i in range(evaluated.length().result()):
+        print(evaluated[i].result().info['energy_model'])
 
 
 if __name__ == '__main__':
@@ -146,6 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('--parsl-config', action='store')
     parser.add_argument('--name', action='store')
     parser.add_argument('--retries', action='store', default=1)
+    parser.add_argument('--restart', action='store_true', default=False)
     args = parser.parse_args()
 
     context, manager = get_context_and_manager(args)

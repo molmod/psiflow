@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from parsl.app.app import python_app
+from parsl.dataflow.memoization import id_for_memo
 
 from psiflow.execution import ReferenceExecutionDefinition
 from .base import BaseReference
@@ -173,6 +174,15 @@ class CP2KParameters:
     cp2k_data  : dict
 
 
+@id_for_memo.register(CP2KParameters)
+def id_for_memo_cp2k_parameters(parameters: CP2KParameters, output_ref=False):
+    assert not output_ref
+    # never really necessary to check for data equivalence?
+    b1 = id_for_memo(parameters.cp2k_input, output_ref=output_ref)
+    b2 = id_for_memo(parameters.cp2k_data,  output_ref=output_ref)
+    return b1 + b2
+
+
 class CP2KReference(BaseReference):
     """CP2K Reference
 
@@ -214,6 +224,7 @@ class CP2KReference(BaseReference):
         singlepoint_unwrapped = python_app(
                 cp2k_singlepoint,
                 executors=[label],
+                cache=True,
                 )
         def singlepoint_wrapped(atoms, parameters, inputs=[], outputs=[]):
             assert len(outputs) == 0

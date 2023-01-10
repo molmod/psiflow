@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import logging
 
+from parsl.dataflow.memoization import id_for_memo
+from parsl.data_provider.files import File
+
 from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
 from parsl.data_provider.files import File
 from parsl.config import Config
@@ -117,7 +120,6 @@ class ExecutionContext:
         assert self.file_index[key] < (16 ** padding)
         identifier = '{0:0{1}x}'.format(self.file_index[key], padding)
         self.file_index[key] += 1
-        print(prefix + identifier + suffix)
         return File(str(self.path / (prefix + identifier + suffix)))
 
 
@@ -130,3 +132,8 @@ class Container:
     @staticmethod
     def create_apps(context: ExecutionContext):
         raise NotImplementedError
+
+
+@id_for_memo.register(File)
+def id_for_memo_file(file: File, output_ref=False):
+    return bytes(file.filepath, 'utf-8')

@@ -13,6 +13,7 @@ from ase.data import atomic_numbers
 
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 from parsl.config import Config
 
 
@@ -148,7 +149,11 @@ def _log_data_to_wandb(
     os.environ['WANDB_SILENT'] = 'True' # suppress logs
     wandb.log(wandb_log)
     wandb.finish()
-log_data_to_wandb = python_app(_log_data_to_wandb, executors=['default'])
+log_data_to_wandb = python_app(
+        _log_data_to_wandb,
+        executors=['default'],
+        cache=True,
+        )
 
 
 @typeguard.typechecked
@@ -165,9 +170,10 @@ def _app_train_valid_indices(
 app_train_valid_indices = python_app(_app_train_valid_indices)
 
 
+@typeguard.typechecked
 def get_train_valid_indices(
         effective_nstates: AppFuture,
         train_valid_split: float,
-        ) -> Union[AppFuture, AppFuture]:
+        ) -> Tuple[AppFuture, AppFuture]:
     future = app_train_valid_indices(effective_nstates, train_valid_split)
     return unpack_i(future, 0), unpack_i(future, 1)

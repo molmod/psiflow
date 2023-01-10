@@ -90,7 +90,7 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
 
 
 def test_manager_save_load(context, dataset, model, ensemble, tmp_path):
-    path_output = Path(tmp_path)
+    path_output = Path(tmp_path) / 'parsl_internal'
     walkers = []
     walkers.append(RandomWalker(context, dataset[0]))
     walkers.append(DynamicWalker(context, dataset[1]))
@@ -107,12 +107,20 @@ def test_manager_save_load(context, dataset, model, ensemble, tmp_path):
                 ),
             ]
     name = 'test'
-    manager.save(name=name, model=model, ensemble=ensemble, checks=checks)
+    manager.save(
+            name=name,
+            model=model,
+            ensemble=ensemble,
+            checks=checks,
+            data_failed=dataset,
+            )
     assert (path_output / name / 'ensemble').is_dir()
     assert (path_output / name / 'ensemble' / '0').is_dir()
     assert (path_output / name / 'ensemble' / '1').is_dir()
     assert not (path_output / name / 'ensemble' / '2').is_dir()
     assert (path_output / name / 'checks').is_dir() # directory for saved checks
+    assert (path_output / name / 'failed.xyz').is_file()
+    assert (path_output / name / 'failed.txt').is_file()
 
     model_, ensemble_, data_train, data_valid, checks = manager.load(
             'test',
@@ -156,7 +164,7 @@ def test_manager_save_load(context, dataset, model, ensemble, tmp_path):
 
 
 def test_manager_dry_run(context, dataset, model, ensemble, reference, tmp_path):
-    manager = Manager(tmp_path, 'pytest', 'test_manager_dry_run')
+    manager = Manager(tmp_path / 'parsl_internal', 'pytest', 'test_manager_dry_run')
     with pytest.raises(AssertionError):
         manager.dry_run(model, reference) # specify either walker or ensemble
     random_walker = RandomWalker(context, dataset[0])

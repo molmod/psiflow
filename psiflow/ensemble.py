@@ -194,12 +194,17 @@ class Ensemble:
                 atoms_list=states,
                 )
 
-    def save(self, path: Union[Path, str], require_done: bool = True) -> None:
+    def save(
+            self,
+            path: Union[Path, str],
+            require_done: bool = True,
+            restart: bool = False,
+            ) -> None:
         path = Path(path)
         assert path.is_dir()
         for i, (walker, bias) in enumerate(zip(self.walkers, self.biases)):
             path_walker = path / str(i)
-            path_walker.mkdir(parents=False, exist_ok=False)
+            path_walker.mkdir(parents=False, exist_ok=restart)
             walker.save(path_walker, require_done=require_done)
             if bias is not None:
                 bias.save(path_walker, require_done=require_done)

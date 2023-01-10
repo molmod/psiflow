@@ -18,7 +18,7 @@ from psiflow.models import BaseModel, load_model
 from psiflow.reference.base import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
 from psiflow.ensemble import Ensemble
-from psiflow.data import Dataset
+from psiflow.data import Dataset, parse_evaluation_logs
 from psiflow.checks import Check, load_checks, SafetyCheck
 from psiflow.utils import copy_app_future, log_data_to_wandb
 
@@ -196,11 +196,12 @@ class Manager:
             path_output: Union[Path, str],
             wandb_project: str,
             wandb_group: str,
+            restart: bool = False,
             error_kwargs: Optional[dict[str, Any]] = None,
             error_x_axis: Optional[str] = 'index',
             ) -> None:
         self.path_output = Path(path_output)
-        self.path_output.mkdir(parents=True, exist_ok=True)
+        self.restart = restart
         self.wandb_project = wandb_project
         self.wandb_group   = wandb_group
         if error_kwargs is None:
@@ -211,6 +212,8 @@ class Manager:
                     }
         self.error_kwargs = error_kwargs
         self.error_x_axis = error_x_axis
+        # output directory can only exist if this run is a restart
+        self.path_output.mkdir(parents=True, exist_ok=self.restart)
 
     def dry_run(
             self,
@@ -303,15 +306,15 @@ class Manager:
             checks: Optional[list[Check]] = None,
             ) -> None:
         path = self.path_output / name
-        path.mkdir(parents=False, exist_ok=False) # parent should exist
+        path.mkdir(parents=False, exist_ok=self.restart) # parent should exist
 
         # model
         model.save(path)
 
         # ensemble
         path_ensemble = path / 'ensemble'
-        path_ensemble.mkdir(parents=False)
-        ensemble.save(path_ensemble)
+        path_ensemble.mkdir(parents=False, exist_ok=self.restart)
+        ensemble.save(path_ensemble, restart=self.restart)
 
         # data
         if data_train is not None:
@@ -320,11 +323,14 @@ class Manager:
             data_valid.save(path / 'validate.xyz')
         if data_failed is not None:
             data_failed.save(path / 'failed.xyz')
+            parsed = parse_evaluation_logs(data_failed.as_list())
+            with open(path / 'failed.txt', 'w') as f:
+                f.write(parsed)
 
         # save checks if necessary
         if checks is not None:
             path_checks = path / 'checks'
-            path_checks.mkdir(parents=False)
+            path_checks.mkdir(parents=False, exist_ok=self.restart)
             for check in checks:
                 check.save(path_checks) # all checks may be stored in same dir
 

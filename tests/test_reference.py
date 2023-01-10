@@ -10,7 +10,7 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 
 from ase import Atoms
 
-from psiflow.data import FlowAtoms
+from psiflow.data import FlowAtoms, parse_evaluation_logs
 from psiflow.reference import EMTReference, CP2KReference
 from psiflow.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
@@ -326,6 +326,10 @@ def test_cp2k_failure(context, cp2k_data):
     log = evaluated.result().evaluation_log
     assert 'ABORT' in log # verify error is captured
     assert 'requested basis set' in log
+    parsed = parse_evaluation_logs([evaluated.result()])
+    assert 'ABORT' in parsed # verify error is captured
+    assert 'requested basis set' in parsed
+    assert 'INDEX 00000 - ' in parsed
 
 
 def test_cp2k_timeout(context, cp2k_data, cp2k_input):

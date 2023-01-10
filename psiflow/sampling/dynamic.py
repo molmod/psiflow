@@ -1,11 +1,12 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Callable, Tuple
 import typeguard
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
+from parsl.dataflow.memoization import id_for_memo
 
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.execution import ModelExecutionDefinition, ExecutionContext
@@ -157,6 +158,12 @@ class DynamicParameters: # container dataclass for simulation parameters
     seed               : int = 0 # seed for randomized initializations
 
 
+@id_for_memo.register(DynamicParameters)
+def id_for_memo_cp2k_parameters(parameters: DynamicParameters, output_ref=False):
+    assert not output_ref
+    return id_for_memo(asdict(parameters), output_ref=output_ref)
+
+
 @typeguard.typechecked
 class DynamicWalker(BaseWalker):
     parameters_cls = DynamicParameters
@@ -171,6 +178,7 @@ class DynamicWalker(BaseWalker):
         app_propagate = python_app(
                 simulate_model,
                 executors=[label],
+                cache=True,
                 )
         @typeguard.typechecked
         def propagate_wrapped(

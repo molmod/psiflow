@@ -5,6 +5,8 @@ from dataclasses import dataclass, asdict
 from copy import deepcopy
 from pathlib import Path
 
+from ase import Atoms
+
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -61,13 +63,15 @@ class BaseWalker(Container):
     def __init__(
             self,
             context: ExecutionContext,
-            atoms: Union[FlowAtoms, AppFuture],
+            atoms: Union[Atoms, FlowAtoms, AppFuture],
             **kwargs,
             ) -> None:
         super().__init__(context)
         self.context = context
 
         # futures
+        if type(atoms) == Atoms:
+            atoms = FlowAtoms.from_atoms(atoms)
         self.start_future = copy_app_future(atoms) # necessary!
         self.state_future = copy_app_future(atoms)
         self.tag_future   = copy_app_future('safe')
