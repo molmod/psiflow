@@ -17,15 +17,22 @@ def evaluate_emt(
         parameters: EmptyParameters,
         inputs: List = [],
         outputs: List = [],
-        ):
+        ) -> FlowAtoms:
     from ase.calculators.emt import EMT
-    atoms.calc = EMT()
-    atoms.info['energy']   = atoms.get_potential_energy()
-    atoms.arrays['forces'] = atoms.get_forces()
-    atoms.info['stress']   = atoms.get_stress(voigt=False)
-    atoms.calc = None
-    atoms.evaluation_log  = ''
-    atoms.evaluation_flag = 'success'
+    if type(atoms) == Atoms:
+        atoms = FlowAtoms.from_atoms(atoms)
+    try:
+        atoms.calc = EMT()
+        atoms.info['energy']   = atoms.get_potential_energy()
+        atoms.arrays['forces'] = atoms.get_forces()
+        atoms.info['stress']   = atoms.get_stress(voigt=False)
+        atoms.calc = None
+        atoms.reference_log  = ''
+        atoms.reference_status = True
+    except Exception as e:
+        print(e)
+        atoms.reference_log  = str(e)
+        atoms.reference_status = False
     return atoms
 
 

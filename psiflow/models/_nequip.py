@@ -361,13 +361,12 @@ class NequIPModel(BaseModel):
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(suffix, inputs=[], outputs=[]):
+        def evaluate_wrapped(inputs=[], outputs=[]):
             return evaluate_unwrapped(
                     model_device,
                     model_dtype,
                     model_ncores,
                     cls.load_calculator,
-                    suffix,
                     inputs=inputs,
                     outputs=outputs,
                     )

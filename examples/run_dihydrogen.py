@@ -149,7 +149,7 @@ def main(context, manager):
             )
     evaluated = model.evaluate(data_train)
     for i in range(evaluated.length().result()):
-        print(evaluated[i].result().info['energy_model'])
+        print(evaluated[i].result().info['energy'])
 
 
 if __name__ == '__main__':

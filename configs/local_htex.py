@@ -40,6 +40,7 @@ def get_config(path_internal):
                 provider=provider,
                 max_workers=1,
                 cores_per_worker=4,
+                cpu_affinity='block',
                 ),
             ]
     return Config(executors, run_dir=str(path_internal), usage_tracking=True)

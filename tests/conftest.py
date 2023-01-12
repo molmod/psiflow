@@ -37,12 +37,13 @@ def parsl_config(request, tmp_path_factory):
 
 @pytest.fixture(scope='session')
 def context(parsl_config, tmpdir_factory):
+    parsl_config.retries = 0
     parsl.load(parsl_config)
     path = str(tmpdir_factory.mktemp('context_dir'))
     context = ExecutionContext(parsl_config, path=path)
     context.register(ModelExecutionDefinition())
-    context.register(ReferenceExecutionDefinition(time_per_singlepoint=30))
-    context.register(TrainingExecutionDefinition(walltime=30))
+    context.register(ReferenceExecutionDefinition(time_per_singlepoint=50))
+    context.register(TrainingExecutionDefinition(walltime=50))
     yield context
     parsl.clear()
 
@@ -84,5 +85,5 @@ def dataset(context, tmp_path):
     data = generate_emt_cu_data(20, 0.2)
     data_ = [FlowAtoms.from_atoms(atoms) for atoms in data]
     for atoms in data_:
-        atoms.evaluation_flag = 'success'
+        atoms.reference_status = True
     return Dataset(context, data_)

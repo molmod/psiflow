@@ -29,6 +29,12 @@ create_if_empty = python_app(_create_if_empty, executors=['default'])
 
 
 @typeguard.typechecked
+def _combine_futures(inputs: List[Any]) -> List[Any]:
+    return list(inputs)
+combine_futures = python_app(_combine_futures, executors=['default'])
+
+
+@typeguard.typechecked
 def get_parsl_config_from_file(
         path_config: Union[Path, str],
         path_internal: Union[Path, str],

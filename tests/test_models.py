@@ -52,17 +52,17 @@ def test_nequip_init(context, nequip_config, dataset):
     assert not e0 == e1 # never exactly equal
 
     torch.set_default_dtype(torch.float32)
-    e0 = model.evaluate(dataset.get(indices=[0]))[0].result().info['energy_model']
+    e0 = model.evaluate(dataset.get(indices=[0]))[0].result().info['energy']
     model.reset()
     model.set_seed(1)
     model.initialize(dataset[:3])
     model.deploy()
-    assert e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info['energy_model']
+    assert e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info['energy']
     model.reset()
     model.set_seed(0)
     model.initialize(dataset[:3])
     model.deploy()
-    assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info['energy_model']
+    assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info['energy']
 
 
 def test_nequip_train(context, nequip_config, dataset, tmp_path):
@@ -71,19 +71,13 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     model = NequIPModel(context, nequip_config)
     model.initialize(training)
     model.deploy()
-    validation_evaluated = model.evaluate(validation, suffix='_my_model')
-    assert 'energy_my_model' in validation_evaluated[0].result().info.keys()
-    #errors0 = model.evaluate(validation, suffix='_model').get_errors()
-    with pytest.raises(AssertionError):
-        validation_evaluated.get_errors().result() # nonexisting suffix
-    errors0 = validation_evaluated.get_errors(suffix_1='_my_model')
+    errors0 = Dataset.get_errors(validation, model.evaluate(validation))
     epochs = model.train(training, validation).result()
     assert len(model.deploy_future) == 0
     assert epochs < nequip_config['max_epochs'] # terminates by app timeout
     assert epochs > 0
     model.deploy()
-    errors1 = model.evaluate(validation).get_errors()
-    evaluated = model.evaluate(validation)
+    errors1 = Dataset.get_errors(validation, model.evaluate(validation))
     assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
 
     # test saving
@@ -99,7 +93,7 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
     assert _ is None
     model.initialize(dataset[:2])
     model.deploy()
-    e0 = model.evaluate(dataset.get(indices=[3]))[0].result().info['energy_model']
+    e0 = model.evaluate(dataset.get(indices=[3]))[0].result().info['energy']
 
     path_config_raw = tmp_path / 'NequIPModel.yaml'
     path_config     = tmp_path / 'config_after_init.yaml'
@@ -113,5 +107,5 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
     assert type(model_) == NequIPModel
     assert model_.model_future is not None
     model_.deploy()
-    e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info['energy_model']
+    e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info['energy']
     assert np.allclose(e0, e1, atol=1e-4) # up to single precision

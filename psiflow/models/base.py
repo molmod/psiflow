@@ -22,7 +22,6 @@ def evaluate_dataset(
         dtype: str,
         ncores: int,
         load_calculator: Callable,
-        suffix: str,
         inputs: List[File] = [],
         outputs: List[File] = [],
         ) -> None:
@@ -50,10 +49,9 @@ def evaluate_dataset(
             except Exception as e:
                 print(e)
                 stress = np.zeros((3, 3))
-            #sample.label(energy, forces, stress, log=None)
-            _atoms.info['energy' + suffix] = energy
-            _atoms.info['stress' + suffix] = stress
-            _atoms.arrays['forces' + suffix] = forces
+            _atoms.info['energy'] = energy
+            _atoms.info['stress'] = stress
+            _atoms.arrays['forces'] = forces
         save_dataset(dataset, outputs=[outputs[0]])
 
 
@@ -76,12 +74,11 @@ class BaseModel(Container):
         """Initializes the model based on a dataset"""
         raise NotImplementedError
 
-    def evaluate(self, dataset: Dataset, suffix: str = '_model') -> Dataset:
+    def evaluate(self, dataset: Dataset) -> Dataset:
         """Evaluates a dataset using a model and returns it as a covalent electron"""
         dtype = self.context[ModelExecutionDefinition].dtype
         assert dtype in self.deploy_future.keys()
         data_future = self.context.apps(self.__class__, 'evaluate')(
-                suffix=suffix,
                 inputs=[dataset.data_future, self.deploy_future[dtype]],
                 outputs=[self.context.new_file('data_', '.xyz')],
                 ).outputs[0]

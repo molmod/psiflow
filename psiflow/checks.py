@@ -196,16 +196,15 @@ class DiscrepancyCheck(Check):
         assert self.model_old.config_future is not None
         assert self.model_new is not None
         assert self.model_new.config_future is not None
-        dataset = Dataset(self.model_old.context, [state])
-        dataset = self.model_old.evaluate(dataset, suffix='_old')
-        dataset = self.model_new.evaluate(dataset, suffix='_new')
-        errors = dataset.get_errors(
-                intrinsic=False,
+        dataset = Dataset(self.model_old.context, [state]) # dummy
+        errors = Dataset.get_errors(
+                self.model_old.evaluate(dataset),
+                self.model_new.evaluate(dataset),
                 metric=self.metric,
-                suffix_0='_old',
-                suffix_1='_new',
                 properties=self.properties,
                 )
+        print('errors: ')
+        print(errors.result())
         return check_discrepancy(state, errors, self.thresholds)
 
     def update_model(self, model: BaseModel) -> None:

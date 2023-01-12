@@ -1,6 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List
 import typeguard
+import copy
 import os
 import tempfile
 import logging
@@ -16,7 +17,7 @@ from parsl.dataflow.memoization import id_for_memo
 from ase import Atoms
 
 from psiflow.execution import Container, ExecutionContext
-from psiflow.utils import copy_data_future
+from psiflow.utils import copy_data_future, copy_app_future
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -29,43 +30,39 @@ class FlowAtoms(Atoms):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.evaluation_log = None
-        self.info['evaluation_flag'] = None
+        self.reference_log = None
+        if 'reference_status' not in self.info.keys(): # only set if not present
+            self.info['reference_status'] = False
 
     @property
-    def evaluation_flag(self) -> Optional[str]:
-        return self.info['evaluation_flag']
+    def reference_status(self) -> bool:
+        return self.info['reference_status']
 
-    @evaluation_flag.setter
-    def evaluation_flag(self, flag: Optional[str]) -> None:
-        assert flag in [None, 'success', 'failed']
-        self.info['evaluation_flag'] = flag
+    @reference_status.setter
+    def reference_status(self, flag: bool) -> None:
+        assert flag in [True, False]
+        self.info['reference_status'] = flag
+
+    def copy(self) -> FlowAtoms:
+        flow_atoms = FlowAtoms.from_atoms(self)
+        flow_atoms.reference_log = self.reference_log
+        flow_atoms.reference_status = self.reference_status
+        if 'stress' in flow_atoms.info.keys(): # bug in ASE constructor!
+            flow_atoms.info['stress'] = flow_atoms.info['stress'].copy()
+        return flow_atoms
 
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> FlowAtoms:
-        flow_atoms = cls(
-                numbers=atoms.numbers,
-                positions=atoms.get_positions(),
-                cell=atoms.get_cell(),
+        flow_atoms = FlowAtoms( # follows Atoms.copy method
+                cell=atoms.cell,
                 pbc=atoms.pbc,
+                info=atoms.info,
+                celldisp=atoms._celldisp.copy(),
                 )
-        properties = ['energy', 'stress']
-        for property_ in properties:
-            for key in atoms.info.keys():
-                if key.startswith(property_):
-                    flow_atoms.info[key] = atoms.info[key]
-        properties = ['forces']
-        for property_ in properties:
-            for key in atoms.arrays.keys():
-                if key.startswith(property_):
-                    flow_atoms.arrays[key] = atoms.arrays[key]
-
-        if 'evaluation_flag' in atoms.info.keys():
-            # default ASE value is True; should be converted to None
-            value = atoms.info['evaluation_flag']
-            if value == True:
-                value = None
-            flow_atoms.evaluation_flag = value
+        flow_atoms.arrays = {}
+        for name, a in atoms.arrays.items():
+            flow_atoms.arrays[name] = a.copy()
+        flow_atoms.constraints = copy.deepcopy(atoms.constraints)
         return flow_atoms
 
 
@@ -80,10 +77,10 @@ def id_for_memo_flowatoms(atoms: FlowAtoms, output_ref=False):
 
 
 @typeguard.typechecked
-def parse_evaluation_logs(atoms_list: List[FlowAtoms]) -> str:
+def parse_reference_logs(atoms_list: List[FlowAtoms]) -> str:
     _all = []
     for i, atoms in enumerate(atoms_list):
-        log = atoms.evaluation_log
+        log = atoms.reference_log
         if log is None:
             log = ''
         lines = log.split('\n')
@@ -98,8 +95,9 @@ def parse_evaluation_logs(atoms_list: List[FlowAtoms]) -> str:
 def save_dataset(
         states: Optional[List[Optional[FlowAtoms]]],
         inputs: List[Optional[FlowAtoms]] = [], # allow None
+        return_data: bool = False, # whether to return data
         outputs: List[File] = [],
-        ) -> None:
+        ) -> Optional[List[FlowAtoms]]:
     from ase.io.extxyz import write_extxyz
     if states is not None:
         _data = states
@@ -113,6 +111,8 @@ def save_dataset(
             i += 1
     with open(outputs[0], 'w') as f:
         write_extxyz(f, _data)
+    if return_data:
+        return _data
 
 
 @typeguard.typechecked
@@ -164,14 +164,14 @@ def get_length_dataset(inputs: List[File] = []) -> int:
 
 @typeguard.typechecked
 def get_indices_per_flag(
-        flag: Optional[str],
+        flag: bool,
         inputs: List[File] = [],
         ) -> List[int]:
     data = read_dataset(slice(None), inputs=[inputs[0]])
     indices = []
     for i, atoms in enumerate(data):
-        assert atoms.evaluation_flag is not None
-        if atoms.evaluation_flag == flag:
+        assert atoms.reference_status is not None
+        if atoms.reference_status == flag:
             indices.append(i)
     return indices
 
@@ -183,61 +183,72 @@ def compute_metrics(
         elements: Optional[List[str]],
         metric: str,
         properties: List[str],
-        suffix_0: str,
-        suffix_1: str,
         inputs: List[File] = [],
         ) -> np.ndarray:
     import numpy as np
     from ase.units import Pascal
     from psiflow.data import read_dataset
     from psiflow.utils import get_index_element_mask
-    data = read_dataset(slice(None), inputs=[inputs[0]])
-    errors = np.zeros((len(data), len(properties)))
-    outer_mask = np.array([True] * len(data))
-    assert suffix_0 != suffix_1
-    for i, atoms in enumerate(data):
+    data_0 = read_dataset(slice(None), inputs=[inputs[0]])
+    if len(inputs) == 1:
+        assert intrinsic
+        data_1 = [a.copy() for a in data_0]
+        for atoms_1 in data_1:
+            if 'energy' in atoms_1.info.keys():
+                atoms_1.info['energy'] = 0.0
+            if 'stress' in atoms_1.info.keys(): # ASE copy fails for info attrs!
+                atoms_1.info['stress'] = np.zeros((3, 3))
+            if 'forces' in atoms_1.arrays.keys():
+                atoms_1.arrays['forces'][:] = 0.0
+    else:
+        data_1 = read_dataset(slice(None), inputs=[inputs[1]])
+    assert len(data_0) == len(data_1)
+    for atoms_0, atoms_1 in zip(data_0, data_1):
+        assert np.allclose(atoms_0.numbers, atoms_1.numbers)
+        assert np.allclose(atoms_0.positions, atoms_1.positions)
+        if atoms_0.cell is not None:
+            assert np.allclose(atoms_0.cell, atoms_1.cell)
+
+    errors = np.zeros((len(data_0), len(properties)))
+    outer_mask = np.array([True] * len(data_0))
+    for i in range(len(data_0)):
+        atoms_0 = data_0[i]
+        atoms_1 = data_1[i]
         if (atom_indices is not None) or (elements is not None):
             assert 'energy' not in properties
             assert 'stress' not in properties
             assert 'forces' in properties # only makes sense for forces
-            mask = get_index_element_mask(atoms.numbers, elements, atom_indices)
+            mask = get_index_element_mask(atoms_0.numbers, elements, atom_indices)
         else:
-            mask = np.array([True] * len(atoms))
+            mask = np.array([True] * len(atoms_0))
         if not np.any(mask): # no target atoms present; skip
             outer_mask[i] = False
             continue
         if 'energy' in properties:
-            assert 'energy' + suffix_0 in atoms.info.keys()
-            if not intrinsic:
-                assert 'energy' + suffix_1 in atoms.info.keys()
+            assert 'energy' in atoms_0.info.keys()
+            assert 'energy' in atoms_1.info.keys()
         if 'forces' in properties:
-            assert 'forces' + suffix_0 in atoms.arrays.keys()
-            if not intrinsic:
-                assert 'forces' + suffix_1 in atoms.arrays.keys()
+            assert 'forces' in atoms_0.arrays.keys()
+            assert 'forces' in atoms_1.arrays.keys()
         if 'stress' in properties:
-            assert 'stress' + suffix_0 in atoms.info.keys()
-            if not intrinsic:
-                assert 'stress' + suffix_1 in atoms.info.keys()
+            assert 'stress' in atoms_0.info.keys()
+            assert 'stress' in atoms_1.info.keys()
         for j, property_ in enumerate(properties):
-            if intrinsic:
-                atoms.info['energy' + suffix_1] = 0.0
-                atoms.info['stress' + suffix_1] = np.zeros((3, 3))
-                atoms.arrays['forces' + suffix_1] = np.zeros(atoms.positions.shape)
             if property_ == 'energy':
-                array_0 = np.array([atoms.info['energy' + suffix_0]]).reshape((1, 1))
-                array_1 = np.array([atoms.info['energy' + suffix_1]]).reshape((1, 1))
-                array_0 /= len(atoms) # per atom energy error
-                array_1 /= len(atoms)
+                array_0 = np.array([atoms_0.info['energy']]).reshape((1, 1))
+                array_1 = np.array([atoms_1.info['energy']]).reshape((1, 1))
+                array_0 /= len(atoms_0) # per atom energy error
+                array_1 /= len(atoms_1)
                 array_0 *= 1000 # in meV/atom
                 array_1 *= 1000
             elif property_ == 'forces':
-                array_0 = atoms.arrays['forces' + suffix_0][mask, :]
-                array_1 = atoms.arrays['forces' + suffix_1][mask, :]
+                array_0 = atoms_0.arrays['forces'][mask, :]
+                array_1 = atoms_1.arrays['forces'][mask, :]
                 array_0 *= 1000 # in meV/angstrom
                 array_1 *= 1000
             elif property_ == 'stress':
-                array_0 = atoms.info['stress' + suffix_0].reshape((1, 9))
-                array_1 = atoms.info['stress' + suffix_1].reshape((1, 9))
+                array_0 = atoms_0.info['stress'].reshape((1, 9))
+                array_1 = atoms_1.info['stress'].reshape((1, 9))
                 array_0 /= (1e6 * Pascal) # in MPa
                 array_1 /= (1e6 * Pascal)
             else:
@@ -330,31 +341,11 @@ class Dataset(Container):
             return Dataset(self.context, None, data_future=data_future)
         else:
             assert index is not None
-            return self.context.apps(Dataset, 'read_dataset')(
+            atoms = self.context.apps(Dataset, 'read_dataset')(
                     index, # int or AppFuture of int
                     inputs=[self.data_future],
                     ) # represents an AppFuture of an ase.Atoms instance
-
-    def get_errors(
-            self,
-            intrinsic: bool = False,
-            atom_indices: Optional[List[int]] = None,
-            elements: Optional[List[str]] = None,
-            metric: str = 'rmse',
-            suffix_0: str = '', # use QM reference by default
-            suffix_1: str = '_model', # use single model by default 
-            properties: List[str] = ['energy', 'forces', 'stress'],
-            ) -> AppFuture:
-        return self.context.apps(Dataset, 'compute_metrics')(
-                intrinsic=intrinsic,
-                atom_indices=atom_indices,
-                elements=elements,
-                metric=metric,
-                properties=properties,
-                suffix_0=suffix_0,
-                suffix_1=suffix_1,
-                inputs=[self.data_future],
-                )
+            return atoms
 
     def save(
             self,
@@ -387,15 +378,39 @@ class Dataset(Container):
     @property
     def success(self) -> AppFuture:
         return self.context.apps(Dataset, 'get_indices_per_flag')(
-                'success',
+                True,
                 inputs=[self.data_future],
                 )
 
     @property
     def failed(self) -> AppFuture:
         return self.context.apps(Dataset, 'get_indices_per_flag')(
-                'failed',
+                False,
                 inputs=[self.data_future],
+                )
+
+    @staticmethod
+    def get_errors(
+            dataset_0: Dataset,
+            dataset_1: Optional[Dataset], # None when computing intrinsic errors
+            atom_indices: Optional[List[int]] = None,
+            elements: Optional[List[str]] = None,
+            metric: str = 'rmse',
+            properties: List[str] = ['energy', 'forces', 'stress'],
+            ) -> AppFuture:
+        inputs = [dataset_0.data_future]
+        if dataset_1 is not None:
+            inputs.append(dataset_1.data_future)
+            intrinsic = False
+        else:
+            intrinsic = True
+        return dataset_0.context.apps(Dataset, 'compute_metrics')(
+                intrinsic=intrinsic,
+                atom_indices=atom_indices,
+                elements=elements,
+                metric=metric,
+                properties=properties,
+                inputs=inputs,
                 )
 
     @classmethod
@@ -406,16 +421,6 @@ class Dataset(Container):
             ) -> Dataset:
         assert os.path.isfile(path_xyz) # needs to be locally accessible
         return cls(context, None, data_future=File(str(path_xyz)))
-
-    @staticmethod
-    def merge(*datasets: Dataset) -> Dataset:
-        assert len(datasets) > 0
-        context = datasets[0].context
-        data_future = context.apps(Dataset, 'join_dataset')(
-                inputs=[item.data_future for item in datasets],
-                outputs=[context.new_file('data_', '.xyz')],
-                ).outputs[0]
-        return Dataset(context, None, data_future=data_future)
 
     @staticmethod
     def create_apps(context: ExecutionContext) -> None:

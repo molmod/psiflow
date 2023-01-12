@@ -18,7 +18,7 @@ from psiflow.models import BaseModel, load_model
 from psiflow.reference.base import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
 from psiflow.ensemble import Ensemble
-from psiflow.data import Dataset, parse_evaluation_logs
+from psiflow.data import Dataset, parse_reference_logs
 from psiflow.checks import Check, load_checks, SafetyCheck
 from psiflow.utils import copy_app_future, log_data_to_wandb
 
@@ -133,8 +133,12 @@ def log_data(
         assert error_kwargs is not None
         if len(model.deploy_future) == 0:
             model.deploy()
-        _dataset = model.evaluate(dataset)
-        errors = _dataset.get_errors(**error_kwargs)
+        #_dataset = model.evaluate(dataset)
+        errors = Dataset.get_errors(
+                dataset,
+                model.evaluate(dataset),
+                **error_kwargs,
+                )
         error_labels = [error_kwargs['metric'] + '_' + p for p in error_kwargs['properties']]
     else:
         errors = None
@@ -206,7 +210,6 @@ class Manager:
         self.wandb_group   = wandb_group
         if error_kwargs is None:
             error_kwargs = {
-                    'intrinsic': False,
                     'metric': 'mae',
                     'properties': ['energy', 'forces', 'stress'],
                     }
@@ -323,7 +326,7 @@ class Manager:
             data_valid.save(path / 'validate.xyz')
         if data_failed is not None:
             data_failed.save(path / 'failed.xyz')
-            parsed = parse_evaluation_logs(data_failed.as_list())
+            parsed = parse_reference_logs(data_failed.as_list())
             with open(path / 'failed.txt', 'w') as f:
                 f.write(parsed)
 

@@ -9,8 +9,9 @@ from parsl.app.futures import DataFuture
 from pymatgen.io.cp2k.inputs import Cp2kInput
 
 from ase import Atoms
+from ase.io.extxyz import write_extxyz
 
-from psiflow.data import FlowAtoms, parse_evaluation_logs
+from psiflow.data import FlowAtoms, parse_reference_logs
 from psiflow.reference import EMTReference, CP2KReference
 from psiflow.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
@@ -132,22 +133,29 @@ def cp2k_input():
 """
 
 
-def test_reference_emt(context, dataset):
+def test_reference_emt(context, dataset, tmp_path):
     reference = EMTReference(context)
-    atoms = reference.evaluate(dataset[0])
-    assert isinstance(atoms, AppFuture)
-    assert isinstance(atoms.result(), FlowAtoms)
-    assert atoms.result().info['evaluation_flag'] == 'success'
-    assert atoms.result().evaluation_log == ''
+    # modify dataset to include states for which EMT fails:
+    _ = reference.evaluate(dataset).as_list()
+    assert reference.data_failed.length().result() == 0
+    assert len(reference.logs.result()) == 0
+    atoms_list = dataset.as_list()
+    atoms_list[6].numbers[1] = 90
+    atoms_list[9].numbers[1] = 3
+    dataset_ = Dataset(context, atoms_list)
+    evaluated = reference.evaluate(dataset_)
+    assert evaluated.length().result() == len(atoms_list)
+    assert len(reference.logs.result()) == 2 # after join app execution
+    assert reference.data_failed.length().result() == 2
 
-    #evaluated = reference.evaluate(dataset)
-    #evaluated.length().result()
-    #assert isinstance(evaluated, Dataset)
-    #assert isinstance(evaluated.data_future, DataFuture)
-    #assert evaluated.length().result() == dataset.length().result()
-    #for i in range(evaluated.length().result()):
-    #    assert evaluated[i].result().evaluation_flag == 'success'
-    #    assert evaluated[i].result().evaluation_log is None # not retained with batch eval!
+    atoms = reference.evaluate(dataset_[5]).result()
+    assert type(atoms) == FlowAtoms
+    assert atoms.reference_status == True
+    atoms = reference.evaluate(dataset_[6]).result()
+    assert type(atoms) == FlowAtoms
+    assert atoms.reference_status == False
+    assert atoms.reference_log == reference.logs.result()[0]
+    assert atoms.reference_log != reference.logs.result()[1]
 
 
 def test_cp2k_insert_filepaths(fake_cp2k_input):
@@ -208,11 +216,11 @@ def test_cp2k_success(context, cp2k_input, cp2k_data):
             positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
             pbc=True,
             )
-    evaluated = reference.evaluate(atoms)
+    dataset = Dataset(context, [atoms])
+    evaluated = reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
     # calculation will fail if time_per_singlepoint in execution definition is too low!
-    assert evaluated.result().evaluation_flag == 'success'
-    #evaluated.result()
+    assert evaluated.result().reference_status == True
     assert 'energy' in evaluated.result().info.keys()
     assert 'stress' in evaluated.result().info.keys()
     assert 'forces' in evaluated.result().arrays.keys()
@@ -233,7 +241,7 @@ def test_cp2k_success(context, cp2k_input, cp2k_data):
     assert np.allclose(stress_reference, evaluated.result().info['stress'])
 
     # check number of mpi processes
-    content = evaluated.result().evaluation_log
+    content = evaluated.result().reference_log
     ncores = context[ReferenceExecutionDefinition].ncores
     lines = content.split('\n')
     for line in lines:
@@ -321,15 +329,16 @@ def test_cp2k_failure(context, cp2k_data):
             )
     evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().evaluation_flag == 'failed'
+    assert evaluated.result().reference_status == False
     assert 'energy' not in evaluated.result().info.keys()
-    log = evaluated.result().evaluation_log
+    log = evaluated.result().reference_log
     assert 'ABORT' in log # verify error is captured
     assert 'requested basis set' in log
-    parsed = parse_evaluation_logs([evaluated.result()])
+    parsed = parse_reference_logs([evaluated.result()])
     assert 'ABORT' in parsed # verify error is captured
     assert 'requested basis set' in parsed
     assert 'INDEX 00000 - ' in parsed
+    assert reference.logs.result()[0] == log
 
 
 def test_cp2k_timeout(context, cp2k_data, cp2k_input):
@@ -342,5 +351,5 @@ def test_cp2k_timeout(context, cp2k_data, cp2k_input):
             )
     evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().evaluation_flag == 'failed'
+    assert evaluated.result().reference_status == False
     assert 'energy' not in evaluated.result().info.keys()

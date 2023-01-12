@@ -4,6 +4,7 @@ import numpy as np
 from parsl.app.futures import DataFuture
 
 from ase import Atoms
+from ase.io import read, write
 from ase.io.extxyz import write_extxyz
 
 from psiflow.data import FlowAtoms, Dataset
@@ -12,18 +13,27 @@ from psiflow.utils import get_index_element_mask
 from tests.conftest import generate_emt_cu_data # explicit import for regular function
 
 
-def test_flow_atoms(context, dataset):
+def test_flow_atoms(context, dataset, tmp_path):
+    atoms = dataset.get(index=0).result().copy() # copy necessary with HTEX!
+    assert type(atoms) == FlowAtoms
+    atoms.reference_log = 'giggle'
+    atoms.reference_status = True
+    atoms_ = atoms.copy()
+    assert atoms_.reference_log is 'giggle'
+    assert atoms_.reference_status == True
+    atoms_ = FlowAtoms.from_atoms(atoms)
+    assert atoms_.reference_log is None # Atoms instances don't have logs
+    assert atoms_.reference_status == True
     for i in range(dataset.length().result()):
         atoms = dataset[i].result()
-        assert isinstance(atoms, FlowAtoms)
-        assert atoms.evaluation_log is None
-        assert atoms.evaluation_flag == 'success'
+        assert type(atoms) == FlowAtoms
+        assert atoms.reference_log is None
+        assert atoms.reference_status == True
     assert np.allclose(
             np.array(dataset.success.result()),
             np.arange(dataset.length().result()),
             )
     assert len(dataset.failed.result()) == 0
-    #atoms.evaluation_flag = 0
 
 
 def test_dataset_empty(context, tmp_path):
@@ -44,8 +54,6 @@ def test_dataset_append(dataset):
     empty = Dataset(dataset.context, []) # use [] instead of None
     empty.append(dataset)
     assert 20 == empty.length().result()
-    new = Dataset.merge(dataset, dataset)
-    assert 40 == new.length().result()
     dataset.append(dataset)
     assert 40 == dataset.length().result()
 
@@ -73,34 +81,33 @@ def test_dataset_from_xyz(context, tmp_path):
 
 
 def test_dataset_metric(context, dataset):
-    errors = dataset.get_errors(intrinsic=True)
+    errors = Dataset.get_errors(dataset, None)
     assert errors.result().shape == (dataset.length().result(), 3)
     errors = np.mean(errors.result(), axis=0)
     assert np.all(errors > 0)
     with pytest.raises(AssertionError):
-        errors = dataset.get_errors(intrinsic=True, atom_indices=[0, 1])
+        errors = Dataset.get_errors(dataset, None, atom_indices=[0, 1])
         errors.result()
     with pytest.raises(AssertionError):
-        errors = dataset.get_errors(intrinsic=True, elements=['C'])
+        errors = Dataset.get_errors(dataset, None, elements=['C'])
         errors.result()
-    errors = dataset.get_errors(intrinsic=True, elements=['H'], properties=['forces']) # H present
+    errors = Dataset.get_errors(dataset, None, elements=['H'], properties=['forces']) # H present
     errors.result()
-    errors_rmse = dataset.get_errors(intrinsic=True, elements=['Cu'], properties=['forces']) # Cu present
-    errors_mae  = dataset.get_errors(intrinsic=True, elements=['Cu'], properties=['forces'], metric='mae') # Cu present
-    errors_max  = dataset.get_errors(intrinsic=True, elements=['Cu'], properties=['forces'], metric='max') # Cu present
+    errors_rmse = Dataset.get_errors(dataset, None, elements=['Cu'], properties=['forces']) # Cu present
+    errors_mae  = Dataset.get_errors(dataset, None, elements=['Cu'], properties=['forces'], metric='mae') # Cu present
+    errors_max  = Dataset.get_errors(dataset, None, elements=['Cu'], properties=['forces'], metric='max') # Cu present
     assert np.all(errors_rmse.result() > errors_mae.result())
     assert np.all(errors_max.result() > errors_rmse.result())
 
     with pytest.raises(AssertionError): # no atoms of interest
-        errors = dataset.get_errors(intrinsic=True, elements=['O'], properties=['forces']) # Cu present
+        errors = Dataset.get_errors(dataset, None, elements=['O'], properties=['forces']) # Cu present
         errors.result()
 
     atoms = FlowAtoms(numbers=30 * np.ones(10), positions=np.zeros((10, 3)), pbc=False)
     atoms.info['forces'] = np.random.uniform(-1, 1, size=(10, 3))
-    dataset_ = Dataset(context, [atoms])
-    merged = Dataset.merge(dataset, dataset_)
-    errors = merged.get_errors(intrinsic=True, elements=['H'], properties=['forces']) # H present
-    assert errors.result().shape[0] == merged.length().result() - 1
+    dataset.append(Dataset(context, [atoms]))
+    errors = Dataset.get_errors(dataset, None, elements=['H'], properties=['forces']) # H present
+    assert errors.result().shape[0] == dataset.length().result() - 1
 
 
 def test_index_element_mask():

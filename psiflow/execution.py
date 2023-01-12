@@ -43,7 +43,7 @@ class ReferenceExecutionDefinition(ExecutionDefinition):
     device     : str = 'cpu'
     label      : str = 'reference'
     ncores     : int = None
-    mpi_command: Optional[Callable] = lambda x: f'mpirun -np {x} --oversubscribe'
+    mpi_command: Optional[Callable] = lambda x: f'mpirun -np {x} '
     cp2k_exec  : str = 'cp2k.psmp' # default command for CP2K Reference
     time_per_singlepoint: float = 20
 

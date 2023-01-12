@@ -114,7 +114,8 @@ def cp2k_singlepoint(
         try:
             result = subprocess.run(
                     shlex.split(' '.join(command_list)), # proper splitting
-                    env=dict(os.environ),
+                    #env=dict(os.environ),
+                    #env={'OMP_NUM_THREADS': '1'},
                     shell=False, # to be able to use timeout
                     capture_output=True,
                     text=True,
@@ -141,11 +142,11 @@ def cp2k_singlepoint(
             returncode = 1
             success = False
         print('success: {}\treturncode: {}\ttimeout: {}'.format(success, returncode, timeout))
-        atoms.evaluation_log = stdout
+        atoms.reference_log = stdout
         if success:
-            atoms.evaluation_flag = 'success'
+            atoms.reference_status = True
             with tempfile.NamedTemporaryFile(delete=False, mode='w+') as tmp:
-                tmp.write(atoms.evaluation_log)
+                tmp.write(atoms.reference_log)
             out = Cp2kOutput(tmp.name)
             out.parse_energies()
             out.parse_forces()
@@ -159,8 +160,8 @@ def cp2k_singlepoint(
             for file in glob.glob('_electron-RESTART.wfn*'):
                 os.remove(file) # include .wfn.bak-
         else:
-            atoms.evaluation_flag = 'failed'
-            atoms.evaluation_log += '\n\n STDERR\n' + stderr
+            atoms.reference_status = False
+            atoms.reference_log += '\n\n STDERR\n' + stderr
             # remove properties keys in atoms if present
             atoms.info.pop('energy', None)
             atoms.info.pop('stress', None)

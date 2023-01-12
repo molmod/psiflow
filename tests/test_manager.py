@@ -34,7 +34,6 @@ def reference(context):
 
 def test_log_dataset_ensemble(context, dataset, model, tmp_path):
     error_kwargs = {
-            'intrinsic': False,
             'metric': 'mae',
             'properties': ['energy', 'forces', 'stress'],
             }
