@@ -126,6 +126,8 @@ def cp2k_singlepoint_pre(
     command_cd  = 'cd $mytmpdir;'
     command_write = 'echo "{}" > cp2k.inp;'.format(cp2k_input)
     command_list = [
+            command_tmp,
+            command_cd,
             command_write,
             'timeout {}s'.format(max(walltime - 5, 0)), # some time is spent on copying
             cp2k_command,
