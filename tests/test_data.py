@@ -16,18 +16,14 @@ from tests.conftest import generate_emt_cu_data # explicit import for regular fu
 def test_flow_atoms(context, dataset, tmp_path):
     atoms = dataset.get(index=0).result().copy() # copy necessary with HTEX!
     assert type(atoms) == FlowAtoms
-    atoms.reference_log = 'giggle'
     atoms.reference_status = True
     atoms_ = atoms.copy()
-    assert atoms_.reference_log is 'giggle'
     assert atoms_.reference_status == True
     atoms_ = FlowAtoms.from_atoms(atoms)
-    assert atoms_.reference_log is None # Atoms instances don't have logs
     assert atoms_.reference_status == True
     for i in range(dataset.length().result()):
         atoms = dataset[i].result()
         assert type(atoms) == FlowAtoms
-        assert atoms.reference_log is None
         assert atoms.reference_status == True
     assert np.allclose(
             np.array(dataset.success.result()),

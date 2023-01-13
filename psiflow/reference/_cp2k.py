@@ -1,16 +1,34 @@
+from __future__ import annotations # necessary for type-guarding class methods
+from typing import Optional, Union
+import typeguard
 from dataclasses import dataclass
+import tempfile
+import shutil
 
-from parsl.app.app import python_app
+import parsl
+from parsl.app.app import python_app, bash_app
 from parsl.dataflow.memoization import id_for_memo
+from parsl.data_provider.files import File
 
+from psiflow.data import FlowAtoms
 from psiflow.execution import ReferenceExecutionDefinition
 from .base import BaseReference
 
 
-def insert_filepaths_in_input(cp2k_input, filepaths):
+#@typeguard.typechecked
+def insert_filepaths_in_input(
+        cp2k_input: str,
+        files: dict[str, Union[str, list[str]]]) -> str:
     from pymatgen.io.cp2k.inputs import Cp2kInput, Keyword, KeywordList
     inp = Cp2kInput.from_string(cp2k_input)
-    for key, path in filepaths.items():
+    for name, path in files.items():
+        if name == 'basis_set':
+            key = 'BASIS_SET_FILE_NAME'
+        elif name == 'potential':
+            key = 'POTENTIAL_FILE_NAME'
+        elif name == 'dftd3':
+            key = 'PARAMETER_FILE_NAME'
+
         if isinstance(path, list): # set as KeywordList
             keywords = []
             for _path in path:
@@ -32,7 +50,8 @@ def insert_filepaths_in_input(cp2k_input, filepaths):
     return str(inp)
 
 
-def insert_atoms_in_input(cp2k_input, atoms):
+@typeguard.typechecked
+def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
     from pymatgen.io.cp2k.inputs import Cp2kInput, Cell, Coord
     from pymatgen.core import Lattice
     from pymatgen.io.ase import AseAtomsAdaptor
@@ -47,7 +66,8 @@ def insert_atoms_in_input(cp2k_input, atoms):
     return str(inp)
 
 
-def regularize_input(cp2k_input):
+@typeguard.typechecked
+def regularize_input(cp2k_input: str) -> str:
     """Ensures forces and stress are printed; removes topology/cell info"""
     from pymatgen.io.cp2k.inputs import Cp2kInput
     inp = Cp2kInput.from_string(cp2k_input)
@@ -59,129 +79,102 @@ def regularize_input(cp2k_input):
     return str(inp)
 
 
-def set_global_section(cp2k_input):
+@typeguard.typechecked
+def set_global_section(cp2k_input: str) -> str:
     from pymatgen.io.cp2k.inputs import Cp2kInput, Global
     inp = Cp2kInput.from_string(cp2k_input)
-    inp.subsections['GLOBAL'] = Global(project_name='_electron')
+    inp.subsections['GLOBAL'] = Global(project_name='cp2k_project')
     return str(inp)
 
 
-def cp2k_singlepoint(
-        atoms,
-        parameters,
-        command,
-        walltime=0,
-        inputs=[],
-        outputs=[],
+@typeguard.typechecked
+def cp2k_singlepoint_pre(
+        atoms: FlowAtoms,
+        parameters: CP2KParameters,
+        cp2k_command: str,
+        file_names: list[str],
+        walltime: int = 0,
+        inputs: list = [],
+        outputs: list[File] = [],
+        stdout: str = '',
+        stderr: str = '',
         ):
     import tempfile
-    import subprocess
-    import ase
     import glob
-    import os
-    import shlex
-    import parsl
     from pathlib import Path
+    import numpy as np
+    from psiflow.reference._cp2k import insert_filepaths_in_input, \
+            insert_atoms_in_input, set_global_section
+    filepaths = {} # cp2k cannot deal with long filenames; copy into local dir
+    for name, file in zip(file_names, inputs):
+        tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
+        tmp.close()
+        shutil.copyfile(file.filepath, tmp.name)
+        filepaths[name] = tmp.name
+    cp2k_input = insert_filepaths_in_input(
+            parameters.cp2k_input,
+            filepaths,
+            )
+    cp2k_input = regularize_input(cp2k_input) # before insert_atoms_in_input
+    cp2k_input = insert_atoms_in_input(
+            cp2k_input,
+            atoms,
+            )
+    cp2k_input = set_global_section(cp2k_input)
+    # see https://unix.stackexchange.com/questions/30091/fix-or-alternative-for-mktemp-in-os-x
+    command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
+    command_cd  = 'cd $mytmpdir;'
+    command_write = 'echo "{}" > cp2k.inp;'.format(cp2k_input)
+    command_list = [
+            command_write,
+            'timeout {}s'.format(max(walltime - 5, 0)), # some time is spent on copying
+            cp2k_command,
+            '-i cp2k.inp',
+            ' || true',
+            ]
+    return ' '.join(command_list)
+
+
+def cp2k_singlepoint_post(
+        atoms: FlowAtoms,
+        inputs: list[File] = [],
+        ) -> FlowAtoms:
     import numpy as np
     from ase.units import Hartree, Bohr
     from pymatgen.io.cp2k.outputs import Cp2kOutput
-    from psiflow.reference._cp2k import insert_filepaths_in_input, \
-            insert_atoms_in_input, set_global_section
-
-    command_list = [command]
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # write data files as required by cp2k
-        filepaths = {}
-        for key, content in parameters.cp2k_data.items():
-            filepaths[key] = Path(tmpdir) / key
-            with open(filepaths[key], 'w') as f:
-                f.write(content)
-        cp2k_input = insert_filepaths_in_input(
-                parameters.cp2k_input,
-                filepaths,
-                )
-        cp2k_input = regularize_input(cp2k_input) # before insert_atoms_in_input
-        cp2k_input = insert_atoms_in_input(
-                cp2k_input,
-                atoms,
-                )
-        cp2k_input = set_global_section(cp2k_input)
-        path_input  = Path(tmpdir) / 'cp2k_input.txt'
-        with open(Path(tmpdir) / 'cp2k_input.txt', 'w') as f:
-            f.write(cp2k_input)
-        command_list.append(' -i {}'.format(path_input))
-        os.environ['OMP_NUM_THREADS'] = '1'
-        try:
-            result = subprocess.run(
-                    shlex.split(' '.join(command_list)), # proper splitting
-                    #env=dict(os.environ),
-                    #env={'OMP_NUM_THREADS': '1'},
-                    shell=False, # to be able to use timeout
-                    capture_output=True,
-                    text=True,
-                    timeout=walltime,
-                    )
-            stdout = result.stdout
-            stderr = result.stderr
-            timeout = False
-            returncode = result.returncode
-            success = (returncode == 0)
-        except subprocess.CalledProcessError as e:
-            stdout = result.stdout
-            stderr = result.stderr
-            timeout = False
-            returncode = 1
-            success = False
-            #print(e)
-        except parsl.app.errors.AppTimeout as e: # subprocess.TimeoutExpired
-            #stdout = e.stdout.decode('utf-8') # no result variable in this case
-            #stderr = e.stderr
-            stdout = ''
-            stderr = 'subprocess walltime ({}s) reached'.format(walltime)
-            timeout = True
-            returncode = 1
-            success = False
-        print('success: {}\treturncode: {}\ttimeout: {}'.format(success, returncode, timeout))
-        atoms.reference_log = stdout
-        if success:
-            atoms.reference_status = True
-            with tempfile.NamedTemporaryFile(delete=False, mode='w+') as tmp:
-                tmp.write(atoms.reference_log)
-            out = Cp2kOutput(tmp.name)
-            out.parse_energies()
-            out.parse_forces()
-            out.parse_stresses()
-            energy = out.data['total_energy'][0] # already in eV
-            forces = np.array(out.data['forces'][0]) * (Hartree / Bohr) # to eV/A
-            stress = np.array(out.data['stress_tensor'][0]) * 1000 # to MPa
-            atoms.info['energy'] = energy
-            atoms.info['stress'] = stress
-            atoms.arrays['forces'] = forces
-            for file in glob.glob('_electron-RESTART.wfn*'):
-                os.remove(file) # include .wfn.bak-
-        else:
-            atoms.reference_status = False
-            atoms.reference_log += '\n\n STDERR\n' + stderr
-            # remove properties keys in atoms if present
-            atoms.info.pop('energy', None)
-            atoms.info.pop('stress', None)
-            atoms.arrays.pop('forces', None)
-        return atoms
+    with open(inputs[0], 'r') as f:
+        stdout = f.read()
+    with open(inputs[1], 'r') as f:
+        stderr = f.read()
+    atoms.reference_stdout = inputs[0]
+    atoms.reference_stderr = inputs[1]
+    try:
+        out = Cp2kOutput(inputs[0])
+        out.parse_energies()
+        out.parse_forces()
+        out.parse_stresses()
+        energy = out.data['total_energy'][0] # already in eV
+        forces = np.array(out.data['forces'][0]) * (Hartree / Bohr) # to eV/A
+        stress = np.array(out.data['stress_tensor'][0]) * 1000 # to MPa
+        atoms.info['energy'] = energy
+        atoms.info['stress'] = stress
+        atoms.arrays['forces'] = forces
+        atoms.reference_status = True
+    except:
+        atoms.reference_status = False
+    return atoms
 
 
 @dataclass
 class CP2KParameters:
     cp2k_input : str
-    cp2k_data  : dict
 
 
 @id_for_memo.register(CP2KParameters)
 def id_for_memo_cp2k_parameters(parameters: CP2KParameters, output_ref=False):
     assert not output_ref
-    # never really necessary to check for data equivalence?
     b1 = id_for_memo(parameters.cp2k_input, output_ref=output_ref)
-    b2 = id_for_memo(parameters.cp2k_data,  output_ref=output_ref)
-    return b1 + b2
+    return b1
 
 
 class CP2KReference(BaseReference):
@@ -203,6 +196,11 @@ class CP2KReference(BaseReference):
 
     """
     parameters_cls = CP2KParameters
+    required_files = [
+            'basis_set',
+            'potential',
+            'dftd3',
+            ]
 
     @classmethod
     def create_apps(cls, context):
@@ -219,23 +217,39 @@ class CP2KReference(BaseReference):
         command += ' '
         command += cp2k_exec
 
-        # convert walltime into seconds
-        #hms = walltime.split(':')
-        #_walltime = float(hms[2]) + 60 * float(hms[1]) + 3600 * float(hms[0])
-        singlepoint_unwrapped = python_app(
-                cp2k_singlepoint,
+        singlepoint_pre = bash_app(
+                cp2k_singlepoint_pre,
                 executors=[label],
-                cache=True,
+                cache=False,
                 )
-        def singlepoint_wrapped(atoms, parameters, inputs=[], outputs=[]):
-            assert len(outputs) == 0
-            return singlepoint_unwrapped(
-                    atoms=atoms,
-                    parameters=parameters,
-                    command=command,
+        singlepoint_post = python_app(
+                cp2k_singlepoint_post,
+                executors=[label],
+                cache=False,
+                )
+        def singlepoint_wrapped(
+                atoms,
+                parameters,
+                file_names,
+                inputs=[],
+                outputs=[],
+                ):
+            assert len(file_names) == len(inputs)
+            for name in cls.required_files:
+                assert name in file_names
+            pre = singlepoint_pre(
+                    atoms,
+                    parameters,
+                    command,
+                    file_names,
                     walltime=walltime,
-                    inputs=inputs,
-                    outputs=[],
+                    inputs=inputs, # tmp Files
+                    stdout=parsl.AUTO_LOGNAME,
+                    stderr=parsl.AUTO_LOGNAME,
+                    )
+            return singlepoint_post(
+                    atoms=atoms,
+                    inputs=[pre.stdout, pre.stderr, pre], # wait for bash app
                     )
         context.register_app(cls, 'evaluate_single', singlepoint_wrapped)
         super(CP2KReference, cls).create_apps(context)

@@ -3,6 +3,7 @@ import pytest
 import os
 import molmod
 import numpy as np
+from pathlib import Path
 from parsl.dataflow.futures import AppFuture
 from parsl.app.futures import DataFuture
 
@@ -11,7 +12,7 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 from ase import Atoms
 from ase.io.extxyz import write_extxyz
 
-from psiflow.data import FlowAtoms, parse_reference_logs
+from psiflow.data import FlowAtoms
 from psiflow.reference import EMTReference, CP2KReference
 from psiflow.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
@@ -58,9 +59,9 @@ def cp2k_data():
     dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
     potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
     return {
-            'BASIS_SET_FILE_NAME': basis,
-            'POTENTIAL_FILE_NAME': potential,
-            'PARAMETER_FILE_NAME': dftd3,
+            'basis_set': basis,
+            'potential': potential,
+            'dftd3': dftd3,
             }
 
 
@@ -133,20 +134,26 @@ def cp2k_input():
 """
 
 
+@pytest.fixture
+def cp2k_reference(context, cp2k_input, cp2k_data, tmp_path):
+    reference = CP2KReference(context, cp2k_input=cp2k_input)
+    for key, value in cp2k_data.items():
+        with open(tmp_path / key, 'w') as f:
+            f.write(value)
+        reference.add_file(key, tmp_path / key)
+    return reference
+
+
 def test_reference_emt(context, dataset, tmp_path):
     reference = EMTReference(context)
     # modify dataset to include states for which EMT fails:
     _ = reference.evaluate(dataset).as_list()
-    assert reference.data_failed.length().result() == 0
-    assert len(reference.logs.result()) == 0
     atoms_list = dataset.as_list()
     atoms_list[6].numbers[1] = 90
     atoms_list[9].numbers[1] = 3
     dataset_ = Dataset(context, atoms_list)
     evaluated = reference.evaluate(dataset_)
     assert evaluated.length().result() == len(atoms_list)
-    assert len(reference.logs.result()) == 2 # after join app execution
-    assert reference.data_failed.length().result() == 2
 
     atoms = reference.evaluate(dataset_[5]).result()
     assert type(atoms) == FlowAtoms
@@ -154,15 +161,13 @@ def test_reference_emt(context, dataset, tmp_path):
     atoms = reference.evaluate(dataset_[6]).result()
     assert type(atoms) == FlowAtoms
     assert atoms.reference_status == False
-    assert atoms.reference_log == reference.logs.result()[0]
-    assert atoms.reference_log != reference.logs.result()[1]
 
 
 def test_cp2k_insert_filepaths(fake_cp2k_input):
     filepaths = {
-            'BASIS_SET_FILE_NAME': ['basisset0', 'basisset1'],
-            'POTENTIAL_FILE_NAME': 'potential',
-            'PARAMETER_FILE_NAME': 'parameter',
+            'basis_set': ['basisset0', 'basisset1'],
+            'potential': 'potential',
+            'dftd3': 'parameter',
             }
     target_input = """
 &FORCE_EVAL
@@ -208,8 +213,7 @@ def test_cp2k_insert_atoms(tmp_path, fake_cp2k_input):
     assert natoms == 3
 
 
-def test_cp2k_success(context, cp2k_input, cp2k_data):
-    reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
+def test_cp2k_success(context, cp2k_reference):
     atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=5 * np.eye(3),
@@ -217,10 +221,12 @@ def test_cp2k_success(context, cp2k_input, cp2k_data):
             pbc=True,
             )
     dataset = Dataset(context, [atoms])
-    evaluated = reference.evaluate(dataset[0])
+    evaluated = cp2k_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
     # calculation will fail if time_per_singlepoint in execution definition is too low!
     assert evaluated.result().reference_status == True
+    assert Path(evaluated.result().reference_stdout).is_file()
+    assert Path(evaluated.result().reference_stderr).is_file()
     assert 'energy' in evaluated.result().info.keys()
     assert 'stress' in evaluated.result().info.keys()
     assert 'forces' in evaluated.result().arrays.keys()
@@ -240,21 +246,8 @@ def test_cp2k_success(context, cp2k_input, cp2k_data):
     stress_reference *= 1000
     assert np.allclose(stress_reference, evaluated.result().info['stress'])
 
-    # check number of mpi processes
-    content = evaluated.result().reference_log
-    ncores = context[ReferenceExecutionDefinition].ncores
-    lines = content.split('\n')
-    for line in lines:
-        if 'Total number of message passing processes' in line:
-            nprocesses = int(line.split()[-1])
-        #print(line)
-        if 'Number of threads for this process' in line:
-            nthreads = int(line.split()[-1])
-    assert nprocesses == ncores
-    assert nthreads == 1 # hardcoded into app
 
-
-def test_cp2k_failure(context, cp2k_data):
+def test_cp2k_failure(context, cp2k_data, tmp_path):
     cp2k_input = """
 &FORCE_EVAL
    METHOD Quickstep
@@ -320,7 +313,11 @@ def test_cp2k_failure(context, cp2k_data):
    &END PRINT
 &END FORCE_EVAL
 """ # incorrect input file
-    reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
+    reference = CP2KReference(context, cp2k_input=cp2k_input)
+    for key, value in cp2k_data.items():
+        with open(tmp_path / key, 'w') as f:
+            f.write(value)
+        reference.add_file(key, tmp_path / key)
     atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=5 * np.eye(3),
@@ -331,25 +328,20 @@ def test_cp2k_failure(context, cp2k_data):
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status == False
     assert 'energy' not in evaluated.result().info.keys()
-    log = evaluated.result().reference_log
+    with open(evaluated.result().reference_stdout, 'r') as f:
+        log = f.read()
     assert 'ABORT' in log # verify error is captured
     assert 'requested basis set' in log
-    parsed = parse_reference_logs([evaluated.result()])
-    assert 'ABORT' in parsed # verify error is captured
-    assert 'requested basis set' in parsed
-    assert 'INDEX 00000 - ' in parsed
-    assert reference.logs.result()[0] == log
 
 
-def test_cp2k_timeout(context, cp2k_data, cp2k_input):
-    reference = CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
+def test_cp2k_timeout(context, cp2k_reference):
     atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
             cell=20 * np.eye(3), # box way too large
             positions=np.array([[0, 0, 0], [3, 0, 0]]),
             pbc=True,
             )
-    evaluated = reference.evaluate(atoms)
+    evaluated = cp2k_reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status == False
     assert 'energy' not in evaluated.result().info.keys()

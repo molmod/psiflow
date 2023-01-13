@@ -30,7 +30,10 @@ class FlowAtoms(Atoms):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.reference_log = None
+        if 'reference_stdout' not in self.info.keys(): # only set if not present
+            self.info['reference_stdout'] = False # default None not supported
+        if 'reference_stderr' not in self.info.keys(): # only set if not present
+            self.info['reference_stderr'] = False
         if 'reference_status' not in self.info.keys(): # only set if not present
             self.info['reference_status'] = False
 
@@ -43,9 +46,26 @@ class FlowAtoms(Atoms):
         assert flag in [True, False]
         self.info['reference_status'] = flag
 
+    @property
+    def reference_stdout(self) -> Union[bool, str]:
+        return self.info['reference_stdout']
+
+    @reference_stdout.setter
+    def reference_stdout(self, path: Union[bool, str]) -> None:
+        self.info['reference_stdout'] = path
+
+    @property
+    def reference_stderr(self) -> Union[bool, str]:
+        return self.info['reference_stderr']
+
+    @reference_stderr.setter
+    def reference_stderr(self, path: Union[bool, str]) -> None:
+        self.info['reference_stderr'] = path
+
     def copy(self) -> FlowAtoms:
         flow_atoms = FlowAtoms.from_atoms(self)
-        flow_atoms.reference_log = self.reference_log
+        flow_atoms.reference_stdout = self.reference_stdout
+        flow_atoms.reference_stderr = self.reference_stderr
         flow_atoms.reference_status = self.reference_status
         if 'stress' in flow_atoms.info.keys(): # bug in ASE constructor!
             flow_atoms.info['stress'] = flow_atoms.info['stress'].copy()
@@ -74,21 +94,6 @@ def id_for_memo_flowatoms(atoms: FlowAtoms, output_ref=False):
     string += str(atoms.cell.round(decimals=4))
     string += str(atoms.positions.round(decimals=4))
     return bytes(string, 'utf-8')
-
-
-@typeguard.typechecked
-def parse_reference_logs(atoms_list: List[FlowAtoms]) -> str:
-    _all = []
-    for i, atoms in enumerate(atoms_list):
-        log = atoms.reference_log
-        if log is None:
-            log = ''
-        lines = log.split('\n')
-        prefix = 'INDEX {:05} - '.format(i)
-        for line in lines:
-            _all.append(prefix + line)
-        _all.append('\n\n')
-    return '\n'.join(_all)
 
 
 @typeguard.typechecked

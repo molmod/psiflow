@@ -18,7 +18,7 @@ from psiflow.models import BaseModel, load_model
 from psiflow.reference.base import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
 from psiflow.ensemble import Ensemble
-from psiflow.data import Dataset, parse_reference_logs
+from psiflow.data import Dataset
 from psiflow.checks import Check, load_checks, SafetyCheck
 from psiflow.utils import copy_app_future, log_data_to_wandb
 
@@ -326,9 +326,6 @@ class Manager:
             data_valid.save(path / 'validate.xyz')
         if data_failed is not None:
             data_failed.save(path / 'failed.xyz')
-            parsed = parse_reference_logs(data_failed.as_list())
-            with open(path / 'failed.txt', 'w') as f:
-                f.write(parsed)
 
         # save checks if necessary
         if checks is not None:

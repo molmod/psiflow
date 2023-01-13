@@ -119,7 +119,6 @@ def test_manager_save_load(context, dataset, model, ensemble, tmp_path):
     assert not (path_output / name / 'ensemble' / '2').is_dir()
     assert (path_output / name / 'checks').is_dir() # directory for saved checks
     assert (path_output / name / 'failed.xyz').is_file()
-    assert (path_output / name / 'failed.txt').is_file()
 
     model_, ensemble_, data_train, data_valid, checks = manager.load(
             'test',

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ase.data import atomic_numbers
 
-from parsl.app.app import python_app
+from parsl.app.app import python_app, join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.config import Config

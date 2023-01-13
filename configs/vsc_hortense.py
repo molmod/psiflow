@@ -327,14 +327,25 @@ def get_config(path_internal):
             working_dir='gpu_working_dir',
             cores_per_worker=12,
             )
-
-    worker_init = 'ml CP2K/8.2-foss-2021a; ml psiflow-develop/10Jan2023-CPU'
+    # to get MPI to recognize the available slots correctly, it's necessary
+    # to override the slurm variables as set by the jobscript, as these are
+    # based on the number of parsl tasks, NOT on the number of MPI tasks for
+    # cp2k. Essentially, this means we have to reproduce the environment as
+    # if we launched a job using 'qsub -l nodes=1:ppn=cores_per_singlepoint'
+    cores_per_singlepoint = 32
+    worker_init = 'ml CP2K/8.2-foss-2021a; ml psiflow-develop/10Jan2023-CPU\n'
+    worker_init += 'unset SLURM_CPUS_PER_TASK\n'
+    worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(cores_per_singlepoint)
+    worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(cores_per_singlepoint)
+    worker_init += 'export SLURM_NTASKS={}\n'.format(cores_per_singlepoint)
+    worker_init += 'export SLURM_NPROCS={}\n'.format(cores_per_singlepoint)
+    worker_init += 'export OMP_NUM_THREADS=1\n'
     provider = SlurmProvider(
             partition='cpu_rome',
             account='2022_050',
             channel=channel,
             nodes_per_block=1,
-            cores_per_node=64,
+            cores_per_node=cores_per_singlepoint,
             min_blocks=0,
             max_blocks=16,
             parallelism=1,
@@ -347,6 +358,7 @@ def get_config(path_internal):
             provider=provider,
             address=os.environ['HOSTNAME'],
             working_dir=str(path_internal / 'reference_executor'),
-            cores_per_worker=32,
+            cores_per_worker=cores_per_singlepoint,
+            cpu_affinity='alternating',
             )
     return Config(executors=[default, model, reference, training], usage_tracking=True, run_dir=str(path_internal))
