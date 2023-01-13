@@ -304,14 +304,19 @@ def get_config(path_internal):
             working_dir=str(path_internal / 'model_executor'),
             cores_per_worker=4,
             )
-
-    worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CUDA-11.3.1'
+    cores_per_gpu = 12
+    worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
+    worker_init += 'unset SLURM_CPUS_PER_TASK\n'
+    worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(cores_per_gpu)
+    worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(cores_per_gpu)
+    worker_init += 'export SLURM_NTASKS={}\n'.format(cores_per_gpu)
+    worker_init += 'export SLURM_NPROCS={}\n'.format(cores_per_gpu)
     provider = SlurmProvider(
             partition='gpu_rome_a100',
             account='2022_050',
             channel=channel,
             nodes_per_block=1,
-            cores_per_node=12, # must be equal to cpus-per-gpu
+            cores_per_node=cores_per_gpu, # must be equal to cpus-per-gpu
             min_blocks=0,
             max_blocks=4,
             parallelism=1.0,
@@ -325,7 +330,7 @@ def get_config(path_internal):
             provider=provider,
             address=os.environ['HOSTNAME'],
             working_dir='gpu_working_dir',
-            cores_per_worker=12,
+            cores_per_worker=cores_per_gpu,
             )
     # to get MPI to recognize the available slots correctly, it's necessary
     # to override the slurm variables as set by the jobscript, as these are
@@ -333,7 +338,7 @@ def get_config(path_internal):
     # cp2k. Essentially, this means we have to reproduce the environment as
     # if we launched a job using 'qsub -l nodes=1:ppn=cores_per_singlepoint'
     cores_per_singlepoint = 32
-    worker_init = 'ml CP2K/8.2-foss-2021a; ml psiflow-develop/10Jan2023-CPU\n'
+    worker_init = 'ml vsc-mympi; ml CP2K/8.2-foss-2021a; ml psiflow-develop/10Jan2023-CPU\n'
     worker_init += 'unset SLURM_CPUS_PER_TASK\n'
     worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(cores_per_singlepoint)
     worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(cores_per_singlepoint)
