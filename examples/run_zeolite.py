@@ -24,7 +24,7 @@ from psiflow.utils import get_parsl_config_from_file
 
 def get_context_and_manager(args):
     path_run = Path.cwd() / args.name
-    if not args.restart:
+    if (not args.use_cache) and (args.restart is None):
         if path_run.is_dir():
             shutil.rmtree(path_run)
         path_run.mkdir()
@@ -36,10 +36,10 @@ def get_context_and_manager(args):
             args.parsl_config,
             path_internal,
             )
-    config.app_cache = False
+    config.app_cache = args.use_cache
     config.initialize_logging = False
     #config.checkpoint_mode = 'task_exit'
-    if args.restart:
+    if args.use_cache:
         config.checkpoint_files = get_all_checkpoints(str(path_internal))
         print('found {} checkpoint files'.format(len(config.checkpoint_files)))
     parsl.load(config)
@@ -58,11 +58,10 @@ def get_context_and_manager(args):
             path_output,
             wandb_project='zeolite',
             wandb_group=args.name,
-            restart=args.restart,
+            restart=(args.use_cache or (args.restart is not None)),
             error_x_axis='CV', # plot errors w.r.t CV value
             )
     return context, manager
-
 
 
 def get_bias(context):
@@ -107,45 +106,45 @@ def get_model(context):
     return NequIPModel(context, config)
 
 
-def main(context, manager):
-    atoms = read(Path.cwd() / 'data' / 'zeolite.xyz')
-    walker = RandomWalker(
-            context,
-            atoms,
-            amplitude_pos=0.08,
-            amplitude_box=0.08,
-            seed=0,
-            )
-    reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
-    model = get_model(context) # NequIP; medium-sized network
-    bias = get_bias(context)
-
-    # initial stage: random perturbations
-    learning = RandomLearning(nstates=20, train_valid_split=0.8)
-    data_train, data_valid = learning.run(
-            manager=manager,
-            model=model,
-            reference=reference,
-            walker=walker,
-            bias=bias, # only there for wandb logging
-            )
-
-    # used biased dynamics to sample phase space
-    walker = DynamicWalker(
-            context,
-            atoms,
-            timestep=0.5,
-            steps=200,
-            step=50,
-            start=0,
-            temperature=1000,
-            pressure=0, # NPT
-            force_threshold=40,
-            initial_temperature=1000,
-            seed=0,
-            )
-    ensemble = Ensemble.from_walker(walker, nwalkers=10)
-    ensemble.add_bias(bias) # separate MTD for every walker
+def main(context, manager, restart):
+    if restart is None: # generate initial data with random learning
+        atoms = read(Path.cwd() / 'data' / 'zeolite.xyz')
+        reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
+        model = get_model(context) # NequIP; medium-sized network
+        bias = get_bias(context)
+        walker = RandomWalker(
+                context,
+                atoms,
+                amplitude_pos=0.08,
+                amplitude_box=0.08,
+                seed=0,
+                )
+        # initial stage: random perturbations
+        learning = RandomLearning(nstates=20, train_valid_split=0.8)
+        data_train, data_valid = learning.run(
+                manager=manager,
+                model=model,
+                reference=reference,
+                walker=walker,
+                bias=bias, # only there for wandb logging
+                )
+        walker = DynamicWalker( # biased MD
+                context,
+                atoms,
+                timestep=0.5,
+                steps=100,
+                step=50,
+                start=0,
+                temperature=1000,
+                pressure=0, # NPT
+                force_threshold=40,
+                initial_temperature=1000,
+                seed=0,
+                )
+        ensemble = Ensemble.from_walker(walker, nwalkers=10)
+        ensemble.add_bias(bias) # separate MTD for every walker
+    else:
+        model, ensemble, data_train, data_valid, _ = manager.load(restart, context)
     learning = OnlineLearning(niterations=5, nstates=10)
     data_train, data_valid = learning.run(
             manager=manager,
@@ -162,8 +161,10 @@ if __name__ == '__main__':
     parser.add_argument('--parsl-config', action='store')
     parser.add_argument('--name', action='store')
     parser.add_argument('--retries', action='store', default=1)
-    parser.add_argument('--restart', action='store_true', default=False)
+    parser.add_argument('--restart', action='store', default=None)
+    parser.add_argument('--use-cache', action='store_true', default=False)
     args = parser.parse_args()
+    assert not args.use_cache
 
     context, manager = get_context_and_manager(args)
-    main(context, manager)
+    main(context, manager, restart=args.restart)

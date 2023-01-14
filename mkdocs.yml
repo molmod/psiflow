@@ -1,11 +1,40 @@
 site_name: psiflow
 theme:
   name: material
-  palette: 
-    - scheme: slate
+  font:
+    text: overpass
+  palette:
+    primary: brown
+    accent: red
+  logo: logo_dark.png
+  features:
+    - navigation.instant
+    - navigation.tracking
+      #- navigation.tabs
+      #- navigation.tabs.sticky
+    - navigation.indexes
+    - navigation.sections
+    - navigation.expand
 
 nav:
-  - reference.md
+  - sampling:
+    - random: sampling_random.md
+    - optimization: sampling_optimization.md
+    - dynamic: sampling_dynamic.md
+    - bias: sampling_bias.md
+  - reference:
+    - EMT: reference_EMT.md
+    - CP2K: reference_CP2K.md
+    - VASP: reference_VASP.md
+  - models:
+    - NequIP: models_nequip.md
+    - MACE: models_MACE.md
+  - data.md
+  - ensemble.md
+  - manager.md
+  - learning.md
+  - execution.md
 
 plugins:
   - mkdocstrings
+repo_url: https://github.com/svandenhaute/psiflow

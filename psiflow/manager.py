@@ -371,6 +371,8 @@ class Manager:
         path_checks = path / 'checks'
         if path_checks.is_dir():
             checks = load_checks(path_checks, context)
+        else:
+            checks = None
         return model, ensemble, data_train, data_valid, checks
 
     def log_wandb(

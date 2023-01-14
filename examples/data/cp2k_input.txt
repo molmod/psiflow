@@ -22,7 +22,7 @@
       &END SCF
       &QS
          METHOD  GPW
-         EPS_DEFAULT  1.0E-4
+         EPS_DEFAULT  1.0E-10
          EXTRAPOLATION  USE_GUESS
       &END QS
       &MGRID

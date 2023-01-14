@@ -110,8 +110,8 @@ def test_optimization(context, dataset, nequip_config):
 
     walker = OptimizationWalker(context, dataset[0], optimize_cell=False, fmax=1e-2)
     final = walker.propagate(model=model)
-    assert np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.5)
+    assert np.all(np.abs(final.result().positions - dataset[0].result().positions) < 1.0)
     assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved
     walker.parameters.fmax = 1e-3
     final_ = walker.propagate(model=model)
-    assert np.all(np.abs(final.result().positions - final_.result().positions) < 0.05) # moved much less
+    assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # moved again

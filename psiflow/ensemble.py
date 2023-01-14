@@ -58,6 +58,8 @@ def conditional_sample(
     from psiflow.ensemble import count_nstates
     states = inputs
     if nstates_effective == 0:
+        logger.info('started ensemble sampling')
+        logger.info('\tpropagating {} walkers'.format(len(walkers)))
         for i in range(len(walkers)):
             index = i # no shuffle
             walker = walkers[index]
@@ -76,6 +78,7 @@ def conditional_sample(
     else:
         batch_size = nstates - nstates_effective
         if not batch_size > 0:
+            logger.info('done')
             assert batch_size == 0 # cannot be negative
             data_future = context.apps(Dataset, 'save_dataset')(
                     states=None,
@@ -83,6 +86,8 @@ def conditional_sample(
                     outputs=[outputs[0]],
                     )
             return data_future
+        logger.info('\tgathered {} states; starting new propagations for {} '
+                'walkers'.format(nstates_effective, len(walkers)))
         np.random.seed(batch_size) # ensure reproducibility
         for i in range(batch_size):
             index = np.random.randint(0, len(walkers))

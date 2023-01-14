@@ -1,3 +1,8 @@
+"""Defines the objects used to store atomic structures and their metadata
+
+
+"""
+
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List
 import typeguard

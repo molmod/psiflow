@@ -277,14 +277,14 @@ def get_config(path_internal):
     from parsl.executors import HighThroughputExecutor
     channel = LocalChannel(script_dir=str(path_internal / 'local_script_dir'))
     worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CPU\n'
-    worker_init += 'unset OMP_NUM_THREADS\n'
     provider = SlurmProvider(
             partition='cpu_rome',
             account='2022_050',
             channel=channel,
             nodes_per_block=1,
             cores_per_node=16,
-            min_blocks=2,
+            init_blocks=1,
+            min_blocks=1,
             max_blocks=512,
             parallelism=1,
             walltime='02:00:00',
@@ -298,12 +298,29 @@ def get_config(path_internal):
             working_dir=str(path_internal / 'default_executor'),
             cores_per_worker=1,
             )
+    cores_per_model = 4
+    worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CPU\n'
+    worker_init += 'set OMP_NUM_THREADS={}\n'.format(cores_per_model)
+    provider = SlurmProvider(
+            partition='cpu_rome',
+            account='2022_050',
+            channel=channel,
+            nodes_per_block=1,
+            cores_per_node=8,
+            init_blocks=0,
+            min_blocks=0,
+            max_blocks=512,
+            parallelism=1,
+            walltime='02:00:00',
+            worker_init=worker_init,
+            exclusive=False,
+            )
     model = HighThroughputExecutor(
             label='model',
             provider=provider,
             address=os.environ['HOSTNAME'],
             working_dir=str(path_internal / 'model_executor'),
-            cores_per_worker=4,
+            cores_per_worker=cores_per_model,
             )
     cores_per_gpu = 12
     worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
@@ -319,6 +336,7 @@ def get_config(path_internal):
             channel=channel,
             nodes_per_block=1,
             cores_per_node=cores_per_gpu, # must be equal to cpus-per-gpu
+            init_blocks=0,
             min_blocks=0,
             max_blocks=4,
             parallelism=1.0,
@@ -353,6 +371,7 @@ def get_config(path_internal):
             channel=channel,
             nodes_per_block=1,
             cores_per_node=cores_per_singlepoint,
+            init_blocks=0,
             min_blocks=0,
             max_blocks=16,
             parallelism=1,
