@@ -46,7 +46,7 @@ def context(parsl_config, tmpdir_factory):
         time_per_singlepoint=50,
         mpi_command=lambda x: 'mympirun ',
         ))
-    context.register(TrainingExecutionDefinition(walltime=80)) # large for vsc
+    context.register(TrainingExecutionDefinition(walltime=50)) # large for vsc
     yield context
     parsl.clear()
 

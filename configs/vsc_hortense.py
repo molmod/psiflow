@@ -338,7 +338,7 @@ def get_config(path_internal):
     # cp2k. Essentially, this means we have to reproduce the environment as
     # if we launched a job using 'qsub -l nodes=1:ppn=cores_per_singlepoint'
     cores_per_singlepoint = 32
-    worker_init = 'ml vsc-mympi; ml CP2K/8.2-foss-2021a; ml psiflow-develop/10Jan2023-CPU\n'
+    worker_init = 'ml vsc-mympirun; ml CP2K/8.2-foss-2021a; ml psiflow-develop/10Jan2023-CPU\n'
     worker_init += 'unset SLURM_CPUS_PER_TASK\n'
     worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(cores_per_singlepoint)
     worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(cores_per_singlepoint)
