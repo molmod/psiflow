@@ -34,8 +34,9 @@ def get_context_and_manager(args):
             args.parsl_config,
             path_internal,
             )
+    config.app_cache = False
     config.initialize_logging = False
-    config.checkpoint_mode = 'task_exit'
+    #config.checkpoint_mode = 'task_exit'
     if args.restart:
         config.checkpoint_files = get_all_checkpoints(str(path_internal))
         print('found {} checkpoint files'.format(len(config.checkpoint_files)))
@@ -43,7 +44,9 @@ def get_context_and_manager(args):
     config.retries = args.retries
     context = ExecutionContext(config, path=path_context)
     context.register(ModelExecutionDefinition())
-    context.register(ReferenceExecutionDefinition(time_per_singlepoint=30))
+    context.register(ReferenceExecutionDefinition(
+        time_per_singlepoint=30,
+        ))
     context.register(TrainingExecutionDefinition())
 
     # setup manager for IO, wandb logging
@@ -71,15 +74,20 @@ METAD ARG=CV SIGMA=0.05 HEIGHT=5 PACE=5 LABEL=metad FILE=test_hills
 def get_reference(context):
     with open(Path.cwd() / 'data' / 'cp2k_input.txt', 'r') as f:
         cp2k_input = f.read()
+    reference = CP2KReference(context, cp2k_input=cp2k_input)
     basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH').text
     dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
     potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
     cp2k_data = {
-            'BASIS_SET_FILE_NAME': basis,
-            'POTENTIAL_FILE_NAME': potential,
-            'PARAMETER_FILE_NAME': dftd3,
+            'basis_set': basis,
+            'potential': potential,
+            'dftd3': dftd3,
             }
-    return CP2KReference(context, cp2k_input=cp2k_input, cp2k_data=cp2k_data)
+    for key, value in cp2k_data.items():
+        with open(context.path / key, 'w') as f:
+            f.write(value)
+        reference.add_file(key, context.path / key)
+    return reference
 
 
 def get_model(context):

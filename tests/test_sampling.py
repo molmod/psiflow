@@ -108,7 +108,7 @@ def test_optimization(context, dataset, nequip_config):
     model.train(training, validate)
     model.deploy()
 
-    walker = OptimizationWalker(context, dataset[0], optimize_cell=False, fmax=1e-1)
+    walker = OptimizationWalker(context, dataset[0], optimize_cell=False, fmax=1e-2)
     final = walker.propagate(model=model)
     assert np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.5)
     assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved

@@ -276,13 +276,14 @@ def get_config(path_internal):
     from parsl.config import Config
     from parsl.executors import HighThroughputExecutor
     channel = LocalChannel(script_dir=str(path_internal / 'local_script_dir'))
-    worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CPU'
+    worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CPU\n'
+    worker_init += 'unset OMP_NUM_THREADS\n'
     provider = SlurmProvider(
             partition='cpu_rome',
             account='2022_050',
             channel=channel,
             nodes_per_block=1,
-            cores_per_node=8,
+            cores_per_node=16,
             min_blocks=2,
             max_blocks=512,
             parallelism=1,
@@ -311,6 +312,7 @@ def get_config(path_internal):
     worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(cores_per_gpu)
     worker_init += 'export SLURM_NTASKS={}\n'.format(cores_per_gpu)
     worker_init += 'export SLURM_NPROCS={}\n'.format(cores_per_gpu)
+    worker_init += 'export OMP_NUM_THREADS={}\n'.format(cores_per_gpu)
     provider = SlurmProvider(
             partition='gpu_rome_a100',
             account='2022_050',
