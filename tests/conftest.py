@@ -59,6 +59,14 @@ def nequip_config(tmp_path):
     config['chemical_symbols'] = ['X'] # should get overridden
     config['l_max'] = 1
     config['max_epochs'] = 10000
+    config['wandb'] = True
+    config['wandb_project'] = 'pytest-nequip'
+    config['metrics_components'] = [
+            ['forces', 'mae'],
+            #['forces', 'rmse'],
+            ['forces', 'mae', {'PerSpecies': True, 'report_per_component': False}],
+            ['total_energy', 'mae', {'PerAtom': True}],
+            ]
     return config
 
 

@@ -107,9 +107,9 @@ def get_model(context):
 
 
 def main(context, manager, restart):
+    reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
+    atoms = read(Path.cwd() / 'data' / 'zeolite.xyz')
     if restart is None: # generate initial data with random learning
-        atoms = read(Path.cwd() / 'data' / 'zeolite.xyz')
-        reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
         model = get_model(context) # NequIP; medium-sized network
         bias = get_bias(context)
         walker = RandomWalker(
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--parsl-config', action='store')
     parser.add_argument('--name', action='store')
-    parser.add_argument('--retries', action='store', default=1)
+    parser.add_argument('--retries', action='store', default=3)
     parser.add_argument('--restart', action='store', default=None)
     parser.add_argument('--use-cache', action='store_true', default=False)
     args = parser.parse_args()

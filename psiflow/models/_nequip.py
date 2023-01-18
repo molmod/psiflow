@@ -191,6 +191,8 @@ def train(
     from nequip.utils.versions import check_code_version
     from nequip.utils._global_options import _set_global_options
     from nequip.train.trainer import Trainer
+    from nequip.train.trainer_wandb import TrainerWandB
+    from nequip.utils.wandb import init_n_update
     from psiflow.data import read_dataset
     from psiflow.models._nequip import to_nequip_dataset
     if torch.cuda.is_available():
@@ -214,7 +216,12 @@ def train(
 
         check_code_version(nequip_config, add_to_config=True)
         _set_global_options(nequip_config)
-        trainer = Trainer(model=None, **dict(nequip_config))
+        if nequip_config.wandb:
+            nequip_config = init_n_update(nequip_config)
+            trainer_cls = TrainerWandB
+        else:
+            trainer_cls = Trainer
+        trainer = trainer_cls(model=None, **dict(nequip_config))
         training   = read_dataset(slice(None), inputs=[inputs[1]])
         validation = read_dataset(slice(None), inputs=[inputs[2]])
         trainer.n_train = len(training)
