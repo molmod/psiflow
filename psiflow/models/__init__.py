@@ -6,6 +6,7 @@ from psiflow.execution import ExecutionContext
 
 from .base import BaseModel
 from ._nequip import NequIPModel
+from ._mace import MACEModel, MACEConfig
 
 
 @typeguard.typechecked
@@ -18,6 +19,7 @@ def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
     assert path.is_dir()
     classes = [
             NequIPModel,
+            MACEModel,
             None,
             ]
     for model_cls in classes:

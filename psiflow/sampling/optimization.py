@@ -1,5 +1,5 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Tuple, List, Callable
+from typing import Optional, Tuple, List, Callable, Type
 import typeguard
 from dataclasses import dataclass
 
@@ -8,8 +8,7 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.execution import Container, ModelExecutionDefinition, \
-        ExecutionContext
+from psiflow.execution import Container, ExecutionContext
 from psiflow.sampling.base import BaseWalker
 from psiflow.models import BaseModel
 
@@ -95,11 +94,26 @@ class OptimizationParameters:
 class OptimizationWalker(BaseWalker):
     parameters_cls = OptimizationParameters
 
+    def get_propagate_app(self, model):
+        name = model.__class__.__name__
+        try:
+            app = self.context.apps(OptimizationWalker, 'propagate_' + name)
+        except KeyError:
+            assert model.__class__ in self.context.execution_definitions.keys()
+            self.create_apps(self.context, model_cls=model.__class__)
+            app = self.context.apps(OptimizationWalker, 'propagate_' + name)
+        return app
+
     @classmethod
-    def create_apps(cls, context: ExecutionContext):
-        label = context[ModelExecutionDefinition].label
-        device = context[ModelExecutionDefinition].device
-        ncores = context[ModelExecutionDefinition].ncores
+    def create_apps(
+            cls,
+            context: ExecutionContext,
+            model_cls: Type[BaseModel],
+            ) -> None:
+        label  = context[model_cls]['evaluate_executor']
+        device = context[model_cls]['evaluate_device']
+        ncores = context[model_cls]['evaluate_ncores']
+        # dtype should be float64
 
         app_optimize = python_app(
                 optimize_geometry,
@@ -132,6 +146,6 @@ class OptimizationWalker(BaseWalker):
                     outputs=outputs,
                     )
             return result
-
-        context.register_app(cls, 'propagate', optimize_wrapped)
+        name = model_cls.__name__
+        context.register_app(cls, 'propagate_' + name, optimize_wrapped)
         super(OptimizationWalker, cls).create_apps(context)

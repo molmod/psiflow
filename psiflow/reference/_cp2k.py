@@ -11,7 +11,6 @@ from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 
 from psiflow.data import FlowAtoms
-from psiflow.execution import ReferenceExecutionDefinition
 from .base import BaseReference
 
 
@@ -197,6 +196,14 @@ class CP2KReference(BaseReference):
         the cp2k input (e.g. BASIS_SET_FILE_NAME)
 
     """
+    execution_definition = [
+            'executor',
+            'device',
+            'ncores',
+            'mpi_command',
+            'cp2k_exec',
+            'time_per_singlepoint',
+            ]
     parameters_cls = CP2KParameters
     required_files = [
             'basis_set',
@@ -206,11 +213,11 @@ class CP2KReference(BaseReference):
 
     @classmethod
     def create_apps(cls, context):
-        label = context[ReferenceExecutionDefinition].label
-        ncores = context[ReferenceExecutionDefinition].ncores
-        mpi_command = context[ReferenceExecutionDefinition].mpi_command
-        cp2k_exec = context[ReferenceExecutionDefinition].cp2k_exec
-        walltime = context[ReferenceExecutionDefinition].time_per_singlepoint
+        label  = context[cls]['executor']
+        ncores = context[cls]['ncores']
+        mpi_command = context[cls]['mpi_command']
+        cp2k_exec = context[cls]['cp2k_exec']
+        walltime = context[cls]['time_per_singlepoint']
 
         # parse full command
         command = ''

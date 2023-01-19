@@ -1,5 +1,5 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List, Callable, Tuple
+from typing import Optional, Union, List, Callable, Tuple, Type
 import typeguard
 from dataclasses import dataclass, asdict
 
@@ -9,7 +9,7 @@ from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
 
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.execution import ModelExecutionDefinition, ExecutionContext
+from psiflow.execution import ExecutionContext
 from psiflow.utils import copy_data_future, unpack_i
 from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
@@ -168,17 +168,39 @@ def id_for_memo_cp2k_parameters(parameters: DynamicParameters, output_ref=False)
 class DynamicWalker(BaseWalker):
     parameters_cls = DynamicParameters
 
-    @classmethod
-    def create_apps(cls, context: ExecutionContext) -> None:
-        label = context[ModelExecutionDefinition].label
-        device = context[ModelExecutionDefinition].device
-        ncores = context[ModelExecutionDefinition].ncores
-        dtype = context[ModelExecutionDefinition].dtype
+    def get_propagate_app(self, model):
+        name = model.__class__.__name__
+        try:
+            app = self.context.apps(DynamicWalker, 'propagate_' + name)
+        except KeyError:
+            assert model.__class__ in self.context.execution_definitions.keys()
+            self.create_apps(self.context, model_cls=model.__class__)
+            app = self.context.apps(DynamicWalker, 'propagate_' + name)
+        return app
 
+    @classmethod
+    def create_apps(
+            cls,
+            context: ExecutionContext,
+            model_cls: Type[BaseModel],
+            ) -> None:
+        """Registers propagate app in context
+
+        While the propagate app logically belongs to the DynamicWalker, its
+        execution is purely a function of the specific model instance on which
+        it is called, because walker propagation is essentially just a series
+        of model evaluation calls. As such, its execution is defined by the
+        model itself.
+
+        """
+        label  = context[model_cls]['evaluate_executor']
+        device = context[model_cls]['evaluate_device']
+        ncores = context[model_cls]['evaluate_ncores']
+        dtype  = context[model_cls]['evaluate_dtype']
         app_propagate = python_app(
                 simulate_model,
                 executors=[label],
-                cache=True,
+                cache=False,
                 )
         @typeguard.typechecked
         def propagate_wrapped(
@@ -223,6 +245,7 @@ class DynamicWalker(BaseWalker):
                         index = 0
                     bias.data_futures['METAD'] = result.outputs[index]
             return result
-
-        context.register_app(cls, 'propagate', propagate_wrapped)
+        # register using model_cls, not cls!
+        name = model_cls.__name__
+        context.register_app(cls, 'propagate_' + name, propagate_wrapped)
         super(DynamicWalker, cls).create_apps(context)

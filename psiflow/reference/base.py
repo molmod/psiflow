@@ -13,7 +13,7 @@ from parsl.data_provider.files import File
 from ase import Atoms
 
 from psiflow.execution import Container, ExecutionContext
-from psiflow.data import FlowAtoms, Dataset, read_dataset, save_dataset, \
+from psiflow.data import FlowAtoms, Dataset, read_dataset, app_save_dataset, \
         get_length_dataset
 from psiflow.utils import copy_app_future, unpack_i, combine_futures
 
@@ -39,6 +39,10 @@ class BaseReference(Container):
         super().__init__(context)
         self.parameters = self.parameters_cls(**deepcopy(kwargs))
         self.files    = {}
+        try:
+            self.__class__.create_apps(context)
+        except AssertionError:
+            pass # apps already created
 
     def add_file(self, name: str, file: Union[Path, str, File]):
         assert name in self.required_files
@@ -104,7 +108,7 @@ class BaseReference(Container):
                     inputs=inputs[1:],
                     outputs=[],
                     ))
-            return context.apps(Dataset, 'save_dataset')(
+            return app_save_dataset(
                     None,
                     return_data=True,
                     inputs=data,

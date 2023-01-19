@@ -1,5 +1,5 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Callable, Union
+from typing import Optional, Callable, Union, Any
 import typeguard
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,37 +15,6 @@ from parsl.config import Config
 
 logger = logging.getLogger(__name__) # logging per module
 logger.setLevel(logging.INFO)
-
-
-class ExecutionDefinition:
-    pass
-
-
-@dataclass
-class TrainingExecutionDefinition(ExecutionDefinition):
-    label : str = 'training'
-    device: str = 'cuda'
-    dtype : str = 'float32'
-    ncores: int = None # depends on GPU node architecture
-    walltime: float = 3600
-
-
-@dataclass
-class ModelExecutionDefinition(ExecutionDefinition):
-    label : str = 'model'
-    device: str = 'cpu'
-    ncores: int = None
-    dtype : str = 'float32'
-
-
-@dataclass
-class ReferenceExecutionDefinition(ExecutionDefinition):
-    device     : str = 'cpu'
-    label      : str = 'reference'
-    ncores     : int = None
-    mpi_command: Optional[Callable] = lambda x: f'mpirun -np {x} '
-    cp2k_exec  : str = 'cp2k.psmp' # default command for CP2K Reference
-    time_per_singlepoint: float = 20
 
 
 @typeguard.typechecked
@@ -70,32 +39,43 @@ class ExecutionContext:
 
     def __getitem__(
             self,
-            definition_class: type[ExecutionDefinition],
-            ) -> ExecutionDefinition:
-        assert definition_class in self.execution_definitions.keys()
-        return self.execution_definitions[definition_class]
+            container, # container subclass
+            ) -> dict[str, Any]:
+        assert container in self.execution_definitions.keys()
+        return self.execution_definitions[container]
 
-    def register(self, execution: ExecutionDefinition) -> None:
-        assert execution.label in self.executor_labels
-        key = execution.__class__
-        if execution.device == 'cpu': # check whether cores are available
-            found = False
-            for executor in self.config.executors:
-                if executor.label == execution.label:
-                    if execution.ncores is None:
-                        if type(executor) == HighThroughputExecutor:
-                            execution.ncores = int(executor.cores_per_worker)
-                        elif type(executor) == ThreadPoolExecutor:
-                            execution.ncores = 1
-                    else:
-                        if type(executor) == HighThroughputExecutor:
-                            assert executor.cores_per_worker == execution.ncores
-        assert key not in self.execution_definitions.keys()
-        self.execution_definitions[key] = execution
+    def define_execution(self, container, **kwargs) -> None:
+        assert container not in self.execution_definitions.keys()
+        definition = {}
+        for key in container.execution_definition:
+            assert key in kwargs.keys()
+        for key in container.execution_definition:
+            definition[key] = kwargs[key]
+            if 'executor' in key: # training/evaluate
+                assert kwargs[key] in self.executor_labels
+            elif 'ncores' in key: # training/evaluate
+                if kwargs[key] is None: # take ncores from Parsl executor
+                    for executor in self.config.executors:
+                        if executor.label == kwargs[key.replace('ncores', 'executor')]:
+                            if type(executor) == HighThroughputExecutor:
+                                definition[key] = int(executor.cores_per_worker)
+                            elif type(executor) == ThreadPoolExecutor:
+                                definition[key] = 1
+                            else:
+                                raise NotImplementedError
+                else: # check whether parsl executor has requested ncores
+                    for executor in self.config.executors:
+                        if executor.label == kwargs[key.replace('ncores', 'executor')]:
+                            if type(executor) == HighThroughputExecutor:
+                                assert kwargs[key] == int(executor.cores_per_worker)
+            else:
+                pass
+        self.execution_definitions[container] = definition
+        container.create_apps(self)
 
     def apps(self, container, app_name: str) -> Callable:
-        if container not in self._apps.keys():
-            container.create_apps(self)
+        #if container not in self._apps.keys():
+        #    container.create_apps(self)
         assert app_name in self._apps[container].keys()
         return self._apps[container][app_name]
 

@@ -12,8 +12,8 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.execution import ModelExecutionDefinition, Container, \
-        ExecutionContext
+from psiflow.models import BaseModel
+from psiflow.execution import Container, ExecutionContext
 from psiflow.utils import copy_app_future, unpack_i, copy_data_future, \
         save_yaml
 from psiflow.data import save_atoms, FlowAtoms, Dataset
@@ -78,14 +78,20 @@ class BaseWalker(Container):
 
         # parameters
         self.parameters = self.parameters_cls(**deepcopy(kwargs))
+        # apps for walkers are only created at the time when they are invoked,
+        # as the execution definition of the model needs to be available.
+
+    def get_propagate_app(self, model):
+        raise NotImplementedError
 
     def propagate(
             self,
             safe_return: bool = False,
             keep_trajectory: bool = False,
+            model: Optional[BaseModel] = None,
             **kwargs,
             ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
-        app = self.context.apps(self.__class__, 'propagate')
+        app = self.get_propagate_app(model)
         if keep_trajectory:
             file = self.context.new_file('data_', '.xyz')
         else:
@@ -95,6 +101,7 @@ class BaseWalker(Container):
                 deepcopy(self.parameters),
                 keep_trajectory=keep_trajectory,
                 file=file,
+                model=model,
                 **kwargs, # Model or Bias instance
                 )
         self.state_future = unpack_i(result, 0)

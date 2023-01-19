@@ -14,8 +14,7 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.execution import Container, ModelExecutionDefinition, \
-        ExecutionContext
+from psiflow.execution import Container, ExecutionContext
 from psiflow.utils import copy_data_future, save_txt, create_if_empty
 from psiflow.data import read_dataset, Dataset
 
@@ -140,6 +139,7 @@ def evaluate_bias(
     os.unlink(colvar_log)
     os.unlink(path_input)
     return values
+app_evaluate = python_app(evaluate_bias, executors=['default'])
 
 
 @typeguard.typechecked
@@ -165,6 +165,7 @@ def find_states_in_data(
         else:
             pass
     return to_extract
+app_find_states = python_app(find_states_in_data, executors=['default'])
 
 
 @typeguard.typechecked
@@ -237,7 +238,7 @@ class PlumedBias(Container):
                 pace = 2147483647 # some random high prime number
                 lines[i] = line_before + 'PACE={} '.format(pace) + ' '.join(line_after)
         plumed_input = '\n'.join(lines)
-        return self.context.apps(PlumedBias, 'evaluate')(
+        return app_evaluate(
                 plumed_input,
                 variable,
                 inputs=[dataset.data_future] + self.futures,
@@ -311,7 +312,7 @@ class PlumedBias(Container):
                 pace = 2147483647 # some random high prime number
                 lines[i] = line_before + 'PACE={} '.format(pace) + ' '.join(line_after)
         plumed_input = '\n'.join(lines)
-        indices = self.context.apps(PlumedBias, 'find_states')( # is future!
+        indices = app_find_states( # is future!
                 plumed_input,
                 variable,
                 targets,
@@ -381,8 +382,4 @@ class PlumedBias(Container):
 
     @classmethod
     def create_apps(cls, context: ExecutionContext) -> None:
-        label = context[ModelExecutionDefinition].label
-        app_evaluate = python_app(evaluate_bias, executors=[label])
-        context.register_app(cls, 'evaluate', app_evaluate)
-        app_find = python_app(find_states_in_data, executors=[label])
-        context.register_app(cls, 'find_states', app_find)
+        pass

@@ -123,6 +123,7 @@ def save_dataset(
         write_extxyz(f, _data)
     if return_data:
         return _data
+app_save_dataset = python_app(save_dataset, executors=['default'])
 
 
 @typeguard.typechecked
@@ -156,6 +157,7 @@ def read_dataset(
         with open(outputs[0], 'w') as f:
             write_extxyz(f, data)
     return data
+app_read_dataset = python_app(read_dataset, executors=['default'])
 
 
 @typeguard.typechecked
@@ -164,12 +166,14 @@ def join_dataset(inputs: List[File] = [], outputs: List[File] = []) -> None:
     for i in range(len(inputs)):
         data += read_dataset(slice(None), inputs=[inputs[i]]) # read all
     save_dataset(data, outputs=[outputs[0]])
+app_join_dataset = python_app(join_dataset, executors=['default'])
 
 
 @typeguard.typechecked
 def get_length_dataset(inputs: List[File] = []) -> int:
     data = read_dataset(slice(None), inputs=[inputs[0]])
     return len(data)
+app_length_dataset = python_app(get_length_dataset, executors=['default'])
 
 
 @typeguard.typechecked
@@ -184,6 +188,7 @@ def get_indices_per_flag(
         if atoms.reference_status == flag:
             indices.append(i)
     return indices
+app_get_indices = python_app(get_indices_per_flag, executors=['default'])
 
 
 @typeguard.typechecked
@@ -266,7 +271,7 @@ def compute_metrics(
             if metric == 'mae':
                 errors[i, j] = np.mean(np.abs(array_0 - array_1))
             elif metric == 'rmse':
-                errors[i, j] = np.mean(np.linalg.norm(array_0 - array_1, axis=1))
+                errors[i, j] = np.sqrt(np.mean((array_0 - array_1) ** 2))
             elif metric == 'max':
                 errors[i, j] = np.max(np.linalg.norm(array_0 - array_1, axis=1))
             else:
@@ -274,11 +279,13 @@ def compute_metrics(
     if not np.any(outer_mask):
         raise AssertionError('no states in dataset contained atoms of interest')
     return errors[outer_mask, :]
+app_compute_metrics = python_app(compute_metrics, executors=['default'])
 
 
 @typeguard.typechecked
 class Dataset(Container):
     """Container to represent a dataset of atomic structures"""
+    execution_definition = ['executor']
 
     def __init__(
             self,
@@ -312,7 +319,7 @@ class Dataset(Container):
                 else:
                     states = [FlowAtoms.from_atoms(a) for a in atoms_list]
                     inputs = []
-            self.data_future = context.apps(Dataset, 'save_dataset')(
+            self.data_future = app_save_dataset(
                     states,
                     inputs=inputs,
                     outputs=[context.new_file('data_', '.xyz')],
@@ -325,7 +332,7 @@ class Dataset(Container):
                     ).outputs[0] # ensure type(data_future) == DataFuture
 
     def length(self) -> AppFuture:
-        return self.context.apps(Dataset, 'length_dataset')(inputs=[self.data_future])
+        return app_length_dataset(inputs=[self.data_future])
 
     def __getitem__(
             self,
@@ -343,7 +350,7 @@ class Dataset(Container):
             ) -> Union[Dataset, AppFuture]:
         if indices is not None:
             assert index is None
-            data_future = self.context.apps(Dataset, 'read_dataset')(
+            data_future = app_read_dataset(
                     indices,
                     inputs=[self.data_future],
                     outputs=[self.context.new_file('data_', '.xyz')],
@@ -351,7 +358,7 @@ class Dataset(Container):
             return Dataset(self.context, None, data_future=data_future)
         else:
             assert index is not None
-            atoms = self.context.apps(Dataset, 'read_dataset')(
+            atoms = app_read_dataset(
                     index, # int or AppFuture of int
                     inputs=[self.data_future],
                     ) # represents an AppFuture of an ase.Atoms instance
@@ -371,13 +378,13 @@ class Dataset(Container):
         return future
 
     def as_list(self) -> List[FlowAtoms]:
-        return self.context.apps(Dataset, 'read_dataset')(
+        return app_read_dataset(
                 index_or_indices=slice(None),
                 inputs=[self.data_future],
                 ).result()
 
     def append(self, dataset: Dataset) -> None:
-        self.data_future = self.context.apps(Dataset, 'join_dataset')(
+        self.data_future = app_join_dataset(
                 inputs=[self.data_future, dataset.data_future],
                 outputs=[self.context.new_file('data_', '.xyz')],
                 ).outputs[0]
@@ -387,14 +394,14 @@ class Dataset(Container):
 
     @property
     def success(self) -> AppFuture:
-        return self.context.apps(Dataset, 'get_indices_per_flag')(
+        return app_get_indices(
                 True,
                 inputs=[self.data_future],
                 )
 
     @property
     def failed(self) -> AppFuture:
-        return self.context.apps(Dataset, 'get_indices_per_flag')(
+        return app_get_indices(
                 False,
                 inputs=[self.data_future],
                 )
@@ -414,7 +421,7 @@ class Dataset(Container):
             intrinsic = False
         else:
             intrinsic = True
-        return dataset_0.context.apps(Dataset, 'compute_metrics')(
+        return app_compute_metrics(
                 intrinsic=intrinsic,
                 atom_indices=atom_indices,
                 elements=elements,
@@ -434,21 +441,4 @@ class Dataset(Container):
 
     @staticmethod
     def create_apps(context: ExecutionContext) -> None:
-        label = 'default'
-        app_save_dataset = python_app(save_dataset, executors=[label])
-        context.register_app(Dataset, 'save_dataset', app_save_dataset)
-
-        app_read_dataset = python_app(read_dataset, executors=[label])
-        context.register_app(Dataset, 'read_dataset', app_read_dataset)
-
-        app_join_dataset = python_app(join_dataset, executors=[label])
-        context.register_app(Dataset, 'join_dataset', app_join_dataset)
-
-        app_length_dataset = python_app(get_length_dataset, executors=[label])
-        context.register_app(Dataset, 'length_dataset', app_length_dataset)
-
-        app_get_indices = python_app(get_indices_per_flag, executors=[label])
-        context.register_app(Dataset, 'get_indices_per_flag', app_get_indices)
-
-        app_compute_metrics = python_app(compute_metrics, executors=[label])
-        context.register_app(Dataset, 'compute_metrics', app_compute_metrics)
+        pass # no apps beyond default executor

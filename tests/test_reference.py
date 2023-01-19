@@ -17,7 +17,6 @@ from psiflow.reference import EMTReference, CP2KReference
 from psiflow.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
 from psiflow.data import Dataset
-from psiflow.execution import ReferenceExecutionDefinition
 
 
 @pytest.fixture

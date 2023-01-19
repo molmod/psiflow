@@ -6,7 +6,7 @@ from psiflow.models import NequIPModel
 from psiflow.sampling import RandomWalker
 
 
-def test_distance_check(context, dataset, tmpdir):
+def test_distance_check(context, dataset, tmp_path):
     check = InteratomicDistanceCheck(threshold=0.1)
     assert check(dataset[0]).result() is not None
     assert check.npasses.result() == 1
@@ -14,7 +14,7 @@ def test_distance_check(context, dataset, tmpdir):
     check = InteratomicDistanceCheck(threshold=10)
     assert check(dataset[0]).result() is None
     assert len(check.states.result()) == 1 # contains one AppFuture
-    path = Path(tmpdir)
+    path = Path(tmp_path)
     check.save(path)
     check_ = load_checks(path, context)[0]
     assert type(check_) == InteratomicDistanceCheck
@@ -22,7 +22,7 @@ def test_distance_check(context, dataset, tmpdir):
 
 
 # test occasionally fails due to torch.jit compilation errors
-def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
+def test_discrepancy_check(context, dataset, nequip_config, tmp_path):
     model_old = NequIPModel(context, nequip_config)
     model_old.set_seed(123)
     model_old.initialize(dataset[5:])
@@ -47,7 +47,7 @@ def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
     assert check.nchecks == 2
     assert check.npasses.result() == 1
     assert len(check.states.result()) == 1
-    path = Path(tmpdir)
+    path = Path(tmp_path)
     check.save(path)
     check_ = load_checks(path, context)[0]
     assert type(check_) == DiscrepancyCheck
@@ -55,7 +55,7 @@ def test_discrepancy_check(context, dataset, nequip_config, tmpdir):
     assert check_.model_new.config_raw['seed'] == 111
 
 
-def test_safety_check(context, dataset, tmpdir):
+def test_safety_check(context, dataset, tmp_path):
     walker = RandomWalker(context, dataset[0])
     state = walker.propagate()
     check = SafetyCheck()
@@ -66,7 +66,7 @@ def test_safety_check(context, dataset, tmpdir):
     assert check(state, walker.tag_future).result() is None
     assert check.nchecks == 2
     assert check.npasses.result() == 1
-    path = Path(tmpdir)
+    path = Path(tmp_path)
     check.save(path)
     check_ = load_checks(path, context)[0]
     assert type(check_) == SafetyCheck

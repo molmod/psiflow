@@ -1,6 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Callable, Dict, Tuple
 import typeguard
+import logging
 import yaml
 import tempfile
 from copy import deepcopy
@@ -9,11 +10,15 @@ from pathlib import Path
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
-from psiflow.execution import Container, ModelExecutionDefinition, \
-        ExecutionContext
+from psiflow.execution import Container, ExecutionContext
 from psiflow.data import Dataset
 from psiflow.utils import copy_app_future, save_yaml, copy_data_future
+
+
+logger = logging.getLogger(__name__) # logging per module
+logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
@@ -58,6 +63,17 @@ def evaluate_dataset(
 @typeguard.typechecked
 class BaseModel(Container):
     """Base Container for a trainable interaction potential"""
+    execution_definition = [
+            'evaluate_executor',
+            'evaluate_device',
+            'evaluate_ncores',
+            'evaluate_dtype',
+            'training_executor',
+            'training_device',
+            'training_ncores',
+            'training_dtype',
+            'training_walltime',
+            ]
 
     def __init__(self, context: ExecutionContext, config: Dict) -> None:
         super().__init__(context)
@@ -66,9 +82,20 @@ class BaseModel(Container):
         self.model_future  = None
         self.deploy_future = {} # deployed models in float32 and float64
 
-    def train(self, training: Dataset, validation: Dataset) -> None:
-        """Trains a model and returns it as an AppFuture"""
-        raise NotImplementedError
+    def train(self, training: Dataset, validation: Dataset) -> AppFuture:
+        logger.info('training {} using {} states for training and {} for validation'.format(
+            self.__class__.__name__,
+            training.length().result(),
+            validation.length().result(),
+            ))
+        self.deploy_future = {} # no longer valid
+        future  = self.context.apps(self.__class__, 'train')( # new DataFuture instance
+                self.config_future,
+                inputs=[self.model_future, training.data_future, validation.data_future],
+                outputs=[self.context.new_file('model_', '.pth')]
+                )
+        self.model_future = future.outputs[0]
+        return future # represents number of trained epochs 
 
     def initialize(self, dataset: Dataset) -> None:
         """Initializes the model based on a dataset"""
@@ -76,13 +103,28 @@ class BaseModel(Container):
 
     def evaluate(self, dataset: Dataset) -> Dataset:
         """Evaluates a dataset using a model and returns it as a covalent electron"""
-        dtype = self.context[ModelExecutionDefinition].dtype
+        dtype = self.context[self.__class__]['evaluate_dtype']
         assert dtype in self.deploy_future.keys()
         data_future = self.context.apps(self.__class__, 'evaluate')(
                 inputs=[dataset.data_future, self.deploy_future[dtype]],
                 outputs=[self.context.new_file('data_', '.xyz')],
                 ).outputs[0]
         return Dataset(self.context, None, data_future=data_future)
+
+    def reset(self) -> None:
+        self.config_future = None
+        self.model_future = None
+        self.deploy_future = {}
+
+    def save_deployed(
+            self,
+            path_deployed: Union[Path, str],
+            dtype: str = 'float32',
+            ) -> DataFuture:
+        return copy_data_future(
+                inputs=[self.deploy_future[dtype]],
+                outputs=[File(str(path_deployed))],
+                ).outputs[0] # return data future
 
     def save(
             self,

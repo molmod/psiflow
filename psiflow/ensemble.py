@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 from psiflow.execution import ExecutionContext
 from psiflow.models import BaseModel
 from psiflow.checks import Check
-from psiflow.data import Dataset, save_dataset, FlowAtoms
+from psiflow.data import Dataset, app_save_dataset, FlowAtoms
 from psiflow.sampling import load_walker, BaseWalker, PlumedBias
 from psiflow.utils import copy_app_future
 
@@ -80,7 +80,7 @@ def conditional_sample(
         if not batch_size > 0:
             logger.info('done')
             assert batch_size == 0 # cannot be negative
-            data_future = context.apps(Dataset, 'save_dataset')(
+            data_future = app_save_dataset(
                     states=None,
                     inputs=states,
                     outputs=[outputs[0]],

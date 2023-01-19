@@ -121,6 +121,7 @@ def _log_data_to_wandb(
         inputs: List[List[List]] = [], # list of 2D tables
         ) -> None:
     from pathlib import Path
+    import shutil
     import tempfile
     import wandb
     path_wandb = Path(tempfile.mkdtemp())
@@ -155,6 +156,7 @@ def _log_data_to_wandb(
     os.environ['WANDB_SILENT'] = 'True' # suppress logs
     wandb.log(wandb_log)
     wandb.finish()
+    #shutil.rmtree(path_wandb)
 log_data_to_wandb = python_app(
         _log_data_to_wandb,
         executors=['default'],

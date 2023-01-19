@@ -74,7 +74,7 @@ def test_random_walker(context, dataset):
     assert walker.is_reset().result() # should reset
     assert walker.tag_future.result() == 'safe'
 
-    state = walker.propagate(model='dummy') # irrelevant kwargs are ignored
+    state = walker.propagate(model=None) # irrelevant kwargs are ignored
 
 
 def test_dynamic_walker(context, dataset, nequip_config):
@@ -114,4 +114,4 @@ def test_optimization(context, dataset, nequip_config):
     assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved
     walker.parameters.fmax = 1e-3
     final_ = walker.propagate(model=model)
-    assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # moved again
+    assert not np.all(np.abs(final_.result().positions - dataset[0].result().positions) < 0.001) # moved again

@@ -17,13 +17,51 @@ from parsl.dataflow.memoization import id_for_memo
 from psiflow.models.base import evaluate_dataset
 from psiflow.models import BaseModel
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.execution import ModelExecutionDefinition, ExecutionContext, \
-        TrainingExecutionDefinition
+from psiflow.execution import ExecutionContext
 from psiflow.utils import copy_data_future
 
 
 logger = logging.getLogger(__name__) # logging per module
 logger.setLevel(logging.INFO)
+
+
+def init_n_update(config, tmpdir):
+    import wandb
+    import logging
+    from wandb.util import json_friendly_val
+    conf_dict = dict(config)
+    # wandb mangles keys (in terms of type) as well, but we can't easily correct that because there are many ambiguous edge cases. (E.g. string "-1" vs int -1 as keys, are they different config keys?)
+    if any(not isinstance(k, str) for k in conf_dict.keys()):
+        raise TypeError(
+            "Due to wandb limitations, only string keys are supported in configurations."
+        )
+
+    # download from wandb set up
+    config.run_id = wandb.util.generate_id()
+
+    wandb.init(
+        project=config.wandb_project,
+        config=conf_dict,
+        name=config.run_name,
+        dir=tmpdir,
+        resume="allow",
+        id=config.run_id,
+    )
+    # # download from wandb set up
+    updated_parameters = dict(wandb.config)
+    for k, v_new in updated_parameters.items():
+        skip = False
+        if k in config.keys():
+            # double check the one sanitized by wandb
+            v_old = json_friendly_val(config[k])
+            if repr(v_new) == repr(v_old):
+                skip = True
+        if skip:
+            logging.info(f"# skipping wandb update {k} from {v_old} to {v_new}")
+        else:
+            config.update({k: v_new})
+            logging.info(f"# wandb update {k} from {v_old} to {v_new}")
+    return config
 
 
 @typeguard.typechecked
@@ -38,27 +76,29 @@ def get_elements(data: List[FlowAtoms]) -> List[str]:
 @typeguard.typechecked
 def to_nequip_dataset(data: List[FlowAtoms], nequip_config: Any):
     import tempfile
+    import shutil
     from nequip.utils import Config, instantiate
     from nequip.data.transforms import TypeMapper
     from nequip.data import ASEDataset
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        nequip_config_dict = dict(nequip_config)
-        nequip_config_dict['root'] = tmpdir
-        _config = Config.from_dict(dict(nequip_config_dict))
-        _config['chemical_symbols'] = get_elements(data)
-        type_mapper, _ = instantiate(
-                TypeMapper,
-                prefix='dataset',
-                optional_args=_config,
-                )
-        ase_dataset = ASEDataset.from_atoms_list(
-                data,
-                extra_fixed_fields={'r_max': _config['r_max']},
-                type_mapper=type_mapper,
-                include_keys=_config['dataset_include_keys'],
-                key_mapping=_config['dataset_key_mapping'],
-                )
+    tmpdir = tempfile.mkdtemp()
+    nequip_config_dict = dict(nequip_config)
+    nequip_config_dict['root'] = tmpdir
+    _config = Config.from_dict(dict(nequip_config_dict))
+    _config['chemical_symbols'] = get_elements(data)
+    type_mapper, _ = instantiate(
+            TypeMapper,
+            prefix='dataset',
+            optional_args=_config,
+            )
+    ase_dataset = ASEDataset.from_atoms_list(
+            data,
+            extra_fixed_fields={'r_max': _config['r_max']},
+            type_mapper=type_mapper,
+            include_keys=_config['dataset_include_keys'],
+            key_mapping=_config['dataset_key_mapping'],
+            )
+    shutil.rmtree(tmpdir)
     return ase_dataset
 
 
@@ -186,62 +226,64 @@ def train(
         ) -> int:
     import torch
     import tempfile
+    import shutil
+    from copy import deepcopy
     from nequip.utils import Config
     from nequip.model import model_from_config
     from nequip.utils.versions import check_code_version
     from nequip.utils._global_options import _set_global_options
     from nequip.train.trainer import Trainer
     from nequip.train.trainer_wandb import TrainerWandB
-    from nequip.utils.wandb import init_n_update
     from psiflow.data import read_dataset
     from psiflow.models._nequip import to_nequip_dataset
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        nequip_config['root'] = tmpdir
-        nequip_config = Config.from_dict(nequip_config)
+    tmpdir = tempfile.mkdtemp()
+    nequip_config['root'] = tmpdir
+    nequip_config = Config.from_dict(nequip_config)
 
-        model = model_from_config(
-                nequip_config,
-                initialize=False,
-                )
-        model.load_state_dict(torch.load(inputs[0].filepath, map_location='cpu'))
-        torch_device = torch.device(device)
-        if dtype == 'float32':
-            torch_dtype = torch.float32
-        else:
-            torch_dtype = torch.float64
-        model.to(device=torch_device, dtype=torch_dtype)
+    model = model_from_config(
+            nequip_config,
+            initialize=False,
+            )
+    model.load_state_dict(torch.load(inputs[0].filepath, map_location='cpu'))
+    torch_device = torch.device(device)
+    if dtype == 'float32':
+        torch_dtype = torch.float32
+    else:
+        torch_dtype = torch.float64
+    model.to(device=torch_device, dtype=torch_dtype)
 
-        check_code_version(nequip_config, add_to_config=True)
-        _set_global_options(nequip_config)
-        if nequip_config.wandb:
-            nequip_config = init_n_update(nequip_config)
-            trainer_cls = TrainerWandB
-        else:
-            trainer_cls = Trainer
-        trainer = trainer_cls(model=None, **dict(nequip_config))
-        training   = read_dataset(slice(None), inputs=[inputs[1]])
-        validation = read_dataset(slice(None), inputs=[inputs[2]])
-        trainer.n_train = len(training)
-        trainer.n_val   = len(validation)
+    check_code_version(nequip_config, add_to_config=True)
+    _set_global_options(nequip_config)
+    if nequip_config.wandb:
+        nequip_config = init_n_update(nequip_config, tmpdir)
+        trainer_cls = TrainerWandB
+    else:
+        trainer_cls = Trainer
+    trainer = trainer_cls(model=None, **dict(nequip_config))
+    training   = read_dataset(slice(None), inputs=[inputs[1]])
+    validation = read_dataset(slice(None), inputs=[inputs[2]])
+    trainer.n_train = len(training)
+    trainer.n_val   = len(validation)
 
-        data_train    = to_nequip_dataset(training, nequip_config)
-        data_validate = to_nequip_dataset(validation, nequip_config)
-        trainer.set_dataset(data_train, data_validate)
-        trainer.model = model
+    data_train    = to_nequip_dataset(training, nequip_config)
+    data_validate = to_nequip_dataset(validation, nequip_config)
+    trainer.set_dataset(data_train, data_validate)
+    trainer.model = model
 
-        # Store any updated config information in the trainer
-        trainer.update_kwargs(nequip_config)
-        try:
-            trainer.train()
-        except parsl.app.errors.AppTimeout as e:
-            # uncaught app timeouts are still possible before train.train(),
-            # especially when large datasets need to be processed. 
-            pass
-        torch.save(trainer.model.to('cpu').state_dict(), outputs[0].filepath)
-        return trainer.iepoch
+    # Store any updated config information in the trainer
+    trainer.update_kwargs(nequip_config)
+    try:
+        trainer.train()
+    except parsl.app.errors.AppTimeout as e:
+        # uncaught app timeouts are still possible before train.train(),
+        # especially when large datasets need to be processed. 
+        pass
+    torch.save(trainer.model.to('cpu').state_dict(), outputs[0].filepath)
+    shutil.rmtree(tmpdir)
+    return trainer.iepoch
 
 
 @typeguard.typechecked
@@ -285,21 +327,6 @@ class NequIPModel(BaseModel):
                 outputs=[self.context.new_file('deployed_', '.pth')],
                 ).outputs[0]
 
-    def train(self, training: Dataset, validation: Dataset) -> AppFuture:
-        logger.info('training {} using {} states for training and {} for validation'.format(
-            self.__class__.__name__,
-            training.length().result(),
-            validation.length().result(),
-            ))
-        self.deploy_future = {} # no longer valid
-        future  = self.context.apps(NequIPModel, 'train')( # new DataFuture instance
-                self.config_future,
-                inputs=[self.model_future, training.data_future, validation.data_future],
-                outputs=[self.context.new_file('model_', '.pth')]
-                )
-        self.model_future = future.outputs[0]
-        return future # represents number of trained epochs 
-
     def save_deployed(
             self,
             path_deployed: Union[Path, str],
@@ -310,28 +337,23 @@ class NequIPModel(BaseModel):
                 outputs=[File(str(path_deployed))],
                 ).outputs[0] # return data future
 
-    def reset(self) -> None:
-        self.config_future = None
-        self.model_future = None
-        self.deploy_future = {}
-
     def set_seed(self, seed: int) -> None:
         self.config_raw['seed'] = seed
         self.config_raw['dataset_seed'] = seed
 
     @classmethod
     def create_apps(cls, context: ExecutionContext) -> None:
-        training_label  = context[TrainingExecutionDefinition].label
-        training_device = context[TrainingExecutionDefinition].device
-        training_dtype  = context[TrainingExecutionDefinition].dtype
-        training_walltime = context[TrainingExecutionDefinition].walltime
+        training_label    = context[cls]['training_executor']
+        training_device   = context[cls]['training_device']
+        training_dtype    = context[cls]['training_dtype']
+        training_walltime = context[cls]['training_walltime']
 
-        model_label  = context[ModelExecutionDefinition].label
-        model_device = context[ModelExecutionDefinition].device
-        model_dtype  = context[ModelExecutionDefinition].dtype
-        model_ncores = context[ModelExecutionDefinition].ncores
+        model_label  = context[cls]['evaluate_executor']
+        model_device = context[cls]['evaluate_device']
+        model_ncores = context[cls]['evaluate_ncores']
+        model_dtype  = context[cls]['evaluate_dtype']
 
-        app_initialize = python_app(initialize, executors=[model_label], cache=True)
+        app_initialize = python_app(initialize, executors=[model_label], cache=False)
         context.register_app(cls, 'initialize', app_initialize)
         deploy_unwrapped = python_app(deploy, executors=[model_label], cache=False)
         def deploy_float32(config, inputs=[], outputs=[]):
@@ -352,7 +374,7 @@ class NequIPModel(BaseModel):
                     outputs=outputs,
                     )
         context.register_app(cls, 'deploy_float64', deploy_float64)
-        train_unwrapped = python_app(train, executors=[training_label], cache=True)
+        train_unwrapped = python_app(train, executors=[training_label], cache=False)
         def train_wrapped(config, inputs=[], outputs=[]):
             return train_unwrapped(
                     training_device,

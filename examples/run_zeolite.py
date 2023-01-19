@@ -12,13 +12,12 @@ from parsl.utils import get_all_checkpoints
 
 from psiflow.manager import Manager
 from psiflow.learning import RandomLearning, OnlineLearning
-from psiflow.models import NequIPModel
+from psiflow.models import NequIPModel, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
 from psiflow.ensemble import Ensemble
-from psiflow.execution import ExecutionContext, ModelExecutionDefinition, \
-        ReferenceExecutionDefinition, TrainingExecutionDefinition
+from psiflow.execution import ExecutionContext
 from psiflow.utils import get_parsl_config_from_file
 
 
@@ -45,12 +44,12 @@ def get_context_and_manager(args):
     parsl.load(config)
     config.retries = args.retries
     context = ExecutionContext(config, path=path_context)
-    context.register(ModelExecutionDefinition())
-    context.register(ReferenceExecutionDefinition(
-        time_per_singlepoint=800,
-        mpi_command=lambda x: 'mympirun ', # for vsc_hortense
-        ))
-    context.register(TrainingExecutionDefinition())
+    #context.register(ModelExecutionDefinition())
+    #context.register(ReferenceExecutionDefinition(
+    #    time_per_singlepoint=800,
+    #    mpi_command=lambda x: 'mympirun ', # for vsc_hortense
+    #    ))
+    #context.register(TrainingExecutionDefinition())
 
     # setup manager for IO, wandb logging
     path_output  = path_run / 'output'
@@ -74,6 +73,15 @@ METAD ARG=CV SIGMA=50 HEIGHT=5 PACE=25 LABEL=metad FILE=test_hills
 
 
 def get_reference(context):
+    context.define_execution(
+            CP2KReference,
+            executor='reference',
+            device='cpu',
+            ncores=None,
+            mpi_command=lambda x: f'mpirun -np {x} ',
+            cp2k_exec='cp2k.psmp',
+            time_per_singlepoint=20,
+            )
     with open(Path.cwd() / 'data' / 'cp2k_input.txt', 'r') as f:
         cp2k_input = f.read()
     reference = CP2KReference(context, cp2k_input=cp2k_input)
@@ -92,7 +100,19 @@ def get_reference(context):
     return reference
 
 
-def get_model(context):
+def get_nequip_model(context):
+    context.define_execution(
+            NequIPModel,
+            evaluate_executor='model',
+            evaluate_device='cpu',
+            evaluate_ncores=None,
+            evaluate_dtype='float32',
+            training_executor='training',
+            training_device='cuda',
+            training_ncores=None,
+            training_dtype='float32',
+            training_walltime=80,
+            )
     config_text = requests.get('https://raw.githubusercontent.com/mir-group/nequip/v0.5.6/configs/full.yaml').text
     config = yaml.load(config_text, Loader=yaml.FullLoader)
     config['r_max'] = 5.0 # reduce computational cost of data processing
@@ -106,21 +126,38 @@ def get_model(context):
     return NequIPModel(context, config)
 
 
+def get_mace_model(context):
+    context.define_execution(
+            MACEModel,
+            evaluate_executor='model',
+            evaluate_device='cpu',
+            evaluate_ncores=None,
+            evaluate_dtype='float32',
+            training_executor='training',
+            training_device='cuda',
+            training_ncores=None,
+            training_dtype='float32',
+            training_walltime=3600,
+            )
+    config = MACEConfig()
+    return MACEModel(context, config)
+
+
 def main(context, manager, restart):
     reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
-    atoms = read(Path.cwd() / 'data' / 'zeolite.xyz')
+    atoms = read(Path.cwd() / 'data' / 'Al_mil53.xyz')
     if restart is None: # generate initial data with random learning
-        model = get_model(context) # NequIP; medium-sized network
+        model = get_nequip_model(context) # NequIP; medium-sized network
         bias = get_bias(context)
         walker = RandomWalker(
                 context,
                 atoms,
                 amplitude_pos=0.08,
-                amplitude_box=0.08,
+                amplitude_box=0.1,
                 seed=0,
                 )
         # initial stage: random perturbations
-        learning = RandomLearning(nstates=20, train_valid_split=0.8)
+        learning = RandomLearning(nstates=50, train_valid_split=0.9)
         data_train, data_valid = learning.run(
                 manager=manager,
                 model=model,
@@ -128,21 +165,21 @@ def main(context, manager, restart):
                 walker=walker,
                 bias=bias, # only there for wandb logging
                 )
-        walker = DynamicWalker( # biased MD
+        walker = DynamicWalker( # MD
                 context,
                 atoms,
                 timestep=0.5,
-                steps=100,
+                steps=400,
                 step=50,
                 start=0,
-                temperature=1000,
+                temperature=600,
                 pressure=0, # NPT
-                force_threshold=40,
-                initial_temperature=1000,
+                force_threshold=20,
+                initial_temperature=600,
                 seed=0,
                 )
-        ensemble = Ensemble.from_walker(walker, nwalkers=10)
-        ensemble.add_bias(bias) # separate MTD for every walker
+        ensemble = Ensemble.from_walker(walker, nwalkers=50)
+        ensemble.add_bias(bias) # add separate MTD for every walker
     else:
         model, ensemble, data_train, data_valid, _ = manager.load(restart, context)
     learning = OnlineLearning(niterations=5, nstates=10)

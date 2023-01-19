@@ -7,7 +7,7 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import FlowAtoms
-from psiflow.execution import ModelExecutionDefinition, ExecutionContext
+from psiflow.execution import ExecutionContext
 from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 
@@ -39,6 +39,19 @@ def random_perturbation(
     state.set_positions(positions)
     state.set_cell(box)
     return state, 'safe'
+app_propagate = python_app(random_perturbation, executors=['default'])
+
+
+@typeguard.typechecked
+def propagate_wrapped(
+        state: AppFuture,
+        parameters: RandomParameters,
+        keep_trajectory: bool = False,
+        **kwargs,
+        ) -> AppFuture:
+    # ignore additional kwargs; return None as dataset
+    assert not keep_trajectory
+    return app_propagate(state, parameters)
 
 
 @dataclass
@@ -52,24 +65,9 @@ class RandomParameters:
 class RandomWalker(BaseWalker):
     parameters_cls = RandomParameters
 
+    def get_propagate_app(self, model):
+        return propagate_wrapped
+
     @classmethod
     def create_apps(cls, context: ExecutionContext) -> None:
-        label = context[ModelExecutionDefinition].label
-
-        app_propagate = python_app(
-                random_perturbation,
-                executors=[label],
-                )
-        @typeguard.typechecked
-        def propagate_wrapped(
-                state: AppFuture,
-                parameters: RandomParameters,
-                keep_trajectory: bool = False,
-                **kwargs,
-                ) -> AppFuture:
-            # ignore additional kwargs; return None as dataset
-            assert not keep_trajectory
-            return app_propagate(state, parameters)
-
-        context.register_app(cls, 'propagate', propagate_wrapped)
-        super(RandomWalker, cls).create_apps(context)
+        pass

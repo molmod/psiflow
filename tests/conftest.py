@@ -6,15 +6,17 @@ import torch
 import numpy as np
 import tempfile
 from pathlib import Path
+from dataclasses import asdict
 
 from ase import Atoms
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
-from psiflow.execution import ExecutionContext, TrainingExecutionDefinition, \
-        ModelExecutionDefinition, ReferenceExecutionDefinition
+from psiflow.execution import ExecutionContext
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.utils import get_parsl_config_from_file
+from psiflow.models import NequIPModel, MACEModel, MACEConfig
+from psiflow.reference import CP2KReference, EMTReference
 
 
 def pytest_addoption(parser):
@@ -36,17 +38,45 @@ def parsl_config(request, tmp_path_factory):
 
 
 @pytest.fixture(scope='session')
-def context(parsl_config, tmpdir_factory):
+def context(parsl_config, tmp_path_factory):
     parsl_config.retries = 0
+    parsl_config.app_cache = False
     parsl.load(parsl_config)
-    path = str(tmpdir_factory.mktemp('context_dir'))
+    path = str(tmp_path_factory.mktemp('context_dir'))
     context = ExecutionContext(parsl_config, path=path)
-    context.register(ModelExecutionDefinition())
-    context.register(ReferenceExecutionDefinition(
-        time_per_singlepoint=50,
-        mpi_command=lambda x: 'mympirun ',
-        ))
-    context.register(TrainingExecutionDefinition(walltime=50)) # large for vsc
+    context.define_execution(
+            NequIPModel,
+            evaluate_executor='model',
+            evaluate_device='cpu',
+            evaluate_ncores=None,
+            evaluate_dtype='float32',
+            training_executor='training',
+            training_device='cuda',
+            training_ncores=None,
+            training_dtype='float32',
+            training_walltime=80,
+            )
+    context.define_execution(
+            MACEModel,
+            evaluate_executor='model',
+            evaluate_device='cpu',
+            evaluate_ncores=None,
+            evaluate_dtype='float32',
+            training_executor='training',
+            training_device='cuda',
+            training_ncores=None,
+            training_dtype='float32',
+            training_walltime=80,
+            )
+    context.define_execution(
+            CP2KReference,
+            executor='reference',
+            device='cpu',
+            ncores=None,
+            mpi_command=lambda x: f'mpirun -np {x} ',
+            cp2k_exec='cp2k.psmp',
+            time_per_singlepoint=20,
+            )
     yield context
     parsl.clear()
 
@@ -68,6 +98,12 @@ def nequip_config(tmp_path):
             ['total_energy', 'mae', {'PerAtom': True}],
             ]
     return config
+
+
+@pytest.fixture
+def mace_config(tmp_path):
+    mace_config = MACEConfig()
+    return asdict(mace_config)
 
 
 def generate_emt_cu_data(nstates, amplitude):
