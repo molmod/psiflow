@@ -77,12 +77,15 @@ def get_elements(data: List[FlowAtoms]) -> List[str]:
 def to_nequip_dataset(data: List[FlowAtoms], nequip_config: Any):
     import tempfile
     import shutil
+    from copy import deepcopy
     from nequip.utils import Config, instantiate
     from nequip.data.transforms import TypeMapper
     from nequip.data import ASEDataset
 
-    tmpdir = tempfile.mkdtemp()
-    nequip_config_dict = dict(nequip_config)
+    tmpdir = tempfile.mkdtemp() # not guaranteed to be new/empty for some reason
+    shutil.rmtree(tmpdir)
+    Path(tmpdir).mkdir()
+    nequip_config_dict = deepcopy(dict(nequip_config))
     nequip_config_dict['root'] = tmpdir
     _config = Config.from_dict(dict(nequip_config_dict))
     _config['chemical_symbols'] = get_elements(data)
@@ -227,6 +230,7 @@ def train(
     import torch
     import tempfile
     import shutil
+    from pathlib import Path
     from copy import deepcopy
     from nequip.utils import Config
     from nequip.model import model_from_config
@@ -239,10 +243,11 @@ def train(
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    tmpdir = tempfile.mkdtemp()
-    nequip_config['root'] = tmpdir
     nequip_config = Config.from_dict(nequip_config)
-
+    tmpdir = tempfile.mkdtemp() # not guaranteed to be new/empty for some reason
+    shutil.rmtree(tmpdir)
+    Path(tmpdir).mkdir()
+    nequip_config['root'] = tmpdir
     model = model_from_config(
             nequip_config,
             initialize=False,
@@ -262,6 +267,7 @@ def train(
         trainer_cls = TrainerWandB
     else:
         trainer_cls = Trainer
+    assert dict(nequip_config)['root'] == tmpdir
     trainer = trainer_cls(model=None, **dict(nequip_config))
     training   = read_dataset(slice(None), inputs=[inputs[1]])
     validation = read_dataset(slice(None), inputs=[inputs[2]])
@@ -282,7 +288,6 @@ def train(
         # especially when large datasets need to be processed. 
         pass
     torch.save(trainer.model.to('cpu').state_dict(), outputs[0].filepath)
-    shutil.rmtree(tmpdir)
     return trainer.iepoch
 
 

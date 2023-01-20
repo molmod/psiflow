@@ -15,12 +15,6 @@ from psiflow.utils import log_data_to_wandb
 
 
 @pytest.fixture
-def model(context, nequip_config, dataset):
-    model = NequIPModel(context, nequip_config)
-    return model
-
-
-@pytest.fixture
 def ensemble(context, dataset):
     walker = RandomWalker(context, dataset[0])
     ensemble = Ensemble.from_walker(walker, nwalkers=2)
@@ -32,7 +26,7 @@ def reference(context):
     return EMTReference(context)
 
 
-def test_log_dataset_ensemble(context, dataset, model, tmp_path):
+def test_log_dataset_ensemble(context, dataset, nequip_config, tmp_path):
     error_kwargs = {
             'metric': 'mae',
             'properties': ['energy', 'forces', 'stress'],
@@ -45,6 +39,7 @@ CV1: VOLUME
 mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
 """
     bias = PlumedBias(context, plumed_input)
+    model = NequIPModel(context, nequip_config)
     model.initialize(dataset[:2])
     model.deploy()
     wandb_id = wandb.util.generate_id()
@@ -88,7 +83,8 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
     log0.result()
 
 
-def test_manager_save_load(context, dataset, model, ensemble, tmp_path):
+def test_manager_save_load(context, dataset, nequip_config, ensemble, tmp_path):
+    model = NequIPModel(context, nequip_config)
     path_output = Path(tmp_path) / 'parsl_internal'
     walkers = []
     walkers.append(RandomWalker(context, dataset[0]))
@@ -161,7 +157,8 @@ def test_manager_save_load(context, dataset, model, ensemble, tmp_path):
             assert check.model_new is not None
 
 
-def test_manager_dry_run(context, dataset, model, ensemble, reference, tmp_path):
+def test_manager_dry_run(context, dataset, nequip_config, ensemble, reference, tmp_path):
+    model = NequIPModel(context, nequip_config)
     manager = Manager(tmp_path / 'parsl_internal', 'pytest', 'test_manager_dry_run')
     with pytest.raises(AssertionError):
         manager.dry_run(model, reference) # specify either walker or ensemble

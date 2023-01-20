@@ -297,7 +297,6 @@ def get_config(path_internal):
             address=os.environ['HOSTNAME'],
             working_dir=str(path_internal / 'default_executor'),
             cores_per_worker=1,
-            cpu_affinity='alternating',
             )
     cores_per_model = 4
     worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CPU\n'
@@ -322,7 +321,6 @@ def get_config(path_internal):
             address=os.environ['HOSTNAME'],
             working_dir=str(path_internal / 'model_executor'),
             cores_per_worker=cores_per_model,
-            cpu_affinity='alternating',
             )
     cores_per_gpu = 12
     worker_init = 'ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
@@ -353,7 +351,6 @@ def get_config(path_internal):
             address=os.environ['HOSTNAME'],
             working_dir='gpu_working_dir',
             cores_per_worker=cores_per_gpu,
-            cpu_affinity='alternating',
             )
     # to get MPI to recognize the available slots correctly, it's necessary
     # to override the slurm variables as set by the jobscript, as these are
@@ -388,6 +385,5 @@ def get_config(path_internal):
             address=os.environ['HOSTNAME'],
             working_dir=str(path_internal / 'reference_executor'),
             cores_per_worker=cores_per_singlepoint,
-            cpu_affinity='alternating',
             )
     return Config(executors=[default, model, reference, training], usage_tracking=True, run_dir=str(path_internal))

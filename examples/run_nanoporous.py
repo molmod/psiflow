@@ -37,25 +37,18 @@ def get_context_and_manager(args):
             )
     config.app_cache = args.use_cache
     config.initialize_logging = False
-    #config.checkpoint_mode = 'task_exit'
     if args.use_cache:
         config.checkpoint_files = get_all_checkpoints(str(path_internal))
         print('found {} checkpoint files'.format(len(config.checkpoint_files)))
     parsl.load(config)
     config.retries = args.retries
     context = ExecutionContext(config, path=path_context)
-    #context.register(ModelExecutionDefinition())
-    #context.register(ReferenceExecutionDefinition(
-    #    time_per_singlepoint=800,
-    #    mpi_command=lambda x: 'mympirun ', # for vsc_hortense
-    #    ))
-    #context.register(TrainingExecutionDefinition())
 
     # setup manager for IO, wandb logging
     path_output  = path_run / 'output'
     manager = Manager(
             path_output,
-            wandb_project='zeolite',
+            wandb_project='nanoporous',
             wandb_group=args.name,
             restart=(args.use_cache or (args.restart is not None)),
             error_x_axis='CV', # plot errors w.r.t CV value

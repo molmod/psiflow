@@ -75,13 +75,13 @@ def context(parsl_config, tmp_path_factory):
             ncores=None,
             mpi_command=lambda x: f'mpirun -np {x} ',
             cp2k_exec='cp2k.psmp',
-            time_per_singlepoint=20,
+            time_per_singlepoint=50,
             )
     yield context
     parsl.clear()
 
 
-@pytest.fixture
+@pytest.fixture(scope='function')
 def nequip_config(tmp_path):
     config_text = requests.get('https://raw.githubusercontent.com/mir-group/nequip/v0.5.5/configs/minimal.yaml').text
     config = yaml.load(config_text, Loader=yaml.FullLoader)

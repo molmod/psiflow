@@ -252,8 +252,6 @@ class Manager:
 
         # short training and deploy
         model.reset()
-        max_epochs = model.config_raw['max_epochs']
-        model.config_raw['max_epochs'] = 2
         if (data_train is not None) and (data_valid is not None):
             assert data_train.length.result() >= 5 # only pass nonempty data
             assert data_valid.length.result() >= 2
@@ -264,7 +262,6 @@ class Manager:
         model.reset()
         model.initialize(new_train)
         model.train(new_train, new_valid)
-        model.config_raw['max_epochs'] = max_epochs # revert to old max_epochs
 
         # deploy and propagate ensemble
         model.deploy()
