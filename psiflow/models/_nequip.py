@@ -243,7 +243,7 @@ def train(
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    nequip_config = Config.from_dict(nequip_config)
+    nequip_config = Config.from_dict(deepcopy(nequip_config))
     tmpdir = tempfile.mkdtemp() # not guaranteed to be new/empty for some reason
     shutil.rmtree(tmpdir)
     Path(tmpdir).mkdir()
@@ -267,7 +267,10 @@ def train(
         trainer_cls = TrainerWandB
     else:
         trainer_cls = Trainer
-    assert dict(nequip_config)['root'] == tmpdir
+    try:
+        assert dict(nequip_config)['root'] == tmpdir # sometimes fails?
+    except AssertionError:
+        nequip_config['root'] = tmpdir
     trainer = trainer_cls(model=None, **dict(nequip_config))
     training   = read_dataset(slice(None), inputs=[inputs[1]])
     validation = read_dataset(slice(None), inputs=[inputs[2]])
