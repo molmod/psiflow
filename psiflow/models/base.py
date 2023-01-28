@@ -7,12 +7,14 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 
+import parsl
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.execution import Container, ExecutionContext
+from psiflow.execution import Container, ExecutionContext, \
+        ModelTrainingExecution, ModelEvaluationExecution
 from psiflow.data import Dataset
 from psiflow.utils import copy_app_future, save_yaml, copy_data_future
 
@@ -63,17 +65,10 @@ def evaluate_dataset(
 @typeguard.typechecked
 class BaseModel(Container):
     """Base Container for a trainable interaction potential"""
-    execution_definition = [
-            'evaluate_executor',
-            'evaluate_device',
-            'evaluate_ncores',
-            'evaluate_dtype',
-            'training_executor',
-            'training_device',
-            'training_ncores',
-            'training_dtype',
-            'training_walltime',
-            ]
+    execution_types = set([
+            ModelEvaluationExecution,
+            ModelTrainingExecution,
+            ])
 
     def __init__(self, context: ExecutionContext, config: Dict) -> None:
         super().__init__(context)
@@ -82,7 +77,11 @@ class BaseModel(Container):
         self.model_future  = None
         self.deploy_future = {} # deployed models in float32 and float64
 
-    def train(self, training: Dataset, validation: Dataset) -> AppFuture:
+    def train(
+            self,
+            training: Dataset,
+            validation: Dataset,
+            ) -> AppFuture:
         logger.info('training {} using {} states for training and {} for validation'.format(
             self.__class__.__name__,
             training.length().result(),
@@ -92,7 +91,7 @@ class BaseModel(Container):
         future  = self.context.apps(self.__class__, 'train')( # new DataFuture instance
                 self.config_future,
                 inputs=[self.model_future, training.data_future, validation.data_future],
-                outputs=[self.context.new_file('model_', '.pth')]
+                outputs=[self.context.new_file('model_', '.pth')],
                 )
         self.model_future = future.outputs[0]
         return future # represents number of trained epochs 
@@ -102,11 +101,10 @@ class BaseModel(Container):
         raise NotImplementedError
 
     def evaluate(self, dataset: Dataset) -> Dataset:
-        """Evaluates a dataset using a model and returns it as a covalent electron"""
-        dtype = self.context[self.__class__]['evaluate_dtype']
-        assert dtype in self.deploy_future.keys()
+        """Evaluates a dataset using a model"""
         data_future = self.context.apps(self.__class__, 'evaluate')(
-                inputs=[dataset.data_future, self.deploy_future[dtype]],
+                self.deploy_future,
+                inputs=[dataset.data_future],
                 outputs=[self.context.new_file('data_', '.xyz')],
                 ).outputs[0]
         return Dataset(self.context, None, data_future=data_future)

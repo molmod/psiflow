@@ -125,6 +125,7 @@ class OnlineLearning(BaseLearning):
             data_train.append(data_success.get(indices=train))
             data_valid.append(data_success.get(indices=valid))
             if self.parameters.retrain_model_per_iteration:
+                logger.info('reinitialize model (scale/shift/avg_num_neighbors) on new training data')
                 model.reset()
                 model.initialize(data_train)
             data_train.log('data_train')

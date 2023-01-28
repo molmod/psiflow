@@ -12,7 +12,8 @@ from ase import Atoms
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
-from psiflow.execution import ExecutionContext
+from psiflow.execution import ExecutionContext, ModelEvaluationExecution, \
+        ModelTrainingExecution, ReferenceEvaluationExecution
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.utils import get_parsl_config_from_file
 from psiflow.models import NequIPModel, MACEModel, MACEConfig
@@ -38,45 +39,45 @@ def parsl_config(request, tmp_path_factory):
 
 
 @pytest.fixture(scope='session')
-def context(parsl_config, tmp_path_factory):
-    parsl_config.retries = 0
+def context(request, parsl_config, tmp_path_factory):
+    #parsl_config.retries = 0
     parsl_config.app_cache = False
+    parsl_config_path = request.config.getoption('--parsl-config')
+    ncores = None
+    ncores_cp2k = None
+    mpi_command = lambda x: f'mpirun -np {x} '
+    if 'local' in parsl_config_path: # set manually when testing local
+        if 'wq' in parsl_config_path:
+            ncores = 1
+            ncores_cp2k = 4
     parsl.load(parsl_config)
     path = str(tmp_path_factory.mktemp('context_dir'))
     context = ExecutionContext(parsl_config, path=path)
-    context.define_execution(
-            NequIPModel,
-            evaluate_executor='model',
-            evaluate_device='cpu',
-            evaluate_ncores=None,
-            evaluate_dtype='float32',
-            training_executor='training',
-            training_device='cuda',
-            training_ncores=None,
-            training_dtype='float32',
-            training_walltime=80,
+    model_evaluate = ModelEvaluationExecution(
+            executor='model',
+            device='cpu',
+            ncores=ncores,
+            dtype='float32',
+            walltime=None,
             )
-    context.define_execution(
-            MACEModel,
-            evaluate_executor='model',
-            evaluate_device='cpu',
-            evaluate_ncores=None,
-            evaluate_dtype='float32',
-            training_executor='training',
-            training_device='cuda',
-            training_ncores=None,
-            training_dtype='float32',
-            training_walltime=80,
+    model_training = ModelTrainingExecution(
+            executor='training',
+            device='cuda',
+            ncores=ncores,
+            dtype='float32',
+            walltime=1, # in minutes
             )
-    context.define_execution(
-            CP2KReference,
+    context.define_execution(NequIPModel, model_evaluate, model_training)
+    context.define_execution(MACEModel, model_evaluate, model_training)
+    reference_evaluate = ReferenceEvaluationExecution(
             executor='reference',
             device='cpu',
-            ncores=None,
-            mpi_command=lambda x: f'mpirun -np {x} ',
+            ncores=ncores_cp2k,
+            mpi_command=mpi_command,
             cp2k_exec='cp2k.psmp',
-            time_per_singlepoint=50,
+            walltime=1, # in minutes
             )
+    context.define_execution(CP2KReference, reference_evaluate)
     yield context
     parsl.clear()
 

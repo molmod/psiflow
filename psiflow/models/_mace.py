@@ -16,7 +16,8 @@ from parsl.dataflow.futures import AppFuture
 from psiflow.models import BaseModel
 from psiflow.models.base import evaluate_dataset
 from psiflow.data import Dataset
-from psiflow.execution import ExecutionContext
+from psiflow.execution import ExecutionContext, ModelTrainingExecution, \
+        ModelEvaluationExecution
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -426,10 +427,12 @@ def initialize( # taken from MACE @ d520aba
 def train(
         device: str,
         dtype: str,
+        ncores: int,
         mace_config: dict,
         inputs: List[File] = [],
         outputs: List[File] = [],
-        walltime: float = 3600,
+        walltime: float = 1e12, # infinite by default
+        parsl_resource_specification: dict = None,
         ) -> int:
     import ast
     import tempfile
@@ -880,15 +883,19 @@ class MACEModel(BaseModel):
 
     @classmethod
     def create_apps(cls, context: ExecutionContext) -> None:
-        training_label    = context[cls]['training_executor']
-        training_device   = context[cls]['training_device']
-        training_dtype    = context[cls]['training_dtype']
-        training_walltime = context[cls]['training_walltime']
-
-        model_label  = context[cls]['evaluate_executor']
-        model_device = context[cls]['evaluate_device']
-        model_ncores = context[cls]['evaluate_ncores']
-        model_dtype  = context[cls]['evaluate_dtype']
+        for execution, resource_spec in zip(*context[cls]):
+            if type(execution) == ModelTrainingExecution:
+                training_label    = execution.executor
+                training_device   = execution.device
+                training_dtype    = execution.dtype
+                training_walltime = execution.walltime
+                training_ncores   = execution.ncores
+                resource_spec = resource_spec
+            elif type(execution) == ModelEvaluationExecution:
+                model_label    = execution.executor
+                model_device   = execution.device
+                model_dtype    = execution.dtype
+                model_ncores   = execution.ncores
 
         app_initialize = python_app(initialize, executors=[model_label], cache=False)
         context.register_app(cls, 'initialize', app_initialize)
@@ -914,10 +921,12 @@ class MACEModel(BaseModel):
             return train_unwrapped(
                     training_device,
                     training_dtype,
+                    training_ncores,
                     config,
                     inputs=inputs,
                     outputs=outputs,
-                    walltime=training_walltime,
+                    walltime=training_walltime * 60,
+                    parsl_resource_specification=resource_spec,
                     )
         context.register_app(cls, 'train', train_wrapped)
         evaluate_unwrapped = python_app(
@@ -925,7 +934,9 @@ class MACEModel(BaseModel):
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(inputs=[], outputs=[]):
+        def evaluate_wrapped(deploy_future, inputs=[], outputs=[]):
+            assert model_dtype in deploy_future.keys()
+            inputs.append(deploy_future[model_dtype])
             return evaluate_unwrapped(
                     model_device,
                     model_dtype,

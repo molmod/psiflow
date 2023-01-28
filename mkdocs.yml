@@ -1,39 +1,46 @@
 site_name: psiflow
 theme:
+  favicon: icon.svg
   name: material
   font:
     text: overpass
   palette:
-    primary: brown
-    accent: red
-  logo: logo_dark.png
+    primary: grey
+    accent: pink
+  logo: icon.svg
   features:
+    #- navigation.expand
     - navigation.instant
     - navigation.tracking
       #- navigation.tabs
       #- navigation.tabs.sticky
-    - navigation.indexes
+      #- navigation.indexes
     - navigation.sections
-    - navigation.expand
+    - toc.integrate
 
 nav:
-  - sampling:
-    - random: sampling_random.md
-    - optimization: sampling_optimization.md
-    - dynamic: sampling_dynamic.md
-    - bias: sampling_bias.md
-  - reference:
-    - EMT: reference_EMT.md
-    - CP2K: reference_CP2K.md
-    - VASP: reference_VASP.md
-  - models:
-    - NequIP: models_nequip.md
-    - MACE: models_MACE.md
-  - data.md
-  - ensemble.md
-  - manager.md
-  - learning.md
-  - execution.md
+  - getting started: getting_started.md
+  - workflow execution: workflow_execution.md
+  - Documentation:
+    - models:
+      - NequIP: models_nequip.md
+      - MACE: models_MACE.md
+    - sampling:
+      - random: sampling_random.md
+      - optimization: sampling_optimization.md
+      - dynamic: sampling_dynamic.md
+      - bias: sampling_bias.md
+    - reference:
+      - EMT: reference_EMT.md
+      - CP2K: reference_CP2K.md
+      - VASP: reference_VASP.md
+    - data: data.md
+    - ensemble: ensemble.md
+    - learning: learning.md
+    - execution: execution.md
+    - manager: manager.md
+hide:
+  - toc
 
 plugins:
   - mkdocstrings

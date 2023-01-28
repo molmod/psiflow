@@ -222,7 +222,6 @@ def test_cp2k_success(context, cp2k_reference):
     dataset = Dataset(context, [atoms])
     evaluated = cp2k_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
-    # calculation will fail if time_per_singlepoint in execution definition is too low!
     assert evaluated.result().reference_status == True
     assert Path(evaluated.result().reference_stdout).is_file()
     assert Path(evaluated.result().reference_stderr).is_file()
@@ -244,6 +243,22 @@ def test_cp2k_success(context, cp2k_reference):
              [7.70485237963E-05,   1.61663002757E-04,  -9.50069820373E-03]])
     stress_reference *= 1000
     assert np.allclose(stress_reference, evaluated.result().info['stress'])
+
+    # check number of mpi processes
+    with open(evaluated.result().reference_stdout, 'r') as f:
+        content = f.read()
+    print(content)
+    ncores = context[CP2KReference][0][0].ncores
+    lines = content.split('\n')
+    for line in lines:
+        if 'Total number of message passing processes' in line:
+            nprocesses = int(line.split()[-1])
+        #print(line)
+        if 'Number of threads for this process' in line:
+            nthreads = int(line.split()[-1])
+    assert nprocesses == ncores
+    if ncores != 1: # basically: do not test when running on threadpool ex
+        assert nthreads == 1 # hardcoded into configs used for testing
 
 
 def test_cp2k_failure(context, cp2k_data, tmp_path):

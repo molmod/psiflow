@@ -19,6 +19,9 @@ from psiflow.utils import copy_data_future, save_txt, create_if_empty
 from psiflow.data import read_dataset, Dataset
 
 
+PLUMED_BIAS_KEYWORDS = ['METAD', 'RESTRAINT', 'EXTERNAL', 'UPPER_WALLS']
+
+
 @typeguard.typechecked
 def try_manual_plumed_linking() -> None:
     if 'PLUMED_KERNEL' not in os.environ.keys():
@@ -51,9 +54,8 @@ def set_path_in_plumed(plumed_input: str, keyword: str, path_to_set: str) -> str
 
 @typeguard.typechecked
 def parse_plumed_input(plumed_input: str) -> List[Tuple]:
-    allowed_keywords = ['METAD', 'RESTRAINT', 'EXTERNAL', 'UPPER_WALLS']
     biases = []
-    for key in allowed_keywords:
+    for key in PLUMED_BIAS_KEYWORDS:
         lines = plumed_input.split('\n')
         for i, line in enumerate(lines):
             if key in line.split():
@@ -229,7 +231,10 @@ class PlumedBias(Container):
         for i, line in enumerate(lines):
             if 'ARG=' in line:
                 if not (variable == line.split('ARG=')[1].split()[0]):
-                    lines[i] = '\n'
+                    for part in line.split(): # remove only if actual bias
+                        for keyword in PLUMED_BIAS_KEYWORDS:
+                            if keyword in part:
+                                lines[i] = '\n'
         for i, line in enumerate(lines):
             if 'METAD' in line.split():
                 assert 'PACE=' in line # PACE needs to be specified

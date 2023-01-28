@@ -76,7 +76,6 @@ class BaseReference(Container):
                     parameters,
                     file_names=list(self.files.keys()),
                     inputs=list(self.files.values()),
-                    outputs=[],
                     )
             retval = data
             #data = combine_futures(inputs=[data])
@@ -106,7 +105,6 @@ class BaseReference(Container):
                     parameters,
                     file_names,
                     inputs=inputs[1:],
-                    outputs=[],
                     ))
             return app_save_dataset(
                     None,

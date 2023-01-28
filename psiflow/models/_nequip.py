@@ -17,7 +17,8 @@ from parsl.dataflow.memoization import id_for_memo
 from psiflow.models.base import evaluate_dataset
 from psiflow.models import BaseModel
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.execution import ExecutionContext
+from psiflow.execution import ExecutionContext, ModelTrainingExecution, \
+        ModelEvaluationExecution
 from psiflow.utils import copy_data_future
 
 
@@ -222,10 +223,12 @@ def deploy(
 def train(
         device: str,
         dtype: str,
+        ncores: int,
         nequip_config: Dict,
         inputs: List[File] = [],
         outputs: List[File] = [],
-        walltime: float = 3600,
+        walltime: float = 1e12, # infinite by default
+        parsl_resource_specification: dict = None,
         ) -> int:
     import torch
     import tempfile
@@ -242,6 +245,7 @@ def train(
     from psiflow.models._nequip import to_nequip_dataset
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+    torch.set_num_threads(ncores)
 
     nequip_config = Config.from_dict(deepcopy(nequip_config))
     tmpdir = tempfile.mkdtemp() # not guaranteed to be new/empty for some reason
@@ -351,15 +355,19 @@ class NequIPModel(BaseModel):
 
     @classmethod
     def create_apps(cls, context: ExecutionContext) -> None:
-        training_label    = context[cls]['training_executor']
-        training_device   = context[cls]['training_device']
-        training_dtype    = context[cls]['training_dtype']
-        training_walltime = context[cls]['training_walltime']
-
-        model_label  = context[cls]['evaluate_executor']
-        model_device = context[cls]['evaluate_device']
-        model_ncores = context[cls]['evaluate_ncores']
-        model_dtype  = context[cls]['evaluate_dtype']
+        for execution, resource_spec in zip(*context[cls]):
+            if type(execution) == ModelTrainingExecution:
+                training_label    = execution.executor
+                training_device   = execution.device
+                training_dtype    = execution.dtype
+                training_walltime = execution.walltime
+                training_ncores   = execution.ncores
+                resource_spec = resource_spec
+            elif type(execution) == ModelEvaluationExecution:
+                model_label    = execution.executor
+                model_device   = execution.device
+                model_dtype    = execution.dtype
+                model_ncores   = execution.ncores
 
         app_initialize = python_app(initialize, executors=[model_label], cache=False)
         context.register_app(cls, 'initialize', app_initialize)
@@ -384,21 +392,26 @@ class NequIPModel(BaseModel):
         context.register_app(cls, 'deploy_float64', deploy_float64)
         train_unwrapped = python_app(train, executors=[training_label], cache=False)
         def train_wrapped(config, inputs=[], outputs=[]):
-            return train_unwrapped(
+            future = train_unwrapped(
                     training_device,
                     training_dtype,
+                    training_ncores,
                     config,
+                    walltime=training_walltime * 60,
                     inputs=inputs,
                     outputs=outputs,
-                    walltime=training_walltime,
+                    parsl_resource_specification=resource_spec,
                     )
+            return future
         context.register_app(cls, 'train', train_wrapped)
         evaluate_unwrapped = python_app(
                 evaluate_dataset,
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(inputs=[], outputs=[]):
+        def evaluate_wrapped(deploy_future, inputs=[], outputs=[]):
+            assert model_dtype in deploy_future.keys()
+            inputs.append(deploy_future[model_dtype])
             return evaluate_unwrapped(
                     model_device,
                     model_dtype,

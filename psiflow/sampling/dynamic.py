@@ -9,7 +9,7 @@ from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
 
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.execution import ExecutionContext
+from psiflow.execution import ExecutionContext, ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i
 from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
@@ -193,10 +193,12 @@ class DynamicWalker(BaseWalker):
         model itself.
 
         """
-        label  = context[model_cls]['evaluate_executor']
-        device = context[model_cls]['evaluate_device']
-        ncores = context[model_cls]['evaluate_ncores']
-        dtype  = context[model_cls]['evaluate_dtype']
+        for execution, resource_spec in zip(*context[model_cls]):
+            if type(execution) == ModelEvaluationExecution:
+                label    = execution.executor
+                device   = execution.device
+                dtype    = execution.dtype
+                ncores   = execution.ncores
         app_propagate = python_app(
                 simulate_model,
                 executors=[label],

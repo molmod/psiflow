@@ -8,7 +8,8 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.execution import Container, ExecutionContext
+from psiflow.execution import Container, ExecutionContext, \
+        ModelEvaluationExecution
 from psiflow.sampling.base import BaseWalker
 from psiflow.models import BaseModel
 
@@ -110,10 +111,11 @@ class OptimizationWalker(BaseWalker):
             context: ExecutionContext,
             model_cls: Type[BaseModel],
             ) -> None:
-        label  = context[model_cls]['evaluate_executor']
-        device = context[model_cls]['evaluate_device']
-        ncores = context[model_cls]['evaluate_ncores']
-        # dtype should be float64
+        for execution, resource_spec in zip(*context[model_cls]):
+            if type(execution) == ModelEvaluationExecution:
+                label    = execution.executor
+                device   = execution.device
+                ncores   = execution.ncores
 
         app_optimize = python_app(
                 optimize_geometry,

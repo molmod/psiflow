@@ -10,6 +10,7 @@ from parsl.app.app import python_app, bash_app
 from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 
+from psiflow.execution import ReferenceEvaluationExecution
 from psiflow.data import FlowAtoms
 from .base import BaseReference
 
@@ -86,7 +87,7 @@ def set_global_section(cp2k_input: str) -> str:
     return str(inp)
 
 
-@typeguard.typechecked
+# typeguarding not compatible with parsl WQEX for some reason
 def cp2k_singlepoint_pre(
         atoms: FlowAtoms,
         parameters: CP2KParameters,
@@ -94,9 +95,9 @@ def cp2k_singlepoint_pre(
         file_names: list[str],
         walltime: int = 0,
         inputs: list = [],
-        outputs: list[File] = [],
         stdout: str = '',
         stderr: str = '',
+        parsl_resource_specification: Optional[dict] = None,
         ):
     import tempfile
     import glob
@@ -128,7 +129,7 @@ def cp2k_singlepoint_pre(
             command_tmp,
             command_cd,
             command_write,
-            'timeout {}s'.format(max(walltime - 5, 0)), # some time is spent on copying
+            'timeout {}s'.format(max(walltime - 10, 0)), # some time is spent on copying
             cp2k_command,
             '-i cp2k.inp',
             ' || true',
@@ -196,14 +197,7 @@ class CP2KReference(BaseReference):
         the cp2k input (e.g. BASIS_SET_FILE_NAME)
 
     """
-    execution_definition = [
-            'executor',
-            'device',
-            'ncores',
-            'mpi_command',
-            'cp2k_exec',
-            'time_per_singlepoint',
-            ]
+    execution_types = set([ReferenceEvaluationExecution])
     parameters_cls = CP2KParameters
     required_files = [
             'basis_set',
@@ -213,11 +207,15 @@ class CP2KReference(BaseReference):
 
     @classmethod
     def create_apps(cls, context):
-        label  = context[cls]['executor']
-        ncores = context[cls]['ncores']
-        mpi_command = context[cls]['mpi_command']
-        cp2k_exec = context[cls]['cp2k_exec']
-        walltime = context[cls]['time_per_singlepoint']
+        definition             = context[cls][0][0]
+        resource_specification = context[cls][1][0]
+        label       = definition.executor
+        device      = definition.device
+        mpi_command = definition.mpi_command
+        cp2k_exec   = definition.cp2k_exec
+        ncores      = definition.ncores
+        walltime    = definition.walltime
+        assert device == 'cpu' # cuda not supported at the moment
 
         # parse full command
         command = ''
@@ -241,7 +239,6 @@ class CP2KReference(BaseReference):
                 parameters,
                 file_names,
                 inputs=[],
-                outputs=[],
                 ):
             assert len(file_names) == len(inputs)
             for name in cls.required_files:
@@ -251,10 +248,11 @@ class CP2KReference(BaseReference):
                     parameters,
                     command,
                     file_names,
-                    walltime=walltime,
-                    inputs=inputs, # tmp Files
                     stdout=parsl.AUTO_LOGNAME,
                     stderr=parsl.AUTO_LOGNAME,
+                    walltime=60 * walltime, # killed after walltime - 10s
+                    inputs=inputs, # tmp Files
+                    parsl_resource_specification=resource_specification,
                     )
             return singlepoint_post(
                     atoms=atoms,
