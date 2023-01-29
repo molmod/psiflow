@@ -270,14 +270,14 @@
   
   
     
-      
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
+        
+      
+      <input class="md-nav__toggle md-toggle md-toggle--indeterminate" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
       
       
       
@@ -304,7 +304,9 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_1" type="checkbox" id="__nav_4_1" >
+        
+      
+      <input class="md-nav__toggle md-toggle md-toggle--indeterminate" data-md-toggle="__nav_4_1" type="checkbox" id="__nav_4_1" >
       
       
       
@@ -366,7 +368,9 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
+        
+      
+      <input class="md-nav__toggle md-toggle md-toggle--indeterminate" data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
       
       
@@ -456,7 +460,9 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_3" type="checkbox" id="__nav_4_3" >
+        
+      
+      <input class="md-nav__toggle md-toggle md-toggle--indeterminate" data-md-toggle="__nav_4_3" type="checkbox" id="__nav_4_3" >
       
       
       
@@ -721,14 +727,14 @@ learning approach:</p>
 <p>For example, a NequIP potential (as defined by its full <code>config.yaml</code>) is
 represented using a <code>NequIPModel</code>.
 Its <code>deploy()</code> and <code>train()</code> methods wrap around the deploy and training
-functionalities provided in the <a href="github.com/mir-group/nequip.git">NequIP</a> Python package.
+functionalities provided in the <a href="https://github.com/mir-group/nequip.git">NequIP</a> Python package.
 A specific CP2K input file (including basis sets, pseudopotentials, etc)
 is represented by a <code>CP2KReference</code>. Its <code>evaluate()</code> method will wrap around
 the <code>cp2k.psmp</code> or <code>cp2k.popt</code> executables that are provided by CP2K,
 most likely prepended with the appropriate <code>mpirun</code> command.</p>
 <h2 id="execution">Execution</h2>
-<p>The code excerpt shown above implements individual training, sampling, and
-QM evaluation operations as Parsl <code>apps</code> whose execution is fully customizable
+<p>The code excerpt shown above forwards individual training, sampling, and
+QM evaluation operations to Parsl <code>apps</code> whose execution is fully customizable
 by the user.
 For example, you could distribute all CP2K calculations to a local SLURM cluster,
 perform model training on a GPU from a Google Cloud instance, and forward
@@ -791,7 +797,7 @@ For more information, check out the psiflow <a href="setup/">Setup</a> page.</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": ".", "features": ["navigation.instant", "navigation.tracking", "navigation.sections", "toc.integrate"], "search": "assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": ".", "features": ["navigation.expand", "navigation.instant", "navigation.tracking", "toc.integrate"], "search": "assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
       <script src="assets/javascripts/bundle.ba449ae6.min.js"></script>
