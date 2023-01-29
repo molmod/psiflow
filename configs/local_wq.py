@@ -34,6 +34,7 @@ def get_config(path_internal):
                 shared_fs=True,
                 autocategory=False,
                 port=9123,
+                max_retries=0,
                 worker_options='--gpus=1 --cores=4', # 1min + eps
                 ),
             WorkQueueExecutor(
@@ -43,6 +44,7 @@ def get_config(path_internal):
                 shared_fs=True,
                 autocategory=False,
                 port=9124,
+                max_retries=0,
                 worker_options='--gpus=0 --cores=1',
                 ),
             # setting environment variables using the env argument did not work;
@@ -54,6 +56,7 @@ def get_config(path_internal):
                 shared_fs=True,
                 autocategory=False,
                 port=9125,
+                max_retries=0,
                 init_command='export OMP_NUM_THREADS=1',
                 worker_options='--gpus=0 --wall-time=60 --cores=4',
                 ),

@@ -23,7 +23,7 @@ from psiflow.utils import get_parsl_config_from_file
 
 def get_context_and_manager(args):
     path_run = Path.cwd() / args.name
-    if (not args.use_cache) and (args.restart is None):
+    if args.restart is None:
         if path_run.is_dir():
             shutil.rmtree(path_run)
         path_run.mkdir()
@@ -35,11 +35,7 @@ def get_context_and_manager(args):
             args.parsl_config,
             path_internal,
             )
-    config.app_cache = args.use_cache
     config.initialize_logging = False
-    if args.use_cache:
-        config.checkpoint_files = get_all_checkpoints(str(path_internal))
-        print('found {} checkpoint files'.format(len(config.checkpoint_files)))
     parsl.load(config)
     config.retries = args.retries
     context = ExecutionContext(config, path=path_context)
@@ -50,7 +46,7 @@ def get_context_and_manager(args):
             path_output,
             wandb_project='nanoporous',
             wandb_group=args.name,
-            restart=(args.use_cache or (args.restart is not None)),
+            restart=(args.restart is not None),
             error_x_axis='CV', # plot errors w.r.t CV value
             )
     return context, manager
@@ -162,7 +158,7 @@ def main(context, manager, restart):
                 context,
                 atoms,
                 timestep=0.5,
-                steps=400,
+                steps=300,
                 step=50,
                 start=0,
                 temperature=600,
@@ -171,11 +167,11 @@ def main(context, manager, restart):
                 initial_temperature=600,
                 seed=0,
                 )
-        ensemble = Ensemble.from_walker(walker, nwalkers=50)
+        ensemble = Ensemble.from_walker(walker, nwalkers=30)
         ensemble.add_bias(bias) # add separate MTD for every walker
     else:
         model, ensemble, data_train, data_valid, _ = manager.load(restart, context)
-    learning = OnlineLearning(niterations=5, nstates=10)
+    learning = OnlineLearning(niterations=5, nstates=30)
     data_train, data_valid = learning.run(
             manager=manager,
             model=model,
@@ -192,9 +188,7 @@ if __name__ == '__main__':
     parser.add_argument('--name', action='store')
     parser.add_argument('--retries', action='store', default=3)
     parser.add_argument('--restart', action='store', default=None)
-    parser.add_argument('--use-cache', action='store_true', default=False)
     args = parser.parse_args()
-    assert not args.use_cache
 
     context, manager = get_context_and_manager(args)
     main(context, manager, restart=args.restart)

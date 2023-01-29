@@ -1,4 +1,5 @@
 import pytest
+import logging
 import os
 from pathlib import Path
 import wandb
@@ -157,7 +158,16 @@ def test_manager_save_load(context, dataset, nequip_config, ensemble, tmp_path):
             assert check.model_new is not None
 
 
-def test_manager_dry_run(context, dataset, nequip_config, ensemble, reference, tmp_path):
+def test_manager_dry_run(
+        context,
+        dataset,
+        nequip_config,
+        ensemble,
+        reference,
+        tmp_path,
+        caplog,
+        ):
+    caplog.set_level(logging.INFO)
     model = NequIPModel(context, nequip_config)
     manager = Manager(tmp_path / 'parsl_internal', 'pytest', 'test_manager_dry_run')
     with pytest.raises(AssertionError):

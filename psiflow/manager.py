@@ -237,40 +237,53 @@ class Manager:
                     )
 
         # single point evaluation
+        logger.info('evaluating singlepoint')
         evaluated = reference.evaluate(random_walker.state_future)
         evaluated.result()
 
         # generation of small dataset
+        logger.info('generating ensemble from {}'.format(random_walker.__class__.__name__))
         _ensemble = Ensemble.from_walker(random_walker, nwalkers=5)
         if checks is None:
             checks = [SafetyCheck()]
         else:
             checks = checks + [SafetyCheck()]
         _ensemble.walkers[3].tag_future = copy_app_future('unsafe')
+        logger.info('sampling from ensemble')
         data = _ensemble.sample(7, model=None, checks=checks)
         data = reference.evaluate(data)
+        logger.info('evaluating reference data')
+        data.length().result()
 
         # short training and deploy
         model.reset()
+        logger.info('initializing model')
         if (data_train is not None) and (data_valid is not None):
             assert data_train.length.result() >= 5 # only pass nonempty data
             assert data_valid.length.result() >= 2
             model.initialize(data_train)
+            model.config_future.result()
+            logger.info('training model')
             model.train(data_train, data_valid)
-        new_train = data[:5]
-        new_valid = data[5:]
-        model.reset()
-        model.initialize(new_train)
-        model.train(new_train, new_valid)
+        else:
+            new_train = data[:5]
+            new_valid = data[5:]
+            model.reset()
+            model.initialize(new_train)
+            model.config_future.result()
+            logger.info('training model')
+            model.train(new_train, new_valid)
 
         # deploy and propagate ensemble
         model.deploy()
         if ensemble is not None:
+            logger.info('sampling from ensemble')
             data = ensemble.sample(
                     ensemble.nwalkers,
                     checks=checks,
                     model=model,
                     )
+            logger.info('sampling with ensemble')
             data = reference.evaluate(data)
             assert data.length().result() == ensemble.nwalkers
 

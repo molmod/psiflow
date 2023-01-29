@@ -99,7 +99,7 @@ class ExecutionContext:
                     raise ValueError('ncores must be specified for WQEX')
 
             if (execution.walltime is not None):
-                if isinstance(executor, WorkQueueExecutor):
+                if not isinstance(executor, WorkQueueExecutor):
                     logger.critical('walltime can only be set when using a '
                             'WorkQueueExecutor; value will be ignored')
 

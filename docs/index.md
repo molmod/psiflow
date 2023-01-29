@@ -98,7 +98,7 @@ for i in range(parameters.niterations):
 For example, a NequIP potential (as defined by its full `config.yaml`) is
 represented using a `NequIPModel`.
 Its `deploy()` and `train()` methods wrap around the deploy and training
-functionalities provided in the [NequIP](github.com/mir-group/nequip.git) Python package.
+functionalities provided in the [NequIP](https://github.com/mir-group/nequip.git) Python package.
 A specific CP2K input file (including basis sets, pseudopotentials, etc)
 is represented by a `CP2KReference`. Its `evaluate()` method will wrap around
 the `cp2k.psmp` or `cp2k.popt` executables that are provided by CP2K,
@@ -106,8 +106,8 @@ most likely prepended with the appropriate `mpirun` command.
 
 
 ## Execution
-The code excerpt shown above implements individual training, sampling, and
-QM evaluation operations as Parsl `apps` whose execution is fully customizable
+The code excerpt shown above forwards individual training, sampling, and
+QM evaluation operations to Parsl `apps` whose execution is fully customizable
 by the user.
 For example, you could distribute all CP2K calculations to a local SLURM cluster,
 perform model training on a GPU from a Google Cloud instance, and forward

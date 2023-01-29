@@ -87,7 +87,7 @@ def conditional_sample(
                     )
             return data_future
         logger.info('\tgathered {} states; starting new propagations for {} '
-                'walkers'.format(nstates_effective, len(walkers)))
+                'walkers'.format(nstates_effective, batch_size))
         np.random.seed(batch_size) # ensure reproducibility
         for i in range(batch_size):
             index = np.random.randint(0, len(walkers))

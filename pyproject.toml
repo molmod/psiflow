@@ -9,6 +9,35 @@ version = "0.0.1"
 description = "Library for developing interatomic potentials"
 readme = "README.md"
 requires-python = ">=3.9"
+dependencies = [
+    "ase>=3.22.1",
+    "pymatgen>=2022.11.7",
+    "wandb>=0.13.6",
+    "plumed>=2.7.2",
+    "parsl>=2023.1.23",
+    "nequip @ git+https://github.com/mir-group/nequip.git@v0.5.6",
+    "mir-allegro @ git+https://github.com/mir-group/allegro.git@c56bc809b689e60486ea30ef6eba5267430a147b",
+    "mace @ git+https://github.com/ACEsuit/mace.git@d520abac437648dafbec0f6e203ec720afa16cf7",
+    "cython>=0.29.32",
+    "h5py>=3.7.0",
+    "molmod @ git+https://github.com/molmod/molmod.git@f59506594b49f7a8545aef0ae6fb378e361eda80",
+    "yaff @ git+https://github.com/molmod/yaff.git@2bf7db0b87d6d6a2a93a7f46ec38fe60a4f070c7",
+    ]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.2.0",
+    "coverage>=6.5.0",
+    "coveralls>=3.3.1",
+    ]
+docs = [
+    "mkdocs>=1.4.2",
+    "mkdocs-autorefs>=0.4.1",
+    "mkdocs-material>=9.0.3",
+    "mkdocs-material-extensions>=1.1.1",
+    "mkdocstrings>=0.19.1",
+    "mkdocstrings-python>=0.8.3",
+    ]
 
 
 [tool.setuptools.packages.find]
@@ -21,6 +50,7 @@ include = [
 
 
 [tool.pytest.ini_options]
+log_cli = 1
 addopts = [
     "--basetemp=pytest-tmp", # /tmp/ may be different for each worker!
     "--import-mode=importlib",
