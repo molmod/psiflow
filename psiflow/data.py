@@ -1,5 +1,13 @@
-"""Defines the objects used to store atomic structures and their metadata
-
+"""
+The `data` module implements objects used in the representation and IO of
+atomic data.
+An atomic configuration is defined by the number and cartesian coordinate of
+each of its atoms as well as three noncoplanar box vectors which define the periodicity
+of the system.
+In addition, an atomic configuration may be *labeled* with the total potential
+energy of the configuration, the atomic forces, and the virial stress tensor.
+Finally, it can also contain pointers to
+the output and error logs of QM evaluation calculations.
 
 """
 
@@ -31,7 +39,15 @@ logger.setLevel(logging.INFO)
 
 @typeguard.typechecked
 class FlowAtoms(Atoms):
-    """Wrapper class around ase Atoms with additional attributes for QM logs"""
+    """Wrapper class around ASE `Atoms` with additional attributes for QM logs
+
+    In addition to the standard `Atoms` functionality, this class offers the
+    ability to store pointers to output and error logs that have been generated
+    during a QM evaluation of the atomic structure. A separate attribute
+    is reserved to store the exit code of the calculation (success or failed)
+    as a boolean.
+
+    """
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -44,6 +60,7 @@ class FlowAtoms(Atoms):
 
     @property
     def reference_status(self) -> bool:
+        """True if QM evaluation was successful, False otherwise"""
         return self.info['reference_status']
 
     @reference_status.setter
@@ -53,6 +70,7 @@ class FlowAtoms(Atoms):
 
     @property
     def reference_stdout(self) -> Union[bool, str]:
+        """Contains filepath to QM output log, False if not yet performed"""
         return self.info['reference_stdout']
 
     @reference_stdout.setter
@@ -61,6 +79,7 @@ class FlowAtoms(Atoms):
 
     @property
     def reference_stderr(self) -> Union[bool, str]:
+        """Contains filepath to QM error log, False if not yet performed"""
         return self.info['reference_stderr']
 
     @reference_stderr.setter
@@ -68,6 +87,7 @@ class FlowAtoms(Atoms):
         self.info['reference_stderr'] = path
 
     def copy(self) -> FlowAtoms:
+        """Performs a deepcopy of `self`"""
         flow_atoms = FlowAtoms.from_atoms(self)
         flow_atoms.reference_stdout = self.reference_stdout
         flow_atoms.reference_stderr = self.reference_stderr
@@ -78,6 +98,16 @@ class FlowAtoms(Atoms):
 
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> FlowAtoms:
+        """Generates a `FlowAtoms` object based on an existing `Atoms`
+
+        Array attributes need to be copied manually as this is for some reason
+        not done by the ASE constructor.
+
+        Args:
+            atoms (Atoms):
+                contains atomic configuration to be stored as `FlowAtoms`
+
+        """
         flow_atoms = FlowAtoms( # follows Atoms.copy method
                 cell=atoms.cell,
                 pbc=atoms.pbc,
@@ -93,6 +123,13 @@ class FlowAtoms(Atoms):
 
 @id_for_memo.register(FlowAtoms)
 def id_for_memo_flowatoms(atoms: FlowAtoms, output_ref=False):
+    """Returns unique bytestring of instance used by Parsl for caching
+
+    Args:
+        atoms (FlowAtoms): object for which to construct a bytestring
+        output_ref (bool): whether or not it is part of the app outputs
+
+    """
     assert not output_ref
     string = ''
     string += str(atoms.numbers)
@@ -284,7 +321,15 @@ app_compute_metrics = python_app(compute_metrics, executors=['default'])
 
 @typeguard.typechecked
 class Dataset(Container):
-    """Container to represent a dataset of atomic structures"""
+    """Container to represent a dataset of atomic structures
+
+    Args:
+        context: an `ExecutionContext` instance with a 'default' executor.
+        atoms_list: a list of `Atoms` instances which represent the dataset.
+        data_future: a `parsl.app.futures.DataFuture` instance that points
+            to an `.xyz` file.
+
+    """
     execution_definition = ['executor']
 
     def __init__(
@@ -293,18 +338,6 @@ class Dataset(Container):
             atoms_list: Optional[Union[List[AppFuture], List[FlowAtoms], AppFuture]],
             data_future: Optional[Union[DataFuture, File]] = None,
             ) -> None:
-        """Constructor
-
-        Args:
-            context: an `ExecutionContext` instance with a 'default' executor.
-            atoms_list: a list of `Atoms` instances which represent the dataset.
-            data_future: a `parsl.app.futures.DataFuture` instance that points
-                to an `.xyz` file.
-
-        Returns:
-            None
-
-        """
         super().__init__(context)
 
         if data_future is None: # generate new DataFuture

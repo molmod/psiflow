@@ -11,7 +11,7 @@ from parsl.channels.base import Channel
 from parsl.launchers import SingleNodeLauncher
 from parsl.launchers.launchers import Launcher
 from parsl.providers.cluster_provider import ClusterProvider
-from parsl.providers.provider_base import JobState, JobStatus
+from parsl.providers.base import JobState, JobStatus
 from parsl.providers.slurm.template import template_string
 from parsl.utils import RepresentationMixin, wtime_to_minutes
 
@@ -299,7 +299,7 @@ def get_config(path_internal):
             cores_per_worker=1,
             )
     cores_per_model = 4
-    worker_init = 'ml cctools/7.4.6-GCCcore-10.3.0; ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CPU\n'
+    worker_init = 'ml cctools/7.4.16-GCCcore-10.3.0; ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CPU\n'
     worker_init += 'set OMP_NUM_THREADS={}\n'.format(cores_per_model)
     provider = SlurmProvider(
             partition='cpu_rome',
@@ -315,7 +315,7 @@ def get_config(path_internal):
             worker_init=worker_init,
             exclusive=False,
             )
-    model = WorkQueueExecutor(
+    model = HighThroughputExecutor(
             label='model',
             provider=provider,
             address=os.environ['HOSTNAME'],
@@ -323,7 +323,7 @@ def get_config(path_internal):
             cores_per_worker=cores_per_model,
             )
     cores_per_gpu = 12
-    worker_init = 'ml cctools/7.4.6-GCCcore-10.3.0; ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
+    worker_init = 'ml cctools/7.4.16-GCCcore-10.3.0; ml PLUMED/2.7.2-intel-2021a; ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
     worker_init += 'unset SLURM_CPUS_PER_TASK\n'
     worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(cores_per_gpu)
     worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(cores_per_gpu)
@@ -345,7 +345,7 @@ def get_config(path_internal):
             exclusive=False,
             scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n#SBATCH --export=None', # request gpu
             )
-    training = WorkQueueExecutor(
+    training = HighThroughputExecutor(
             label='training',
             provider=provider,
             address=os.environ['HOSTNAME'],
@@ -358,7 +358,7 @@ def get_config(path_internal):
     # cp2k. Essentially, this means we have to reproduce the environment as
     # if we launched a job using 'qsub -l nodes=1:ppn=cores_per_singlepoint'
     cores_per_singlepoint = 32
-    worker_init = 'ml cctools/7.4.6-GCCcore-10.3.0; ml vsc-mympirun; ml CP2K/8.2-foss-2021a; ml psiflow-develop/10Jan2023-CPU\n'
+    worker_init = 'ml cctools/7.4.16-GCCcore-10.3.0; ml vsc-mympirun; ml CP2K/8.2-foss-2021a; ml psiflow-develop/10Jan2023-CPU\n'
     worker_init += 'unset SLURM_CPUS_PER_TASK\n'
     worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(cores_per_singlepoint)
     worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(cores_per_singlepoint)
@@ -379,7 +379,7 @@ def get_config(path_internal):
             worker_init=worker_init,
             exclusive=False,
             )
-    reference = WorkQueueExecutor(
+    reference = HighThroughputExecutor(
             label='reference',
             provider=provider,
             address=os.environ['HOSTNAME'],

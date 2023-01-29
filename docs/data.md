@@ -1,2 +1,3 @@
-:::psiflow.data.FlowAtoms
-:::psiflow.data.Dataset
+::: psiflow.data
+    options:
+        docstring_style: numpy

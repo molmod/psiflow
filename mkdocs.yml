@@ -9,13 +9,13 @@ theme:
     accent: teal
   logo: icon.svg
   features:
-    #- navigation.expand
+    - navigation.expand
     - navigation.instant
     - navigation.tracking
       #- navigation.tabs
       #- navigation.tabs.sticky
       #- navigation.indexes
-    - navigation.sections
+      #- navigation.sections
     - toc.integrate
 
 nav:
@@ -46,7 +46,10 @@ hide:
   - toc
 
 plugins:
-  - mkdocstrings
+  - mkdocstrings:
+      python:
+        docstring_style: google
+    
 repo_url: https://github.com/svandenhaute/psiflow
 markdown_extensions:
   - footnotes
