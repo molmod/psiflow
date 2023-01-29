@@ -2,11 +2,11 @@ site_name: psiflow
 theme:
   favicon: icon.svg
   name: material
-  font:
-    text: overpass
+    #font:
+    #  text: overpass
   palette:
-    primary: grey
-    accent: pink
+    primary: teal
+    accent: teal
   logo: icon.svg
   features:
     #- navigation.expand
@@ -19,29 +19,39 @@ theme:
     - toc.integrate
 
 nav:
-  - getting started: getting_started.md
-  - workflow execution: workflow_execution.md
-  - Documentation:
-    - models:
-      - NequIP: models_nequip.md
-      - MACE: models_MACE.md
-    - sampling:
-      - random: sampling_random.md
-      - optimization: sampling_optimization.md
-      - dynamic: sampling_dynamic.md
-      - bias: sampling_bias.md
-    - reference:
-      - EMT: reference_EMT.md
-      - CP2K: reference_CP2K.md
-      - VASP: reference_VASP.md
-    - data: data.md
-    - ensemble: ensemble.md
-    - learning: learning.md
-    - execution: execution.md
-    - manager: manager.md
+  - Introduction: index.md
+  - Examples: examples.md
+  - Setup: setup.md
+    #- Workflow execution: workflow_execution.md
+  - API:
+    - Models:
+      - NequIP: models/nequip.md
+      - MACE: models/mace.md
+    - Sampling:
+      - Random: sampling/random.md
+      - Optimization: sampling/optimization.md
+      - Dynamic: sampling/dynamic.md
+      - PLUMED: sampling/plumed_bias.md
+    - Reference:
+      - EMT: reference/EMT.md
+      - CP2K: reference/CP2K.md
+      - VASP: reference/VASP.md
+    - Data: data.md
+    - Ensemble: ensemble.md
+    - Checks: checks.md
+    - Learning: learning.md
+    - Execution: execution.md
+    - Manager: manager.md
 hide:
   - toc
 
 plugins:
   - mkdocstrings
 repo_url: https://github.com/svandenhaute/psiflow
+markdown_extensions:
+  - footnotes
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
