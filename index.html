@@ -10,6 +10,8 @@
       
       
       
+        <link rel="next" href="examples/">
+      
       <link rel="icon" href="icon.svg">
       <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.3">
     
@@ -33,8 +35,8 @@
         
         
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=overpass:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
-        <style>:root{--md-text-font:"overpass";--md-code-font:"Roboto Mono"}</style>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
       
     
     
@@ -55,7 +57,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="grey" data-md-color-accent="pink">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
   
     
     
@@ -65,7 +67,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#welcome-to-mkdocs" class="md-skip">
+        <a href="#psiflow-interatomic-potentials-using-online-learning" class="md-skip">
           Skip to content
         </a>
       
@@ -97,7 +99,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Home
+              Introduction
             
           </span>
         </div>
@@ -173,10 +175,73 @@
 
   
   
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Introduction
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="." class="md-nav__link md-nav__link--active">
+        Introduction
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#core-functionality" class="md-nav__link">
+    Core functionality
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution" class="md-nav__link">
+    Execution
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
   
     <li class="md-nav__item">
-      <a href="getting_started.md" class="md-nav__link">
-        getting started
+      <a href="examples/" class="md-nav__link">
+        Examples
       </a>
     </li>
   
@@ -190,8 +255,8 @@
   
   
     <li class="md-nav__item">
-      <a href="workflow_execution.md" class="md-nav__link">
-        workflow execution
+      <a href="setup/" class="md-nav__link">
+        Setup
       </a>
     </li>
   
@@ -212,19 +277,19 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
       
       
       
-        <label class="md-nav__link" for="__nav_3" tabindex="0" aria-expanded="false">
-          Documentation
+        <label class="md-nav__link" for="__nav_4" tabindex="0" aria-expanded="false">
+          API
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" aria-label="Documentation" data-md-level="1">
-        <label class="md-nav__title" for="__nav_3">
+      <nav class="md-nav" aria-label="API" data-md-level="1">
+        <label class="md-nav__title" for="__nav_4">
           <span class="md-nav__icon md-icon"></span>
-          Documentation
+          API
         </label>
         <ul class="md-nav__list" data-md-scrollfix>
           
@@ -239,19 +304,19 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3_1" type="checkbox" id="__nav_3_1" >
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_1" type="checkbox" id="__nav_4_1" >
       
       
       
-        <label class="md-nav__link" for="__nav_3_1" tabindex="0" aria-expanded="false">
-          models
+        <label class="md-nav__link" for="__nav_4_1" tabindex="0" aria-expanded="false">
+          Models
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" aria-label="models" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_1">
+      <nav class="md-nav" aria-label="Models" data-md-level="2">
+        <label class="md-nav__title" for="__nav_4_1">
           <span class="md-nav__icon md-icon"></span>
-          models
+          Models
         </label>
         <ul class="md-nav__list" data-md-scrollfix>
           
@@ -261,7 +326,7 @@
   
   
     <li class="md-nav__item">
-      <a href="models_nequip/" class="md-nav__link">
+      <a href="models/nequip/" class="md-nav__link">
         NequIP
       </a>
     </li>
@@ -275,7 +340,7 @@
   
   
     <li class="md-nav__item">
-      <a href="models_MACE.md" class="md-nav__link">
+      <a href="models/mace/" class="md-nav__link">
         MACE
       </a>
     </li>
@@ -301,19 +366,19 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3_2" type="checkbox" id="__nav_3_2" >
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
       
       
-        <label class="md-nav__link" for="__nav_3_2" tabindex="0" aria-expanded="false">
-          sampling
+        <label class="md-nav__link" for="__nav_4_2" tabindex="0" aria-expanded="false">
+          Sampling
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" aria-label="sampling" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_2">
+      <nav class="md-nav" aria-label="Sampling" data-md-level="2">
+        <label class="md-nav__title" for="__nav_4_2">
           <span class="md-nav__icon md-icon"></span>
-          sampling
+          Sampling
         </label>
         <ul class="md-nav__list" data-md-scrollfix>
           
@@ -323,8 +388,8 @@
   
   
     <li class="md-nav__item">
-      <a href="sampling_random.md" class="md-nav__link">
-        random
+      <a href="sampling/random/" class="md-nav__link">
+        Random
       </a>
     </li>
   
@@ -337,8 +402,8 @@
   
   
     <li class="md-nav__item">
-      <a href="sampling_optimization.md" class="md-nav__link">
-        optimization
+      <a href="sampling/optimization/" class="md-nav__link">
+        Optimization
       </a>
     </li>
   
@@ -351,8 +416,8 @@
   
   
     <li class="md-nav__item">
-      <a href="sampling_dynamic.md" class="md-nav__link">
-        dynamic
+      <a href="sampling/dynamic/" class="md-nav__link">
+        Dynamic
       </a>
     </li>
   
@@ -365,8 +430,8 @@
   
   
     <li class="md-nav__item">
-      <a href="sampling_bias.md" class="md-nav__link">
-        bias
+      <a href="sampling/plumed_bias/" class="md-nav__link">
+        PLUMED
       </a>
     </li>
   
@@ -391,19 +456,19 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_3_3" type="checkbox" id="__nav_3_3" >
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_3" type="checkbox" id="__nav_4_3" >
       
       
       
-        <label class="md-nav__link" for="__nav_3_3" tabindex="0" aria-expanded="false">
-          reference
+        <label class="md-nav__link" for="__nav_4_3" tabindex="0" aria-expanded="false">
+          Reference
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" aria-label="reference" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_3">
+      <nav class="md-nav" aria-label="Reference" data-md-level="2">
+        <label class="md-nav__title" for="__nav_4_3">
           <span class="md-nav__icon md-icon"></span>
-          reference
+          Reference
         </label>
         <ul class="md-nav__list" data-md-scrollfix>
           
@@ -413,7 +478,7 @@
   
   
     <li class="md-nav__item">
-      <a href="reference_EMT.md" class="md-nav__link">
+      <a href="reference/EMT/" class="md-nav__link">
         EMT
       </a>
     </li>
@@ -427,7 +492,7 @@
   
   
     <li class="md-nav__item">
-      <a href="reference_CP2K.md" class="md-nav__link">
+      <a href="reference/CP2K/" class="md-nav__link">
         CP2K
       </a>
     </li>
@@ -441,7 +506,7 @@
   
   
     <li class="md-nav__item">
-      <a href="reference_VASP.md" class="md-nav__link">
+      <a href="reference/VASP/" class="md-nav__link">
         VASP
       </a>
     </li>
@@ -462,8 +527,8 @@
   
   
     <li class="md-nav__item">
-      <a href="data.md" class="md-nav__link">
-        data
+      <a href="data/" class="md-nav__link">
+        Data
       </a>
     </li>
   
@@ -476,8 +541,8 @@
   
   
     <li class="md-nav__item">
-      <a href="ensemble.md" class="md-nav__link">
-        ensemble
+      <a href="ensemble/" class="md-nav__link">
+        Ensemble
       </a>
     </li>
   
@@ -490,8 +555,8 @@
   
   
     <li class="md-nav__item">
-      <a href="learning.md" class="md-nav__link">
-        learning
+      <a href="checks/" class="md-nav__link">
+        Checks
       </a>
     </li>
   
@@ -504,8 +569,8 @@
   
   
     <li class="md-nav__item">
-      <a href="execution.md" class="md-nav__link">
-        execution
+      <a href="learning/" class="md-nav__link">
+        Learning
       </a>
     </li>
   
@@ -518,8 +583,22 @@
   
   
     <li class="md-nav__item">
-      <a href="manager.md" class="md-nav__link">
-        manager
+      <a href="execution/" class="md-nav__link">
+        Execution
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="manager/" class="md-nav__link">
+        Manager
       </a>
     </li>
   
@@ -551,8 +630,130 @@
 
 
 
-<p><img alt="psiflow" src="logo_light.svg" /></p>
-<h1 id="welcome-to-mkdocs">Welcome to MkDocs</h1>
+<h1 id="psiflow-interatomic-potentials-using-online-learning"><strong>psiflow</strong> - interatomic potentials using online learning</h1>
+<p>Psiflow is a modular and scalable library for developing interatomic potentials.
+It uses Parsl to interface popular trainable interaction potentials with
+quantum chemistry software, and is designed to support computational workflows
+on hundreds or thousands of nodes.
+Psiflow is designed as an end-to-end framework; it can orchestrate all
+computational components between an initial atomic structure and the final
+trained potential.
+To achieve this, psiflow implements the following high-level abstractions:</p>
+<ul>
+<li>a trainable <strong>interaction potential</strong> (e.g. NequIP or MACE)</li>
+<li>one or more <strong>phase space sampling</strong> algorithms (e.g. biased NPT, geometry optimization)</li>
+<li>a reference <strong>level of theory</strong> (e.g. PBE-D3(BJ) + TZVP)</li>
+</ul>
+<p>These three components are used to implement <strong>online learning</strong><sup id="fnref:1"><a class="footnote-ref" href="#fn:1">1</a></sup> algorithms,
+which essentially interleave phase space sampling with
+quantum mechanical energy evaluations and model training.
+In this way, the entire (relevant part of the) phase space of the system(s)
+of interest may be explored and learned by the model without ever having to
+perform <em>ab initio</em> molecular dynamics.</p>
+<p>All computations in psiflow are managed by Parsl, a scalable parallel programming
+library for Python.
+This ensures support for a large number of different execution resources,
+including clouds (e.g. Amazon Web Services, Google Cloud),
+clusters (e.g. SLURM, Torque/PBS, HTCondor)
+and even container orchestration systems (e.g. Kubernetes).
+Visit the <a href="https://parsl.readthedocs.io/en/stable/">Parsl documentation</a> for more details.</p>
+<h2 id="core-functionality">Core functionality</h2>
+<p>The psiflow abstractions for a reference level of theory (<code>BaseReference</code>), 
+a trainable potential (<code>BaseModel</code>), and an ensemble of phase space walkers
+(<code>Ensemble</code>, <code>BaseWalker</code>) are subclassed by specific implementations.
+They expose the main high-level functionalities that one would intuitively
+expect: A <code>BaseReference</code> can label a dataset with QM energy and forces according
+to some level of theory, after which a <code>BaseModel</code> instance can be trained to it.
+An <code>Ensemble</code> can use that <code>BaseModel</code> to explore the phase space of the systems
+of interest (e.g. using molecular dynamics) in order to generate new
+atomic configurations, which can again be labeled using <code>BaseReference</code> etc.</p>
+<p>The following is a (simplified) excerpt that illustrates how these basic
+building blocks may be used to implement a simple online
+learning approach:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># parameters (dataclass): defines number of iterations, number of states to sample etc.</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># model (type BaseModel): represents a trainable potential</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># data (type Dataset): wraps a list of atomic configurations</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># ensemble (type Ensemble): defines phase space sampling</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># reference (type BaseReference): defines the QM level of theory</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># manager (type Manager): manages IO, wandb logging</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">parameters</span><span class="o">.</span><span class="n">niterations</span><span class="p">):</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">model</span><span class="o">.</span><span class="n">deploy</span><span class="p">()</span> <span class="c1"># performs e.g. torch.jit.compile in desired precision</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="c1"># ensemble wraps a set of phase space walkers (e.g. multiple NPT simulations)</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>            <span class="n">parameters</span><span class="o">.</span><span class="n">nstates</span><span class="p">,</span> <span class="c1"># sample this number of states</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="c1"># use current best model as potential energy surface</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>            <span class="p">)</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span> <span class="c1"># massively parallel QM evaluation of sampled states</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">data_success</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">success</span><span class="p">)</span> <span class="c1"># some calculations may fail!</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">train</span><span class="p">,</span> <span class="n">valid</span> <span class="o">=</span> <span class="n">get_train_valid_indices</span><span class="p">(</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>            <span class="n">data_success</span><span class="o">.</span><span class="n">length</span><span class="p">(),</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">train_valid_split</span><span class="p">,</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>            <span class="p">)</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="n">data_train</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_success</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">train</span><span class="p">))</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>    <span class="n">data_valid</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_success</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">valid</span><span class="p">))</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>    <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">retrain_model_per_iteration</span><span class="p">:</span> <span class="c1"># recalibrate scale/shift/avg_num_neighbors</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>        <span class="n">model</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>        <span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>    <span class="n">epochs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span><span class="p">)</span> <span class="c1"># train model for some time</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>    <span class="c1"># IO, Weights &amp; Biases logging</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>    <span class="n">manager</span><span class="o">.</span><span class="n">save</span><span class="p">(</span> <span class="c1"># save data, model, and the state of the ensemble</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>            <span class="n">name</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>            <span class="n">ensemble</span><span class="o">=</span><span class="n">ensemble</span><span class="p">,</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>            <span class="n">data_train</span><span class="o">=</span><span class="n">data_train</span><span class="p">,</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>            <span class="n">data_valid</span><span class="o">=</span><span class="n">data_valid</span><span class="p">,</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>            <span class="n">data_failed</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">failed</span><span class="p">),</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>            <span class="p">)</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>    <span class="n">log</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">log_wandb</span><span class="p">(</span> <span class="c1"># log using wandb for monitoring</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>            <span class="n">run_name</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>            <span class="n">ensemble</span><span class="o">=</span><span class="n">ensemble</span><span class="p">,</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>            <span class="n">data_train</span><span class="o">=</span><span class="n">data_train</span><span class="p">,</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>            <span class="n">data_valid</span><span class="o">=</span><span class="n">data_valid</span><span class="p">,</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>            <span class="n">bias</span><span class="o">=</span><span class="n">ensemble</span><span class="o">.</span><span class="n">biases</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="c1"># possibly None</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>            <span class="p">)</span>
+</code></pre></div>
+<p>For example, a NequIP potential (as defined by its full <code>config.yaml</code>) is
+represented using a <code>NequIPModel</code>.
+Its <code>deploy()</code> and <code>train()</code> methods wrap around the deploy and training
+functionalities provided in the <a href="github.com/mir-group/nequip.git">NequIP</a> Python package.
+A specific CP2K input file (including basis sets, pseudopotentials, etc)
+is represented by a <code>CP2KReference</code>. Its <code>evaluate()</code> method will wrap around
+the <code>cp2k.psmp</code> or <code>cp2k.popt</code> executables that are provided by CP2K,
+most likely prepended with the appropriate <code>mpirun</code> command.</p>
+<h2 id="execution">Execution</h2>
+<p>The code excerpt shown above implements individual training, sampling, and
+QM evaluation operations as Parsl <code>apps</code> whose execution is fully customizable
+by the user.
+For example, you could distribute all CP2K calculations to a local SLURM cluster,
+perform model training on a GPU from a Google Cloud instance, and forward
+the remaining phase space sampling and data processing operations to a single
+workstation in your local network.
+Naturally, Parsl tracks the dependencies between all objects and manages execution of the workflow
+in an asynchronous manner.
+Psiflow centralizes the execution configuration using an <code>ExecutionContext</code>.
+It forwards infrastructure-specific options within Parsl, such as the requested number of nodes
+per SLURM job or the specific Google Cloud instance to be use, to training,
+sampling, and QM evaluation operations to ensure they proceed as requested.
+Effectively, the <code>ExecutionContext</code> hides all details of the execution
+infrastructure and exposes simple and platform-agnostic resources which may be
+used by training, sampling, and QM evaluation apps.
+As such, we ensure that the execution-side configuration remains fully decoupled
+from a logical set of operations as e.g. defined in the code block above.
+For more information, check out the psiflow <a href="setup/">Setup</a> page.</p>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:1">
+<p>Otherwise known as active learning, incremental learning, on-the-fly learning.&#160;<a class="footnote-backref" href="#fnref:1" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div>
 
 
 
