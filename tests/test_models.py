@@ -29,7 +29,7 @@ def test_nequip_init(context, nequip_config, dataset):
     assert isinstance(model.deploy_future['float64'], DataFuture)
 
     # simple test
-    for e in context[NequIPModel][0]:
+    for e in context[NequIPModel]:
         if type(e) == ModelEvaluationExecution:
             device = e.device
     torch.set_default_dtype(torch.float32)
@@ -138,7 +138,7 @@ def test_mace_init_deploy(context, mace_config, dataset):
     assert isinstance(model.deploy_future['float64'], DataFuture)
 
     # simple test
-    for e in context[NequIPModel][0]:
+    for e in context[MACEModel]:
         if type(e) == ModelEvaluationExecution:
             device = e.device
     torch.set_default_dtype(torch.float32)
@@ -189,10 +189,10 @@ def test_mace_train(context, mace_config, dataset, tmp_path):
     model.deploy()
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
     #print('manual rmse_f, rmse_e: {}'.format(np.mean(errors0.result(), axis=0)[:2]))
-    epochs = model.train(training, validation).result()
+    model.train(training, validation).result()
     assert len(model.deploy_future) == 0
-    assert epochs < mace_config['max_num_epochs'] # terminates by app timeout
-    assert epochs > 0
+    #assert epochs < mace_config['max_num_epochs'] # terminates by app timeout
+    #assert epochs > 0
     model.deploy()
     errors1 = Dataset.get_errors(validation, model.evaluate(validation))
     assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]

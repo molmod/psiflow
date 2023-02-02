@@ -1,6 +1,7 @@
 import argparse
 import shutil
 import requests
+import logging
 import yaml
 from pathlib import Path
 import numpy as np
@@ -17,8 +18,37 @@ from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
 from psiflow.ensemble import Ensemble
-from psiflow.execution import ExecutionContext
+from psiflow.execution import ExecutionContext, ModelEvaluationExecution, \
+        ModelTrainingExecution, ReferenceEvaluationExecution
 from psiflow.utils import get_parsl_config_from_file
+
+
+#parsl.set_file_logger('parsl_log', level=logging.INFO)
+logging.basicConfig(format='%(name)s - %(message)s')
+
+
+reference_evaluate = ReferenceEvaluationExecution(
+        executor='reference',
+        device='cpu',
+        ncores=32,
+        mpi_command=lambda x: 'mympirun ',
+        cp2k_exec='cp2k.psmp',
+        walltime=40, # in minutes
+        )
+model_evaluate = ModelEvaluationExecution(
+        executor='model',
+        device='cpu',
+        ncores=4,
+        dtype='float32',
+        walltime=None,
+        )
+model_training = ModelTrainingExecution(
+        executor='training',
+        device='cuda',
+        ncores=12,
+        dtype='float32',
+        walltime=15, # in minutes
+        )
 
 
 def get_context_and_manager(args):
@@ -31,13 +61,16 @@ def get_context_and_manager(args):
         assert path_run.is_dir()
     path_internal = path_run / 'parsl_internal'
     path_context  = path_run / 'context_dir'
+    #config = get_config(path_internal)
     config = get_parsl_config_from_file(
             args.parsl_config,
             path_internal,
             )
-    config.initialize_logging = False
+    config.app_cache = False
+    config.initialize_logging = True
+    config.strategy = 'htex_auto_scale'
+    config.retries = int(args.retries)
     parsl.load(config)
-    config.retries = args.retries
     context = ExecutionContext(config, path=path_context)
 
     # setup manager for IO, wandb logging
@@ -62,15 +95,7 @@ METAD ARG=CV SIGMA=50 HEIGHT=5 PACE=25 LABEL=metad FILE=test_hills
 
 
 def get_reference(context):
-    context.define_execution(
-            CP2KReference,
-            executor='reference',
-            device='cpu',
-            ncores=None,
-            mpi_command=lambda x: f'mpirun -np {x} ',
-            cp2k_exec='cp2k.psmp',
-            time_per_singlepoint=20,
-            )
+    context.define_execution(CP2KReference, reference_evaluate)
     with open(Path.cwd() / 'data' / 'cp2k_input.txt', 'r') as f:
         cp2k_input = f.read()
     reference = CP2KReference(context, cp2k_input=cp2k_input)
@@ -90,45 +115,26 @@ def get_reference(context):
 
 
 def get_nequip_model(context):
-    context.define_execution(
-            NequIPModel,
-            evaluate_executor='model',
-            evaluate_device='cpu',
-            evaluate_ncores=None,
-            evaluate_dtype='float32',
-            training_executor='training',
-            training_device='cuda',
-            training_ncores=None,
-            training_dtype='float32',
-            training_walltime=80,
-            )
+    context.define_execution(NequIPModel, model_evaluate, model_training)
     config_text = requests.get('https://raw.githubusercontent.com/mir-group/nequip/v0.5.6/configs/full.yaml').text
     config = yaml.load(config_text, Loader=yaml.FullLoader)
     config['r_max'] = 5.0 # reduce computational cost of data processing
     config['chemical_symbols'] = ['X'] # should get overridden
     config['num_layers'] = 4
-    config['num_features'] = 16
+    config['num_features'] = 32
     config['l_max'] = 1
     config['loss_coeffs']['total_energy'][0] = 10 # increase energy weight
     config['loss_coeffs']['total_energy'][1] = 'PerAtomMSELoss'
     config['model_builders'][3] = 'StressForceOutput' # include stress in output
+    config['max_epochs'] = 60000
+    config['batch_size'] = 4
     return NequIPModel(context, config)
 
 
 def get_mace_model(context):
-    context.define_execution(
-            MACEModel,
-            evaluate_executor='model',
-            evaluate_device='cpu',
-            evaluate_ncores=None,
-            evaluate_dtype='float32',
-            training_executor='training',
-            training_device='cuda',
-            training_ncores=None,
-            training_dtype='float32',
-            training_walltime=3600,
-            )
+    context.define_execution(MACEModel, model_evaluate, model_training)
     config = MACEConfig()
+    config.max_num_epochs = 1000
     return MACEModel(context, config)
 
 
@@ -162,7 +168,7 @@ def main(context, manager, restart):
                 step=50,
                 start=0,
                 temperature=600,
-                pressure=0, # NPT
+                pressure=None, # NVT
                 force_threshold=20,
                 initial_temperature=600,
                 seed=0,

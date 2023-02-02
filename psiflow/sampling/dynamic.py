@@ -173,7 +173,7 @@ class DynamicWalker(BaseWalker):
         try:
             app = self.context.apps(DynamicWalker, 'propagate_' + name)
         except KeyError:
-            assert model.__class__ in self.context.execution_definitions.keys()
+            assert model.__class__ in self.context.definitions.keys()
             self.create_apps(self.context, model_cls=model.__class__)
             app = self.context.apps(DynamicWalker, 'propagate_' + name)
         return app
@@ -193,7 +193,7 @@ class DynamicWalker(BaseWalker):
         model itself.
 
         """
-        for execution, resource_spec in zip(*context[model_cls]):
+        for execution in context[model_cls]:
             if type(execution) == ModelEvaluationExecution:
                 label    = execution.executor
                 device   = execution.device

@@ -40,6 +40,11 @@ docs = [
     ]
 
 
+[project.scripts]
+psiflow-train-nequip = 'psiflow.models.train_nequip:main'
+psiflow-train-mace = 'psiflow.models.train_mace:main'
+
+
 [tool.setuptools.packages.find]
 include = [
     "psiflow",
@@ -54,7 +59,7 @@ log_cli = 1
 addopts = [
     "--basetemp=pytest-tmp", # /tmp/ may be different for each worker!
     "--import-mode=importlib",
-    "--parsl-config=configs/local_threadpool.py",
+    "--psiflow-config=configs/local_threadpool.py",
     "-vv",
 ]
 testpaths = ["tests"]

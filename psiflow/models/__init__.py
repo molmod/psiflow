@@ -5,7 +5,7 @@ from pathlib import Path
 from psiflow.execution import ExecutionContext
 
 from .base import BaseModel
-from ._nequip import NequIPModel
+from ._nequip import NequIPModel, NequIPConfig
 from ._mace import MACEModel, MACEConfig
 
 

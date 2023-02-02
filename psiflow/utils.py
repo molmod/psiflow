@@ -11,10 +11,12 @@ from pathlib import Path
 
 from ase.data import atomic_numbers
 
+from parsl.executors.base import ParslExecutor
 from parsl.app.app import python_app, join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.config import Config
+import parsl.providers.slurm.slurm # to define custom slurm provider
 
 
 @typeguard.typechecked
@@ -35,18 +37,18 @@ combine_futures = python_app(_combine_futures, executors=['default'])
 
 
 @typeguard.typechecked
-def get_parsl_config_from_file(
+def get_psiflow_config_from_file(
         path_config: Union[Path, str],
         path_internal: Union[Path, str],
-        ) -> Config:
+        ) -> tuple[Config, dict]:
     path_config = Path(path_config)
     assert path_config.is_file()
     # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
     spec = importlib.util.spec_from_file_location('module.name', path_config)
-    parsl_config_module = importlib.util.module_from_spec(spec)
-    sys.modules['module.name'] = parsl_config_module
-    spec.loader.exec_module(parsl_config_module)
-    return parsl_config_module.get_config(path_internal)
+    psiflow_config_module = importlib.util.module_from_spec(spec)
+    sys.modules['module.name'] = psiflow_config_module
+    spec.loader.exec_module(psiflow_config_module)
+    return psiflow_config_module.get_config(path_internal)
 
 
 @typeguard.typechecked
@@ -185,3 +187,93 @@ def get_train_valid_indices(
         ) -> Tuple[AppFuture, AppFuture]:
     future = app_train_valid_indices(effective_nstates, train_valid_split)
     return unpack_i(future, 0), unpack_i(future, 1)
+
+
+@typeguard.typechecked
+def get_active_executor(label: str) -> ParslExecutor:
+    from parsl.dataflow.dflow import DataFlowKernelLoader
+    dfk = DataFlowKernelLoader.dfk()
+    config = dfk.config
+    for executor in config.executors:
+        if executor.label == label:
+            return executor
+    raise ValueError('executor with label {} not found!'.format(label))
+
+
+class SlurmProvider(parsl.providers.slurm.slurm.SlurmProvider):
+
+    def submit(self, command, tasks_per_node, job_name="parsl.slurm"):
+        """Submit the command as a slurm job.
+
+        This function only differs in its parent in the self.execute_wait()
+        call, in which the slurm partition is explicitly passed as a command
+        line argument as this is necessary for some SLURM-configered systems
+        (notably, Belgium's HPC infrastructure).
+
+        Parameters
+        ----------
+        command : str
+            Command to be made on the remote side.
+        tasks_per_node : int
+            Command invocations to be launched per node
+        job_name : str
+            Name for the job
+        Returns
+        -------
+        None or str
+            If at capacity, returns None; otherwise, a string identifier for the job
+        """
+
+        scheduler_options = self.scheduler_options
+        worker_init = self.worker_init
+        if self.mem_per_node is not None:
+            scheduler_options += '#SBATCH --mem={}g\n'.format(self.mem_per_node)
+            worker_init += 'export PARSL_MEMORY_GB={}\n'.format(self.mem_per_node)
+        if self.cores_per_node is not None:
+            cpus_per_task = math.floor(self.cores_per_node / tasks_per_node)
+            scheduler_options += '#SBATCH --cpus-per-task={}'.format(cpus_per_task)
+            worker_init += 'export PARSL_CORES={}\n'.format(cpus_per_task)
+
+        job_name = "{0}.{1}".format(job_name, time.time())
+
+        script_path = "{0}/{1}.submit".format(self.script_dir, job_name)
+        script_path = os.path.abspath(script_path)
+
+        logger.debug("Requesting one block with {} nodes".format(self.nodes_per_block))
+
+        job_config = {}
+        job_config["submit_script_dir"] = self.channel.script_dir
+        job_config["nodes"] = self.nodes_per_block
+        job_config["tasks_per_node"] = tasks_per_node
+        job_config["walltime"] = wtime_to_minutes(self.walltime)
+        job_config["scheduler_options"] = scheduler_options
+        job_config["worker_init"] = worker_init
+        job_config["user_script"] = command
+
+        # Wrap the command
+        job_config["user_script"] = self.launcher(command,
+                                                  tasks_per_node,
+                                                  self.nodes_per_block)
+
+        logger.debug("Writing submit script")
+        self._write_submit_script(template_string, script_path, job_name, job_config)
+
+        if self.move_files:
+            logger.debug("moving files")
+            channel_script_path = self.channel.push_file(script_path, self.channel.script_dir)
+        else:
+            logger.debug("not moving files")
+            channel_script_path = script_path
+
+        retcode, stdout, stderr = self.execute_wait("sbatch --partition={1} {0}".format(channel_script_path, self.partition))
+
+        job_id = None
+        if retcode == 0:
+            for line in stdout.split('\n'):
+                if line.startswith("Submitted batch job"):
+                    job_id = line.split("Submitted batch job")[1].strip()
+                    self.resources[job_id] = {'job_id': job_id, 'status': JobStatus(JobState.PENDING)}
+        else:
+            logger.error("Submit command failed")
+            logger.error("Retcode:%s STDOUT:%s STDERR:%s", retcode, stdout.strip(), stderr.strip())
+        return job_id

@@ -100,7 +100,7 @@ class OptimizationWalker(BaseWalker):
         try:
             app = self.context.apps(OptimizationWalker, 'propagate_' + name)
         except KeyError:
-            assert model.__class__ in self.context.execution_definitions.keys()
+            assert model.__class__ in self.context.definitions.keys()
             self.create_apps(self.context, model_cls=model.__class__)
             app = self.context.apps(OptimizationWalker, 'propagate_' + name)
         return app
@@ -111,7 +111,7 @@ class OptimizationWalker(BaseWalker):
             context: ExecutionContext,
             model_cls: Type[BaseModel],
             ) -> None:
-        for execution, resource_spec in zip(*context[model_cls]):
+        for execution in context[model_cls]:
             if type(execution) == ModelEvaluationExecution:
                 label    = execution.executor
                 device   = execution.device

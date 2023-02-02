@@ -6,12 +6,14 @@ import tempfile
 import shutil
 
 import parsl
+from parsl.executors import WorkQueueExecutor
 from parsl.app.app import python_app, bash_app
 from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 
 from psiflow.execution import ReferenceEvaluationExecution
 from psiflow.data import FlowAtoms
+from psiflow.utils import get_active_executor
 from .base import BaseReference
 
 
@@ -93,6 +95,7 @@ def cp2k_singlepoint_pre(
         parameters: CP2KParameters,
         cp2k_command: str,
         file_names: list[str],
+        omp_num_threads: int,
         walltime: int = 0,
         inputs: list = [],
         stdout: str = '',
@@ -129,6 +132,7 @@ def cp2k_singlepoint_pre(
             command_tmp,
             command_cd,
             command_write,
+            'export OMP_NUM_THREADS={};'.format(omp_num_threads),
             'timeout {}s'.format(max(walltime - 10, 0)), # some time is spent on copying
             cp2k_command,
             '-i cp2k.inp',
@@ -207,20 +211,27 @@ class CP2KReference(BaseReference):
 
     @classmethod
     def create_apps(cls, context):
-        definition             = context[cls][0][0]
-        resource_specification = context[cls][1][0]
-        label       = definition.executor
-        device      = definition.device
-        mpi_command = definition.mpi_command
-        cp2k_exec   = definition.cp2k_exec
-        ncores      = definition.ncores
-        walltime    = definition.walltime
+        execution  = context[cls][0]
+        label       = execution.executor
+        device      = execution.device
+        mpi_command = execution.mpi_command
+        cp2k_exec   = execution.cp2k_exec
+        ncores      = execution.ncores
+        walltime    = execution.walltime
+        if isinstance(get_active_executor(label), WorkQueueExecutor):
+            resource_specification = execution.generate_parsl_resource_specification()
+        else:
+            resource_specification = {}
+
+        omp_num_threads = execution.omp_num_threads
+        assert ncores % execution.omp_num_threads == 0
+        mpi_num_procs = ncores // execution.omp_num_threads
         assert device == 'cpu' # cuda not supported at the moment
 
         # parse full command
         command = ''
         if mpi_command is not None:
-            command += mpi_command(ncores)
+            command += mpi_command(mpi_num_procs)
         command += ' '
         command += cp2k_exec
 
@@ -248,6 +259,7 @@ class CP2KReference(BaseReference):
                     parameters,
                     command,
                     file_names,
+                    omp_num_threads,
                     stdout=parsl.AUTO_LOGNAME,
                     stderr=parsl.AUTO_LOGNAME,
                     walltime=60 * walltime, # killed after walltime - 10s

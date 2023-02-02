@@ -248,17 +248,17 @@ def test_cp2k_success(context, cp2k_reference):
     with open(evaluated.result().reference_stdout, 'r') as f:
         content = f.read()
     print(content)
-    ncores = context[CP2KReference][0][0].ncores
+    ncores = context[CP2KReference][0].ncores
+    omp_num_threads = context[CP2KReference][0].omp_num_threads
+    mpi_num_procs = ncores // omp_num_threads
     lines = content.split('\n')
     for line in lines:
         if 'Total number of message passing processes' in line:
             nprocesses = int(line.split()[-1])
-        #print(line)
         if 'Number of threads for this process' in line:
             nthreads = int(line.split()[-1])
-    assert nprocesses == ncores
-    if ncores != 1: # basically: do not test when running on threadpool ex
-        assert nthreads == 1 # hardcoded into configs used for testing
+    assert mpi_num_procs == nprocesses
+    assert omp_num_threads == nthreads
 
 
 def test_cp2k_failure(context, cp2k_data, tmp_path):
