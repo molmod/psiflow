@@ -81,7 +81,7 @@ def generate_parsl_config(
         use_work_queue: bool = True,
         parsl_app_cache: bool = False,
         parsl_retries: int = 0,
-        parsl_strategy: str = 'htex_auto_scale',
+        parsl_strategy: str = 'simple',
         parsl_initialize_logging: bool = True,
         htex_address: Optional[str] = None,
         ) -> Config:
@@ -147,7 +147,7 @@ def generate_parsl_config(
                         provider=provider,
                         )
         executors[label] = executor
-    return Config(
+    config = Config(
             executors=list(executors.values()),
             run_dir=str(path_parsl_internal),
             usage_tracking=True,
@@ -156,6 +156,7 @@ def generate_parsl_config(
             initialize_logging=parsl_initialize_logging,
             strategy=parsl_strategy,
             )
+    return config
 
 
 @typeguard.typechecked
@@ -175,6 +176,9 @@ class ExecutionContext:
         self.file_index = {}
         logging.basicConfig(format='%(name)s - %(message)s')
         logging.getLogger('parsl').setLevel(logging.WARNING)
+
+    def initialize(self):
+        parsl.load(self.config)
 
     def __getitem__(
             self,

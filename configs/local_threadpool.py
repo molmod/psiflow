@@ -15,8 +15,8 @@ model_evaluate = ModelEvaluationExecution(
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
-        ncores=2,
-        walltime=1, # in minutes
+        ncores=1,
+        walltime=3, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',

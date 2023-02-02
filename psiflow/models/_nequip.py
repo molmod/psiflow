@@ -346,7 +346,7 @@ def train(
             command_tmp,
             command_cd,
             command_write,
-            'timeout {}s'.format(max(walltime - 10, 0)), # cut some slack
+            'timeout {}s'.format(max(walltime - 100, 0)), # 100 s Slack
             'psiflow-train-nequip',
             '--config config.yaml',
             '--model {}'.format(inputs[0].filepath),

@@ -18,6 +18,17 @@ from parsl.dataflow.futures import AppFuture
 from parsl.config import Config
 import parsl.providers.slurm.slurm # to define custom slurm provider
 
+import math # slurm provider imports
+import os
+import time
+import logging
+from parsl.providers.base import JobState, JobStatus
+from parsl.utils import wtime_to_minutes
+from parsl.providers.slurm.template import template_string
+
+logger = logging.getLogger(__name__) # logging per module
+logger.setLevel(logging.INFO)
+
 
 @typeguard.typechecked
 def _create_if_empty(outputs: List[File] = []) -> None:
@@ -205,10 +216,13 @@ class SlurmProvider(parsl.providers.slurm.slurm.SlurmProvider):
     def submit(self, command, tasks_per_node, job_name="parsl.slurm"):
         """Submit the command as a slurm job.
 
-        This function only differs in its parent in the self.execute_wait()
+        This function differs in its parent in the self.execute_wait()
         call, in which the slurm partition is explicitly passed as a command
         line argument as this is necessary for some SLURM-configered systems
         (notably, Belgium's HPC infrastructure).
+        In addition, the way in which the job_id is extracted from the returned
+        log after submission is slightly modified, again to account for
+        the specific cluster configuration of HPCs in Belgium.
 
         Parameters
         ----------
@@ -271,7 +285,8 @@ class SlurmProvider(parsl.providers.slurm.slurm.SlurmProvider):
         if retcode == 0:
             for line in stdout.split('\n'):
                 if line.startswith("Submitted batch job"):
-                    job_id = line.split("Submitted batch job")[1].strip()
+                    #job_id = line.split("Submitted batch job")[1].strip()
+                    job_id = line.split("Submitted batch job")[1].strip().split()[0]
                     self.resources[job_id] = {'job_id': job_id, 'status': JobStatus(JobState.PENDING)}
         else:
             logger.error("Submit command failed")

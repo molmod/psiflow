@@ -1,5 +1,3 @@
-from parsl.channels import LocalChannel
-
 from psiflow.utils import SlurmProvider # fixed SlurmProvider
 
 from psiflow.models import MACEModel, NequIPModel
@@ -19,7 +17,7 @@ model_evaluate = ModelEvaluationExecution(
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
         ncores=12, # number of cores per GPU on gpu_rome_a100 partition
-        walltime=1, # in minutes
+        walltime=3, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',
@@ -41,13 +39,11 @@ providers = {}
 
 
 # define provider for default executor (HTEX)
-channel = LocalChannel(script_dir=str(path_internal / 'local_script_dir'))
 worker_init =  'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 provider = SlurmProvider(
         partition='cpu_rome',
         account='2022_050',
-        channel=channel,
         nodes_per_block=1,
         cores_per_node=16,
         init_blocks=1,
@@ -69,7 +65,6 @@ worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_evaluate.ncores)
 provider = SlurmProvider(
         partition='cpu_rome',
         account='2022_050',
-        channel=channel,
         nodes_per_block=1,
         cores_per_node=8,
         init_blocks=0,
@@ -96,7 +91,6 @@ worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_training.ncores)
 provider = SlurmProvider(
         partition='gpu_rome_a100',
         account='2022_050',
-        channel=channel,
         nodes_per_block=1,
         cores_per_node=12,
         init_blocks=0,
@@ -129,7 +123,6 @@ worker_init += 'export SLURM_NPROCS={}\n'.format(reference_evaluate.ncores)
 provider = SlurmProvider(
         partition='cpu_rome',
         account='2022_050',
-        channel=channel,
         nodes_per_block=1,
         cores_per_node=reference_evaluate.ncores, # 1 worker per block
         init_blocks=0,
@@ -140,6 +133,7 @@ provider = SlurmProvider(
         worker_init=worker_init,
         exclusive=False,
         )
+providers['reference'] = provider
 
 
 def get_config(path_parsl_internal):
