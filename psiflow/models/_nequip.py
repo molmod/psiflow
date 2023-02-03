@@ -43,7 +43,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     append: bool = True
     default_dtype: str = 'float32'
     allow_tf32: bool = False
-    model_builders: Optional[dict] = field(default_factory=lambda: [
+    model_builders: Optional[list] = field(default_factory=lambda: [
                 'SimpleIrrepsConfig',
                 'EnergyModel',
                 'PerSpeciesRescale',
@@ -77,7 +77,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     dataset_validation: str = 'ase'
     dataset_validation_file_name: str = 'giggle.xyz'
     chemical_symbols: Optional[list[str]] = field(default_factory=lambda: ['X']) # gets overridden
-    wandb: bool = True
+    wandb: bool = False
     wandb_project: str = 'psiflow'
     wandb_watch: bool = False
     verbose: str = 'info'
@@ -128,6 +128,33 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     global_rescale_scale: Optional[str] = 'dataset_forces_rms'
     global_rescale_shift_trainable: bool = False
     global_rescale_scale_trainable: bool = False
+
+
+@typeguard.typechecked
+@dataclass
+class AllegroConfig(NequIPConfig):
+    model_builders: Optional[dict] = field(default_factory=lambda: [
+                'allegro.model.Allegro',
+                'PerSpeciesRescale',
+                'ForceOutput',
+                'RescaleEnergyEtc'
+                ])
+    parity: str = 'o3_full'
+    num_layers: int = 1
+    env_embed_multiplicity: int = 8
+    embed_initial_edge: bool = True
+    two_body_latent_mlp_latent_dimensions: Optional[list] = field(default_factory=lambda: [32, 64, 128])
+    two_body_latent_mlp_nonlinearity: str = 'silu'
+    two_body_latent_mlp_initialization: str = 'uniform'
+    mlp_latent_dimensions: Optional[list] = field(default_factory=lambda: [128])
+    latent_mlp_nonlinearity: str = 'silu'
+    latent_mlp_initialization: str = 'uniform'
+    latent_resnet: bool = True
+    env_embed_mlp_latent_dimensions: Optional[list] = field(default_factory=lambda: [])
+    env_embed_mlp_nonlinearity: Optional[bool] = None
+    env_embed_mlp_initialization: str = 'uniform'
+    wandb: False
+    r_max: float = 5.0
 
 
 def init_n_update(config, tmpdir):
@@ -380,7 +407,7 @@ class NequIPModel(BaseModel):
         self.deploy_future = {}
         logger.info('initializing {} using dataset of {} states'.format(
             self.__class__.__name__, dataset.length().result()))
-        self.config_future = self.context.apps(NequIPModel, 'initialize')( # to initialized config
+        self.config_future = self.context.apps(self.__class__, 'initialize')( # to initialized config
                 self.config_raw,
                 inputs=[dataset.data_future],
                 outputs=[self.context.new_file('model_', '.pth')],
@@ -390,12 +417,12 @@ class NequIPModel(BaseModel):
     def deploy(self) -> None:
         assert self.config_future is not None
         assert self.model_future is not None
-        self.deploy_future['float32'] = self.context.apps(NequIPModel, 'deploy_float32')(
+        self.deploy_future['float32'] = self.context.apps(self.__class__, 'deploy_float32')(
                 self.config_future,
                 inputs=[self.model_future],
                 outputs=[self.context.new_file('deployed_', '.pth')],
                 ).outputs[0]
-        self.deploy_future['float64'] = self.context.apps(NequIPModel, 'deploy_float64')(
+        self.deploy_future['float64'] = self.context.apps(self.__class__, 'deploy_float64')(
                 self.config_future,
                 inputs=[self.model_future],
                 outputs=[self.context.new_file('deployed_', '.pth')],
@@ -498,6 +525,21 @@ class NequIPModel(BaseModel):
                 device=device,
                 set_global_options=set_global_options,
                 )
+
+
+@typeguard.typechecked
+class AllegroModel(NequIPModel):
+
+    def __init__(
+            self,
+            context: ExecutionContext,
+            config: Union[dict, AllegroConfig],
+            ) -> None:
+        if isinstance(config, AllegroConfig):
+            config = asdict(config)
+        else:
+            config = dict(config)
+        super().__init__(context, config)
 
 
 @id_for_memo.register(type(NequIPModel.load_calculator))

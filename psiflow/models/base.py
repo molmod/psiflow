@@ -94,7 +94,6 @@ class BaseModel(Container):
                 outputs=[self.context.new_file('model_', '.pth')],
                 )
         self.model_future = future.outputs[0]
-        return future # represents number of trained epochs 
 
     def initialize(self, dataset: Dataset) -> None:
         """Initializes the model based on a dataset"""

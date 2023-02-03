@@ -127,7 +127,7 @@ def generate_parsl_config(
                     walltime += float(walltime_hhmmss[2])
                     walltime -= 60 * 4 # add 4 minutes of slack
                     if execution.walltime is not None: # fit at least one app
-                        assert execution.walltime < walltime
+                        assert 60 * execution.walltime < walltime
                     worker_options.append('--wall-time={}'.format(walltime))
                 executor = WorkQueueExecutor(
                     label=label,

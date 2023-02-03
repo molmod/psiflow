@@ -5,7 +5,7 @@ from pathlib import Path
 from psiflow.execution import ExecutionContext
 
 from .base import BaseModel
-from ._nequip import NequIPModel, NequIPConfig
+from ._nequip import NequIPModel, NequIPConfig, AllegroModel, AllegroConfig
 from ._mace import MACEModel, MACEConfig
 
 
@@ -19,6 +19,7 @@ def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
     assert path.is_dir()
     classes = [
             NequIPModel,
+            AllegroModel,
             MACEModel,
             None,
             ]

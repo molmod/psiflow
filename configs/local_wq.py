@@ -1,6 +1,6 @@
 from parsl.providers import LocalProvider
 
-from psiflow.models import MACEModel, NequIPModel
+from psiflow.models import MACEModel, NequIPModel, AllegroModel
 from psiflow.reference import CP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
@@ -16,7 +16,7 @@ model_evaluate = ModelEvaluationExecution(
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
-        ncores=2,
+        ncores=4,
         walltime=3, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
@@ -32,6 +32,7 @@ reference_evaluate = ReferenceEvaluationExecution(
 definitions = {
         MACEModel: [model_evaluate, model_training],
         NequIPModel: [model_evaluate, model_training],
+        AllegroModel: [model_evaluate, model_training],
         CP2KReference: [reference_evaluate],
         }
 providers = {

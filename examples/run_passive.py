@@ -10,12 +10,19 @@ import time
 from ase.io import read
 
 from psiflow.learning import RandomLearning, OnlineLearning
-from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
+from psiflow.models import AllegroModel, AllegroConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
 from psiflow.ensemble import Ensemble
 from psiflow.experiment import initialize
+
+
+def get_allegro_model(context):
+    AllegroModel.create_apps(context)
+    config = AllegroConfig()
+    config.loss_coeffs['total_energy'][0] = 10
+    return AllegroModel(context, config)
 
 
 def get_mace_model(context):
@@ -46,7 +53,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--psiflow-config', action='store')
     parser.add_argument('--name', action='store', default=None)
-    parser.add_argument('--restart', action='store', default=False)
     args = parser.parse_args()
 
     context, flow_logger = initialize( # initialize parsl, create directories

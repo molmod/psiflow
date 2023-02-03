@@ -13,7 +13,7 @@ from ase.io.extxyz import read_extxyz
 
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.data import Dataset
-from psiflow.models import MACEModel, NequIPModel, load_model
+from psiflow.models import MACEModel, NequIPModel, AllegroModel, load_model
 
 
 def test_nequip_init(context, nequip_config, dataset):
@@ -75,19 +75,17 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     model = NequIPModel(context, nequip_config)
     model.initialize(training)
     model.deploy()
-    #errors0 = Dataset.get_errors(validation, model.evaluate(validation))
-    epochs = model.train(training, validation).result()
-    #assert len(model.deploy_future) == 0
-    #assert epochs < nequip_config['max_epochs'] # terminates by app timeout
-    #assert epochs > 0
-    #model.deploy()
-    #errors1 = Dataset.get_errors(validation, model.evaluate(validation))
-    #assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
+    errors0 = Dataset.get_errors(validation, model.evaluate(validation))
+    model.train(training, validation).result()
+    assert len(model.deploy_future) == 0
+    model.deploy()
+    errors1 = Dataset.get_errors(validation, model.evaluate(validation))
+    assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
 
-    ## test saving
-    #path_deployed = tmp_path / 'deployed.pth'
-    #model.save_deployed(path_deployed).result()
-    #assert os.path.isfile(path_deployed)
+    # test saving
+    path_deployed = tmp_path / 'deployed.pth'
+    model.save_deployed(path_deployed).result()
+    assert os.path.isfile(path_deployed)
 
 
 def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
@@ -109,6 +107,106 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
 
     model_ = load_model(context, tmp_path)
     assert type(model_) == NequIPModel
+    assert model_.model_future is not None
+    model_.deploy()
+    e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info['energy']
+    assert np.allclose(e0, e1, atol=1e-4) # up to single precision
+
+
+@pytest.mark.skipif(torch.__version__.split('+')[0] != '1.11.0', reason='allegro only compatible with torch 1.11')
+def test_allegro_init(context, allegro_config, dataset):
+    model = AllegroModel(context, allegro_config)
+    model.set_seed(1)
+    model.initialize(dataset[:3])
+    assert isinstance(model.model_future, DataFuture)
+    assert isinstance(model.config_future, AppFuture)
+    assert len(model.deploy_future) == 0
+    torch.load(model.model_future.result().filepath) # should work
+    model.deploy()
+    assert isinstance(model.deploy_future['float32'], DataFuture)
+    assert isinstance(model.deploy_future['float64'], DataFuture)
+
+    # simple test
+    for e in context[AllegroModel]:
+        if type(e) == ModelEvaluationExecution:
+            device = e.device
+    torch.set_default_dtype(torch.float32)
+    atoms = dataset[0].result().copy()
+    atoms.calc = AllegroModel.load_calculator(
+            path_model=model.deploy_future['float32'].result().filepath,
+            device=device,
+            dtype='float32',
+            )
+    assert atoms.calc.device == device
+    e0 = atoms.get_potential_energy()
+
+    torch.set_default_dtype(torch.float64)
+    atoms = dataset[0].result().copy()
+    atoms.calc = AllegroModel.load_calculator(
+            path_model=model.deploy_future['float64'].result().filepath,
+            device=device,
+            dtype='float64',
+            )
+    assert atoms.calc.device == device
+    e1 = atoms.get_potential_energy()
+
+    assert np.allclose(e0, e1, atol=1e-4)
+    assert not e0 == e1 # never exactly equal
+
+    torch.set_default_dtype(torch.float32)
+    e0 = model.evaluate(dataset.get(indices=[0]))[0].result().info['energy']
+    model.reset()
+    model.set_seed(1)
+    model.initialize(dataset[:3])
+    model.deploy()
+    assert e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info['energy']
+    model.reset()
+    model.set_seed(0)
+    model.initialize(dataset[:3])
+    model.deploy()
+    assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info['energy']
+
+
+@pytest.mark.skipif(torch.__version__.split('+')[0] != '1.11.0', reason='allegro only compatible with torch 1.11')
+def test_allegro_train(context, allegro_config, dataset, tmp_path):
+    training   = dataset[:-5]
+    validation = dataset[-5:]
+    model = AllegroModel(context, allegro_config)
+    model.initialize(training)
+    model.deploy()
+    errors0 = Dataset.get_errors(validation, model.evaluate(validation))
+    model.train(training, validation).result()
+    assert len(model.deploy_future) == 0
+    model.deploy()
+    errors1 = Dataset.get_errors(validation, model.evaluate(validation))
+    assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
+
+    # test saving
+    path_deployed = tmp_path / 'deployed.pth'
+    model.save_deployed(path_deployed).result()
+    assert os.path.isfile(path_deployed)
+
+
+@pytest.mark.skipif(torch.__version__.split('+')[0] != '1.11.0', reason='allegro only compatible with torch 1.11')
+def test_allegro_save_load(context, allegro_config, dataset, tmp_path):
+    model = AllegroModel(context, allegro_config)
+    future_raw, _, _ = model.save(tmp_path)
+    assert future_raw.done()
+    assert _ is None
+    model.initialize(dataset[:2])
+    model.deploy()
+    e0 = model.evaluate(dataset.get(indices=[3]))[0].result().info['energy']
+
+    path_config_raw = tmp_path / 'AllegroModel.yaml'
+    path_config     = tmp_path / 'config_after_init.yaml'
+    path_model      = tmp_path / 'model_undeployed.pth'
+    futures = model.save(tmp_path)
+    assert os.path.exists(path_config_raw)
+    assert os.path.exists(path_config)
+    assert os.path.exists(path_model)
+
+    model_ = load_model(context, tmp_path)
+    assert type(model_) == AllegroModel
     assert model_.model_future is not None
     model_.deploy()
     e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info['energy']
@@ -191,13 +289,11 @@ def test_mace_train(context, mace_config, dataset, tmp_path):
     #print('manual rmse_f, rmse_e: {}'.format(np.mean(errors0.result(), axis=0)[:2]))
     model.train(training, validation).result()
     assert len(model.deploy_future) == 0
-    #assert epochs < mace_config['max_num_epochs'] # terminates by app timeout
-    #assert epochs > 0
     model.deploy()
     errors1 = Dataset.get_errors(validation, model.evaluate(validation))
     assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
     errors1 = Dataset.get_errors(validation, model.evaluate(validation))
-    print('manual rmse_f, rmse_e: {}'.format(np.sqrt(np.mean(errors1.result() ** 2, axis=0)[:2])))
+    print('manual rmse_e, rmse_f: {}'.format(np.sqrt(np.mean(errors1.result() ** 2, axis=0)[:2])))
 
     # test saving
     path_deployed = tmp_path / 'deployed.pth'

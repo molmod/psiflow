@@ -17,7 +17,8 @@ from psiflow.execution import ExecutionContext, ModelEvaluationExecution, \
         generate_parsl_config
 from psiflow.utils import get_psiflow_config_from_file
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
+from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig, \
+        AllegroModel, AllegroConfig
 from psiflow.reference import CP2KReference, EMTReference
 
 
@@ -44,6 +45,7 @@ def context(request, tmp_path_factory):
             path=str(tmp_path_factory.mktemp('context_dir')),
             )
     NequIPModel.create_apps(context)
+    AllegroModel.create_apps(context)
     MACEModel.create_apps(context)
     CP2KReference.create_apps(context)
     yield context
@@ -55,6 +57,13 @@ def nequip_config(tmp_path):
     nequip_config = NequIPConfig()
     nequip_config.root = str(tmp_path)
     return asdict(nequip_config)
+
+
+@pytest.fixture
+def allegro_config(tmp_path):
+    allegro_config = AllegroConfig()
+    allegro_config.root = str(tmp_path)
+    return asdict(allegro_config)
 
 
 @pytest.fixture
