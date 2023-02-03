@@ -8,6 +8,7 @@ from copy import deepcopy
 import logging
 import os
 
+import parsl
 from parsl.executors import HighThroughputExecutor, WorkQueueExecutor
 from parsl.providers.base import ExecutionProvider
 from parsl.dataflow.memoization import id_for_memo
@@ -125,6 +126,8 @@ def generate_parsl_config(
                     walltime += 60 * float(walltime_hhmmss[1])
                     walltime += float(walltime_hhmmss[2])
                     walltime -= 60 * 4 # add 4 minutes of slack
+                    if execution.walltime is not None: # fit at least one app
+                        assert execution.walltime < walltime
                     worker_options.append('--wall-time={}'.format(walltime))
                 executor = WorkQueueExecutor(
                     label=label,
@@ -174,8 +177,6 @@ class ExecutionContext:
         self.definitions = definitions
         self._apps = {}
         self.file_index = {}
-        logging.basicConfig(format='%(name)s - %(message)s')
-        logging.getLogger('parsl').setLevel(logging.WARNING)
 
     def initialize(self):
         parsl.load(self.config)

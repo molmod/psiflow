@@ -41,7 +41,7 @@ nav:
     - Checks: checks.md
     - Learning: learning.md
     - Execution: execution.md
-    - Manager: manager.md
+    - Experiment: experiment.md
 hide:
   - toc
 

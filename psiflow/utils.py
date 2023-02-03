@@ -7,6 +7,7 @@ import tempfile
 import numpy as np
 import wandb
 import importlib
+import pkgutil
 from pathlib import Path
 
 from ase.data import atomic_numbers
@@ -18,6 +19,8 @@ from parsl.dataflow.futures import AppFuture
 from parsl.config import Config
 import parsl.providers.slurm.slurm # to define custom slurm provider
 
+import psiflow
+
 import math # slurm provider imports
 import os
 import time
@@ -26,8 +29,36 @@ from parsl.providers.base import JobState, JobStatus
 from parsl.utils import wtime_to_minutes
 from parsl.providers.slurm.template import template_string
 
+
 logger = logging.getLogger(__name__) # logging per module
-logger.setLevel(logging.INFO)
+#logger.setLevel(logging.INFO)
+
+
+@typeguard.typechecked
+def set_file_logger( # hacky
+        path_log: Union[Path, str],
+        level: type(logging.INFO),
+        ):
+    formatter = logging.Formatter(fmt='%(levelname)s - %(name)s - %(message)s')
+    handler = logging.FileHandler(path_log)
+    handler.setFormatter(formatter)
+    names = [
+            'psiflow.checks',
+            'psiflow.data',
+            'psiflow.ensemble',
+            'psiflow.execution',
+            'psiflow.experiment',
+            'psiflow.learning',
+            'psiflow.utils',
+            'psiflow.models.base',
+            'psiflow.models._mace',
+            'psiflow.models._nequip',
+            'psiflow.reference._cp2k',
+            ]
+    for name in names:
+        logger = logging.getLogger(name)
+        logger.setLevel(level)
+        logger.addHandler(handler)
 
 
 @typeguard.typechecked

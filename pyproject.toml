@@ -10,6 +10,7 @@ description = "Library for developing interatomic potentials"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+    "randomname>=0.2.1",
     "ase>=3.22.1",
     "pymatgen>=2022.11.7",
     "wandb>=0.13.6",
@@ -60,6 +61,7 @@ addopts = [
     "--basetemp=pytest-tmp", # /tmp/ may be different for each worker!
     "--import-mode=importlib",
     "--psiflow-config=configs/local_threadpool.py",
+    "--log-cli-level=INFO",
     "-vv",
 ]
 testpaths = ["tests"]

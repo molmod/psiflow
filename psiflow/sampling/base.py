@@ -185,4 +185,3 @@ class BaseWalker(Container):
     @classmethod
     def create_apps(cls, context: ExecutionContext) -> None:
         assert not (cls == BaseWalker) # should never be called directly
-        pass

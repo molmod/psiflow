@@ -9,7 +9,7 @@ from parsl.app.app import python_app
 
 from psiflow.utils import get_train_valid_indices
 from psiflow.data import Dataset
-from psiflow.manager import Manager
+from psiflow.experiment import FlowLogger
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
@@ -41,7 +41,7 @@ class RandomLearning(BaseLearning):
 
     def run(
             self,
-            manager: Manager,
+            flow_logger: FlowLogger,
             model: BaseModel,
             reference: BaseReference,
             walker: RandomWalker,
@@ -64,7 +64,7 @@ class RandomLearning(BaseLearning):
         model.initialize(data_train)
         epochs = model.train(data_train, data_valid)
         logger.info('trained model for {} epochs'.format(epochs.result()))
-        manager.save(
+        flow_logger.save(
                 name='random',
                 model=model,
                 ensemble=ensemble,
@@ -72,7 +72,7 @@ class RandomLearning(BaseLearning):
                 data_valid=data_valid,
                 data_failed=data.get(indices=data.failed),
                 )
-        log = manager.log_wandb( # log training
+        log = flow_logger.log_wandb( # log training
                 run_name='random_after',
                 model=model,
                 ensemble=ensemble,
@@ -97,7 +97,7 @@ class OnlineLearning(BaseLearning):
 
     def run(
             self,
-            manager: Manager,
+            flow_logger: FlowLogger,
             model: BaseModel,
             reference: BaseReference,
             ensemble: Ensemble,
@@ -132,7 +132,7 @@ class OnlineLearning(BaseLearning):
             data_valid.log('data_valid')
             epochs = model.train(data_train, data_valid)
             logger.info('trained model for {} epochs'.format(epochs.result()))
-            manager.save(
+            flow_logger.save(
                     name=str(i),
                     model=model,
                     ensemble=ensemble,
@@ -140,7 +140,7 @@ class OnlineLearning(BaseLearning):
                     data_valid=data_valid,
                     data_failed=data.get(indices=data.failed),
                     )
-            log = manager.log_wandb( # log training
+            log = flow_logger.log_wandb( # log training
                     run_name=str(i),
                     model=model,
                     ensemble=ensemble,

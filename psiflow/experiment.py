@@ -8,23 +8,25 @@ from pathlib import Path
 import shutil
 import wandb
 import numpy as np
+import randomname
 
+import parsl
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.execution import ExecutionContext
+from psiflow.execution import ExecutionContext, generate_parsl_config
 from psiflow.models import BaseModel, load_model
 from psiflow.reference.base import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
 from psiflow.ensemble import Ensemble
 from psiflow.data import Dataset
 from psiflow.checks import Check, load_checks, SafetyCheck
-from psiflow.utils import copy_app_future, log_data_to_wandb
+from psiflow.utils import copy_app_future, log_data_to_wandb, \
+        get_psiflow_config_from_file, set_file_logger
 
 
 logger = logging.getLogger(__name__) # logging per module
-logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
@@ -193,19 +195,18 @@ def log_ensemble(ensemble: Ensemble) -> AppFuture:
 
 
 @typeguard.typechecked
-class Manager:
+class FlowLogger:
 
     def __init__(
             self,
             path_output: Union[Path, str],
             wandb_project: str,
             wandb_group: str,
-            restart: bool = False,
             error_kwargs: Optional[dict[str, Any]] = None,
             error_x_axis: Optional[str] = 'index',
             ) -> None:
-        self.path_output = Path(path_output)
-        self.restart = restart
+        self.path_output   = Path(path_output)
+        assert self.path_output.is_dir()
         self.wandb_project = wandb_project
         self.wandb_group   = wandb_group
         if error_kwargs is None:
@@ -215,8 +216,6 @@ class Manager:
                     }
         self.error_kwargs = error_kwargs
         self.error_x_axis = error_x_axis
-        # output directory can only exist if this run is a restart
-        self.path_output.mkdir(parents=True, exist_ok=self.restart)
 
     def dry_run(
             self,
@@ -319,15 +318,15 @@ class Manager:
             checks: Optional[list[Check]] = None,
             ) -> None:
         path = self.path_output / name
-        path.mkdir(parents=False, exist_ok=self.restart) # parent should exist
+        path.mkdir(parents=False, exist_ok=False) # parent should exist
 
         # model
         model.save(path)
 
         # ensemble
         path_ensemble = path / 'ensemble'
-        path_ensemble.mkdir(parents=False, exist_ok=self.restart)
-        ensemble.save(path_ensemble, restart=self.restart)
+        path_ensemble.mkdir(parents=False, exist_ok=False)
+        ensemble.save(path_ensemble, restart=False)
 
         # data
         if data_train is not None:
@@ -340,7 +339,7 @@ class Manager:
         # save checks if necessary
         if checks is not None:
             path_checks = path / 'checks'
-            path_checks.mkdir(parents=False, exist_ok=self.restart)
+            path_checks.mkdir(parents=False, exist_ok=False)
             for check in checks:
                 check.save(path_checks) # all checks may be stored in same dir
 
@@ -439,3 +438,50 @@ class Manager:
                 list(log_futures.keys()),
                 inputs=list(log_futures.values()),
                 )
+
+
+@typeguard.typechecked
+def initialize(
+        path_config: Union[Path, str],
+        name: str = None,
+        restart: bool = False,
+        ) -> Tuple[ExecutionContext, FlowLogger]:
+    if name is None: # generate cool random name of experiment
+        while True:
+            name = randomname.get_name()
+            path_experiment = Path.cwd() / name
+            if not path_experiment.is_dir():
+                break
+    path_experiment = Path.cwd() / name
+    path_internal   = path_experiment / 'parsl_internal'
+    path_context    = path_experiment / 'context_internal'
+    path_output     = path_experiment / 'output'
+    path_log        = path_experiment / 'psiflow.log'
+    path_parsl_log  = path_experiment / 'parsl.log'
+    if restart:
+        assert path_experiment.is_dir()
+    else:
+        path_experiment.mkdir()
+        path_internal.mkdir()
+        path_context.mkdir()
+        path_output.mkdir()
+    set_file_logger(path_log, logging.DEBUG) # log psiflow to file
+    parsl.set_file_logger(str(path_parsl_log), level=logging.INFO)
+
+    config, definitions = get_psiflow_config_from_file(
+            path_config,
+            path_internal,
+            )
+    context = ExecutionContext(
+            config,
+            definitions,
+            path=path_context,
+            )
+    context.initialize() # loads parsl config
+    flow_logger = FlowLogger(
+            path_output,
+            wandb_project='psiflow',
+            wandb_group=name,
+            error_x_axis='CV', # plot errors w.r.t CV value
+            )
+    return context, flow_logger

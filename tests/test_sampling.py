@@ -7,7 +7,7 @@ from parsl.dataflow.futures import AppFuture
 
 from ase import Atoms
 
-from psiflow.models import NequIPModel
+from psiflow.models import NequIPModel, MACEModel
 from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, load_walker
 from psiflow.ensemble import Ensemble
@@ -77,9 +77,9 @@ def test_random_walker(context, dataset):
     state = walker.propagate(model=None) # irrelevant kwargs are ignored
 
 
-def test_dynamic_walker(context, dataset, nequip_config):
+def test_dynamic_walker(context, dataset, mace_config):
     walker = DynamicWalker(context, dataset[0], steps=10, step=1)
-    model = NequIPModel(context, nequip_config)
+    model = MACEModel(context, mace_config)
     model.initialize(dataset[:3])
     model.deploy()
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
@@ -93,6 +93,12 @@ def test_dynamic_walker(context, dataset, nequip_config):
             walker.start_future.result().get_positions(),
             state.result().get_positions(),
             )
+
+    # test timeout
+    walker = DynamicWalker(context, dataset[0], steps=1000, step=1)
+    state, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    assert not trajectory.length().result() < 1001
+    assert trajectory.length().result() > 1
     walker.parameters.force_threshold = 0.001
     walker.parameters.steps           = 1
     walker.parameters.step            = 1

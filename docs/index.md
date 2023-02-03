@@ -46,12 +46,12 @@ building blocks may be used to implement a simple online
 learning approach:
 
 ```py
-# parameters (dataclass): defines number of iterations, number of states to sample etc.
-# model (type BaseModel): represents a trainable potential
-# data (type Dataset): wraps a list of atomic configurations
-# ensemble (type Ensemble): defines phase space sampling
+# parameters (dataclass)        : defines number of iterations, number of states to sample etc.
+# model (type BaseModel)        : represents a trainable potential
+# data (type Dataset)           : wraps a list of atomic configurations
+# ensemble (type Ensemble)      : defines phase space sampling
 # reference (type BaseReference): defines the QM level of theory
-# manager (type Manager): manages IO, wandb logging
+# flow_logger (type FlowLogger) : manages IO, wandb logging
 
 for i in range(parameters.niterations):
     model.deploy() # performs e.g. torch.jit.compile in desired precision
@@ -77,7 +77,7 @@ for i in range(parameters.niterations):
     epochs = model.train(data_train, data_valid) # train model for some time
 
     # IO, Weights & Biases logging
-    manager.save( # save data, model, and the state of the ensemble
+    flow_logger.save( # save data, model, and the state of the ensemble
             name=str(i),
             model=model,
             ensemble=ensemble,
@@ -85,7 +85,7 @@ for i in range(parameters.niterations):
             data_valid=data_valid,
             data_failed=data.get(indices=data.failed),
             )
-    log = manager.log_wandb( # log using wandb for monitoring
+    log = flow_logger.log_wandb( # log using wandb for monitoring
             run_name=str(i),
             model=model,
             ensemble=ensemble,

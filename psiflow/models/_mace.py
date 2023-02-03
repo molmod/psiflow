@@ -445,14 +445,12 @@ def train(
             command_tmp,
             command_cd,
             command_write,
-            #'timeout -s SIGTERM {}s'.format(max(walltime - 30, 0)), # cut some slack
             'psiflow-train-mace',
             '--config config.yaml',
             '--time {}'.format(max(walltime - 100, 0)), # 100 s slack
             '--model {};'.format(inputs[0].filepath),
             'ls *;',
             'cp model/mace.model {};'.format(outputs[0].filepath), # no swa
-            #'cd ../ && rm -r $mytmpdir;',
             ]
     return ' '.join(command_list)
 

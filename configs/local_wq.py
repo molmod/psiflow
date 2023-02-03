@@ -12,6 +12,7 @@ model_evaluate = ModelEvaluationExecution(
         device='cpu',
         ncores=1,
         dtype='float32',
+        walltime=2, # only applies to dynamic walkers
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',

@@ -7,10 +7,11 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
+from parsl.executors import WorkQueueExecutor
 
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.execution import ExecutionContext, ModelEvaluationExecution
-from psiflow.utils import copy_data_future, unpack_i
+from psiflow.utils import copy_data_future, unpack_i, get_active_executor
 from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 
@@ -27,6 +28,8 @@ def simulate_model(
         plumed_input: str = '',
         inputs: List[File] =[],
         outputs: List[File] = [],
+        walltime: float = 1e12, # infinite by default
+        parsl_resource_specification: dict = None,
         ) -> Tuple[FlowAtoms, str]:
     import torch
     import os
@@ -63,10 +66,6 @@ def simulate_model(
         if len(inputs) > 1: # item 1 is hills file; only one to backup
             with open(inputs[1], 'r') as f: # always exists
                 backup_data = f.read() # backup data
-            #except FileNotFoundError:
-            #    backup_data = ''
-            #    with open(inputs[1], 'w+') as f: # create it if it doesn't exist
-            #        f.write(backup_data) # otherwise, plumed complains
         with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
             f.write(plumed_input) # write input
         path_plumed = f.name
@@ -125,6 +124,8 @@ def simulate_model(
             if len(inputs) > 1:
                 with open(inputs[1], 'w') as f: # reset hills
                     f.write(backup_data)
+    except parsl.app.errors.AppTimeout as e:
+        print(e)
     yaff.log.set_level(yaff.log.silent)
 
     if len(plumed_input) > 0:
@@ -172,7 +173,7 @@ class DynamicWalker(BaseWalker):
         name = model.__class__.__name__
         try:
             app = self.context.apps(DynamicWalker, 'propagate_' + name)
-        except KeyError:
+        except (KeyError, AssertionError):
             assert model.__class__ in self.context.definitions.keys()
             self.create_apps(self.context, model_cls=model.__class__)
             app = self.context.apps(DynamicWalker, 'propagate_' + name)
@@ -199,6 +200,14 @@ class DynamicWalker(BaseWalker):
                 device   = execution.device
                 dtype    = execution.dtype
                 ncores   = execution.ncores
+                walltime = execution.walltime
+                if isinstance(get_active_executor(label), WorkQueueExecutor):
+                    resource_spec = execution.generate_parsl_resource_specification()
+                else:
+                    resource_spec = {}
+        if walltime is None:
+            walltime = 1e10 # infinite
+
         app_propagate = python_app(
                 simulate_model,
                 executors=[label],
@@ -238,6 +247,8 @@ class DynamicWalker(BaseWalker):
                     plumed_input=plumed_input,
                     inputs=inputs,
                     outputs=outputs,
+                    walltime=(walltime * 60 - 20), # 20s slack
+                    parsl_resource_specification=resource_spec,
                     )
             if bias is not None: # ensure dependency on new hills is set
                 if 'METAD' in bias.keys:
