@@ -81,7 +81,7 @@ class BaseModel(Container):
             self,
             training: Dataset,
             validation: Dataset,
-            ) -> AppFuture:
+            ) -> None:
         logger.info('training {} using {} states for training and {} for validation'.format(
             self.__class__.__name__,
             training.length().result(),

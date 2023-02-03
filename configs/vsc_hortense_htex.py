@@ -1,6 +1,6 @@
 from psiflow.utils import SlurmProvider # fixed SlurmProvider
 
-from psiflow.models import MACEModel, NequIPModel
+from psiflow.models import MACEModel, NequIPModel, AllegroModel
 from psiflow.reference import CP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
@@ -31,6 +31,7 @@ reference_evaluate = ReferenceEvaluationExecution(
 definitions = {
         MACEModel: [model_evaluate, model_training],
         NequIPModel: [model_evaluate, model_training],
+        AllegroModel: [model_evaluate, model_training],
         CP2KReference: [reference_evaluate],
         }
 
