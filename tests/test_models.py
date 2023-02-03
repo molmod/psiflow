@@ -76,7 +76,8 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     model.initialize(training)
     model.deploy()
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
-    model.train(training, validation).result()
+    model.train(training, validation)
+    model.model_future.result()
     assert len(model.deploy_future) == 0
     model.deploy()
     errors1 = Dataset.get_errors(validation, model.evaluate(validation))
@@ -175,7 +176,8 @@ def test_allegro_train(context, allegro_config, dataset, tmp_path):
     model.initialize(training)
     model.deploy()
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
-    model.train(training, validation).result()
+    model.train(training, validation)
+    model.model_future.result()
     assert len(model.deploy_future) == 0
     model.deploy()
     errors1 = Dataset.get_errors(validation, model.evaluate(validation))
@@ -286,8 +288,8 @@ def test_mace_train(context, mace_config, dataset, tmp_path):
     model.initialize(training)
     model.deploy()
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
-    #print('manual rmse_f, rmse_e: {}'.format(np.mean(errors0.result(), axis=0)[:2]))
-    model.train(training, validation).result()
+    model.train(training, validation)
+    model.model_future.result()
     assert len(model.deploy_future) == 0
     model.deploy()
     errors1 = Dataset.get_errors(validation, model.evaluate(validation))
