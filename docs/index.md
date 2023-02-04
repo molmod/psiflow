@@ -28,7 +28,7 @@ clusters (e.g. SLURM, Torque/PBS, HTCondor)
 and even container orchestration systems (e.g. Kubernetes).
 Visit the [Parsl documentation](https://parsl.readthedocs.io/en/stable/) for more details.
 
-
+<!---
 ## Core functionality 
 
 The psiflow abstractions for a reference level of theory (`BaseReference`), 
@@ -40,72 +40,10 @@ to some level of theory, after which a `BaseModel` instance can be trained to it
 An `Ensemble` can use that `BaseModel` to explore the phase space of the systems
 of interest (e.g. using molecular dynamics) in order to generate new
 atomic configurations, which can again be labeled using `BaseReference` etc.
-
-The following is a (simplified) excerpt that illustrates how these basic
-building blocks may be used to implement a simple online
-learning approach:
-
-```py
-# parameters (dataclass)        : defines number of iterations, number of states to sample etc.
-# model (type BaseModel)        : represents a trainable potential
-# data (type Dataset)           : wraps a list of atomic configurations
-# ensemble (type Ensemble)      : defines phase space sampling
-# reference (type BaseReference): defines the QM level of theory
-# flow_logger (type FlowLogger) : manages IO, wandb logging
-
-for i in range(parameters.niterations):
-    model.deploy() # performs e.g. torch.jit.compile in desired precision
-
-    # ensemble wraps a set of phase space walkers (e.g. multiple NPT simulations)
-    dataset = ensemble.sample(
-            parameters.nstates, # sample this number of states
-            model=model, # use current best model as potential energy surface
-            )
-    data = reference.evaluate(dataset) # massively parallel QM evaluation of sampled states
-    data_success = data.get(indices=data.success) # some calculations may fail!
-    train, valid = get_train_valid_indices(
-            data_success.length(),
-            self.parameters.train_valid_split,
-            )
-    data_train.append(data_success.get(indices=train))
-    data_valid.append(data_success.get(indices=valid))
-
-    if parameters.retrain_model_per_iteration: # recalibrate scale/shift/avg_num_neighbors
-        model.reset()
-        model.initialize(data_train)
-
-    epochs = model.train(data_train, data_valid) # train model for some time
-
-    # IO, Weights & Biases logging
-    flow_logger.save( # save data, model, and the state of the ensemble
-            name=str(i),
-            model=model,
-            ensemble=ensemble,
-            data_train=data_train,
-            data_valid=data_valid,
-            data_failed=data.get(indices=data.failed),
-            )
-    log = flow_logger.log_wandb( # log using wandb for monitoring
-            run_name=str(i),
-            model=model,
-            ensemble=ensemble,
-            data_train=data_train,
-            data_valid=data_valid,
-            bias=ensemble.biases[0], # possibly None
-            )
-```
-
-For example, a NequIP potential (as defined by its full `config.yaml`) is
-represented using a `NequIPModel`.
-Its `deploy()` and `train()` methods wrap around the deploy and training
-functionalities provided in the [NequIP](https://github.com/mir-group/nequip.git) Python package.
-A specific CP2K input file (including basis sets, pseudopotentials, etc)
-is represented by a `CP2KReference`. Its `evaluate()` method will wrap around
-the `cp2k.psmp` or `cp2k.popt` executables that are provided by CP2K,
-most likely prepended with the appropriate `mpirun` command.
+--->
 
 
-## Execution
+# Configuration
 The code excerpt shown above forwards individual training, sampling, and
 QM evaluation operations to Parsl `apps` whose execution is fully customizable
 by the user.
@@ -124,7 +62,13 @@ infrastructure and exposes simple and platform-agnostic resources which may be
 used by training, sampling, and QM evaluation apps.
 As such, we ensure that the execution-side configuration remains fully decoupled
 from a logical set of operations as e.g. defined in the code block above.
-For more information, check out the psiflow [Setup](setup.md) page.
+For more information, check out the psiflow [Configuration](config.md) page.
+
+!!! note "Cut some slack!"
+
+    Psiflow is new. Its API is still subject to change, and you may
+    run into unexpected behavior or undocumented features. If you do, we encourage
+    you to open an issue or ask a question on the [GitHub repository](https://github.com/svandenhaute/psiflow).
 
 
 [^1]: Otherwise known as active learning, incremental learning, on-the-fly learning.

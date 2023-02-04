@@ -9,19 +9,20 @@ theme:
     accent: teal
   logo: icon.svg
   features:
-    - navigation.expand
+    #- navigation.expand
     - navigation.instant
     - navigation.tracking
       #- navigation.tabs
       #- navigation.tabs.sticky
-      #- navigation.indexes
-      #- navigation.sections
+    - navigation.indexes
+    - navigation.sections
     - toc.integrate
 
 nav:
   - Introduction: index.md
+  - Overview: overview.md
+  - Configuration: config.md
   - Examples: examples.md
-  - Setup: setup.md
     #- Workflow execution: workflow_execution.md
   - API:
     - Models:
@@ -52,9 +53,11 @@ plugins:
     
 repo_url: https://github.com/svandenhaute/psiflow
 markdown_extensions:
+  - admonition
   - footnotes
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+  - pymdownx.details
