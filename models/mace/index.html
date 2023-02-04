@@ -194,8 +194,8 @@
   
   
     <li class="md-nav__item">
-      <a href="../../examples/" class="md-nav__link">
-        Examples
+      <a href="../../overview/" class="md-nav__link">
+        Overview
       </a>
     </li>
   
@@ -209,8 +209,23 @@
   
   
     <li class="md-nav__item">
-      <a href="../../setup/" class="md-nav__link">
-        Setup
+      <a href="../../config/" class="md-nav__link">
+        Configuration
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        Examples
       </a>
     </li>
   
@@ -226,22 +241,44 @@
   
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" checked>
       
       
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
       
-        <label class="md-nav__link" for="__nav_4" tabindex="0" aria-expanded="true">
+      
+        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="true">
           API
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="API" data-md-level="1">
-        <label class="md-nav__title" for="__nav_4">
+        <label class="md-nav__title" for="__nav_5">
           <span class="md-nav__icon md-icon"></span>
           API
         </label>
@@ -260,17 +297,23 @@
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_4_1" type="checkbox" id="__nav_4_1" checked>
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_1" type="checkbox" id="__nav_5_1" checked>
       
       
+        
+          
+        
+          
+        
       
-        <label class="md-nav__link" for="__nav_4_1" tabindex="0" aria-expanded="true">
+      
+        <label class="md-nav__link" for="__nav_5_1" tabindex="0" aria-expanded="true">
           Models
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Models" data-md-level="2">
-        <label class="md-nav__title" for="__nav_4_1">
+        <label class="md-nav__title" for="__nav_5_1">
           <span class="md-nav__icon md-icon"></span>
           Models
         </label>
@@ -359,19 +402,27 @@
       
       
       
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_2" type="checkbox" id="__nav_5_2" >
+      
+      
+        
+          
+        
+          
+        
+          
+        
+          
         
       
-      <input class="md-nav__toggle md-toggle md-toggle--indeterminate" data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" >
       
-      
-      
-        <label class="md-nav__link" for="__nav_4_2" tabindex="0" aria-expanded="false">
+        <label class="md-nav__link" for="__nav_5_2" tabindex="0" aria-expanded="false">
           Sampling
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Sampling" data-md-level="2">
-        <label class="md-nav__title" for="__nav_4_2">
+        <label class="md-nav__title" for="__nav_5_2">
           <span class="md-nav__icon md-icon"></span>
           Sampling
         </label>
@@ -451,19 +502,25 @@
       
       
       
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_3" type="checkbox" id="__nav_5_3" >
+      
+      
+        
+          
+        
+          
+        
+          
         
       
-      <input class="md-nav__toggle md-toggle md-toggle--indeterminate" data-md-toggle="__nav_4_3" type="checkbox" id="__nav_4_3" >
       
-      
-      
-        <label class="md-nav__link" for="__nav_4_3" tabindex="0" aria-expanded="false">
+        <label class="md-nav__link" for="__nav_5_3" tabindex="0" aria-expanded="false">
           Reference
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Reference" data-md-level="2">
-        <label class="md-nav__title" for="__nav_4_3">
+        <label class="md-nav__title" for="__nav_5_3">
           <span class="md-nav__icon md-icon"></span>
           Reference
         </label>
@@ -594,8 +651,8 @@
   
   
     <li class="md-nav__item">
-      <a href="../../manager/" class="md-nav__link">
-        Manager
+      <a href="../../experiment/" class="md-nav__link">
+        Experiment
       </a>
     </li>
   
@@ -641,251 +698,253 @@
 
         <details class="quote">
           <summary>Source code in <code>psiflow/models/_mace.py</code></summary>
-          <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-841">841</a></span>
-<span class="normal"><a href="#__codelineno-0-842">842</a></span>
-<span class="normal"><a href="#__codelineno-0-843">843</a></span>
-<span class="normal"><a href="#__codelineno-0-844">844</a></span>
-<span class="normal"><a href="#__codelineno-0-845">845</a></span>
-<span class="normal"><a href="#__codelineno-0-846">846</a></span>
-<span class="normal"><a href="#__codelineno-0-847">847</a></span>
-<span class="normal"><a href="#__codelineno-0-848">848</a></span>
-<span class="normal"><a href="#__codelineno-0-849">849</a></span>
-<span class="normal"><a href="#__codelineno-0-850">850</a></span>
-<span class="normal"><a href="#__codelineno-0-851">851</a></span>
-<span class="normal"><a href="#__codelineno-0-852">852</a></span>
-<span class="normal"><a href="#__codelineno-0-853">853</a></span>
-<span class="normal"><a href="#__codelineno-0-854">854</a></span>
-<span class="normal"><a href="#__codelineno-0-855">855</a></span>
-<span class="normal"><a href="#__codelineno-0-856">856</a></span>
-<span class="normal"><a href="#__codelineno-0-857">857</a></span>
-<span class="normal"><a href="#__codelineno-0-858">858</a></span>
-<span class="normal"><a href="#__codelineno-0-859">859</a></span>
-<span class="normal"><a href="#__codelineno-0-860">860</a></span>
-<span class="normal"><a href="#__codelineno-0-861">861</a></span>
-<span class="normal"><a href="#__codelineno-0-862">862</a></span>
-<span class="normal"><a href="#__codelineno-0-863">863</a></span>
-<span class="normal"><a href="#__codelineno-0-864">864</a></span>
-<span class="normal"><a href="#__codelineno-0-865">865</a></span>
-<span class="normal"><a href="#__codelineno-0-866">866</a></span>
-<span class="normal"><a href="#__codelineno-0-867">867</a></span>
-<span class="normal"><a href="#__codelineno-0-868">868</a></span>
-<span class="normal"><a href="#__codelineno-0-869">869</a></span>
-<span class="normal"><a href="#__codelineno-0-870">870</a></span>
-<span class="normal"><a href="#__codelineno-0-871">871</a></span>
-<span class="normal"><a href="#__codelineno-0-872">872</a></span>
-<span class="normal"><a href="#__codelineno-0-873">873</a></span>
-<span class="normal"><a href="#__codelineno-0-874">874</a></span>
-<span class="normal"><a href="#__codelineno-0-875">875</a></span>
-<span class="normal"><a href="#__codelineno-0-876">876</a></span>
-<span class="normal"><a href="#__codelineno-0-877">877</a></span>
-<span class="normal"><a href="#__codelineno-0-878">878</a></span>
-<span class="normal"><a href="#__codelineno-0-879">879</a></span>
-<span class="normal"><a href="#__codelineno-0-880">880</a></span>
-<span class="normal"><a href="#__codelineno-0-881">881</a></span>
-<span class="normal"><a href="#__codelineno-0-882">882</a></span>
-<span class="normal"><a href="#__codelineno-0-883">883</a></span>
-<span class="normal"><a href="#__codelineno-0-884">884</a></span>
-<span class="normal"><a href="#__codelineno-0-885">885</a></span>
-<span class="normal"><a href="#__codelineno-0-886">886</a></span>
-<span class="normal"><a href="#__codelineno-0-887">887</a></span>
-<span class="normal"><a href="#__codelineno-0-888">888</a></span>
-<span class="normal"><a href="#__codelineno-0-889">889</a></span>
-<span class="normal"><a href="#__codelineno-0-890">890</a></span>
-<span class="normal"><a href="#__codelineno-0-891">891</a></span>
-<span class="normal"><a href="#__codelineno-0-892">892</a></span>
-<span class="normal"><a href="#__codelineno-0-893">893</a></span>
-<span class="normal"><a href="#__codelineno-0-894">894</a></span>
-<span class="normal"><a href="#__codelineno-0-895">895</a></span>
-<span class="normal"><a href="#__codelineno-0-896">896</a></span>
-<span class="normal"><a href="#__codelineno-0-897">897</a></span>
-<span class="normal"><a href="#__codelineno-0-898">898</a></span>
-<span class="normal"><a href="#__codelineno-0-899">899</a></span>
-<span class="normal"><a href="#__codelineno-0-900">900</a></span>
-<span class="normal"><a href="#__codelineno-0-901">901</a></span>
-<span class="normal"><a href="#__codelineno-0-902">902</a></span>
-<span class="normal"><a href="#__codelineno-0-903">903</a></span>
-<span class="normal"><a href="#__codelineno-0-904">904</a></span>
-<span class="normal"><a href="#__codelineno-0-905">905</a></span>
-<span class="normal"><a href="#__codelineno-0-906">906</a></span>
-<span class="normal"><a href="#__codelineno-0-907">907</a></span>
-<span class="normal"><a href="#__codelineno-0-908">908</a></span>
-<span class="normal"><a href="#__codelineno-0-909">909</a></span>
-<span class="normal"><a href="#__codelineno-0-910">910</a></span>
-<span class="normal"><a href="#__codelineno-0-911">911</a></span>
-<span class="normal"><a href="#__codelineno-0-912">912</a></span>
-<span class="normal"><a href="#__codelineno-0-913">913</a></span>
-<span class="normal"><a href="#__codelineno-0-914">914</a></span>
-<span class="normal"><a href="#__codelineno-0-915">915</a></span>
-<span class="normal"><a href="#__codelineno-0-916">916</a></span>
-<span class="normal"><a href="#__codelineno-0-917">917</a></span>
-<span class="normal"><a href="#__codelineno-0-918">918</a></span>
-<span class="normal"><a href="#__codelineno-0-919">919</a></span>
-<span class="normal"><a href="#__codelineno-0-920">920</a></span>
-<span class="normal"><a href="#__codelineno-0-921">921</a></span>
-<span class="normal"><a href="#__codelineno-0-922">922</a></span>
-<span class="normal"><a href="#__codelineno-0-923">923</a></span>
-<span class="normal"><a href="#__codelineno-0-924">924</a></span>
-<span class="normal"><a href="#__codelineno-0-925">925</a></span>
-<span class="normal"><a href="#__codelineno-0-926">926</a></span>
-<span class="normal"><a href="#__codelineno-0-927">927</a></span>
-<span class="normal"><a href="#__codelineno-0-928">928</a></span>
-<span class="normal"><a href="#__codelineno-0-929">929</a></span>
-<span class="normal"><a href="#__codelineno-0-930">930</a></span>
-<span class="normal"><a href="#__codelineno-0-931">931</a></span>
-<span class="normal"><a href="#__codelineno-0-932">932</a></span>
-<span class="normal"><a href="#__codelineno-0-933">933</a></span>
-<span class="normal"><a href="#__codelineno-0-934">934</a></span>
-<span class="normal"><a href="#__codelineno-0-935">935</a></span>
-<span class="normal"><a href="#__codelineno-0-936">936</a></span>
-<span class="normal"><a href="#__codelineno-0-937">937</a></span>
-<span class="normal"><a href="#__codelineno-0-938">938</a></span>
-<span class="normal"><a href="#__codelineno-0-939">939</a></span>
-<span class="normal"><a href="#__codelineno-0-940">940</a></span>
-<span class="normal"><a href="#__codelineno-0-941">941</a></span>
-<span class="normal"><a href="#__codelineno-0-942">942</a></span>
-<span class="normal"><a href="#__codelineno-0-943">943</a></span>
-<span class="normal"><a href="#__codelineno-0-944">944</a></span>
-<span class="normal"><a href="#__codelineno-0-945">945</a></span>
-<span class="normal"><a href="#__codelineno-0-946">946</a></span>
-<span class="normal"><a href="#__codelineno-0-947">947</a></span>
-<span class="normal"><a href="#__codelineno-0-948">948</a></span>
-<span class="normal"><a href="#__codelineno-0-949">949</a></span>
-<span class="normal"><a href="#__codelineno-0-950">950</a></span>
-<span class="normal"><a href="#__codelineno-0-951">951</a></span>
-<span class="normal"><a href="#__codelineno-0-952">952</a></span>
-<span class="normal"><a href="#__codelineno-0-953">953</a></span>
-<span class="normal"><a href="#__codelineno-0-954">954</a></span>
-<span class="normal"><a href="#__codelineno-0-955">955</a></span>
-<span class="normal"><a href="#__codelineno-0-956">956</a></span>
-<span class="normal"><a href="#__codelineno-0-957">957</a></span>
-<span class="normal"><a href="#__codelineno-0-958">958</a></span>
-<span class="normal"><a href="#__codelineno-0-959">959</a></span>
-<span class="normal"><a href="#__codelineno-0-960">960</a></span>
-<span class="normal"><a href="#__codelineno-0-961">961</a></span>
-<span class="normal"><a href="#__codelineno-0-962">962</a></span>
-<span class="normal"><a href="#__codelineno-0-963">963</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-841" name="__codelineno-0-841"></a><span class="nd">@typeguard</span><span class="o">.</span><span class="n">typechecked</span>
-<a id="__codelineno-0-842" name="__codelineno-0-842"></a><span class="k">class</span> <span class="nc">MACEModel</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<a id="__codelineno-0-843" name="__codelineno-0-843"></a>
-<a id="__codelineno-0-844" name="__codelineno-0-844"></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-<a id="__codelineno-0-845" name="__codelineno-0-845"></a>            <span class="bp">self</span><span class="p">,</span>
-<a id="__codelineno-0-846" name="__codelineno-0-846"></a>            <span class="n">context</span><span class="p">:</span> <span class="n">ExecutionContext</span><span class="p">,</span>
-<a id="__codelineno-0-847" name="__codelineno-0-847"></a>            <span class="n">config</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n">MACEConfig</span><span class="p">],</span>
-<a id="__codelineno-0-848" name="__codelineno-0-848"></a>            <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-849" name="__codelineno-0-849"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">MACEConfig</span><span class="p">):</span>
-<a id="__codelineno-0-850" name="__codelineno-0-850"></a>            <span class="n">config</span> <span class="o">=</span> <span class="n">asdict</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
-<a id="__codelineno-0-851" name="__codelineno-0-851"></a>        <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-852" name="__codelineno-0-852"></a>            <span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
-<a id="__codelineno-0-853" name="__codelineno-0-853"></a>        <span class="n">config</span><span class="p">[</span><span class="s1">&#39;device&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpu&#39;</span> <span class="c1"># guarantee consistent initialization</span>
-<a id="__codelineno-0-854" name="__codelineno-0-854"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
-<a id="__codelineno-0-855" name="__codelineno-0-855"></a>
-<a id="__codelineno-0-856" name="__codelineno-0-856"></a>    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-857" name="__codelineno-0-857"></a>        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_future</span> <span class="ow">is</span> <span class="kc">None</span>
-<a id="__codelineno-0-858" name="__codelineno-0-858"></a>        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_future</span> <span class="ow">is</span> <span class="kc">None</span>
-<a id="__codelineno-0-859" name="__codelineno-0-859"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">deploy_future</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-860" name="__codelineno-0-860"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;initializing </span><span class="si">{}</span><span class="s1"> using dataset of </span><span class="si">{}</span><span class="s1"> states&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-<a id="__codelineno-0-861" name="__codelineno-0-861"></a>            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">dataset</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()))</span>
-<a id="__codelineno-0-862" name="__codelineno-0-862"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">config_future</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">apps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="s1">&#39;initialize&#39;</span><span class="p">)(</span>
-<a id="__codelineno-0-863" name="__codelineno-0-863"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">config_raw</span><span class="p">,</span>
-<a id="__codelineno-0-864" name="__codelineno-0-864"></a>                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">dataset</span><span class="o">.</span><span class="n">data_future</span><span class="p">],</span>
-<a id="__codelineno-0-865" name="__codelineno-0-865"></a>                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">new_file</span><span class="p">(</span><span class="s1">&#39;model_&#39;</span><span class="p">,</span> <span class="s1">&#39;.pth&#39;</span><span class="p">)],</span>
-<a id="__codelineno-0-866" name="__codelineno-0-866"></a>                <span class="p">)</span>
-<a id="__codelineno-0-867" name="__codelineno-0-867"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">model_future</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_future</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># to undeployed model</span>
-<a id="__codelineno-0-868" name="__codelineno-0-868"></a>
-<a id="__codelineno-0-869" name="__codelineno-0-869"></a>    <span class="k">def</span> <span class="nf">deploy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-870" name="__codelineno-0-870"></a>        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_future</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-<a id="__codelineno-0-871" name="__codelineno-0-871"></a>        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_future</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-<a id="__codelineno-0-872" name="__codelineno-0-872"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">deploy_future</span><span class="p">[</span><span class="s1">&#39;float32&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">apps</span><span class="p">(</span><span class="n">MACEModel</span><span class="p">,</span> <span class="s1">&#39;deploy_float32&#39;</span><span class="p">)(</span>
-<a id="__codelineno-0-873" name="__codelineno-0-873"></a>                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">model_future</span><span class="p">],</span>
-<a id="__codelineno-0-874" name="__codelineno-0-874"></a>                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">new_file</span><span class="p">(</span><span class="s1">&#39;deployed_&#39;</span><span class="p">,</span> <span class="s1">&#39;.pth&#39;</span><span class="p">)],</span>
-<a id="__codelineno-0-875" name="__codelineno-0-875"></a>                <span class="p">)</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-0-876" name="__codelineno-0-876"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">deploy_future</span><span class="p">[</span><span class="s1">&#39;float64&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">apps</span><span class="p">(</span><span class="n">MACEModel</span><span class="p">,</span> <span class="s1">&#39;deploy_float64&#39;</span><span class="p">)(</span>
-<a id="__codelineno-0-877" name="__codelineno-0-877"></a>                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">model_future</span><span class="p">],</span>
-<a id="__codelineno-0-878" name="__codelineno-0-878"></a>                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">new_file</span><span class="p">(</span><span class="s1">&#39;deployed_&#39;</span><span class="p">,</span> <span class="s1">&#39;.pth&#39;</span><span class="p">)],</span>
-<a id="__codelineno-0-879" name="__codelineno-0-879"></a>                <span class="p">)</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-0-880" name="__codelineno-0-880"></a>
-<a id="__codelineno-0-881" name="__codelineno-0-881"></a>    <span class="k">def</span> <span class="nf">set_seed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-882" name="__codelineno-0-882"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">config_raw</span><span class="p">[</span><span class="s1">&#39;seed&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">seed</span>
-<a id="__codelineno-0-883" name="__codelineno-0-883"></a>
-<a id="__codelineno-0-884" name="__codelineno-0-884"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-0-885" name="__codelineno-0-885"></a>    <span class="k">def</span> <span class="nf">create_apps</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">ExecutionContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-886" name="__codelineno-0-886"></a>        <span class="k">for</span> <span class="n">execution</span><span class="p">,</span> <span class="n">resource_spec</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">context</span><span class="p">[</span><span class="bp">cls</span><span class="p">]):</span>
-<a id="__codelineno-0-887" name="__codelineno-0-887"></a>            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">execution</span><span class="p">)</span> <span class="o">==</span> <span class="n">ModelTrainingExecution</span><span class="p">:</span>
-<a id="__codelineno-0-888" name="__codelineno-0-888"></a>                <span class="n">training_label</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">executor</span>
-<a id="__codelineno-0-889" name="__codelineno-0-889"></a>                <span class="n">training_device</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">device</span>
-<a id="__codelineno-0-890" name="__codelineno-0-890"></a>                <span class="n">training_dtype</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">dtype</span>
-<a id="__codelineno-0-891" name="__codelineno-0-891"></a>                <span class="n">training_walltime</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">walltime</span>
-<a id="__codelineno-0-892" name="__codelineno-0-892"></a>                <span class="n">training_ncores</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">ncores</span>
-<a id="__codelineno-0-893" name="__codelineno-0-893"></a>                <span class="n">resource_spec</span> <span class="o">=</span> <span class="n">resource_spec</span>
-<a id="__codelineno-0-894" name="__codelineno-0-894"></a>            <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">execution</span><span class="p">)</span> <span class="o">==</span> <span class="n">ModelEvaluationExecution</span><span class="p">:</span>
-<a id="__codelineno-0-895" name="__codelineno-0-895"></a>                <span class="n">model_label</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">executor</span>
-<a id="__codelineno-0-896" name="__codelineno-0-896"></a>                <span class="n">model_device</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">device</span>
-<a id="__codelineno-0-897" name="__codelineno-0-897"></a>                <span class="n">model_dtype</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">dtype</span>
-<a id="__codelineno-0-898" name="__codelineno-0-898"></a>                <span class="n">model_ncores</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">ncores</span>
-<a id="__codelineno-0-899" name="__codelineno-0-899"></a>
-<a id="__codelineno-0-900" name="__codelineno-0-900"></a>        <span class="n">app_initialize</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span><span class="n">initialize</span><span class="p">,</span> <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">model_label</span><span class="p">],</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-0-901" name="__codelineno-0-901"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;initialize&#39;</span><span class="p">,</span> <span class="n">app_initialize</span><span class="p">)</span>
-<a id="__codelineno-0-902" name="__codelineno-0-902"></a>        <span class="n">deploy_unwrapped</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span><span class="n">deploy</span><span class="p">,</span> <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">model_label</span><span class="p">],</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-0-903" name="__codelineno-0-903"></a>        <span class="k">def</span> <span class="nf">deploy_float32</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
-<a id="__codelineno-0-904" name="__codelineno-0-904"></a>            <span class="k">return</span> <span class="n">deploy_unwrapped</span><span class="p">(</span>
-<a id="__codelineno-0-905" name="__codelineno-0-905"></a>                    <span class="n">model_device</span><span class="p">,</span>
-<a id="__codelineno-0-906" name="__codelineno-0-906"></a>                    <span class="s1">&#39;float32&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-907" name="__codelineno-0-907"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
-<a id="__codelineno-0-908" name="__codelineno-0-908"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
-<a id="__codelineno-0-909" name="__codelineno-0-909"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-910" name="__codelineno-0-910"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;deploy_float32&#39;</span><span class="p">,</span> <span class="n">deploy_float32</span><span class="p">)</span>
-<a id="__codelineno-0-911" name="__codelineno-0-911"></a>        <span class="k">def</span> <span class="nf">deploy_float64</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
-<a id="__codelineno-0-912" name="__codelineno-0-912"></a>            <span class="k">return</span> <span class="n">deploy_unwrapped</span><span class="p">(</span>
-<a id="__codelineno-0-913" name="__codelineno-0-913"></a>                    <span class="n">model_device</span><span class="p">,</span>
-<a id="__codelineno-0-914" name="__codelineno-0-914"></a>                    <span class="s1">&#39;float64&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-915" name="__codelineno-0-915"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
-<a id="__codelineno-0-916" name="__codelineno-0-916"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
-<a id="__codelineno-0-917" name="__codelineno-0-917"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-918" name="__codelineno-0-918"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;deploy_float64&#39;</span><span class="p">,</span> <span class="n">deploy_float64</span><span class="p">)</span>
-<a id="__codelineno-0-919" name="__codelineno-0-919"></a>        <span class="n">train_unwrapped</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span><span class="n">train</span><span class="p">,</span> <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">training_label</span><span class="p">],</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-0-920" name="__codelineno-0-920"></a>        <span class="k">def</span> <span class="nf">train_wrapped</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
-<a id="__codelineno-0-921" name="__codelineno-0-921"></a>            <span class="k">return</span> <span class="n">train_unwrapped</span><span class="p">(</span>
-<a id="__codelineno-0-922" name="__codelineno-0-922"></a>                    <span class="n">training_device</span><span class="p">,</span>
-<a id="__codelineno-0-923" name="__codelineno-0-923"></a>                    <span class="n">training_dtype</span><span class="p">,</span>
-<a id="__codelineno-0-924" name="__codelineno-0-924"></a>                    <span class="n">training_ncores</span><span class="p">,</span>
-<a id="__codelineno-0-925" name="__codelineno-0-925"></a>                    <span class="n">config</span><span class="p">,</span>
-<a id="__codelineno-0-926" name="__codelineno-0-926"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
-<a id="__codelineno-0-927" name="__codelineno-0-927"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
-<a id="__codelineno-0-928" name="__codelineno-0-928"></a>                    <span class="n">walltime</span><span class="o">=</span><span class="n">training_walltime</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
-<a id="__codelineno-0-929" name="__codelineno-0-929"></a>                    <span class="n">parsl_resource_specification</span><span class="o">=</span><span class="n">resource_spec</span><span class="p">,</span>
-<a id="__codelineno-0-930" name="__codelineno-0-930"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-931" name="__codelineno-0-931"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;train&#39;</span><span class="p">,</span> <span class="n">train_wrapped</span><span class="p">)</span>
-<a id="__codelineno-0-932" name="__codelineno-0-932"></a>        <span class="n">evaluate_unwrapped</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span>
-<a id="__codelineno-0-933" name="__codelineno-0-933"></a>                <span class="n">evaluate_dataset</span><span class="p">,</span>
-<a id="__codelineno-0-934" name="__codelineno-0-934"></a>                <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">model_label</span><span class="p">],</span>
-<a id="__codelineno-0-935" name="__codelineno-0-935"></a>                <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-0-936" name="__codelineno-0-936"></a>                <span class="p">)</span>
-<a id="__codelineno-0-937" name="__codelineno-0-937"></a>        <span class="k">def</span> <span class="nf">evaluate_wrapped</span><span class="p">(</span><span class="n">deploy_future</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
-<a id="__codelineno-0-938" name="__codelineno-0-938"></a>            <span class="k">assert</span> <span class="n">model_dtype</span> <span class="ow">in</span> <span class="n">deploy_future</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
-<a id="__codelineno-0-939" name="__codelineno-0-939"></a>            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">deploy_future</span><span class="p">[</span><span class="n">model_dtype</span><span class="p">])</span>
-<a id="__codelineno-0-940" name="__codelineno-0-940"></a>            <span class="k">return</span> <span class="n">evaluate_unwrapped</span><span class="p">(</span>
-<a id="__codelineno-0-941" name="__codelineno-0-941"></a>                    <span class="n">model_device</span><span class="p">,</span>
-<a id="__codelineno-0-942" name="__codelineno-0-942"></a>                    <span class="n">model_dtype</span><span class="p">,</span>
-<a id="__codelineno-0-943" name="__codelineno-0-943"></a>                    <span class="n">model_ncores</span><span class="p">,</span>
-<a id="__codelineno-0-944" name="__codelineno-0-944"></a>                    <span class="bp">cls</span><span class="o">.</span><span class="n">load_calculator</span><span class="p">,</span>
-<a id="__codelineno-0-945" name="__codelineno-0-945"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
-<a id="__codelineno-0-946" name="__codelineno-0-946"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
-<a id="__codelineno-0-947" name="__codelineno-0-947"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-948" name="__codelineno-0-948"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">evaluate_wrapped</span><span class="p">)</span>
-<a id="__codelineno-0-949" name="__codelineno-0-949"></a>
-<a id="__codelineno-0-950" name="__codelineno-0-950"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-0-951" name="__codelineno-0-951"></a>    <span class="k">def</span> <span class="nf">load_calculator</span><span class="p">(</span>
-<a id="__codelineno-0-952" name="__codelineno-0-952"></a>            <span class="bp">cls</span><span class="p">,</span>
-<a id="__codelineno-0-953" name="__codelineno-0-953"></a>            <span class="n">path_model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
-<a id="__codelineno-0-954" name="__codelineno-0-954"></a>            <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-955" name="__codelineno-0-955"></a>            <span class="n">dtype</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-956" name="__codelineno-0-956"></a>            <span class="n">set_global_options</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;warn&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-957" name="__codelineno-0-957"></a>            <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BaseCalculator</span><span class="p">:</span>
-<a id="__codelineno-0-958" name="__codelineno-0-958"></a>        <span class="kn">from</span> <span class="nn">mace.calculators</span> <span class="kn">import</span> <span class="n">MACECalculator</span>
-<a id="__codelineno-0-959" name="__codelineno-0-959"></a>        <span class="k">return</span> <span class="n">MACECalculator</span><span class="p">(</span>
-<a id="__codelineno-0-960" name="__codelineno-0-960"></a>                <span class="n">model_path</span><span class="o">=</span><span class="n">path_model</span><span class="p">,</span>
-<a id="__codelineno-0-961" name="__codelineno-0-961"></a>                <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
-<a id="__codelineno-0-962" name="__codelineno-0-962"></a>                <span class="n">default_dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
-<a id="__codelineno-0-963" name="__codelineno-0-963"></a>                <span class="p">)</span>
+          <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-476">476</a></span>
+<span class="normal"><a href="#__codelineno-0-477">477</a></span>
+<span class="normal"><a href="#__codelineno-0-478">478</a></span>
+<span class="normal"><a href="#__codelineno-0-479">479</a></span>
+<span class="normal"><a href="#__codelineno-0-480">480</a></span>
+<span class="normal"><a href="#__codelineno-0-481">481</a></span>
+<span class="normal"><a href="#__codelineno-0-482">482</a></span>
+<span class="normal"><a href="#__codelineno-0-483">483</a></span>
+<span class="normal"><a href="#__codelineno-0-484">484</a></span>
+<span class="normal"><a href="#__codelineno-0-485">485</a></span>
+<span class="normal"><a href="#__codelineno-0-486">486</a></span>
+<span class="normal"><a href="#__codelineno-0-487">487</a></span>
+<span class="normal"><a href="#__codelineno-0-488">488</a></span>
+<span class="normal"><a href="#__codelineno-0-489">489</a></span>
+<span class="normal"><a href="#__codelineno-0-490">490</a></span>
+<span class="normal"><a href="#__codelineno-0-491">491</a></span>
+<span class="normal"><a href="#__codelineno-0-492">492</a></span>
+<span class="normal"><a href="#__codelineno-0-493">493</a></span>
+<span class="normal"><a href="#__codelineno-0-494">494</a></span>
+<span class="normal"><a href="#__codelineno-0-495">495</a></span>
+<span class="normal"><a href="#__codelineno-0-496">496</a></span>
+<span class="normal"><a href="#__codelineno-0-497">497</a></span>
+<span class="normal"><a href="#__codelineno-0-498">498</a></span>
+<span class="normal"><a href="#__codelineno-0-499">499</a></span>
+<span class="normal"><a href="#__codelineno-0-500">500</a></span>
+<span class="normal"><a href="#__codelineno-0-501">501</a></span>
+<span class="normal"><a href="#__codelineno-0-502">502</a></span>
+<span class="normal"><a href="#__codelineno-0-503">503</a></span>
+<span class="normal"><a href="#__codelineno-0-504">504</a></span>
+<span class="normal"><a href="#__codelineno-0-505">505</a></span>
+<span class="normal"><a href="#__codelineno-0-506">506</a></span>
+<span class="normal"><a href="#__codelineno-0-507">507</a></span>
+<span class="normal"><a href="#__codelineno-0-508">508</a></span>
+<span class="normal"><a href="#__codelineno-0-509">509</a></span>
+<span class="normal"><a href="#__codelineno-0-510">510</a></span>
+<span class="normal"><a href="#__codelineno-0-511">511</a></span>
+<span class="normal"><a href="#__codelineno-0-512">512</a></span>
+<span class="normal"><a href="#__codelineno-0-513">513</a></span>
+<span class="normal"><a href="#__codelineno-0-514">514</a></span>
+<span class="normal"><a href="#__codelineno-0-515">515</a></span>
+<span class="normal"><a href="#__codelineno-0-516">516</a></span>
+<span class="normal"><a href="#__codelineno-0-517">517</a></span>
+<span class="normal"><a href="#__codelineno-0-518">518</a></span>
+<span class="normal"><a href="#__codelineno-0-519">519</a></span>
+<span class="normal"><a href="#__codelineno-0-520">520</a></span>
+<span class="normal"><a href="#__codelineno-0-521">521</a></span>
+<span class="normal"><a href="#__codelineno-0-522">522</a></span>
+<span class="normal"><a href="#__codelineno-0-523">523</a></span>
+<span class="normal"><a href="#__codelineno-0-524">524</a></span>
+<span class="normal"><a href="#__codelineno-0-525">525</a></span>
+<span class="normal"><a href="#__codelineno-0-526">526</a></span>
+<span class="normal"><a href="#__codelineno-0-527">527</a></span>
+<span class="normal"><a href="#__codelineno-0-528">528</a></span>
+<span class="normal"><a href="#__codelineno-0-529">529</a></span>
+<span class="normal"><a href="#__codelineno-0-530">530</a></span>
+<span class="normal"><a href="#__codelineno-0-531">531</a></span>
+<span class="normal"><a href="#__codelineno-0-532">532</a></span>
+<span class="normal"><a href="#__codelineno-0-533">533</a></span>
+<span class="normal"><a href="#__codelineno-0-534">534</a></span>
+<span class="normal"><a href="#__codelineno-0-535">535</a></span>
+<span class="normal"><a href="#__codelineno-0-536">536</a></span>
+<span class="normal"><a href="#__codelineno-0-537">537</a></span>
+<span class="normal"><a href="#__codelineno-0-538">538</a></span>
+<span class="normal"><a href="#__codelineno-0-539">539</a></span>
+<span class="normal"><a href="#__codelineno-0-540">540</a></span>
+<span class="normal"><a href="#__codelineno-0-541">541</a></span>
+<span class="normal"><a href="#__codelineno-0-542">542</a></span>
+<span class="normal"><a href="#__codelineno-0-543">543</a></span>
+<span class="normal"><a href="#__codelineno-0-544">544</a></span>
+<span class="normal"><a href="#__codelineno-0-545">545</a></span>
+<span class="normal"><a href="#__codelineno-0-546">546</a></span>
+<span class="normal"><a href="#__codelineno-0-547">547</a></span>
+<span class="normal"><a href="#__codelineno-0-548">548</a></span>
+<span class="normal"><a href="#__codelineno-0-549">549</a></span>
+<span class="normal"><a href="#__codelineno-0-550">550</a></span>
+<span class="normal"><a href="#__codelineno-0-551">551</a></span>
+<span class="normal"><a href="#__codelineno-0-552">552</a></span>
+<span class="normal"><a href="#__codelineno-0-553">553</a></span>
+<span class="normal"><a href="#__codelineno-0-554">554</a></span>
+<span class="normal"><a href="#__codelineno-0-555">555</a></span>
+<span class="normal"><a href="#__codelineno-0-556">556</a></span>
+<span class="normal"><a href="#__codelineno-0-557">557</a></span>
+<span class="normal"><a href="#__codelineno-0-558">558</a></span>
+<span class="normal"><a href="#__codelineno-0-559">559</a></span>
+<span class="normal"><a href="#__codelineno-0-560">560</a></span>
+<span class="normal"><a href="#__codelineno-0-561">561</a></span>
+<span class="normal"><a href="#__codelineno-0-562">562</a></span>
+<span class="normal"><a href="#__codelineno-0-563">563</a></span>
+<span class="normal"><a href="#__codelineno-0-564">564</a></span>
+<span class="normal"><a href="#__codelineno-0-565">565</a></span>
+<span class="normal"><a href="#__codelineno-0-566">566</a></span>
+<span class="normal"><a href="#__codelineno-0-567">567</a></span>
+<span class="normal"><a href="#__codelineno-0-568">568</a></span>
+<span class="normal"><a href="#__codelineno-0-569">569</a></span>
+<span class="normal"><a href="#__codelineno-0-570">570</a></span>
+<span class="normal"><a href="#__codelineno-0-571">571</a></span>
+<span class="normal"><a href="#__codelineno-0-572">572</a></span>
+<span class="normal"><a href="#__codelineno-0-573">573</a></span>
+<span class="normal"><a href="#__codelineno-0-574">574</a></span>
+<span class="normal"><a href="#__codelineno-0-575">575</a></span>
+<span class="normal"><a href="#__codelineno-0-576">576</a></span>
+<span class="normal"><a href="#__codelineno-0-577">577</a></span>
+<span class="normal"><a href="#__codelineno-0-578">578</a></span>
+<span class="normal"><a href="#__codelineno-0-579">579</a></span>
+<span class="normal"><a href="#__codelineno-0-580">580</a></span>
+<span class="normal"><a href="#__codelineno-0-581">581</a></span>
+<span class="normal"><a href="#__codelineno-0-582">582</a></span>
+<span class="normal"><a href="#__codelineno-0-583">583</a></span>
+<span class="normal"><a href="#__codelineno-0-584">584</a></span>
+<span class="normal"><a href="#__codelineno-0-585">585</a></span>
+<span class="normal"><a href="#__codelineno-0-586">586</a></span>
+<span class="normal"><a href="#__codelineno-0-587">587</a></span>
+<span class="normal"><a href="#__codelineno-0-588">588</a></span>
+<span class="normal"><a href="#__codelineno-0-589">589</a></span>
+<span class="normal"><a href="#__codelineno-0-590">590</a></span>
+<span class="normal"><a href="#__codelineno-0-591">591</a></span>
+<span class="normal"><a href="#__codelineno-0-592">592</a></span>
+<span class="normal"><a href="#__codelineno-0-593">593</a></span>
+<span class="normal"><a href="#__codelineno-0-594">594</a></span>
+<span class="normal"><a href="#__codelineno-0-595">595</a></span>
+<span class="normal"><a href="#__codelineno-0-596">596</a></span>
+<span class="normal"><a href="#__codelineno-0-597">597</a></span>
+<span class="normal"><a href="#__codelineno-0-598">598</a></span>
+<span class="normal"><a href="#__codelineno-0-599">599</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-476" name="__codelineno-0-476"></a><span class="nd">@typeguard</span><span class="o">.</span><span class="n">typechecked</span>
+<a id="__codelineno-0-477" name="__codelineno-0-477"></a><span class="k">class</span> <span class="nc">MACEModel</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<a id="__codelineno-0-478" name="__codelineno-0-478"></a>
+<a id="__codelineno-0-479" name="__codelineno-0-479"></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+<a id="__codelineno-0-480" name="__codelineno-0-480"></a>            <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-481" name="__codelineno-0-481"></a>            <span class="n">context</span><span class="p">:</span> <span class="n">ExecutionContext</span><span class="p">,</span>
+<a id="__codelineno-0-482" name="__codelineno-0-482"></a>            <span class="n">config</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n">MACEConfig</span><span class="p">],</span>
+<a id="__codelineno-0-483" name="__codelineno-0-483"></a>            <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-484" name="__codelineno-0-484"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">MACEConfig</span><span class="p">):</span>
+<a id="__codelineno-0-485" name="__codelineno-0-485"></a>            <span class="n">config</span> <span class="o">=</span> <span class="n">asdict</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<a id="__codelineno-0-486" name="__codelineno-0-486"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-487" name="__codelineno-0-487"></a>            <span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<a id="__codelineno-0-488" name="__codelineno-0-488"></a>        <span class="k">assert</span> <span class="ow">not</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;swa&#39;</span><span class="p">],</span> <span class="s1">&#39;usage of SWA is currently not supported&#39;</span>
+<a id="__codelineno-0-489" name="__codelineno-0-489"></a>        <span class="n">config</span><span class="p">[</span><span class="s1">&#39;device&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;cpu&#39;</span> <span class="c1"># guarantee consistent initialization</span>
+<a id="__codelineno-0-490" name="__codelineno-0-490"></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+<a id="__codelineno-0-491" name="__codelineno-0-491"></a>
+<a id="__codelineno-0-492" name="__codelineno-0-492"></a>    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-493" name="__codelineno-0-493"></a>        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_future</span> <span class="ow">is</span> <span class="kc">None</span>
+<a id="__codelineno-0-494" name="__codelineno-0-494"></a>        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_future</span> <span class="ow">is</span> <span class="kc">None</span>
+<a id="__codelineno-0-495" name="__codelineno-0-495"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">deploy_future</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-496" name="__codelineno-0-496"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;initializing </span><span class="si">{}</span><span class="s1"> using dataset of </span><span class="si">{}</span><span class="s1"> states&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+<a id="__codelineno-0-497" name="__codelineno-0-497"></a>            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">dataset</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()))</span>
+<a id="__codelineno-0-498" name="__codelineno-0-498"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">config_future</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">apps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="s1">&#39;initialize&#39;</span><span class="p">)(</span>
+<a id="__codelineno-0-499" name="__codelineno-0-499"></a>                <span class="bp">self</span><span class="o">.</span><span class="n">config_raw</span><span class="p">,</span>
+<a id="__codelineno-0-500" name="__codelineno-0-500"></a>                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">dataset</span><span class="o">.</span><span class="n">data_future</span><span class="p">],</span>
+<a id="__codelineno-0-501" name="__codelineno-0-501"></a>                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">new_file</span><span class="p">(</span><span class="s1">&#39;model_&#39;</span><span class="p">,</span> <span class="s1">&#39;.pth&#39;</span><span class="p">)],</span>
+<a id="__codelineno-0-502" name="__codelineno-0-502"></a>                <span class="p">)</span>
+<a id="__codelineno-0-503" name="__codelineno-0-503"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">model_future</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_future</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># to undeployed model</span>
+<a id="__codelineno-0-504" name="__codelineno-0-504"></a>
+<a id="__codelineno-0-505" name="__codelineno-0-505"></a>    <span class="k">def</span> <span class="nf">deploy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-506" name="__codelineno-0-506"></a>        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_future</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<a id="__codelineno-0-507" name="__codelineno-0-507"></a>        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_future</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<a id="__codelineno-0-508" name="__codelineno-0-508"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">deploy_future</span><span class="p">[</span><span class="s1">&#39;float32&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">apps</span><span class="p">(</span><span class="n">MACEModel</span><span class="p">,</span> <span class="s1">&#39;deploy_float32&#39;</span><span class="p">)(</span>
+<a id="__codelineno-0-509" name="__codelineno-0-509"></a>                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">model_future</span><span class="p">],</span>
+<a id="__codelineno-0-510" name="__codelineno-0-510"></a>                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">new_file</span><span class="p">(</span><span class="s1">&#39;deployed_&#39;</span><span class="p">,</span> <span class="s1">&#39;.pth&#39;</span><span class="p">)],</span>
+<a id="__codelineno-0-511" name="__codelineno-0-511"></a>                <span class="p">)</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-0-512" name="__codelineno-0-512"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">deploy_future</span><span class="p">[</span><span class="s1">&#39;float64&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">apps</span><span class="p">(</span><span class="n">MACEModel</span><span class="p">,</span> <span class="s1">&#39;deploy_float64&#39;</span><span class="p">)(</span>
+<a id="__codelineno-0-513" name="__codelineno-0-513"></a>                <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">model_future</span><span class="p">],</span>
+<a id="__codelineno-0-514" name="__codelineno-0-514"></a>                <span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">new_file</span><span class="p">(</span><span class="s1">&#39;deployed_&#39;</span><span class="p">,</span> <span class="s1">&#39;.pth&#39;</span><span class="p">)],</span>
+<a id="__codelineno-0-515" name="__codelineno-0-515"></a>                <span class="p">)</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-0-516" name="__codelineno-0-516"></a>
+<a id="__codelineno-0-517" name="__codelineno-0-517"></a>    <span class="k">def</span> <span class="nf">set_seed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-518" name="__codelineno-0-518"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">config_raw</span><span class="p">[</span><span class="s1">&#39;seed&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">seed</span>
+<a id="__codelineno-0-519" name="__codelineno-0-519"></a>
+<a id="__codelineno-0-520" name="__codelineno-0-520"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-0-521" name="__codelineno-0-521"></a>    <span class="k">def</span> <span class="nf">create_apps</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">ExecutionContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-522" name="__codelineno-0-522"></a>        <span class="k">for</span> <span class="n">execution</span> <span class="ow">in</span> <span class="n">context</span><span class="p">[</span><span class="bp">cls</span><span class="p">]:</span>
+<a id="__codelineno-0-523" name="__codelineno-0-523"></a>            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">execution</span><span class="p">)</span> <span class="o">==</span> <span class="n">ModelTrainingExecution</span><span class="p">:</span>
+<a id="__codelineno-0-524" name="__codelineno-0-524"></a>                <span class="n">training_label</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">executor</span>
+<a id="__codelineno-0-525" name="__codelineno-0-525"></a>                <span class="n">training_walltime</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">walltime</span>
+<a id="__codelineno-0-526" name="__codelineno-0-526"></a>                <span class="n">training_ncores</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">ncores</span>
+<a id="__codelineno-0-527" name="__codelineno-0-527"></a>                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">get_active_executor</span><span class="p">(</span><span class="n">training_label</span><span class="p">),</span> <span class="n">WorkQueueExecutor</span><span class="p">):</span>
+<a id="__codelineno-0-528" name="__codelineno-0-528"></a>                    <span class="n">training_resource_specification</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">generate_parsl_resource_specification</span><span class="p">()</span>
+<a id="__codelineno-0-529" name="__codelineno-0-529"></a>                <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-530" name="__codelineno-0-530"></a>                    <span class="n">training_resource_specification</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-531" name="__codelineno-0-531"></a>            <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">execution</span><span class="p">)</span> <span class="o">==</span> <span class="n">ModelEvaluationExecution</span><span class="p">:</span>
+<a id="__codelineno-0-532" name="__codelineno-0-532"></a>                <span class="n">model_label</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">executor</span>
+<a id="__codelineno-0-533" name="__codelineno-0-533"></a>                <span class="n">model_device</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">device</span>
+<a id="__codelineno-0-534" name="__codelineno-0-534"></a>                <span class="n">model_dtype</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">dtype</span>
+<a id="__codelineno-0-535" name="__codelineno-0-535"></a>                <span class="n">model_ncores</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">ncores</span>
+<a id="__codelineno-0-536" name="__codelineno-0-536"></a>
+<a id="__codelineno-0-537" name="__codelineno-0-537"></a>        <span class="n">app_initialize</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span><span class="n">initialize</span><span class="p">,</span> <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">model_label</span><span class="p">],</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-0-538" name="__codelineno-0-538"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;initialize&#39;</span><span class="p">,</span> <span class="n">app_initialize</span><span class="p">)</span>
+<a id="__codelineno-0-539" name="__codelineno-0-539"></a>        <span class="n">deploy_unwrapped</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span><span class="n">deploy</span><span class="p">,</span> <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">model_label</span><span class="p">],</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-0-540" name="__codelineno-0-540"></a>        <span class="k">def</span> <span class="nf">deploy_float32</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
+<a id="__codelineno-0-541" name="__codelineno-0-541"></a>            <span class="k">return</span> <span class="n">deploy_unwrapped</span><span class="p">(</span>
+<a id="__codelineno-0-542" name="__codelineno-0-542"></a>                    <span class="n">model_device</span><span class="p">,</span>
+<a id="__codelineno-0-543" name="__codelineno-0-543"></a>                    <span class="s1">&#39;float32&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-544" name="__codelineno-0-544"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
+<a id="__codelineno-0-545" name="__codelineno-0-545"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
+<a id="__codelineno-0-546" name="__codelineno-0-546"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-547" name="__codelineno-0-547"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;deploy_float32&#39;</span><span class="p">,</span> <span class="n">deploy_float32</span><span class="p">)</span>
+<a id="__codelineno-0-548" name="__codelineno-0-548"></a>        <span class="k">def</span> <span class="nf">deploy_float64</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
+<a id="__codelineno-0-549" name="__codelineno-0-549"></a>            <span class="k">return</span> <span class="n">deploy_unwrapped</span><span class="p">(</span>
+<a id="__codelineno-0-550" name="__codelineno-0-550"></a>                    <span class="n">model_device</span><span class="p">,</span>
+<a id="__codelineno-0-551" name="__codelineno-0-551"></a>                    <span class="s1">&#39;float64&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-552" name="__codelineno-0-552"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
+<a id="__codelineno-0-553" name="__codelineno-0-553"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
+<a id="__codelineno-0-554" name="__codelineno-0-554"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-555" name="__codelineno-0-555"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;deploy_float64&#39;</span><span class="p">,</span> <span class="n">deploy_float64</span><span class="p">)</span>
+<a id="__codelineno-0-556" name="__codelineno-0-556"></a>        <span class="n">train_unwrapped</span> <span class="o">=</span> <span class="n">bash_app</span><span class="p">(</span><span class="n">train</span><span class="p">,</span> <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">training_label</span><span class="p">],</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-0-557" name="__codelineno-0-557"></a>        <span class="k">def</span> <span class="nf">train_wrapped</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
+<a id="__codelineno-0-558" name="__codelineno-0-558"></a>            <span class="k">return</span> <span class="n">train_unwrapped</span><span class="p">(</span>
+<a id="__codelineno-0-559" name="__codelineno-0-559"></a>                    <span class="n">config</span><span class="p">,</span>
+<a id="__codelineno-0-560" name="__codelineno-0-560"></a>                    <span class="n">stdout</span><span class="o">=</span><span class="n">parsl</span><span class="o">.</span><span class="n">AUTO_LOGNAME</span><span class="p">,</span>
+<a id="__codelineno-0-561" name="__codelineno-0-561"></a>                    <span class="n">stderr</span><span class="o">=</span><span class="n">parsl</span><span class="o">.</span><span class="n">AUTO_LOGNAME</span><span class="p">,</span>
+<a id="__codelineno-0-562" name="__codelineno-0-562"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
+<a id="__codelineno-0-563" name="__codelineno-0-563"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
+<a id="__codelineno-0-564" name="__codelineno-0-564"></a>                    <span class="n">walltime</span><span class="o">=</span><span class="n">training_walltime</span> <span class="o">*</span> <span class="mi">60</span><span class="p">,</span>
+<a id="__codelineno-0-565" name="__codelineno-0-565"></a>                    <span class="n">parsl_resource_specification</span><span class="o">=</span><span class="n">training_resource_specification</span><span class="p">,</span>
+<a id="__codelineno-0-566" name="__codelineno-0-566"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-567" name="__codelineno-0-567"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;train&#39;</span><span class="p">,</span> <span class="n">train_wrapped</span><span class="p">)</span>
+<a id="__codelineno-0-568" name="__codelineno-0-568"></a>        <span class="n">evaluate_unwrapped</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span>
+<a id="__codelineno-0-569" name="__codelineno-0-569"></a>                <span class="n">evaluate_dataset</span><span class="p">,</span>
+<a id="__codelineno-0-570" name="__codelineno-0-570"></a>                <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">model_label</span><span class="p">],</span>
+<a id="__codelineno-0-571" name="__codelineno-0-571"></a>                <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-572" name="__codelineno-0-572"></a>                <span class="p">)</span>
+<a id="__codelineno-0-573" name="__codelineno-0-573"></a>        <span class="k">def</span> <span class="nf">evaluate_wrapped</span><span class="p">(</span><span class="n">deploy_future</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
+<a id="__codelineno-0-574" name="__codelineno-0-574"></a>            <span class="k">assert</span> <span class="n">model_dtype</span> <span class="ow">in</span> <span class="n">deploy_future</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+<a id="__codelineno-0-575" name="__codelineno-0-575"></a>            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">deploy_future</span><span class="p">[</span><span class="n">model_dtype</span><span class="p">])</span>
+<a id="__codelineno-0-576" name="__codelineno-0-576"></a>            <span class="k">return</span> <span class="n">evaluate_unwrapped</span><span class="p">(</span>
+<a id="__codelineno-0-577" name="__codelineno-0-577"></a>                    <span class="n">model_device</span><span class="p">,</span>
+<a id="__codelineno-0-578" name="__codelineno-0-578"></a>                    <span class="n">model_dtype</span><span class="p">,</span>
+<a id="__codelineno-0-579" name="__codelineno-0-579"></a>                    <span class="n">model_ncores</span><span class="p">,</span>
+<a id="__codelineno-0-580" name="__codelineno-0-580"></a>                    <span class="bp">cls</span><span class="o">.</span><span class="n">load_calculator</span><span class="p">,</span>
+<a id="__codelineno-0-581" name="__codelineno-0-581"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
+<a id="__codelineno-0-582" name="__codelineno-0-582"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
+<a id="__codelineno-0-583" name="__codelineno-0-583"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-584" name="__codelineno-0-584"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">evaluate_wrapped</span><span class="p">)</span>
+<a id="__codelineno-0-585" name="__codelineno-0-585"></a>
+<a id="__codelineno-0-586" name="__codelineno-0-586"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-0-587" name="__codelineno-0-587"></a>    <span class="k">def</span> <span class="nf">load_calculator</span><span class="p">(</span>
+<a id="__codelineno-0-588" name="__codelineno-0-588"></a>            <span class="bp">cls</span><span class="p">,</span>
+<a id="__codelineno-0-589" name="__codelineno-0-589"></a>            <span class="n">path_model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+<a id="__codelineno-0-590" name="__codelineno-0-590"></a>            <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-591" name="__codelineno-0-591"></a>            <span class="n">dtype</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-592" name="__codelineno-0-592"></a>            <span class="n">set_global_options</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;warn&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-593" name="__codelineno-0-593"></a>            <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BaseCalculator</span><span class="p">:</span>
+<a id="__codelineno-0-594" name="__codelineno-0-594"></a>        <span class="kn">from</span> <span class="nn">mace.calculators</span> <span class="kn">import</span> <span class="n">MACECalculator</span>
+<a id="__codelineno-0-595" name="__codelineno-0-595"></a>        <span class="k">return</span> <span class="n">MACECalculator</span><span class="p">(</span>
+<a id="__codelineno-0-596" name="__codelineno-0-596"></a>                <span class="n">model_path</span><span class="o">=</span><span class="n">path_model</span><span class="p">,</span>
+<a id="__codelineno-0-597" name="__codelineno-0-597"></a>                <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+<a id="__codelineno-0-598" name="__codelineno-0-598"></a>                <span class="n">default_dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+<a id="__codelineno-0-599" name="__codelineno-0-599"></a>                <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
         </details>
 
@@ -945,7 +1004,7 @@
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.expand", "navigation.instant", "navigation.tracking", "toc.integrate"], "search": "../../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.sections", "toc.integrate"], "search": "../../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
       <script src="../../assets/javascripts/bundle.ba449ae6.min.js"></script>

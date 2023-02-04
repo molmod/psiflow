@@ -1,0 +1,1100 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../config/">
+      
+      <link rel="icon" href="../icon.svg">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.3">
+    
+    
+      
+        <title>Overview - psiflow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6b71719e.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.2505c338.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#atomic-data" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="psiflow" class="md-header__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            psiflow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/svandenhaute/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="psiflow" class="md-nav__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    psiflow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/svandenhaute/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Introduction
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Overview
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Overview
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#atomic-data" class="md-nav__link">
+    Atomic data
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trainable-potentials" class="md-nav__link">
+    Trainable potentials
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#molecular-simulation" class="md-nav__link">
+    Molecular simulation
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ensemble" class="md-nav__link">
+    Ensemble
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bias-potentials-and-enhanced-sampling" class="md-nav__link">
+    Bias potentials and enhanced sampling
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#level-of-theory" class="md-nav__link">
+    Level of theory
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#learning-algorithms" class="md-nav__link">
+    Learning Algorithms
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        Configuration
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        Examples
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
+      
+      
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="false">
+          API
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="API" data-md-level="1">
+        <label class="md-nav__title" for="__nav_5">
+          <span class="md-nav__icon md-icon"></span>
+          API
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_1" type="checkbox" id="__nav_5_1" >
+      
+      
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_5_1" tabindex="0" aria-expanded="false">
+          Models
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Models" data-md-level="2">
+        <label class="md-nav__title" for="__nav_5_1">
+          <span class="md-nav__icon md-icon"></span>
+          Models
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/nequip/" class="md-nav__link">
+        NequIP
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/mace/" class="md-nav__link">
+        MACE
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_2" type="checkbox" id="__nav_5_2" >
+      
+      
+        
+          
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_5_2" tabindex="0" aria-expanded="false">
+          Sampling
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Sampling" data-md-level="2">
+        <label class="md-nav__title" for="__nav_5_2">
+          <span class="md-nav__icon md-icon"></span>
+          Sampling
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sampling/random/" class="md-nav__link">
+        Random
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sampling/optimization/" class="md-nav__link">
+        Optimization
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sampling/dynamic/" class="md-nav__link">
+        Dynamic
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sampling/plumed_bias/" class="md-nav__link">
+        PLUMED
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_3" type="checkbox" id="__nav_5_3" >
+      
+      
+        
+          
+        
+          
+        
+          
+        
+      
+      
+        <label class="md-nav__link" for="__nav_5_3" tabindex="0" aria-expanded="false">
+          Reference
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Reference" data-md-level="2">
+        <label class="md-nav__title" for="__nav_5_3">
+          <span class="md-nav__icon md-icon"></span>
+          Reference
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/EMT/" class="md-nav__link">
+        EMT
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/CP2K/" class="md-nav__link">
+        CP2K
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/VASP/" class="md-nav__link">
+        VASP
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        Data
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ensemble/" class="md-nav__link">
+        Ensemble
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../checks/" class="md-nav__link">
+        Checks
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../learning/" class="md-nav__link">
+        Learning
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../execution/" class="md-nav__link">
+        Execution
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiment/" class="md-nav__link">
+        Experiment
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+
+  <h1>Overview</h1>
+
+<p>Psiflow is designed as a modular and flexible library that allows the user to
+design and execute arbitrarily complex workflows based on a variety of sampling
+algorithms, trainable interaction potentials, and reference levels of theory.
+While all computations are orchestrated internally using Parsl, psiflow provides
+elegant high-level wrappers for datasets, models, and QM singlepoint calculations
+which allow the user to define sampling and learning workflows with very little effort.
+These wrappers constitute the main building blocks of psiflow, and are listed
+below:</p>
+<ul>
+<li><strong>atomic data</strong>: the <code>Dataset</code> class represents a list of atomic configurations.
+Datasets may be labeled with energy, forces, and virial stress values obtained
+based on e.g. a singlepoint QM evaluation or a trained model. Each individual
+item in the list is essentially an ASE <code>Atoms</code> instance with a few additional attributes
+used to store output and error logs of the QM evaluation on that
+configuration.</li>
+<li><strong>trainable potentials</strong>: the <code>BaseModel</code> class defines the interface for
+trainable interaction potentials such as NequIP, Allegro, or MACE. They support
+initializing and training a model based on training and validation sets,
+evaluation of the model on a given test dataset, and model inference 
+during molecular simulations.</li>
+<li><strong>molecular simulation</strong>: the <code>BaseWalker</code> class defines an abstract interface
+for anything that takes an initial atomic configuration as input and generates new
+atomic configurations as output. This includes classical molecular dynamics 
+at different external conditions (NVT, NPT), but also geometry optimizations and
+even simple random perturbations/random walks.</li>
+<li><strong>ensemble</strong>: the <code>Ensemble</code> class wraps a set of walkers into an ensemble
+in order to perform massively parallel sampling. Each of the walkers in the
+ensemble has its own parameters and sampling algorithms,
+and they may be executed independently from each
+other. The ensemble is the main instrument in psiflow based on which data is
+generated.</li>
+<li><strong>bias potentials and enhanced sampling</strong> the <code>PlumedBias</code> class interfaces
+the popular PLUMED library with specific walkers. This allows the user to
+define bias potentials (e.g. harmonic restraints or metadynamics) that should
+be used when a walker is propagating through phase space.
+Biases may be set per walker or defined globally in an ensemble.</li>
+<li><strong>level of theory</strong>: the <code>BaseReference</code> class is used to define the <em>target</em>
+QM reference which the model should reproduce after training. Its main functionality
+is to perform massively parallel singlepoint evaluation of a dataset of 
+atomic structures using a specific level of theory and quantum chemistry package.</li>
+</ul>
+<!---
+As mentioned above, psiflow uses Parsl to orchestrate execution on arbitrarily
+large amounts of computing resources (e.g. hundreds of SLURM nodes).
+The configuration of these resources (cluster and partition names, environments to set up) and the execution-specific options
+of individual building blocks (the number of cores to reserve for each singlepoint QM evaluation,
+the floating point precision of PyTorch, the minimum walltime to reserve for training a model)
+are all centralized in an `ExecutionContext`; it ensures
+that the calculations that need to be performed by the building blocks
+are correctly forwarded to the computational resources that the user has provided.
+Check out the [Configuration](config.md) section for more details.
+In what follows, we assume that a suitable `context` has been initialized.
+--->
+
+<h2 id="atomic-data">Atomic data</h2>
+<p>In psiflow, a set of atomic configurations is represented using the <code>Dataset</code> class.
+It may represent training/validation data for model development, or
+a trajectory of snapshots that was generated using molecular dynamics.
+A <code>Dataset</code> instance mimics the behavior of a list of ASE <code>Atoms</code> instances:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">psiflow.data</span> <span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">data_train</span>  <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="s1">&#39;train.xyz&#39;</span><span class="p">)</span>    <span class="c1"># create a psiflow Dataset from a file</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">data_subset</span> <span class="o">=</span> <span class="n">data_train</span><span class="p">[:</span><span class="mi">10</span><span class="p">]</span>                       <span class="c1"># create a new Dataset instance with the first 10 states</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">data_train</span>  <span class="o">=</span> <span class="n">data_subset</span> <span class="o">+</span> <span class="n">data_train</span><span class="p">[</span><span class="mi">10</span><span class="p">:]</span>         <span class="c1"># combining two datasets is easy</span>
+</code></pre></div>
+The main difference between a psiflow <code>Dataset</code> instance and an actual Python <code>list</code> of
+<code>Atoms</code> is that a <code>Dataset</code> can represent data <strong>that will be generated in the future</strong>.</p>
+<div class="admonition note">
+<p class="admonition-title">Parsl 101: Apps and Futures</p>
+<p>To understand what is meant by 'generating data in the future', it is necessary
+to introduce the core concepts in Parsl: apps and futures. In their simplest
+form, apps are just functions, and futures are the result of a function given
+a set of inputs. Importantly, a Future already exists before the actual calculation
+is performed. In essence, a Future <em>promises</em> that, at some time in the future, it will
+contain the actual result of the function evaluation. Take a look at the following
+example:</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span> <span class="nn">parsl.app.app</span> <span class="kn">import</span> <span class="n">python_app</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nd">@python_app</span> <span class="c1"># convert a regular Python function into a Parsl app</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">def</span> <span class="nf">sum_integers</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="k">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="n">sum_future</span> <span class="o">=</span> <span class="n">sum_integers</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="c1"># tell Parsl to generate a future that represents the sum of integers 3 and 4</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">sum_future</span><span class="p">)</span>               <span class="c1"># is an AppFuture, not an integer</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">sum_future</span><span class="o">.</span><span class="n">result</span><span class="p">())</span>      <span class="c1"># now compute the actual result; this will print 7 !</span>
+</code></pre></div>
+The return value of Parsl apps is not the actual result (in this case, an integer), but
+an AppFuture that will store the result of the function evaluation after it has completed.
+The main reason for doing things this way is that this allows for asynchronous execution.
+For more information, check out the <a href="https://parsl.readthedocs.io/en/stable/">Parsl documentation</a>.</p>
+</div>
+<p>The actual atomic configurations are stored <strong>as a Parsl future, in an attribute of the Dataset
+object</strong>.
+Actually getting the data would require the user to make a <code>.result()</code> call similar
+to the trivial Parsl example above.
+Let's go back to the first example and try and get the actual list of <code>Atoms</code> instances:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">data_train</span>  <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="s1">&#39;train.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">atoms_list</span>  <span class="o">=</span> <span class="n">data_train</span><span class="o">.</span><span class="n">as_list</span><span class="p">()</span>                  <span class="c1"># returns AppFuture</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nb">isinstance</span><span class="p">(</span><span class="n">atoms_list</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span>                        <span class="c1"># returns False! </span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">atoms_list</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                                 <span class="c1"># this is the actual list</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">data_train</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>                   <span class="c1"># AppFuture representing the configuration at index 4</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">data_train</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>          <span class="c1"># actual Atoms instance</span>
+</code></pre></div>
+If the initial XYZ file was formatted in extended XYZ format and contained the potential
+energy, forces, and stress of each atomic configuration,
+they are also loaded in the dataset:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">data_train</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                      <span class="c1"># actual Atoms instance</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">data_train</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">]</span>       <span class="c1"># potential energy, float</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">data_train</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;stress&#39;</span><span class="p">]</span>       <span class="c1"># virial stress, 2darray of shape (3, 3)</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">data_train</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">arrays</span><span class="p">[</span><span class="s1">&#39;forces&#39;</span><span class="p">]</span>     <span class="c1"># forces, 2darray of shape (natoms, 3)</span>
+</code></pre></div></p>
+<h2 id="trainable-potentials">Trainable potentials</h2>
+<p>Once we know how datasets are represented, we can start defining models.
+Psiflow defines an abstract <code>BaseModel</code> interface which each
+particular machine learning potential should subclass.
+In addition, psiflow provides configuration dataclasses for each model with
+reasonable defaults.</p>
+<ul>
+<li><strong>NequIP</strong>    : implemented by <code>NequIPModel</code> and <code>NequIPConfig</code></li>
+<li><strong>Allegro</strong>   : implemented by <code>AllegroModel</code> and <code>AllegroConfig</code></li>
+<li><strong>MACE</strong>      : implemented by <code>MACEModel</code> and <code>MACEConfig</code></li>
+</ul>
+<p>The <code>BaseModel</code> interface ensures that each model implements the following methods</p>
+<ul>
+<li><code>initialize</code>: compute energy shifts and scalings as well as the average number
+of layers (and any other network normalization metrics) using a given training dataset,
+and initialize model weights.</li>
+<li><code>train</code>: train the parameters of a model using two separate datasets, one for
+actual training and one for validation. The current model parameters are used as
+starting parameters for the training</li>
+<li><code>evaluate</code>: compute the energy, force, and stress predictions on a given test dataset</li>
+</ul>
+<p>The following example illustrates how <code>Dataset</code> and <code>BaseModel</code> instances can be
+used to train models and evaluate errors.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span> <span class="nn">psiflow.data</span> <span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span> <span class="nn">psiflow.models</span> <span class="kn">import</span> <span class="n">NequIPModel</span><span class="p">,</span> <span class="n">NequIPConfig</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># setup</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">data_train</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="s1">&#39;train.xyz&#39;</span><span class="p">)</span> <span class="c1"># load training and validation data</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">data_valid</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="s1">&#39;valid.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">config</span> <span class="o">=</span> <span class="n">NequIPConfig</span><span class="p">()</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">config</span><span class="o">.</span><span class="n">num_features</span> <span class="o">=</span> <span class="mi">16</span>                <span class="c1"># modify NequIP parameters to whatever</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">model</span> <span class="o">=</span> <span class="n">NequIPModel</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>    <span class="c1"># create model instance</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="c1"># initialize, train, deploy</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>            <span class="c1"># this will calculate the scale/shifts, and average number of neighbors</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span><span class="p">)</span>     <span class="c1"># train using supplied datasets</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">&#39;./&#39;</span><span class="p">)</span>                <span class="c1"># save initialized config, undeployed model to current working directory!</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="n">model</span><span class="o">.</span><span class="n">deploy</span><span class="p">()</span>                  <span class="c1"># prepare for inference, e.g. test error evaluation or molecular dynamics</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="c1"># evaluate test error</span>
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="n">data_test</span>       <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="s1">&#39;test.xyz&#39;</span><span class="p">)</span>   <span class="c1"># test data; contains QM reference energy/forces/stress</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="n">data_test_model</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_test</span><span class="p">)</span>           <span class="c1"># same test data, but with predicted energ/forces/stress</span>
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="n">errors</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">get_errors</span><span class="p">(</span>        <span class="c1"># static method of Dataset to compute the error between two datasets</span>
+<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>        <span class="n">data_test</span><span class="p">,</span>                  
+<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>        <span class="n">data_test_model</span><span class="p">,</span>                  
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>        <span class="n">properties</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;forces&#39;</span><span class="p">],</span>      <span class="c1"># only compute the force error</span>
+<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a>        <span class="n">elements</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="s1">&#39;O&#39;</span><span class="p">],</span>        <span class="c1"># only include carbon or oxygen atoms</span>
+<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>        <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;rmse&#39;</span><span class="p">,</span>              <span class="c1"># use RMSE instead of MAE or MAX</span>
+<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>        <span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                  <span class="c1"># errors is an AppFuture, use .result() to get the actual values!</span>
+</code></pre></div>
+Note that depending on the specific configurations in the <code>ExecutionContext</code> instance,
+it is perfectly possible
+that the <code>model.train()</code> command will end up being executed using a GPU on SLURM cluster,
+whereas model deployment and evaluation of the test error gets
+executed on your local computer.</p>
+<h2 id="molecular-simulation">Molecular simulation</h2>
+<p>Having trained and deployed a model, it is possible to explore the phase space
+of a physical system in order to generate new (and physically relevant) structures. 
+Psiflow defines a <code>BaseWalker</code> interface that should be used to implement specific
+phase space exploration algorithms.
+Prominent examples are molecular dynamics (both NVT and NPT), as implemented
+using the <code>DynamicWalker</code> class, and geometry optimizations, as implemented using
+the <code>OptimizationWalker</code> class.</p>
+<p>Molecular dynamics simulations are performed using YAFF, a simple molecular mechanics
+library written in Python. It supports a variety of
+<a href="https://github.com/molmod/yaff/blob/master/yaff/sampling/nvt.py">temperature</a> and
+<a href="https://github.com/molmod/yaff/blob/master/yaff/sampling/npt.py">pressure</a>
+control algorithms.
+By default, psiflow employs stochastic Langevin methods for both temperature
+and pressure control because they typically exhibit a smaller correlation time
+as compared to deterministic methods such as NHC or MTK.
+Geometry optimization is performed using the
+<a href="https://wiki.fysik.dtu.dk/ase/ase/optimize.html#preconditioned-optimizers">preconditioned L-BFGS implementation</a>
+in ASE, as it typically requires less steps than either conventional L-BFGS or
+first-order methods such as CG.
+Note that geometry optimizations require accurate force evaluations and are
+therefore always performed in double precision (<code>float64</code>).
+Because <code>model.deploy()</code> calls in psiflow will deploy both a single and a double
+precision variant of each model, the user will not notice any of this.</p>
+<p>Let us illustrate how the deployed model from the previous example may be used
+to explore the phase of the system under study:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">DynamicWalker</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">context</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>      <span class="c1"># initialize walker to first configuration in dataset</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>       <span class="c1"># Verlet timestep</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>         <span class="c1"># number of timesteps to perform</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="n">step</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>           <span class="c1"># frequency with which states are sampled</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>        <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>            <span class="c1"># timestep at which sampling is started</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>    <span class="c1"># temperature, in kelvin</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="n">pressure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>      <span class="c1"># pressure, in MPa. If None, then simulation is NVT</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>        <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>             <span class="c1"># numpy random seed with which initial Boltzmann velocities are set</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>        <span class="p">)</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="n">state</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span>   <span class="c1"># actual MD</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>                    <span class="c1"># use this model to evaluate forces at every step</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>        <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>           <span class="c1"># keep the trajectory, and return it as a Dataset</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>        <span class="p">)</span>
+</code></pre></div>
+The state that is returned by the propagation is a Future of an ASE <code>Atoms</code>
+that represents the final state of the walker after the simulation.
+If the simulation proceeds without errors, the following assertion
+will evaluate to True:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>assert np.allclose(
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>        state.result().positions,           # state is a Future; use .result() to get actual Atoms
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        trajectory[-1].result().positions,  # trajectory is a Dataset; use regular indexing and .result()
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        )
+</code></pre></div></p>
+<div class="admonition note">
+<p class="admonition-title">Futures are necessary</p>
+<p>This example should also illustrate why exactly we would represent data using
+Futures in the first place.
+Suppose that the <code>walker.propagate</code> call is configured to run on a SLURM job
+that has a walltime of only ten minutes.
+At the time of submission, all psiflow knows is that, <em>at some point in the future</em>,
+it will receive a chunk of data that represents the trajectory of the simulation.
+It cannot yet know how many states are precisely going to be present in that
+dataset; for that we would have to actually <strong>wait</strong> for the result.
+This waiting is precisely what is enforced when using <code>.result()</code> on a Future.
+For example, if we would like to find out how many states were actually generated,
+we'd use the <code>dataset.length()</code> function that returns a Future of the length
+of the dataset:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">length</span> <span class="o">=</span> <span class="n">trajectory</span><span class="o">.</span><span class="n">length</span><span class="p">()</span>    <span class="c1"># will execute before the trajectory is actually generated</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">length</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                 <span class="c1"># enforces Python to wait until the MD calculation has finished, and then compute the actual length</span>
+</code></pre></div>
+See <a href="https://parsl.readthedocs.io/en/stable/userguide/futures.html">this page</a> in the Parsl documentation
+for more information on asynchronous execution.</p>
+</div>
+<p>Successful phase space exploration is typically only possible with models that
+are at least vaguely aware of what the low- and high-energy configurations of
+the system look like.
+If simulation temperatures are too high, simulation times are too long, or
+the model is simply lacking knowledge on certain important low-energy regions
+in phase space, then the simulation might explode. In practice, this means
+that atoms are going to experience enormous forces, fly away, and incentivize
+others to do the same.
+Catching such events is nontrivial, and a few mechanisms
+are in place in psiflow.
+Each <code>BaseWalker</code> instance is given a tag that can only assume the values
+<em>safe</em> or <em>unsafe</em>. Dynamic walkers will be tagged as unsafe if one of the forces
+in the system exceeds a certain threshold (40 eV/A by default), as this typically
+indicates an upcoming explosion.
+If walkers are tagged as <em>unsafe</em>, the <code>state</code> that is returned after propagation
+may not be physically relevant, and it may be advised to not include those in
+training or validation sets. </p>
+<h2 id="ensemble">Ensemble</h2>
+<p>In online learning applications, it is almost always beneficial to maximally
+parallelize the phase space sampling computations in the data generation stage.
+In particular, this means that instead of generating a long MD trajectory and
+subsampling it to obtain atomic configurations, it is much more efficient
+to initialize multiple MD walkers at once and let them explore the phase space
+in parallel. In this way, one can obtain the same number of decorrelated snapshots
+in a much shorter amount of time.
+To accomodate for this scenario, psiflow provides the <code>Ensemble</code> class.<br />
+It basically contains a set of walkers, and provides a <code>sample()</code> method
+which uses those walkers to sample a user-defined number of states.</p>
+<h2 id="bias-potentials-and-enhanced-sampling">Bias potentials and enhanced sampling</h2>
+<h2 id="level-of-theory">Level of theory</h2>
+<p>In addition to the standard attributes such as <code>atoms.numbers</code>, <code>atoms.positions</code>, and
+<code>atoms.cell</code>, psiflow offers the ability to store output and error logs of the QM evaluation
+for each particular configuration.</p>
+<h2 id="learning-algorithms">Learning Algorithms</h2>
+<p>The following is a (simplified) excerpt that illustrates how these basic
+building blocks may be used to implement a simple online
+learning approach:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># parameters (dataclass)        : defines number of iterations and the number of states to sample</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="c1"># model (type BaseModel)        : represents a trainable potential (e.g. NequIP)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># data_train (type Dataset)     : represents the initial training and validation data</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># data_valid</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># ensemble (type Ensemble)      : defines phase space sampling (e.g. 20 parallel MD runs)</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># reference (type BaseReference): defines the QM level of theory and calculator (e.g. CP2K, PBE-D3(BJ)+TZVP)</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">parameters</span><span class="o">.</span><span class="n">niterations</span><span class="p">):</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="n">model</span><span class="o">.</span><span class="n">deploy</span><span class="p">()</span> <span class="c1"># performs e.g. torch.jit.compile in desired precision</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="c1"># ensemble wraps a set of phase space walkers (e.g. multiple NPT simulations)</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>            <span class="n">parameters</span><span class="o">.</span><span class="n">nstates</span><span class="p">,</span> <span class="c1"># sample this number of states</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="c1"># use current best model as potential energy surface</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>            <span class="p">)</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span> <span class="c1"># massively parallel QM evaluation of sampled states</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>    <span class="n">data_success</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">success</span><span class="p">)</span> <span class="c1"># some calculations may fail!</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>    <span class="n">train</span><span class="p">,</span> <span class="n">valid</span> <span class="o">=</span> <span class="n">get_train_valid_indices</span><span class="p">(</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>            <span class="n">data_success</span><span class="o">.</span><span class="n">length</span><span class="p">(),</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">train_valid_split</span><span class="p">,</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>            <span class="p">)</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>    <span class="n">data_train</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_success</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">train</span><span class="p">))</span>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>    <span class="n">data_valid</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_success</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">valid</span><span class="p">))</span>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>    <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">retrain_model_per_iteration</span><span class="p">:</span> <span class="c1"># recalibrate scale/shift/avg_num_neighbors</span>
+<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>        <span class="n">model</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>        <span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>
+<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a>
+<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a>    <span class="n">epochs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span><span class="p">)</span> <span class="c1"># train model for some time</span>
+</code></pre></div>
+<p>For example, a NequIP potential (as defined by its full <code>config.yaml</code>) is
+represented using a <code>NequIPModel</code>.
+A specific CP2K input file (including basis sets, pseudopotentials, etc)
+is represented by a <code>CP2KReference</code>. Its <code>evaluate()</code> method will wrap around
+the <code>cp2k.psmp</code> or <code>cp2k.popt</code> executables that are provided by CP2K,
+most likely prepended with the appropriate <code>mpirun</code> command.</p>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.sections", "toc.integrate"], "search": "../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.ba449ae6.min.js"></script>
+      
+    
+  </body>
+</html>
