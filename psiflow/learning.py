@@ -62,8 +62,7 @@ class RandomLearning(BaseLearning):
         data_train.log('data_train')
         data_valid.log('data_valid')
         model.initialize(data_train)
-        epochs = model.train(data_train, data_valid)
-        logger.info('trained model for {} epochs'.format(epochs.result()))
+        model.train(data_train, data_valid)
         flow_logger.save(
                 name='random',
                 model=model,
@@ -130,8 +129,7 @@ class OnlineLearning(BaseLearning):
                 model.initialize(data_train)
             data_train.log('data_train')
             data_valid.log('data_valid')
-            epochs = model.train(data_train, data_valid)
-            logger.info('trained model for {} epochs'.format(epochs.result()))
+            model.train(data_train, data_valid)
             flow_logger.save(
                     name=str(i),
                     model=model,

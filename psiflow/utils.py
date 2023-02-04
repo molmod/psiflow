@@ -284,7 +284,6 @@ class SlurmProvider(parsl.providers.slurm.slurm.SlurmProvider):
         script_path = "{0}/{1}.submit".format(self.script_dir, job_name)
         script_path = os.path.abspath(script_path)
 
-        logger.debug("Requesting one block with {} nodes".format(self.nodes_per_block))
 
         job_config = {}
         job_config["submit_script_dir"] = self.channel.script_dir
@@ -300,14 +299,11 @@ class SlurmProvider(parsl.providers.slurm.slurm.SlurmProvider):
                                                   tasks_per_node,
                                                   self.nodes_per_block)
 
-        logger.debug("Writing submit script")
         self._write_submit_script(template_string, script_path, job_name, job_config)
 
         if self.move_files:
-            logger.debug("moving files")
             channel_script_path = self.channel.push_file(script_path, self.channel.script_dir)
         else:
-            logger.debug("not moving files")
             channel_script_path = script_path
 
         retcode, stdout, stderr = self.execute_wait("sbatch --partition={1} {0}".format(channel_script_path, self.partition))

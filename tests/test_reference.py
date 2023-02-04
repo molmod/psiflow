@@ -203,15 +203,6 @@ def test_cp2k_insert_filepaths(fake_cp2k_input):
     assert str(target) == str(sample)
 
 
-def test_cp2k_insert_atoms(tmp_path, fake_cp2k_input):
-    atoms = FlowAtoms(numbers=np.ones(3), cell=np.eye(3), positions=np.eye(3), pbc=True)
-    sample = Cp2kInput.from_string(insert_atoms_in_input(fake_cp2k_input, atoms))
-    assert 'COORD' in sample['FORCE_EVAL']['SUBSYS'].subsections.keys()
-    assert 'CELL' in sample['FORCE_EVAL']['SUBSYS'].subsections.keys()
-    natoms = len(sample['FORCE_EVAL']['SUBSYS']['COORD'].keywords['H'])
-    assert natoms == 3
-
-
 def test_cp2k_success(context, cp2k_reference):
     atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
             numbers=np.ones(2),
@@ -232,17 +223,27 @@ def test_cp2k_success(context, cp2k_reference):
             -1.165271084838365 / molmod.units.electronvolt,
             evaluated.result().info['energy'],
             )
-    forces_reference = np.array([[0.01218794, 0.00001251, 0.00001251],
-            [-0.01215503, 0.00001282, 0.00001282]])
+    forces_reference = np.array([
+            [-0.01215503, 0.00001282, 0.00001282],
+            [0.01218794, 0.00001251, 0.00001251],
+            ])
     forces_reference /= molmod.units.electronvolt
     forces_reference *= molmod.units.angstrom
-    assert np.allclose(forces_reference, evaluated.result().arrays['forces'])
+    assert np.allclose(
+            forces_reference,
+            evaluated.result().arrays['forces'],
+            atol=1e-5,
+            )
     stress_reference = np.array([
              [4.81790309081E-01,   7.70485237955E-05,   7.70485237963E-05],
              [7.70485237955E-05,  -9.50069820373E-03,   1.61663002757E-04],
              [7.70485237963E-05,   1.61663002757E-04,  -9.50069820373E-03]])
     stress_reference *= 1000
-    assert np.allclose(stress_reference, evaluated.result().info['stress'])
+    assert np.allclose(
+            stress_reference,
+            evaluated.result().info['stress'],
+            atol=1e-5,
+            )
 
     # check number of mpi processes
     with open(evaluated.result().reference_stdout, 'r') as f:

@@ -54,18 +54,61 @@ def insert_filepaths_in_input(
 
 @typeguard.typechecked
 def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
-    from pymatgen.io.cp2k.inputs import Cp2kInput, Cell, Coord
-    from pymatgen.core import Lattice
-    from pymatgen.io.ase import AseAtomsAdaptor
-    structure = AseAtomsAdaptor.get_structure(atoms)
-    lattice = Lattice(atoms.get_cell())
-
+    from ase.data import chemical_symbols
+    from pymatgen.io.cp2k.inputs import Cp2kInput
     inp = Cp2kInput.from_string(cp2k_input)
     if not 'SUBSYS' in inp['FORCE_EVAL'].subsections.keys():
         raise ValueError('No subsystem present in cp2k input: {}'.format(cp2k_input))
-    inp['FORCE_EVAL']['SUBSYS'].insert(Coord(structure))
-    inp['FORCE_EVAL']['SUBSYS'].insert(Cell(lattice))
-    return str(inp)
+    try:
+        del inp['FORCE_EVAL']['SUBSYS']['TOPOLOGY'] # remove just to be safety
+    except KeyError:
+        pass
+    try:
+        del inp['FORCE_EVAL']['SUBSYS']['COORD'] # remove just to be safety
+    except KeyError:
+        pass
+    try:
+        del inp['FORCE_EVAL']['SUBSYS']['CELL'] # remove just to be safety
+    except KeyError:
+        pass
+    cp2k_input = str(inp)
+
+    for line in cp2k_input.splitlines():
+        assert '&COORD' not in line
+        assert '&TOPOLOGY' not in line
+        assert '&CELL' not in line
+
+    # insert atomic positions
+    atoms_str = ''
+    for i in range(len(atoms)):
+        n   = atoms.numbers[i]
+        pos = [str(c) for c in atoms.positions[i]]
+        atoms_str += str(chemical_symbols[n]) + ' ' + ' '.join(pos) + '\n'
+    atoms_str += '\n'
+    for i, line in enumerate(cp2k_input.splitlines()):
+        if tuple(line.split()) == ('&END', 'SUBSYS'): # insert before here
+            break
+    assert i != len(cp2k_input.splitlines()) - 1
+    new_input = '\n'.join(cp2k_input.splitlines()[:i]) + '\n'
+    new_input += '&COORD\n' + atoms_str + '&END COORD\n'
+    new_input += '\n'.join(cp2k_input.splitlines()[i:])
+    cp2k_input = new_input
+
+    # insert box vectors
+    cell_str = ''
+    for index, name in [(0, 'A'), (1, 'B'), (2, 'C')]:
+        vector = [str(c) for c in atoms.cell[index]]
+        cell_str += name + ' ' + ' '.join(vector) + '\n'
+    cell_str += '\n'
+    for i, line in enumerate(cp2k_input.splitlines()):
+        if tuple(line.split()) == ('&END', 'SUBSYS'): # insert before here
+            break
+    new_input = '\n'.join(cp2k_input.splitlines()[:i]) + '\n'
+    new_input += '&CELL\n' + cell_str + '&END CELL\n'
+    new_input += '\n'.join(cp2k_input.splitlines()[i:])
+    cp2k_input = new_input
+
+    return cp2k_input
 
 
 @typeguard.typechecked
@@ -119,11 +162,11 @@ def cp2k_singlepoint_pre(
             filepaths,
             )
     cp2k_input = regularize_input(cp2k_input) # before insert_atoms_in_input
+    cp2k_input = set_global_section(cp2k_input)
     cp2k_input = insert_atoms_in_input(
             cp2k_input,
             atoms,
             )
-    cp2k_input = set_global_section(cp2k_input)
     # see https://unix.stackexchange.com/questions/30091/fix-or-alternative-for-mktemp-in-os-x
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd  = 'cd $mytmpdir;'
@@ -159,12 +202,12 @@ def cp2k_singlepoint_post(
         out.parse_energies()
         out.parse_forces()
         out.parse_stresses()
-        energy = out.data['total_energy'][0] # already in eV
-        forces = np.array(out.data['forces'][0]) * (Hartree / Bohr) # to eV/A
-        stress = np.array(out.data['stress_tensor'][0]) * 1000 # to MPa
-        atoms.info['energy'] = energy
-        atoms.info['stress'] = stress
-        atoms.arrays['forces'] = forces
+        energy_ = out.data['total_energy'][0] # already in eV
+        forces_ = np.array(out.data['forces'][0]) * (Hartree / Bohr) # to eV/A
+        stress_ = np.array(out.data['stress_tensor'][0]) * 1000 # to MPa
+        atoms.info['energy'] = energy_
+        atoms.info['stress'] = stress_
+        atoms.arrays['forces'] = forces_
         atoms.reference_status = True
     except:
         atoms.reference_status = False

@@ -12,7 +12,7 @@ requires-python = ">=3.9"
 dependencies = [
     "randomname>=0.2.1",
     "ase>=3.22.1",
-    "pymatgen>=2022.11.7",
+    "pymatgen>=2023.1.30",
     "wandb>=0.13.6",
     "plumed>=2.7.2",
     "parsl>=2023.1.23",
