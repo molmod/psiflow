@@ -19,14 +19,17 @@ quantum mechanical energy evaluations and model training.
 In this way, the entire (relevant part of the) phase space of the system(s)
 of interest may be explored and learned by the model without ever having to
 perform *ab initio* molecular dynamics.
+Go to the [overview](overview.md) for a walkthrough of the most
+important features. 
 
-All computations in psiflow are managed by Parsl, a scalable parallel programming
-library for Python.
-This ensures support for a large number of different execution resources,
-including clouds (e.g. Amazon Web Services, Google Cloud),
-clusters (e.g. SLURM, Torque/PBS, HTCondor)
-and even container orchestration systems (e.g. Kubernetes).
-Visit the [Parsl documentation](https://parsl.readthedocs.io/en/stable/) for more details.
+!!! note "Parsl: Scalable execution"
+    All computations in psiflow are managed by Parsl, a scalable parallel programming
+    library for Python.
+    This ensures support for a large number of different execution resources,
+    including clouds (e.g. Amazon Web Services, Google Cloud),
+    clusters (e.g. SLURM, Torque/PBS, HTCondor)
+    and even container orchestration systems (e.g. Kubernetes).
+    Visit the [Parsl documentation](https://parsl.readthedocs.io/en/stable/) for more details.
 
 <!---
 ## Core functionality 
