@@ -727,50 +727,7 @@ the cp2k input (e.g. BASIS_SET_FILE_NAME)</p>
 
         <details class="quote">
           <summary>Source code in <code>psiflow/reference/_cp2k.py</code></summary>
-          <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-186">186</a></span>
-<span class="normal"><a href="#__codelineno-0-187">187</a></span>
-<span class="normal"><a href="#__codelineno-0-188">188</a></span>
-<span class="normal"><a href="#__codelineno-0-189">189</a></span>
-<span class="normal"><a href="#__codelineno-0-190">190</a></span>
-<span class="normal"><a href="#__codelineno-0-191">191</a></span>
-<span class="normal"><a href="#__codelineno-0-192">192</a></span>
-<span class="normal"><a href="#__codelineno-0-193">193</a></span>
-<span class="normal"><a href="#__codelineno-0-194">194</a></span>
-<span class="normal"><a href="#__codelineno-0-195">195</a></span>
-<span class="normal"><a href="#__codelineno-0-196">196</a></span>
-<span class="normal"><a href="#__codelineno-0-197">197</a></span>
-<span class="normal"><a href="#__codelineno-0-198">198</a></span>
-<span class="normal"><a href="#__codelineno-0-199">199</a></span>
-<span class="normal"><a href="#__codelineno-0-200">200</a></span>
-<span class="normal"><a href="#__codelineno-0-201">201</a></span>
-<span class="normal"><a href="#__codelineno-0-202">202</a></span>
-<span class="normal"><a href="#__codelineno-0-203">203</a></span>
-<span class="normal"><a href="#__codelineno-0-204">204</a></span>
-<span class="normal"><a href="#__codelineno-0-205">205</a></span>
-<span class="normal"><a href="#__codelineno-0-206">206</a></span>
-<span class="normal"><a href="#__codelineno-0-207">207</a></span>
-<span class="normal"><a href="#__codelineno-0-208">208</a></span>
-<span class="normal"><a href="#__codelineno-0-209">209</a></span>
-<span class="normal"><a href="#__codelineno-0-210">210</a></span>
-<span class="normal"><a href="#__codelineno-0-211">211</a></span>
-<span class="normal"><a href="#__codelineno-0-212">212</a></span>
-<span class="normal"><a href="#__codelineno-0-213">213</a></span>
-<span class="normal"><a href="#__codelineno-0-214">214</a></span>
-<span class="normal"><a href="#__codelineno-0-215">215</a></span>
-<span class="normal"><a href="#__codelineno-0-216">216</a></span>
-<span class="normal"><a href="#__codelineno-0-217">217</a></span>
-<span class="normal"><a href="#__codelineno-0-218">218</a></span>
-<span class="normal"><a href="#__codelineno-0-219">219</a></span>
-<span class="normal"><a href="#__codelineno-0-220">220</a></span>
-<span class="normal"><a href="#__codelineno-0-221">221</a></span>
-<span class="normal"><a href="#__codelineno-0-222">222</a></span>
-<span class="normal"><a href="#__codelineno-0-223">223</a></span>
-<span class="normal"><a href="#__codelineno-0-224">224</a></span>
-<span class="normal"><a href="#__codelineno-0-225">225</a></span>
-<span class="normal"><a href="#__codelineno-0-226">226</a></span>
-<span class="normal"><a href="#__codelineno-0-227">227</a></span>
-<span class="normal"><a href="#__codelineno-0-228">228</a></span>
-<span class="normal"><a href="#__codelineno-0-229">229</a></span>
+          <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-229">229</a></span>
 <span class="normal"><a href="#__codelineno-0-230">230</a></span>
 <span class="normal"><a href="#__codelineno-0-231">231</a></span>
 <span class="normal"><a href="#__codelineno-0-232">232</a></span>
@@ -815,95 +772,138 @@ the cp2k input (e.g. BASIS_SET_FILE_NAME)</p>
 <span class="normal"><a href="#__codelineno-0-271">271</a></span>
 <span class="normal"><a href="#__codelineno-0-272">272</a></span>
 <span class="normal"><a href="#__codelineno-0-273">273</a></span>
-<span class="normal"><a href="#__codelineno-0-274">274</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-186" name="__codelineno-0-186"></a><span class="k">class</span> <span class="nc">CP2KReference</span><span class="p">(</span><span class="n">BaseReference</span><span class="p">):</span>
-<a id="__codelineno-0-187" name="__codelineno-0-187"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;CP2K Reference</span>
-<a id="__codelineno-0-188" name="__codelineno-0-188"></a>
-<a id="__codelineno-0-189" name="__codelineno-0-189"></a><span class="sd">    Arguments</span>
-<a id="__codelineno-0-190" name="__codelineno-0-190"></a><span class="sd">    ---------</span>
-<a id="__codelineno-0-191" name="__codelineno-0-191"></a>
-<a id="__codelineno-0-192" name="__codelineno-0-192"></a><span class="sd">    cp2k_input : str</span>
-<a id="__codelineno-0-193" name="__codelineno-0-193"></a><span class="sd">        string representation of the cp2k input file.</span>
-<a id="__codelineno-0-194" name="__codelineno-0-194"></a>
-<a id="__codelineno-0-195" name="__codelineno-0-195"></a><span class="sd">    cp2k_data : dict</span>
-<a id="__codelineno-0-196" name="__codelineno-0-196"></a><span class="sd">        dictionary with data required during the calculation. E.g. basis</span>
-<a id="__codelineno-0-197" name="__codelineno-0-197"></a><span class="sd">        sets, pseudopotentials, ...</span>
-<a id="__codelineno-0-198" name="__codelineno-0-198"></a><span class="sd">        They are written to the local execution directory in order to make</span>
-<a id="__codelineno-0-199" name="__codelineno-0-199"></a><span class="sd">        them available to the cp2k executable.</span>
-<a id="__codelineno-0-200" name="__codelineno-0-200"></a><span class="sd">        The keys of the dictionary correspond to the capitalized keys in</span>
-<a id="__codelineno-0-201" name="__codelineno-0-201"></a><span class="sd">        the cp2k input (e.g. BASIS_SET_FILE_NAME)</span>
-<a id="__codelineno-0-202" name="__codelineno-0-202"></a>
-<a id="__codelineno-0-203" name="__codelineno-0-203"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-204" name="__codelineno-0-204"></a>    <span class="n">execution_types</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">ReferenceEvaluationExecution</span><span class="p">])</span>
-<a id="__codelineno-0-205" name="__codelineno-0-205"></a>    <span class="n">parameters_cls</span> <span class="o">=</span> <span class="n">CP2KParameters</span>
-<a id="__codelineno-0-206" name="__codelineno-0-206"></a>    <span class="n">required_files</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-0-207" name="__codelineno-0-207"></a>            <span class="s1">&#39;basis_set&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-208" name="__codelineno-0-208"></a>            <span class="s1">&#39;potential&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-209" name="__codelineno-0-209"></a>            <span class="s1">&#39;dftd3&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-210" name="__codelineno-0-210"></a>            <span class="p">]</span>
-<a id="__codelineno-0-211" name="__codelineno-0-211"></a>
-<a id="__codelineno-0-212" name="__codelineno-0-212"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-0-213" name="__codelineno-0-213"></a>    <span class="k">def</span> <span class="nf">create_apps</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
-<a id="__codelineno-0-214" name="__codelineno-0-214"></a>        <span class="n">execution</span>  <span class="o">=</span> <span class="n">context</span><span class="p">[</span><span class="bp">cls</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-<a id="__codelineno-0-215" name="__codelineno-0-215"></a>        <span class="n">label</span>       <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">executor</span>
-<a id="__codelineno-0-216" name="__codelineno-0-216"></a>        <span class="n">device</span>      <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">device</span>
-<a id="__codelineno-0-217" name="__codelineno-0-217"></a>        <span class="n">mpi_command</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">mpi_command</span>
-<a id="__codelineno-0-218" name="__codelineno-0-218"></a>        <span class="n">cp2k_exec</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">cp2k_exec</span>
-<a id="__codelineno-0-219" name="__codelineno-0-219"></a>        <span class="n">ncores</span>      <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">ncores</span>
-<a id="__codelineno-0-220" name="__codelineno-0-220"></a>        <span class="n">walltime</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">walltime</span>
-<a id="__codelineno-0-221" name="__codelineno-0-221"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">get_active_executor</span><span class="p">(</span><span class="n">label</span><span class="p">),</span> <span class="n">WorkQueueExecutor</span><span class="p">):</span>
-<a id="__codelineno-0-222" name="__codelineno-0-222"></a>            <span class="n">resource_specification</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">generate_parsl_resource_specification</span><span class="p">()</span>
-<a id="__codelineno-0-223" name="__codelineno-0-223"></a>        <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a>            <span class="n">resource_specification</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-225" name="__codelineno-0-225"></a>
-<a id="__codelineno-0-226" name="__codelineno-0-226"></a>        <span class="n">omp_num_threads</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">omp_num_threads</span>
-<a id="__codelineno-0-227" name="__codelineno-0-227"></a>        <span class="k">assert</span> <span class="n">ncores</span> <span class="o">%</span> <span class="n">execution</span><span class="o">.</span><span class="n">omp_num_threads</span> <span class="o">==</span> <span class="mi">0</span>
-<a id="__codelineno-0-228" name="__codelineno-0-228"></a>        <span class="n">mpi_num_procs</span> <span class="o">=</span> <span class="n">ncores</span> <span class="o">//</span> <span class="n">execution</span><span class="o">.</span><span class="n">omp_num_threads</span>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a>        <span class="k">assert</span> <span class="n">device</span> <span class="o">==</span> <span class="s1">&#39;cpu&#39;</span> <span class="c1"># cuda not supported at the moment</span>
-<a id="__codelineno-0-230" name="__codelineno-0-230"></a>
-<a id="__codelineno-0-231" name="__codelineno-0-231"></a>        <span class="c1"># parse full command</span>
-<a id="__codelineno-0-232" name="__codelineno-0-232"></a>        <span class="n">command</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
-<a id="__codelineno-0-233" name="__codelineno-0-233"></a>        <span class="k">if</span> <span class="n">mpi_command</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-234" name="__codelineno-0-234"></a>            <span class="n">command</span> <span class="o">+=</span> <span class="n">mpi_command</span><span class="p">(</span><span class="n">mpi_num_procs</span><span class="p">)</span>
-<a id="__codelineno-0-235" name="__codelineno-0-235"></a>        <span class="n">command</span> <span class="o">+=</span> <span class="s1">&#39; &#39;</span>
-<a id="__codelineno-0-236" name="__codelineno-0-236"></a>        <span class="n">command</span> <span class="o">+=</span> <span class="n">cp2k_exec</span>
+<span class="normal"><a href="#__codelineno-0-274">274</a></span>
+<span class="normal"><a href="#__codelineno-0-275">275</a></span>
+<span class="normal"><a href="#__codelineno-0-276">276</a></span>
+<span class="normal"><a href="#__codelineno-0-277">277</a></span>
+<span class="normal"><a href="#__codelineno-0-278">278</a></span>
+<span class="normal"><a href="#__codelineno-0-279">279</a></span>
+<span class="normal"><a href="#__codelineno-0-280">280</a></span>
+<span class="normal"><a href="#__codelineno-0-281">281</a></span>
+<span class="normal"><a href="#__codelineno-0-282">282</a></span>
+<span class="normal"><a href="#__codelineno-0-283">283</a></span>
+<span class="normal"><a href="#__codelineno-0-284">284</a></span>
+<span class="normal"><a href="#__codelineno-0-285">285</a></span>
+<span class="normal"><a href="#__codelineno-0-286">286</a></span>
+<span class="normal"><a href="#__codelineno-0-287">287</a></span>
+<span class="normal"><a href="#__codelineno-0-288">288</a></span>
+<span class="normal"><a href="#__codelineno-0-289">289</a></span>
+<span class="normal"><a href="#__codelineno-0-290">290</a></span>
+<span class="normal"><a href="#__codelineno-0-291">291</a></span>
+<span class="normal"><a href="#__codelineno-0-292">292</a></span>
+<span class="normal"><a href="#__codelineno-0-293">293</a></span>
+<span class="normal"><a href="#__codelineno-0-294">294</a></span>
+<span class="normal"><a href="#__codelineno-0-295">295</a></span>
+<span class="normal"><a href="#__codelineno-0-296">296</a></span>
+<span class="normal"><a href="#__codelineno-0-297">297</a></span>
+<span class="normal"><a href="#__codelineno-0-298">298</a></span>
+<span class="normal"><a href="#__codelineno-0-299">299</a></span>
+<span class="normal"><a href="#__codelineno-0-300">300</a></span>
+<span class="normal"><a href="#__codelineno-0-301">301</a></span>
+<span class="normal"><a href="#__codelineno-0-302">302</a></span>
+<span class="normal"><a href="#__codelineno-0-303">303</a></span>
+<span class="normal"><a href="#__codelineno-0-304">304</a></span>
+<span class="normal"><a href="#__codelineno-0-305">305</a></span>
+<span class="normal"><a href="#__codelineno-0-306">306</a></span>
+<span class="normal"><a href="#__codelineno-0-307">307</a></span>
+<span class="normal"><a href="#__codelineno-0-308">308</a></span>
+<span class="normal"><a href="#__codelineno-0-309">309</a></span>
+<span class="normal"><a href="#__codelineno-0-310">310</a></span>
+<span class="normal"><a href="#__codelineno-0-311">311</a></span>
+<span class="normal"><a href="#__codelineno-0-312">312</a></span>
+<span class="normal"><a href="#__codelineno-0-313">313</a></span>
+<span class="normal"><a href="#__codelineno-0-314">314</a></span>
+<span class="normal"><a href="#__codelineno-0-315">315</a></span>
+<span class="normal"><a href="#__codelineno-0-316">316</a></span>
+<span class="normal"><a href="#__codelineno-0-317">317</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="k">class</span> <span class="nc">CP2KReference</span><span class="p">(</span><span class="n">BaseReference</span><span class="p">):</span>
+<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;CP2K Reference</span>
+<a id="__codelineno-0-231" name="__codelineno-0-231"></a>
+<a id="__codelineno-0-232" name="__codelineno-0-232"></a><span class="sd">    Arguments</span>
+<a id="__codelineno-0-233" name="__codelineno-0-233"></a><span class="sd">    ---------</span>
+<a id="__codelineno-0-234" name="__codelineno-0-234"></a>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a><span class="sd">    cp2k_input : str</span>
+<a id="__codelineno-0-236" name="__codelineno-0-236"></a><span class="sd">        string representation of the cp2k input file.</span>
 <a id="__codelineno-0-237" name="__codelineno-0-237"></a>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a>        <span class="n">singlepoint_pre</span> <span class="o">=</span> <span class="n">bash_app</span><span class="p">(</span>
-<a id="__codelineno-0-239" name="__codelineno-0-239"></a>                <span class="n">cp2k_singlepoint_pre</span><span class="p">,</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a>                <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">label</span><span class="p">],</span>
-<a id="__codelineno-0-241" name="__codelineno-0-241"></a>                <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-0-242" name="__codelineno-0-242"></a>                <span class="p">)</span>
-<a id="__codelineno-0-243" name="__codelineno-0-243"></a>        <span class="n">singlepoint_post</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span>
-<a id="__codelineno-0-244" name="__codelineno-0-244"></a>                <span class="n">cp2k_singlepoint_post</span><span class="p">,</span>
-<a id="__codelineno-0-245" name="__codelineno-0-245"></a>                <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">label</span><span class="p">],</span>
-<a id="__codelineno-0-246" name="__codelineno-0-246"></a>                <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-0-247" name="__codelineno-0-247"></a>                <span class="p">)</span>
-<a id="__codelineno-0-248" name="__codelineno-0-248"></a>        <span class="k">def</span> <span class="nf">singlepoint_wrapped</span><span class="p">(</span>
-<a id="__codelineno-0-249" name="__codelineno-0-249"></a>                <span class="n">atoms</span><span class="p">,</span>
-<a id="__codelineno-0-250" name="__codelineno-0-250"></a>                <span class="n">parameters</span><span class="p">,</span>
-<a id="__codelineno-0-251" name="__codelineno-0-251"></a>                <span class="n">file_names</span><span class="p">,</span>
-<a id="__codelineno-0-252" name="__codelineno-0-252"></a>                <span class="n">inputs</span><span class="o">=</span><span class="p">[],</span>
-<a id="__codelineno-0-253" name="__codelineno-0-253"></a>                <span class="p">):</span>
-<a id="__codelineno-0-254" name="__codelineno-0-254"></a>            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_names</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
-<a id="__codelineno-0-255" name="__codelineno-0-255"></a>            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">required_files</span><span class="p">:</span>
-<a id="__codelineno-0-256" name="__codelineno-0-256"></a>                <span class="k">assert</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">file_names</span>
-<a id="__codelineno-0-257" name="__codelineno-0-257"></a>            <span class="n">pre</span> <span class="o">=</span> <span class="n">singlepoint_pre</span><span class="p">(</span>
-<a id="__codelineno-0-258" name="__codelineno-0-258"></a>                    <span class="n">atoms</span><span class="p">,</span>
-<a id="__codelineno-0-259" name="__codelineno-0-259"></a>                    <span class="n">parameters</span><span class="p">,</span>
-<a id="__codelineno-0-260" name="__codelineno-0-260"></a>                    <span class="n">command</span><span class="p">,</span>
-<a id="__codelineno-0-261" name="__codelineno-0-261"></a>                    <span class="n">file_names</span><span class="p">,</span>
-<a id="__codelineno-0-262" name="__codelineno-0-262"></a>                    <span class="n">omp_num_threads</span><span class="p">,</span>
-<a id="__codelineno-0-263" name="__codelineno-0-263"></a>                    <span class="n">stdout</span><span class="o">=</span><span class="n">parsl</span><span class="o">.</span><span class="n">AUTO_LOGNAME</span><span class="p">,</span>
-<a id="__codelineno-0-264" name="__codelineno-0-264"></a>                    <span class="n">stderr</span><span class="o">=</span><span class="n">parsl</span><span class="o">.</span><span class="n">AUTO_LOGNAME</span><span class="p">,</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a>                    <span class="n">walltime</span><span class="o">=</span><span class="mi">60</span> <span class="o">*</span> <span class="n">walltime</span><span class="p">,</span> <span class="c1"># killed after walltime - 10s</span>
-<a id="__codelineno-0-266" name="__codelineno-0-266"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span> <span class="c1"># tmp Files</span>
-<a id="__codelineno-0-267" name="__codelineno-0-267"></a>                    <span class="n">parsl_resource_specification</span><span class="o">=</span><span class="n">resource_specification</span><span class="p">,</span>
-<a id="__codelineno-0-268" name="__codelineno-0-268"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-269" name="__codelineno-0-269"></a>            <span class="k">return</span> <span class="n">singlepoint_post</span><span class="p">(</span>
-<a id="__codelineno-0-270" name="__codelineno-0-270"></a>                    <span class="n">atoms</span><span class="o">=</span><span class="n">atoms</span><span class="p">,</span>
-<a id="__codelineno-0-271" name="__codelineno-0-271"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">pre</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">pre</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="n">pre</span><span class="p">],</span> <span class="c1"># wait for bash app</span>
-<a id="__codelineno-0-272" name="__codelineno-0-272"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-273" name="__codelineno-0-273"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;evaluate_single&#39;</span><span class="p">,</span> <span class="n">singlepoint_wrapped</span><span class="p">)</span>
-<a id="__codelineno-0-274" name="__codelineno-0-274"></a>        <span class="nb">super</span><span class="p">(</span><span class="n">CP2KReference</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="n">create_apps</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+<a id="__codelineno-0-238" name="__codelineno-0-238"></a><span class="sd">    cp2k_data : dict</span>
+<a id="__codelineno-0-239" name="__codelineno-0-239"></a><span class="sd">        dictionary with data required during the calculation. E.g. basis</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a><span class="sd">        sets, pseudopotentials, ...</span>
+<a id="__codelineno-0-241" name="__codelineno-0-241"></a><span class="sd">        They are written to the local execution directory in order to make</span>
+<a id="__codelineno-0-242" name="__codelineno-0-242"></a><span class="sd">        them available to the cp2k executable.</span>
+<a id="__codelineno-0-243" name="__codelineno-0-243"></a><span class="sd">        The keys of the dictionary correspond to the capitalized keys in</span>
+<a id="__codelineno-0-244" name="__codelineno-0-244"></a><span class="sd">        the cp2k input (e.g. BASIS_SET_FILE_NAME)</span>
+<a id="__codelineno-0-245" name="__codelineno-0-245"></a>
+<a id="__codelineno-0-246" name="__codelineno-0-246"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-247" name="__codelineno-0-247"></a>    <span class="n">execution_types</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">ReferenceEvaluationExecution</span><span class="p">])</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a>    <span class="n">parameters_cls</span> <span class="o">=</span> <span class="n">CP2KParameters</span>
+<a id="__codelineno-0-249" name="__codelineno-0-249"></a>    <span class="n">required_files</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-0-250" name="__codelineno-0-250"></a>            <span class="s1">&#39;basis_set&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-251" name="__codelineno-0-251"></a>            <span class="s1">&#39;potential&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a>            <span class="s1">&#39;dftd3&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-253" name="__codelineno-0-253"></a>            <span class="p">]</span>
+<a id="__codelineno-0-254" name="__codelineno-0-254"></a>
+<a id="__codelineno-0-255" name="__codelineno-0-255"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-0-256" name="__codelineno-0-256"></a>    <span class="k">def</span> <span class="nf">create_apps</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+<a id="__codelineno-0-257" name="__codelineno-0-257"></a>        <span class="n">execution</span>  <span class="o">=</span> <span class="n">context</span><span class="p">[</span><span class="bp">cls</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-0-258" name="__codelineno-0-258"></a>        <span class="n">label</span>       <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">executor</span>
+<a id="__codelineno-0-259" name="__codelineno-0-259"></a>        <span class="n">device</span>      <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">device</span>
+<a id="__codelineno-0-260" name="__codelineno-0-260"></a>        <span class="n">mpi_command</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">mpi_command</span>
+<a id="__codelineno-0-261" name="__codelineno-0-261"></a>        <span class="n">cp2k_exec</span>   <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">cp2k_exec</span>
+<a id="__codelineno-0-262" name="__codelineno-0-262"></a>        <span class="n">ncores</span>      <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">ncores</span>
+<a id="__codelineno-0-263" name="__codelineno-0-263"></a>        <span class="n">walltime</span>    <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">walltime</span>
+<a id="__codelineno-0-264" name="__codelineno-0-264"></a>        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">get_active_executor</span><span class="p">(</span><span class="n">label</span><span class="p">),</span> <span class="n">WorkQueueExecutor</span><span class="p">):</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a>            <span class="n">resource_specification</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">generate_parsl_resource_specification</span><span class="p">()</span>
+<a id="__codelineno-0-266" name="__codelineno-0-266"></a>        <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-0-267" name="__codelineno-0-267"></a>            <span class="n">resource_specification</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-268" name="__codelineno-0-268"></a>
+<a id="__codelineno-0-269" name="__codelineno-0-269"></a>        <span class="n">omp_num_threads</span> <span class="o">=</span> <span class="n">execution</span><span class="o">.</span><span class="n">omp_num_threads</span>
+<a id="__codelineno-0-270" name="__codelineno-0-270"></a>        <span class="k">assert</span> <span class="n">ncores</span> <span class="o">%</span> <span class="n">execution</span><span class="o">.</span><span class="n">omp_num_threads</span> <span class="o">==</span> <span class="mi">0</span>
+<a id="__codelineno-0-271" name="__codelineno-0-271"></a>        <span class="n">mpi_num_procs</span> <span class="o">=</span> <span class="n">ncores</span> <span class="o">//</span> <span class="n">execution</span><span class="o">.</span><span class="n">omp_num_threads</span>
+<a id="__codelineno-0-272" name="__codelineno-0-272"></a>        <span class="k">assert</span> <span class="n">device</span> <span class="o">==</span> <span class="s1">&#39;cpu&#39;</span> <span class="c1"># cuda not supported at the moment</span>
+<a id="__codelineno-0-273" name="__codelineno-0-273"></a>
+<a id="__codelineno-0-274" name="__codelineno-0-274"></a>        <span class="c1"># parse full command</span>
+<a id="__codelineno-0-275" name="__codelineno-0-275"></a>        <span class="n">command</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+<a id="__codelineno-0-276" name="__codelineno-0-276"></a>        <span class="k">if</span> <span class="n">mpi_command</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-277" name="__codelineno-0-277"></a>            <span class="n">command</span> <span class="o">+=</span> <span class="n">mpi_command</span><span class="p">(</span><span class="n">mpi_num_procs</span><span class="p">)</span>
+<a id="__codelineno-0-278" name="__codelineno-0-278"></a>        <span class="n">command</span> <span class="o">+=</span> <span class="s1">&#39; &#39;</span>
+<a id="__codelineno-0-279" name="__codelineno-0-279"></a>        <span class="n">command</span> <span class="o">+=</span> <span class="n">cp2k_exec</span>
+<a id="__codelineno-0-280" name="__codelineno-0-280"></a>
+<a id="__codelineno-0-281" name="__codelineno-0-281"></a>        <span class="n">singlepoint_pre</span> <span class="o">=</span> <span class="n">bash_app</span><span class="p">(</span>
+<a id="__codelineno-0-282" name="__codelineno-0-282"></a>                <span class="n">cp2k_singlepoint_pre</span><span class="p">,</span>
+<a id="__codelineno-0-283" name="__codelineno-0-283"></a>                <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">label</span><span class="p">],</span>
+<a id="__codelineno-0-284" name="__codelineno-0-284"></a>                <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-285" name="__codelineno-0-285"></a>                <span class="p">)</span>
+<a id="__codelineno-0-286" name="__codelineno-0-286"></a>        <span class="n">singlepoint_post</span> <span class="o">=</span> <span class="n">python_app</span><span class="p">(</span>
+<a id="__codelineno-0-287" name="__codelineno-0-287"></a>                <span class="n">cp2k_singlepoint_post</span><span class="p">,</span>
+<a id="__codelineno-0-288" name="__codelineno-0-288"></a>                <span class="n">executors</span><span class="o">=</span><span class="p">[</span><span class="n">label</span><span class="p">],</span>
+<a id="__codelineno-0-289" name="__codelineno-0-289"></a>                <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-290" name="__codelineno-0-290"></a>                <span class="p">)</span>
+<a id="__codelineno-0-291" name="__codelineno-0-291"></a>        <span class="k">def</span> <span class="nf">singlepoint_wrapped</span><span class="p">(</span>
+<a id="__codelineno-0-292" name="__codelineno-0-292"></a>                <span class="n">atoms</span><span class="p">,</span>
+<a id="__codelineno-0-293" name="__codelineno-0-293"></a>                <span class="n">parameters</span><span class="p">,</span>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>                <span class="n">file_names</span><span class="p">,</span>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a>                <span class="n">inputs</span><span class="o">=</span><span class="p">[],</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a>                <span class="p">):</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">file_names</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">required_files</span><span class="p">:</span>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>                <span class="k">assert</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">file_names</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>            <span class="n">pre</span> <span class="o">=</span> <span class="n">singlepoint_pre</span><span class="p">(</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>                    <span class="n">atoms</span><span class="p">,</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>                    <span class="n">parameters</span><span class="p">,</span>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a>                    <span class="n">command</span><span class="p">,</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a>                    <span class="n">file_names</span><span class="p">,</span>
+<a id="__codelineno-0-305" name="__codelineno-0-305"></a>                    <span class="n">omp_num_threads</span><span class="p">,</span>
+<a id="__codelineno-0-306" name="__codelineno-0-306"></a>                    <span class="n">stdout</span><span class="o">=</span><span class="n">parsl</span><span class="o">.</span><span class="n">AUTO_LOGNAME</span><span class="p">,</span>
+<a id="__codelineno-0-307" name="__codelineno-0-307"></a>                    <span class="n">stderr</span><span class="o">=</span><span class="n">parsl</span><span class="o">.</span><span class="n">AUTO_LOGNAME</span><span class="p">,</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308"></a>                    <span class="n">walltime</span><span class="o">=</span><span class="mi">60</span> <span class="o">*</span> <span class="n">walltime</span><span class="p">,</span> <span class="c1"># killed after walltime - 10s</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span> <span class="c1"># tmp Files</span>
+<a id="__codelineno-0-310" name="__codelineno-0-310"></a>                    <span class="n">parsl_resource_specification</span><span class="o">=</span><span class="n">resource_specification</span><span class="p">,</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>            <span class="k">return</span> <span class="n">singlepoint_post</span><span class="p">(</span>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a>                    <span class="n">atoms</span><span class="o">=</span><span class="n">atoms</span><span class="p">,</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="p">[</span><span class="n">pre</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">pre</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="n">pre</span><span class="p">],</span> <span class="c1"># wait for bash app</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-316" name="__codelineno-0-316"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;evaluate_single&#39;</span><span class="p">,</span> <span class="n">singlepoint_wrapped</span><span class="p">)</span>
+<a id="__codelineno-0-317" name="__codelineno-0-317"></a>        <span class="nb">super</span><span class="p">(</span><span class="n">CP2KReference</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="n">create_apps</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
         </details>
 
