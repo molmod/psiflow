@@ -77,7 +77,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     dataset_validation: str = 'ase'
     dataset_validation_file_name: str = 'giggle.xyz'
     chemical_symbols: Optional[list[str]] = field(default_factory=lambda: ['X']) # gets overridden
-    wandb: bool = False
+    wandb: bool = True # enable by default
     wandb_project: str = 'psiflow'
     wandb_watch: bool = False
     verbose: str = 'info'

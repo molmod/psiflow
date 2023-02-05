@@ -254,7 +254,7 @@ assert np.allclose(
         trajectory[-1].result().positions,  # trajectory is a Dataset; use regular indexing and .result()
         )
 ```
-!!! note "Futures are necessary"
+!!! note "Parsl 102: Futures are necessary"
     This example should also illustrate why exactly we would represent data using
     Futures in the first place.
     Suppose that the `walker.propagate` call is configured to run on a SLURM job
@@ -296,22 +296,185 @@ training or validation sets.
 ## Ensemble
 In online learning applications, it is almost always beneficial to maximally
 parallelize the phase space sampling computations in the data generation stage.
-In particular, this means that instead of generating a long MD trajectory and
-subsampling it to obtain atomic configurations, it is much more efficient
-to initialize multiple MD walkers at once and let them explore the phase space
-in parallel. In this way, one can obtain the same number of decorrelated snapshots
-in a much shorter amount of time.
-To accomodate for this scenario, psiflow provides the `Ensemble` class.  
-It basically contains a set of walkers, and provides a `sample()` method
-which uses those walkers to sample a user-defined number of states.
+For example, to generate 10 decorrelated configurations, it is much more efficient
+to initialize 10 walkers and use `walker.propagate()` exactly once for each
+walker, rather than using a single walker that performs 10 sequential propagations.
+To accomodate for this scenario, psiflow provides the `Ensemble` class.
+It basically contains a list of walkers, and provides a `sample()` method
+which uses those walkers to sample a user-defined number of states and store
+them in a `Dataset` instance.
+The ensemble does not have to be homogeneous, i.e. it can contain multiple
+different types of walkers.
+```py
+from psiflow.sampling import RandomWalker, DynamicWalker
+from psiflow.ensemble import Ensemble
 
 
+walkers = [
+        RandomWalker(),
+        RandomWalker(),
+        DynamicWalker(temperature=400),
+        DynamicWalker(temperature=600),
+        ]
+ensemble = Ensemble(context, walkers)
+small = ensemble.sample(4, model)           # sample 4 states; 1 per model
+large = ensemble.sample(7, model)           # sample 7 states; at least 1 per model
+
+small.length().result()       # returns 4
+large.length().result()       # returns 7
+
+```
+In online learning, a common scenario is to generate data using
+many different molecular dynamics simulations; all of which with the same parameters but
+simply initialized in a different way (either with a different seed or a different starting configuration).
+Psiflow provides a simple way to generate an ensemble of walkers based on a
+single 'template' walker; the only difference between each pair of walkers will
+be the random number seed and possibly the starting configuration.
+```py
+template = DynamicWalker(steps=1000, temperature=600)
+ensemble = Ensemble.from_walker(
+        template,
+        nwalkers=10,
+        dataset=None,       # if dataset is not None, it provides the initial configurations for each walker
+        )
+
+print(len(ensemble.walkers))                   # 10
+print(ensemble.walkers[0].parameters.seed)     # unique seed: 0
+print(ensemble.walkers[1].parameters.seed)     # unique seed: 1
+```
 
 ## Bias potentials and enhanced sampling
+In the vast majority of molecular dynamics simulations of realistic systems,
+it is beneficial to modify the equilibrium Boltzmann distribution with bias potentials
+or advanced sampling schemes as to increase the sampling efficiency and reduce
+redundancy within the trajectory.
+The [PLUMED](plumed.org) library provides the user with various choices of enhanced sampling
+techniques, and psiflow provides a specific `PlumedBias` class to implement
+these techniques in the existing `DynamicWalker` implementation of molecular
+dynamics.
+
+In the following example, we define the PLUMED input as a multi-line string in
+Python. We consider the particular case of applying a metadynamics bias to
+a collective variable, in this case the unit cell volume.
+Because metadynamics represents a time-dependent bias,
+it relies on an additional _hills_ file which keeps track of the location of
+Gaussian hills that were installed in the system at various steps throughout
+the simulation. Psiflow automatically takes care of such external files, and
+their file path in the input string is essentially irrelevant.
+```py
+from psiflow.sampling import DynamicWalker, PlumedBias
+
+
+plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=10 LABEL=metad FILE=dummy
+"""
+bias = PlumedBias(context, plumed_input)        # a new hills file is generated
+
+walker = DynamicWalker()
+state = walker.propagate(model, bias=bias)      # this state is obtained through biased MD
+
+```
+Note that the bias instance will retain the hills it generated during walker
+propagation.
+Let's say we wanted to investigate what our training data from before looks like
+in terms of collective variable distribution and bias energy.
+To facilitate this, psiflow provides the ability to evaluate `PlumedBias` objects
+on `Dataset` instances using the `bias.evaluate()` method.
+
+```py
+values = bias.evaluate(data_train, variable='CV')       # evaluate all PLUMED actions with ARG=CV on data_train
+
+assert values.result().shape[0] == data_train.length().result()  # each snapshot is evaluated separately
+assert values.result().shape[1] == 2                             # CV and bias per snapshot, in PLUMED units!
+assert not np.allclose(values.result()[:, 1], 0)                 # nonzero bias energy
+```
+As another example, let's consider the same collective variable but now with
+a harmonic bias potential applied to it.
+Because sampling with and manipulation of harmonic bias potentials is ubiquitous
+in free energy calculations, psiflow provides specific support for this.
+```py
+plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
+"""
+bias  = PlumedBias(context, plumed_input)
+state0 = walker.propagate(model, bias=bias)                 # propagation with bias centered at CV=150
+
+bias.adjust_restraint(variable='CV', kappa=2, center=200)   # decrease width and shift center to higher volume
+state1 = walker.propagate(model, bias=bias)     
+
+# if the system had enough time to equilibrate with the bias, then the following should hold
+assert state0.result().get_volume() < state1.result().get_volume()
+
+```
+Finally, psiflow also explicitly supports the use of numerical bias potentials
+as defined on a grid:
+```py
+import numpy as np
+from psiflow.sampling.bias import generate_external_grid
+
+bias_function = lambda x: np.exp(-0.01 * (x - 150) ** 2)    # Gaussian hill at CV=150
+grid_values   = np.linspace(0, 300, 500)                    # CV values for numerical grid
+
+grid = generate_external_grid(      # generate contents of PLUMED grid file
+        bias_function,
+        grid_values,                
+        'CV',                       # use ARG=CV in the EXTERNAL action
+        periodic=False,             # periodicity of CV
+        )
+bias = PlumedBias(context, plumed_input, data={'EXTERNAL': grid})   # pass grid file as external dependency
+```
+Bias potentials can also be added to an `Ensemble`, either upon initialization
+or using the `ensemble.add_bias()` method.
+Note that metadynamics hills files cannot be shared between walkers 
+(as is the case in multiple walker metadynamics) as this would
+violate their strict independence.
+
+!!! note 
+    PLUMED interfacing is not supported for the `OptimizationWalker` because
+    (i) it is rarely ever useful to add a bias during optimization, and (ii)
+    ASE's PLUMED interface is shaky at best.
+
+
 ## Level of theory
-In addition to the standard attributes such as `atoms.numbers`, `atoms.positions`, and
-`atoms.cell`, psiflow offers the ability to store output and error logs of the QM evaluation
-for each particular configuration.
+Data sampled using the `Ensemble` should be labeled with the correct QM energy,
+force, and virial stress before it can be used during model training.
+The `BaseReference` class implements the singlepoint evaluations using specific
+QM software packages and levels of theory.
+At the moment, psiflow only supports CP2K as the reference level of theory,
+though VASP and ORCA will be added in the near future.
+### CP2K
+The `CP2KReference` expects a traditional CP2K
+[input file](https://github.com/svandenhaute/psiflow/blob/main/examples/data/cp2k_input.txt)
+(again represented as a multi-line string in Python, just like the PLUMED input);
+it should only contain the FORCE_EVAL section.
+Additional input files which define the basis sets, pseudopotentials, and
+dispersion correction parameters can be added to the calculator after initialization.
+```py
+from psiflow.reference import CP2KReference
+
+
+cp2k_input = with file('cp2k_input.txt', 'r') as f: f.read()
+reference  = CP2KReference(context, cp2k_input)
+
+# register additional input files with the following mapping
+# if the corresponding keyword in the CP2K input file is X, use Y as key here:
+# X: BASIS_SET_FILE_NAME    ->   Y: basis_set
+# X: POTENTIAL_FILE_NAME    ->   Y: potential
+# X: PARAMETER_FILE_NAME    ->   Y: dftd3
+reference.add_file('basis_set', 'BASIS_MOLOPT_UZH')
+reference.add_file('potential', 'POTENTIAL_UZH')
+reference.add_file('dftd3', 'dftd3.dat')
+
+unlabeled = ensemble.sample(model=model)            # sample some states using some ensemble
+labeled = reference.evaluate(unlabeled)             # perform parallel singlepoint of all snapshots
+
+print(labeled[0].result().info['energy'])           # cp2k potential energy!
+```
+
 
 ## Learning Algorithms
 The following is a (simplified) excerpt that illustrates how these basic
@@ -349,10 +512,5 @@ for i in range(parameters.niterations):
 
     epochs = model.train(data_train, data_valid) # train model for some time
 ```
+[TODO]
 
-For example, a NequIP potential (as defined by its full `config.yaml`) is
-represented using a `NequIPModel`.
-A specific CP2K input file (including basis sets, pseudopotentials, etc)
-is represented by a `CP2KReference`. Its `evaluate()` method will wrap around
-the `cp2k.psmp` or `cp2k.popt` executables that are provided by CP2K,
-most likely prepended with the appropriate `mpirun` command.

@@ -558,13 +558,16 @@ def train(args, path_model, running_time) -> None:
     ] + collections.tests
 
     for swa_eval in swas:
+        device = torch.device('cpu')
+        model = model.to(torch.device('cpu'))
         print('loading checkpoint with swa set to {}'.format(swa_eval))
+        print('loading into device {}'.format(device))
         epoch = checkpoint_handler.load_latest(
             state=tools.CheckpointState(model, optimizer, lr_scheduler),
             swa=swa_eval,
             device=device,
         )
-        model.to(device)
+        #model.to(device)
         logging.info(f"Loaded model from epoch {epoch}")
 
         #table = create_error_table(

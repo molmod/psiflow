@@ -292,6 +292,10 @@ def test_mace_train(context, mace_config, dataset, tmp_path):
     model.model_future.result()
     assert len(model.deploy_future) == 0
     model.deploy()
+    model.reset()
+    model.initialize(training)
+    model.train(training, validation)
+    model.deploy()
     errors1 = Dataset.get_errors(validation, model.evaluate(validation))
     assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
     errors1 = Dataset.get_errors(validation, model.evaluate(validation))
