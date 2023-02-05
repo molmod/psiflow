@@ -263,6 +263,19 @@
     Level of theory
   </a>
   
+    <nav class="md-nav" aria-label="Level of theory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cp2k" class="md-nav__link">
+    CP2K
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -961,7 +974,7 @@ will evaluate to True:
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        )
 </code></pre></div></p>
 <div class="admonition note">
-<p class="admonition-title">Futures are necessary</p>
+<p class="admonition-title">Parsl 102: Futures are necessary</p>
 <p>This example should also illustrate why exactly we would represent data using
 Futures in the first place.
 Suppose that the <code>walker.propagate</code> call is configured to run on a SLURM job
@@ -1000,59 +1013,205 @@ training or validation sets. </p>
 <h2 id="ensemble">Ensemble</h2>
 <p>In online learning applications, it is almost always beneficial to maximally
 parallelize the phase space sampling computations in the data generation stage.
-In particular, this means that instead of generating a long MD trajectory and
-subsampling it to obtain atomic configurations, it is much more efficient
-to initialize multiple MD walkers at once and let them explore the phase space
-in parallel. In this way, one can obtain the same number of decorrelated snapshots
-in a much shorter amount of time.
-To accomodate for this scenario, psiflow provides the <code>Ensemble</code> class.<br />
-It basically contains a set of walkers, and provides a <code>sample()</code> method
-which uses those walkers to sample a user-defined number of states.</p>
+For example, to generate 10 decorrelated configurations, it is much more efficient
+to initialize 10 walkers and use <code>walker.propagate()</code> exactly once for each
+walker, rather than using a single walker that performs 10 sequential propagations.
+To accomodate for this scenario, psiflow provides the <code>Ensemble</code> class.
+It basically contains a list of walkers, and provides a <code>sample()</code> method
+which uses those walkers to sample a user-defined number of states and store
+them in a <code>Dataset</code> instance.
+The ensemble does not have to be homogeneous, i.e. it can contain multiple
+different types of walkers.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">RandomWalker</span><span class="p">,</span> <span class="n">DynamicWalker</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span> <span class="nn">psiflow.ensemble</span> <span class="kn">import</span> <span class="n">Ensemble</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">walkers</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>        <span class="n">RandomWalker</span><span class="p">(),</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>        <span class="n">RandomWalker</span><span class="p">(),</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>        <span class="n">DynamicWalker</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mi">400</span><span class="p">),</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>        <span class="n">DynamicWalker</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">),</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>        <span class="p">]</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="n">ensemble</span> <span class="o">=</span> <span class="n">Ensemble</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">walkers</span><span class="p">)</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="n">small</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>           <span class="c1"># sample 4 states; 1 per model</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="n">large</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>           <span class="c1"># sample 7 states; at least 1 per model</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="n">small</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>       <span class="c1"># returns 4</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="n">large</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>       <span class="c1"># returns 7</span>
+</code></pre></div>
+In online learning, a common scenario is to generate data using
+many different molecular dynamics simulations; all of which with the same parameters but
+simply initialized in a different way (either with a different seed or a different starting configuration).
+Psiflow provides a simple way to generate an ensemble of walkers based on a
+single 'template' walker; the only difference between each pair of walkers will
+be the random number seed and possibly the starting configuration.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">template</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span><span class="n">steps</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">ensemble</span> <span class="o">=</span> <span class="n">Ensemble</span><span class="o">.</span><span class="n">from_walker</span><span class="p">(</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>        <span class="n">template</span><span class="p">,</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>        <span class="n">nwalkers</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>        <span class="n">dataset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>       <span class="c1"># if dataset is not None, it provides the initial configurations for each walker</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>        <span class="p">)</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ensemble</span><span class="o">.</span><span class="n">walkers</span><span class="p">))</span>                   <span class="c1"># 10</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">ensemble</span><span class="o">.</span><span class="n">walkers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>     <span class="c1"># unique seed: 0</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">ensemble</span><span class="o">.</span><span class="n">walkers</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>     <span class="c1"># unique seed: 1</span>
+</code></pre></div></p>
 <h2 id="bias-potentials-and-enhanced-sampling">Bias potentials and enhanced sampling</h2>
+<p>In the vast majority of molecular dynamics simulations of realistic systems,
+it is beneficial to modify the equilibrium Boltzmann distribution with bias potentials
+or advanced sampling schemes as to increase the sampling efficiency and reduce
+redundancy within the trajectory.
+The <a href="plumed.org">PLUMED</a> library provides the user with various choices of enhanced sampling
+techniques, and psiflow provides a specific <code>PlumedBias</code> class to implement
+these techniques in the existing <code>DynamicWalker</code> implementation of molecular
+dynamics.</p>
+<p>In the following example, we define the PLUMED input as a multi-line string in
+Python. We consider the particular case of applying a metadynamics bias to
+a collective variable, in this case the unit cell volume.
+Because metadynamics represents a time-dependent bias,
+it relies on an additional <em>hills</em> file which keeps track of the location of
+Gaussian hills that were installed in the system at various steps throughout
+the simulation. Psiflow automatically takes care of such external files, and
+their file path in the input string is essentially irrelevant.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">DynamicWalker</span><span class="p">,</span> <span class="n">PlumedBias</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="s2">CV: VOLUME</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="s2">METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=10 LABEL=metad FILE=dummy</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">plumed_input</span><span class="p">)</span>        <span class="c1"># a new hills file is generated</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">()</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="n">state</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">)</span>      <span class="c1"># this state is obtained through biased MD</span>
+</code></pre></div>
+Note that the bias instance will retain the hills it generated during walker
+propagation.
+Let's say we wanted to investigate what our training data from before looks like
+in terms of collective variable distribution and bias energy.
+To facilitate this, psiflow provides the ability to evaluate <code>PlumedBias</code> objects
+on <code>Dataset</code> instances using the <code>bias.evaluate()</code> method.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">values</span> <span class="o">=</span> <span class="n">bias</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">)</span>       <span class="c1"># evaluate all PLUMED actions with ARG=CV on data_train</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">data_train</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>  <span class="c1"># each snapshot is evaluated separately</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>                             <span class="c1"># CV and bias per snapshot, in PLUMED units!</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>                 <span class="c1"># nonzero bias energy</span>
+</code></pre></div>
+As another example, let's consider the same collective variable but now with
+a harmonic bias potential applied to it.
+Because sampling with and manipulation of harmonic bias potentials is ubiquitous
+in free energy calculations, psiflow provides specific support for this.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="s2">CV: VOLUME</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="s2">RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="n">bias</span>  <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">plumed_input</span><span class="p">)</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="n">state0</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">)</span>                 <span class="c1"># propagation with bias centered at CV=150</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="n">bias</span><span class="o">.</span><span class="n">adjust_restraint</span><span class="p">(</span><span class="n">variable</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">,</span> <span class="n">kappa</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>   <span class="c1"># decrease width and shift center to higher volume</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="n">state1</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">)</span>     
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="c1"># if the system had enough time to equilibrate with the bias, then the following should hold</span>
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="k">assert</span> <span class="n">state0</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">state1</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span>
+</code></pre></div>
+Finally, psiflow also explicitly supports the use of numerical bias potentials
+as defined on a grid:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="kn">from</span> <span class="nn">psiflow.sampling.bias</span> <span class="kn">import</span> <span class="n">generate_external_grid</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">bias_function</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mi">150</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>    <span class="c1"># Gaussian hill at CV=150</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="n">grid_values</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">300</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span>                    <span class="c1"># CV values for numerical grid</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="n">grid</span> <span class="o">=</span> <span class="n">generate_external_grid</span><span class="p">(</span>      <span class="c1"># generate contents of PLUMED grid file</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>        <span class="n">bias_function</span><span class="p">,</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>        <span class="n">grid_values</span><span class="p">,</span>                
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>        <span class="s1">&#39;CV&#39;</span><span class="p">,</span>                       <span class="c1"># use ARG=CV in the EXTERNAL action</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>        <span class="n">periodic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>             <span class="c1"># periodicity of CV</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>        <span class="p">)</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">plumed_input</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;EXTERNAL&#39;</span><span class="p">:</span> <span class="n">grid</span><span class="p">})</span>   <span class="c1"># pass grid file as external dependency</span>
+</code></pre></div>
+Bias potentials can also be added to an <code>Ensemble</code>, either upon initialization
+or using the <code>ensemble.add_bias()</code> method.
+Note that metadynamics hills files cannot be shared between walkers 
+(as is the case in multiple walker metadynamics) as this would
+violate their strict independence.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>PLUMED interfacing is not supported for the <code>OptimizationWalker</code> because
+(i) it is rarely ever useful to add a bias during optimization, and (ii)
+ASE's PLUMED interface is shaky at best.</p>
+</div>
 <h2 id="level-of-theory">Level of theory</h2>
-<p>In addition to the standard attributes such as <code>atoms.numbers</code>, <code>atoms.positions</code>, and
-<code>atoms.cell</code>, psiflow offers the ability to store output and error logs of the QM evaluation
-for each particular configuration.</p>
+<p>Data sampled using the <code>Ensemble</code> should be labeled with the correct QM energy,
+force, and virial stress before it can be used during model training.
+The <code>BaseReference</code> class implements the singlepoint evaluations using specific
+QM software packages and levels of theory.
+At the moment, psiflow only supports CP2K as the reference level of theory,
+though VASP and ORCA will be added in the near future.</p>
+<h3 id="cp2k">CP2K</h3>
+<p>The <code>CP2KReference</code> expects a traditional CP2K
+<a href="https://github.com/svandenhaute/psiflow/blob/main/examples/data/cp2k_input.txt">input file</a>
+(again represented as a multi-line string in Python, just like the PLUMED input);
+it should only contain the FORCE_EVAL section.
+Additional input files which define the basis sets, pseudopotentials, and
+dispersion correction parameters can be added to the calculator after initialization.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">CP2KReference</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">cp2k_input</span> <span class="o">=</span> <span class="k">with</span> <span class="n">file</span><span class="p">(</span><span class="s1">&#39;cp2k_input.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">reference</span>  <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">cp2k_input</span><span class="p">)</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># register additional input files with the following mapping</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="c1"># if the corresponding keyword in the CP2K input file is X, use Y as key here:</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="c1"># X: BASIS_SET_FILE_NAME    -&gt;   Y: basis_set</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="c1"># X: POTENTIAL_FILE_NAME    -&gt;   Y: potential</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="c1"># X: PARAMETER_FILE_NAME    -&gt;   Y: dftd3</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;basis_set&#39;</span><span class="p">,</span> <span class="s1">&#39;BASIS_MOLOPT_UZH&#39;</span><span class="p">)</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;potential&#39;</span><span class="p">,</span> <span class="s1">&#39;POTENTIAL_UZH&#39;</span><span class="p">)</span>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;dftd3&#39;</span><span class="p">,</span> <span class="s1">&#39;dftd3.dat&#39;</span><span class="p">)</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="n">unlabeled</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>            <span class="c1"># sample some states using some ensemble</span>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="n">labeled</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">unlabeled</span><span class="p">)</span>             <span class="c1"># perform parallel singlepoint of all snapshots</span>
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">])</span>           <span class="c1"># cp2k potential energy!</span>
+</code></pre></div></p>
 <h2 id="learning-algorithms">Learning Algorithms</h2>
 <p>The following is a (simplified) excerpt that illustrates how these basic
 building blocks may be used to implement a simple online
 learning approach:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># parameters (dataclass)        : defines number of iterations and the number of states to sample</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="c1"># model (type BaseModel)        : represents a trainable potential (e.g. NequIP)</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># data_train (type Dataset)     : represents the initial training and validation data</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># data_valid</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># ensemble (type Ensemble)      : defines phase space sampling (e.g. 20 parallel MD runs)</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># reference (type BaseReference): defines the QM level of theory and calculator (e.g. CP2K, PBE-D3(BJ)+TZVP)</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">parameters</span><span class="o">.</span><span class="n">niterations</span><span class="p">):</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="n">model</span><span class="o">.</span><span class="n">deploy</span><span class="p">()</span> <span class="c1"># performs e.g. torch.jit.compile in desired precision</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="c1"># ensemble wraps a set of phase space walkers (e.g. multiple NPT simulations)</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>            <span class="n">parameters</span><span class="o">.</span><span class="n">nstates</span><span class="p">,</span> <span class="c1"># sample this number of states</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="c1"># use current best model as potential energy surface</span>
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>            <span class="p">)</span>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span> <span class="c1"># massively parallel QM evaluation of sampled states</span>
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>    <span class="n">data_success</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">success</span><span class="p">)</span> <span class="c1"># some calculations may fail!</span>
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>    <span class="n">train</span><span class="p">,</span> <span class="n">valid</span> <span class="o">=</span> <span class="n">get_train_valid_indices</span><span class="p">(</span>
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>            <span class="n">data_success</span><span class="o">.</span><span class="n">length</span><span class="p">(),</span>
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">train_valid_split</span><span class="p">,</span>
-<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>            <span class="p">)</span>
-<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>    <span class="n">data_train</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_success</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">train</span><span class="p">))</span>
-<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>    <span class="n">data_valid</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_success</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">valid</span><span class="p">))</span>
-<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>
-<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>    <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">retrain_model_per_iteration</span><span class="p">:</span> <span class="c1"># recalibrate scale/shift/avg_num_neighbors</span>
-<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a>        <span class="n">model</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>        <span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>
-<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a>
-<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a>    <span class="n">epochs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span><span class="p">)</span> <span class="c1"># train model for some time</span>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># parameters (dataclass)        : defines number of iterations and the number of states to sample</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="c1"># model (type BaseModel)        : represents a trainable potential (e.g. NequIP)</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="c1"># data_train (type Dataset)     : represents the initial training and validation data</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># data_valid</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="c1"># ensemble (type Ensemble)      : defines phase space sampling (e.g. 20 parallel MD runs)</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="c1"># reference (type BaseReference): defines the QM level of theory and calculator (e.g. CP2K, PBE-D3(BJ)+TZVP)</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">parameters</span><span class="o">.</span><span class="n">niterations</span><span class="p">):</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>    <span class="n">model</span><span class="o">.</span><span class="n">deploy</span><span class="p">()</span> <span class="c1"># performs e.g. torch.jit.compile in desired precision</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>    <span class="c1"># ensemble wraps a set of phase space walkers (e.g. multiple NPT simulations)</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>    <span class="n">dataset</span> <span class="o">=</span> <span class="n">ensemble</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>            <span class="n">parameters</span><span class="o">.</span><span class="n">nstates</span><span class="p">,</span> <span class="c1"># sample this number of states</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="c1"># use current best model as potential energy surface</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>            <span class="p">)</span>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span> <span class="c1"># massively parallel QM evaluation of sampled states</span>
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a>    <span class="n">data_success</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">success</span><span class="p">)</span> <span class="c1"># some calculations may fail!</span>
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a>    <span class="n">train</span><span class="p">,</span> <span class="n">valid</span> <span class="o">=</span> <span class="n">get_train_valid_indices</span><span class="p">(</span>
+<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a>            <span class="n">data_success</span><span class="o">.</span><span class="n">length</span><span class="p">(),</span>
+<a id="__codelineno-15-20" name="__codelineno-15-20" href="#__codelineno-15-20"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">train_valid_split</span><span class="p">,</span>
+<a id="__codelineno-15-21" name="__codelineno-15-21" href="#__codelineno-15-21"></a>            <span class="p">)</span>
+<a id="__codelineno-15-22" name="__codelineno-15-22" href="#__codelineno-15-22"></a>    <span class="n">data_train</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_success</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">train</span><span class="p">))</span>
+<a id="__codelineno-15-23" name="__codelineno-15-23" href="#__codelineno-15-23"></a>    <span class="n">data_valid</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_success</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">indices</span><span class="o">=</span><span class="n">valid</span><span class="p">))</span>
+<a id="__codelineno-15-24" name="__codelineno-15-24" href="#__codelineno-15-24"></a>
+<a id="__codelineno-15-25" name="__codelineno-15-25" href="#__codelineno-15-25"></a>    <span class="k">if</span> <span class="n">parameters</span><span class="o">.</span><span class="n">retrain_model_per_iteration</span><span class="p">:</span> <span class="c1"># recalibrate scale/shift/avg_num_neighbors</span>
+<a id="__codelineno-15-26" name="__codelineno-15-26" href="#__codelineno-15-26"></a>        <span class="n">model</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<a id="__codelineno-15-27" name="__codelineno-15-27" href="#__codelineno-15-27"></a>        <span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>
+<a id="__codelineno-15-28" name="__codelineno-15-28" href="#__codelineno-15-28"></a>
+<a id="__codelineno-15-29" name="__codelineno-15-29" href="#__codelineno-15-29"></a>    <span class="n">epochs</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span><span class="p">)</span> <span class="c1"># train model for some time</span>
 </code></pre></div>
-<p>For example, a NequIP potential (as defined by its full <code>config.yaml</code>) is
-represented using a <code>NequIPModel</code>.
-A specific CP2K input file (including basis sets, pseudopotentials, etc)
-is represented by a <code>CP2KReference</code>. Its <code>evaluate()</code> method will wrap around
-the <code>cp2k.psmp</code> or <code>cp2k.popt</code> executables that are provided by CP2K,
-most likely prepended with the appropriate <code>mpirun</code> command.</p>
+[TODO]</p>
 
 
 
@@ -1094,6 +1253,12 @@ most likely prepended with the appropriate <code>mpirun</code> command.</p>
     
     
       <script src="../assets/javascripts/bundle.ba449ae6.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

@@ -670,7 +670,11 @@ which essentially interleave phase space sampling with
 quantum mechanical energy evaluations and model training.
 In this way, the entire (relevant part of the) phase space of the system(s)
 of interest may be explored and learned by the model without ever having to
-perform <em>ab initio</em> molecular dynamics.</p>
+perform <em>ab initio</em> molecular dynamics.
+Go to the <a href="overview/">overview</a> for a walkthrough of the most
+important features. </p>
+<div class="admonition note">
+<p class="admonition-title">Parsl: Scalable execution</p>
 <p>All computations in psiflow are managed by Parsl, a scalable parallel programming
 library for Python.
 This ensures support for a large number of different execution resources,
@@ -678,6 +682,7 @@ including clouds (e.g. Amazon Web Services, Google Cloud),
 clusters (e.g. SLURM, Torque/PBS, HTCondor)
 and even container orchestration systems (e.g. Kubernetes).
 Visit the <a href="https://parsl.readthedocs.io/en/stable/">Parsl documentation</a> for more details.</p>
+</div>
 <!---
 ## Core functionality 
 
@@ -693,16 +698,16 @@ atomic configurations, which can again be labeled using `BaseReference` etc.
 --->
 
 <h1 id="configuration">Configuration</h1>
-<p>The code excerpt shown above forwards individual training, sampling, and
-QM evaluation operations to Parsl <code>apps</code> whose execution is fully customizable
-by the user.
+<p>When executing psiflow workflows, individual training, sampling, and
+QM evaluation operations are automatically organized in Parsl <code>apps</code>,
+whose execution is fully customizable by the user.
 For example, you could distribute all CP2K calculations to a local SLURM cluster,
 perform model training on a GPU from a Google Cloud instance, and forward
 the remaining phase space sampling and data processing operations to a single
 workstation in your local network.
 Naturally, Parsl tracks the dependencies between all objects and manages execution of the workflow
 in an asynchronous manner.
-Psiflow centralizes the execution configuration using an <code>ExecutionContext</code>.
+Psiflow centralizes all execution-level configuration options using an <code>ExecutionContext</code>.
 It forwards infrastructure-specific options within Parsl, such as the requested number of nodes
 per SLURM job or the specific Google Cloud instance to be use, to training,
 sampling, and QM evaluation operations to ensure they proceed as requested.
@@ -710,7 +715,7 @@ Effectively, the <code>ExecutionContext</code> hides all details of the executio
 infrastructure and exposes simple and platform-agnostic resources which may be
 used by training, sampling, and QM evaluation apps.
 As such, we ensure that the execution-side configuration remains fully decoupled
-from a logical set of operations as e.g. defined in the code block above.
+from the computational graph itself.
 For more information, check out the psiflow <a href="config/">Configuration</a> page.</p>
 <div class="admonition note">
 <p class="admonition-title">Cut some slack!</p>
@@ -767,6 +772,12 @@ you to open an issue or ask a question on the <a href="https://github.com/svande
     
     
       <script src="assets/javascripts/bundle.ba449ae6.min.js"></script>
+      
+        <script src="javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>
