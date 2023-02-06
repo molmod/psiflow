@@ -35,6 +35,7 @@ def simulate_model(
     import os
     import tempfile
     import numpy as np
+    import parsl
     from copy import deepcopy
     import yaff
     yaff.log.set_level(yaff.log.silent)
