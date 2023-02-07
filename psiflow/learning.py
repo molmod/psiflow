@@ -77,7 +77,6 @@ class BaseLearning:
                 ensemble=ensemble,
                 data_train=data_train,
                 data_valid=data_valid,
-                bias=bias,
                 )
         log.result() # necessary to force execution of logging app
         return data_train, data_valid
