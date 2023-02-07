@@ -430,6 +430,12 @@ class FlowManager:
                         model=None,
                         error_kwargs=None,
                         ) # no model or error kwargs
+        logger.info('\twandb project: {}'.format(self.wandb_project))
+        logger.info('\twandb group  : {}'.format(self.wandb_group))
+        logger.info('\twandb name   : {}'.format(run_name))
+        logger.info('\tx axis       : {}'.format(self.error_x_axis))
+        for key in log_futures.keys():
+            logger.info('\t\t{}'.format(key))
         return log_data_to_wandb(
                 run_name,
                 self.wandb_group,
