@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 import wandb
 import numpy as np
-import randomname
+import argparse
 
 import parsl
 from parsl.app.app import python_app
@@ -195,7 +195,7 @@ def log_ensemble(ensemble: Ensemble) -> AppFuture:
 
 
 @typeguard.typechecked
-class FlowLogger:
+class FlowManager:
 
     def __init__(
             self,
@@ -205,7 +205,7 @@ class FlowLogger:
             error_kwargs: Optional[dict[str, Any]] = None,
             error_x_axis: Optional[str] = 'index',
             ) -> None:
-        self.path_output   = Path(path_output)
+        self.path_output = Path(path_output)
         assert self.path_output.is_dir()
         self.wandb_project = wandb_project
         self.wandb_group   = wandb_group
@@ -321,12 +321,12 @@ class FlowLogger:
         path.mkdir(parents=False, exist_ok=False) # parent should exist
 
         # model
-        model.save(path)
+        model.save(path, require_done=True)
 
         # ensemble
         path_ensemble = path / 'ensemble'
         path_ensemble.mkdir(parents=False, exist_ok=False)
-        ensemble.save(path_ensemble, restart=False)
+        ensemble.save(path_ensemble, require_done=True)
 
         # data
         if data_train is not None:
@@ -340,8 +340,8 @@ class FlowLogger:
         if checks is not None:
             path_checks = path / 'checks'
             path_checks.mkdir(parents=False, exist_ok=False)
-            for check in checks:
-                check.save(path_checks) # all checks may be stored in same dir
+            for check in checks: # all checks stored in same dir
+                check.save(path_checks, require_done=True)
 
     def load(
             self,
@@ -439,37 +439,34 @@ class FlowLogger:
                 inputs=list(log_futures.values()),
                 )
 
+    def output_exists(self, name):
+        return (self.path_output / name).is_dir()
+
 
 @typeguard.typechecked
-def initialize(
-        path_config: Union[Path, str],
-        name: str = None,
-        restart: bool = False,
-        ) -> Tuple[ExecutionContext, FlowLogger]:
-    if name is None: # generate cool random name of experiment
-        while True:
-            name = randomname.get_name()
-            path_experiment = Path.cwd() / name
-            if not path_experiment.is_dir():
-                break
-    path_experiment = Path.cwd() / name
-    path_internal   = path_experiment / 'parsl_internal'
-    path_context    = path_experiment / 'context_internal'
-    path_output     = path_experiment / 'output'
-    path_log        = path_experiment / 'psiflow.log'
-    path_parsl_log  = path_experiment / 'parsl.log'
-    if restart:
-        assert path_experiment.is_dir()
+def initialize(args) -> Tuple[ExecutionContext, FlowManager]:
+    path_experiment = Path.cwd() / args.name
+    if path_experiment.is_dir():
+        assert args.restart, '{} already exists but restart is {}'.format(
+                path_experiment,
+                args.restart,
+                )
     else:
         path_experiment.mkdir()
-        path_internal.mkdir()
-        path_context.mkdir()
-        path_output.mkdir()
-    set_file_logger(path_log, logging.DEBUG) # log psiflow to file
-    parsl.set_file_logger(str(path_parsl_log), level=logging.INFO)
-
+    path_internal = path_experiment / 'parsl_internal'
+    path_context  = path_experiment / 'context_internal'
+    path_output   = path_experiment / 'output'
+    path_internal.mkdir()
+    path_context.mkdir()
+    path_output.mkdir()
+    path_log        = path_experiment / 'psiflow.log'
+    path_parsl_log  = path_experiment / 'parsl.log'
+    set_file_logger(path_log, args.psiflow_log_level)
+    logger.info('setting up psiflow experiment in {}'.format(path_experiment))
+    parsl_log_level = getattr(logging, args.parsl_log_level)
+    parsl.set_file_logger(str(path_parsl_log), level=parsl_log_level)
     config, definitions = get_psiflow_config_from_file(
-            path_config,
+            args.psiflow_config,
             path_internal,
             )
     context = ExecutionContext(
@@ -478,10 +475,55 @@ def initialize(
             path=path_context,
             )
     context.initialize() # loads parsl config
-    flow_logger = FlowLogger(
-            path_output,
+    flow_manager = FlowManager(
+            path_output=path_experiment / 'output',
             wandb_project='psiflow',
-            wandb_group=name,
-            error_x_axis='CV', # plot errors w.r.t CV value
+            wandb_group=args.name,
+            error_x_axis=args.main_colvar,
             )
-    return context, flow_logger
+    return context, flow_manager
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+            '--psiflow-config',
+            action='store',
+            type=str,
+            help='psiflow configuration file to use when initializing the context',
+            )
+    parser.add_argument(
+            '--name',
+            action='store',
+            type=str,
+            help='names the experiment directory and wandb runs',
+            )
+    parser.add_argument(
+            '--restart',
+            action='store',
+            default=None,
+            type=str,
+            help='the state from which to restart; i.e. "random", "0", "1" etc',
+            )
+    parser.add_argument(
+            '--main-colvar',
+            action='store',
+            default='CV',
+            type=str,
+            help='the name of the "main" collective variable over which the error should be plotted',
+            )
+    parser.add_argument(
+            '--psiflow-log-level',
+            action='store',
+            default='DEBUG',
+            type=str,
+            help='log level of psiflow; one of DEBUG, INFO, WARNING, ERROR, CRITICAL',
+            )
+    parser.add_argument(
+            '--parsl-log-level',
+            action='store',
+            default='INFO',
+            type=str,
+            help='log level of parsl; one of DEBUG, INFO, WARNING, ERROR, CRITICAL',
+            )
+    return parser.parse_args()

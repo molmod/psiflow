@@ -422,6 +422,13 @@ class Dataset(Container):
                 outputs=[self.context.new_file('data_', '.xyz')],
                 ).outputs[0]
 
+    def __add__(self, dataset: Dataset) -> Dataset:
+        data_future = app_join_dataset(
+                inputs=[self.data_future, dataset.data_future],
+                outputs=[self.context.new_file('data_', '.xyz')],
+                ).outputs[0]
+        return Dataset(self.context, None, data_future)
+
     def log(self, name):
         logger.info('dataset {} contains {} states'.format(name, self.length().result()))
 

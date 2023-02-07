@@ -6,7 +6,7 @@ import wandb
 import numpy as np
 
 from psiflow.models import NequIPModel
-from psiflow.experiment import FlowLogger, log_data, log_ensemble
+from psiflow.experiment import FlowManager, log_data, log_ensemble
 from psiflow.reference import EMTReference
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
 from psiflow.ensemble import Ensemble
@@ -84,7 +84,7 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
     log0.result()
 
 
-def test_flow_logger_save_load(context, dataset, nequip_config, ensemble, tmp_path):
+def test_flow_manager_save_load(context, dataset, nequip_config, ensemble, tmp_path):
     model = NequIPModel(context, nequip_config)
     path_output = Path(tmp_path) / 'parsl_internal'
     path_output.mkdir()
@@ -92,7 +92,7 @@ def test_flow_logger_save_load(context, dataset, nequip_config, ensemble, tmp_pa
     walkers.append(RandomWalker(context, dataset[0]))
     walkers.append(DynamicWalker(context, dataset[1]))
     ensemble = Ensemble(context, walkers=walkers, biases=[None, None])
-    flow_logger = FlowLogger(path_output, 'pytest', 'test_flow_logger_save_load')
+    flow_manager = FlowManager(path_output, 'pytest', 'test_flow_manager_save_load')
     checks = [
             SafetyCheck(),
             DiscrepancyCheck(
@@ -104,7 +104,7 @@ def test_flow_logger_save_load(context, dataset, nequip_config, ensemble, tmp_pa
                 ),
             ]
     name = 'test'
-    flow_logger.save(
+    flow_manager.save(
             name=name,
             model=model,
             ensemble=ensemble,
@@ -118,7 +118,7 @@ def test_flow_logger_save_load(context, dataset, nequip_config, ensemble, tmp_pa
     assert (path_output / name / 'checks').is_dir() # directory for saved checks
     assert (path_output / name / 'failed.xyz').is_file()
 
-    model_, ensemble_, data_train, data_valid, checks = flow_logger.load(
+    model_, ensemble_, data_train, data_valid, checks = flow_manager.load(
             'test',
             context,
             )
@@ -147,8 +147,8 @@ def test_flow_logger_save_load(context, dataset, nequip_config, ensemble, tmp_pa
                 ),
             ]
     name = 'test_'
-    flow_logger.save(name=name, model=model, ensemble=ensemble, checks=checks)
-    model_, ensemble_, data_train, data_valid, checks = flow_logger.load(
+    flow_manager.save(name=name, model=model, ensemble=ensemble, checks=checks)
+    model_, ensemble_, data_train, data_valid, checks = flow_manager.load(
             'test_',
             context,
             )
@@ -159,7 +159,7 @@ def test_flow_logger_save_load(context, dataset, nequip_config, ensemble, tmp_pa
             assert check.model_new is not None
 
 
-def test_flow_logger_dry_run(
+def test_flow_manager_dry_run(
         context,
         dataset,
         nequip_config,
@@ -172,8 +172,8 @@ def test_flow_logger_dry_run(
     model = NequIPModel(context, nequip_config)
     path_output = Path(tmp_path) / 'parsl_internal'
     path_output.mkdir()
-    flow_logger = FlowLogger(path_output, 'pytest', 'test_flow_logger_dry_run')
+    flow_manager = FlowManager(path_output, 'pytest', 'test_flow_manager_dry_run')
     with pytest.raises(AssertionError):
-        flow_logger.dry_run(model, reference) # specify either walker or ensemble
+        flow_manager.dry_run(model, reference) # specify either walker or ensemble
     random_walker = RandomWalker(context, dataset[0])
-    flow_logger.dry_run(model, reference, random_walker=random_walker)
+    flow_manager.dry_run(model, reference, random_walker=random_walker)

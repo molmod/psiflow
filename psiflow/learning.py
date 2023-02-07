@@ -9,7 +9,7 @@ from parsl.app.app import python_app
 
 from psiflow.utils import get_train_valid_indices
 from psiflow.data import Dataset
-from psiflow.experiment import FlowLogger
+from psiflow.experiment import FlowManager
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
@@ -21,41 +21,41 @@ logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
-class BaseLearning:
-    parameter_cls = None
-
-    def __init__(self, **kwargs):
-        self.parameters = self.__class__.parameter_cls(**kwargs)
-
-
-@typeguard.typechecked
 @dataclass
-class RandomLearningParameters:
-    nstates           : int = 20
-    train_valid_split : int = 0.9
+class BaseLearning:
+    train_valid_split: float = 0.9
+    pretraining_nstates: int = 50
+    pretraining_amplitude_pos: float = 0.05
+    pretraining_amplitude_box: float = 0.05
 
-
-@typeguard.typechecked
-class RandomLearning(BaseLearning):
-    parameter_cls = RandomLearningParameters
-
-    def run(
+    def run_pretraining(
             self,
-            flow_logger: FlowLogger,
+            flow_manager: FlowManager,
             model: BaseModel,
             reference: BaseReference,
-            walker: RandomWalker,
-            checks: Optional[list] = None,
-            bias: Optional[PlumedBias] = None,
-            ) -> Tuple[Dataset, Dataset]:
-        ensemble = Ensemble.from_walker(walker, nwalkers=self.parameters.nstates)
-        ensemble.log()
-        data = ensemble.sample(self.parameters.nstates, checks=checks)
-        data = reference.evaluate(data)
+            initial_data: Dataset,
+            ):
+        nstates = self.pretraining_nstates
+        amplitude_pos = self.pretraining_amplitude_pos
+        amplitude_box = self.pretraining_amplitude_box
+        logger.info('performing random pretraining')
+        nstates_per_state = (nstates // initial_data.length().result()) + 1
+        random_data = Dataset(reference.context, [])
+        for i in range(initial_data.length().result()):
+            walker = RandomWalker( # create walker for state i in initial data
+                    reference.context,
+                    initial_data[i],
+                    amplitude_pos=amplitude_pos,
+                    amplitude_box=amplitude_box,
+                    seed=i
+                    )
+            ensemble = Ensemble.from_walker(walker, nstates_per_state)
+            random_data = random_data + ensemble.sample(nstates_per_state)
+        data = reference.evaluate(random_data)
         data_success = data.get(indices=data.success)
         train, valid = get_train_valid_indices(
                 data_success.length(), # can be less than nstates
-                self.parameters.train_valid_split,
+                self.train_valid_split,
                 )
         data_train = data_success.get(indices=train)
         data_valid = data_success.get(indices=valid)
@@ -63,16 +63,16 @@ class RandomLearning(BaseLearning):
         data_valid.log('data_valid')
         model.initialize(data_train)
         model.train(data_train, data_valid)
-        flow_logger.save(
-                name='random',
+        flow_manager.save(
+                name='random_pretraining',
                 model=model,
                 ensemble=ensemble,
                 data_train=data_train,
                 data_valid=data_valid,
                 data_failed=data.get(indices=data.failed),
                 )
-        log = flow_logger.log_wandb( # log training
-                run_name='random_after',
+        log = flow_manager.log_wandb( # log training
+                run_name='random_pretraining',
                 model=model,
                 ensemble=ensemble,
                 data_train=data_train,
@@ -85,18 +85,14 @@ class RandomLearning(BaseLearning):
 
 @typeguard.typechecked
 @dataclass
-class OnlineLearningParameters(RandomLearningParameters):
-    niterations : int = 10
-    retrain_model_per_iteration : bool = True
-
-
-@typeguard.typechecked
 class OnlineLearning(BaseLearning):
-    parameter_cls = OnlineLearningParameters
+    nstates: int = 30
+    niterations: int = 10
+    retrain_model_per_iteration : bool = True
 
     def run(
             self,
-            flow_logger: FlowLogger,
+            flow_manager: FlowManager,
             model: BaseModel,
             reference: BaseReference,
             ensemble: Ensemble,
@@ -108,10 +104,12 @@ class OnlineLearning(BaseLearning):
             data_train = Dataset(model.context, [])
         if data_valid is None:
             data_valid = Dataset(model.context, [])
-        for i in range(self.parameters.niterations):
+        for i in range(self.niterations):
+            if flow_manager.output_exists(str(i)):
+                continue # skip iterations in case of restarted run
             model.deploy()
             dataset = ensemble.sample(
-                    self.parameters.nstates,
+                    self.nstates,
                     model=model,
                     checks=checks,
                     )
@@ -119,18 +117,18 @@ class OnlineLearning(BaseLearning):
             data_success = data.get(indices=data.success)
             train, valid = get_train_valid_indices(
                     data_success.length(), # can be less than nstates
-                    self.parameters.train_valid_split,
+                    self.train_valid_split,
                     )
             data_train.append(data_success.get(indices=train))
             data_valid.append(data_success.get(indices=valid))
-            if self.parameters.retrain_model_per_iteration:
+            if self.retrain_model_per_iteration:
                 logger.info('reinitialize model (scale/shift/avg_num_neighbors) on new training data')
                 model.reset()
                 model.initialize(data_train)
             data_train.log('data_train')
             data_valid.log('data_valid')
             model.train(data_train, data_valid)
-            flow_logger.save(
+            flow_manager.save(
                     name=str(i),
                     model=model,
                     ensemble=ensemble,
@@ -138,7 +136,7 @@ class OnlineLearning(BaseLearning):
                     data_valid=data_valid,
                     data_failed=data.get(indices=data.failed),
                     )
-            log = flow_logger.log_wandb( # log training
+            log = flow_manager.log_wandb( # log training
                     run_name=str(i),
                     model=model,
                     ensemble=ensemble,

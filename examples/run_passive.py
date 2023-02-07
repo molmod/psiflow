@@ -9,13 +9,13 @@ import time
 
 from ase.io import read
 
+import psiflow.experiment
 from psiflow.learning import RandomLearning, OnlineLearning
 from psiflow.models import AllegroModel, AllegroConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
 from psiflow.ensemble import Ensemble
-from psiflow.experiment import initialize
 
 
 def get_allegro_model(context):
@@ -32,7 +32,8 @@ def get_mace_model(context):
     return MACEModel(context, config)
 
 
-def main(context, flow_logger):
+def main(context):
+    """Simple training based on existing data"""
     train = Dataset.load(context, 'data/Al_mil53_train.xyz')
     valid = Dataset.load(context, 'data/Al_mil53_valid.xyz')
     model = get_mace_model(context)
@@ -50,14 +51,8 @@ def main(context, flow_logger):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--psiflow-config', action='store')
-    parser.add_argument('--name', action='store', default=None)
-    args = parser.parse_args()
+    args = psiflow.experiment.parse_arguments()
+    context, _ = psiflow.experiment.initialize(args)
 
-    context, flow_logger = initialize( # initialize parsl, create directories
-            args.psiflow_config,
-            args.name,
-            args.restart,
-            )
-    main(context, flow_logger)
+    assert not args.restart
+    main(context)

@@ -147,7 +147,7 @@ import argparse
 import psiflow
 
 
-def main(context, flow_logger):
+def main(context, flow_manager):
     # your psiflow workflow here
     pass
 
@@ -158,11 +158,11 @@ if __name__ == '__main__':
     parser.add_argument('--name', action='store', default=None)
     args = parser.parse_args()
 
-    context, flow_logger = psiflow.experiment.initialize(   # initialize context
+    context, flow_manager = psiflow.experiment.initialize(   # initialize context
             args.psiflow_config,                            # path to psiflow config.py
             args.name,                                      # run name
             )
-    main(context, flow_logger)
+    main(context, flow_manager)
 
 ```
 which is then executed via

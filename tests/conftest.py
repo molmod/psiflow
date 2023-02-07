@@ -1,4 +1,5 @@
 import pytest
+import logging
 import parsl
 import requests
 import yaml
@@ -39,6 +40,7 @@ def context(request, tmp_path_factory):
             tmp_path_factory.mktemp('parsl_internal'),
             )
     parsl.load(config)
+    parsl.set_stream_logger('parsl', level=logging.INFO)
     context = ExecutionContext(
             config,
             definitions,

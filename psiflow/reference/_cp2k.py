@@ -189,7 +189,7 @@ def cp2k_singlepoint_post(
         inputs: list[File] = [],
         ) -> FlowAtoms:
     import numpy as np
-    from ase.units import Hartree, Bohr
+    from ase.units import Hartree, Bohr, Pascal
     from pymatgen.io.cp2k.outputs import Cp2kOutput
     with open(inputs[0], 'r') as f:
         stdout = f.read()
@@ -204,7 +204,7 @@ def cp2k_singlepoint_post(
         out.parse_stresses()
         energy_ = out.data['total_energy'][0] # already in eV
         forces_ = np.array(out.data['forces'][0]) * (Hartree / Bohr) # to eV/A
-        stress_ = np.array(out.data['stress_tensor'][0]) * 1000 # to MPa
+        stress_ = np.array(out.data['stress_tensor'][0]) * (1e9 * Pascal)
         atoms.info['energy'] = energy_
         atoms.info['stress'] = stress_
         atoms.arrays['forces'] = forces_

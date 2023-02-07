@@ -52,6 +52,11 @@ def test_dataset_append(dataset):
     assert 20 == empty.length().result()
     dataset.append(dataset)
     assert 40 == dataset.length().result()
+    added = dataset + dataset
+    assert added.length().result() == 80
+    assert dataset.length().result() == 40 # may not changed
+    dataset += dataset
+    assert dataset.length().result() == 80 # may not changed
 
 
 def test_dataset_slice(dataset):

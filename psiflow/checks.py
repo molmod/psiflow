@@ -80,7 +80,8 @@ class Check:
                 self.parameters, # property which returns dict of parameters
                 outputs=[File(str(path / (self.__class__.__name__ + '.yaml')))],
                 ).outputs[0]
-        future.result()
+        if require_done:
+            future.result()
         return future
 
     @classmethod

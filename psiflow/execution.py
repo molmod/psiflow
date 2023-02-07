@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__) # logging per module
 logger.setLevel(logging.INFO)
 
 
+@typeguard.typechecked
 @dataclass(frozen=True, eq=True) # allows checking for equality
 class Execution:
     executor: str
@@ -39,6 +40,7 @@ class Execution:
         return resource_specification
 
 
+@typeguard.typechecked
 @dataclass(frozen=True, eq=True) # allows checking for equality
 class ModelEvaluationExecution(Execution):
     executor: str = 'model'
@@ -50,6 +52,7 @@ class ModelEvaluationExecution(Execution):
     disk: int = 1000
 
 
+@typeguard.typechecked
 @dataclass(frozen=True, eq=True)
 class ModelTrainingExecution(Execution):
     device: ClassVar[str] = 'cuda' # fixed
@@ -61,6 +64,7 @@ class ModelTrainingExecution(Execution):
     disk: int = 1000
 
 
+@typeguard.typechecked
 @dataclass(frozen=True, eq=True)
 class ReferenceEvaluationExecution(Execution):
     executor: str = 'reference'
@@ -80,8 +84,10 @@ def generate_parsl_config(
         definitions: dict[Type[Container], list[Execution]],
         providers: dict[str, ExecutionProvider],
         use_work_queue: bool = True,
+        wq_timeout: int = 120, # in seconds
         parsl_app_cache: bool = False,
         parsl_retries: int = 0,
+        parsl_max_idletime: int = 30, # in seconds
         parsl_strategy: str = 'simple',
         parsl_initialize_logging: bool = True,
         htex_address: Optional[str] = None,
@@ -127,8 +133,17 @@ def generate_parsl_config(
                     walltime += float(walltime_hhmmss[2])
                     walltime -= 60 * 4 # add 4 minutes of slack
                     if execution.walltime is not None: # fit at least one app
-                        assert 60 * execution.walltime < walltime
+                        assert 60 * execution.walltime < walltime, ('the '
+                                'walltime of your execution definition is '
+                                '{}m, which should be less than the total walltime '
+                                'available in the corresponding slurm block, '
+                                'which is {}'.format(
+                                    execution.walltime,
+                                    walltime // 60,
+                                    ))
                     worker_options.append('--wall-time={}'.format(walltime))
+                    worker_options.append('--timeout={}'.format(wq_timeout))
+                    worker_options.append('--parent-death')
                 executor = WorkQueueExecutor(
                     label=label,
                     working_dir=str(Path(path_parsl_internal) / label),
@@ -137,7 +152,6 @@ def generate_parsl_config(
                     autocategory=False,
                     port=wq_port,
                     max_retries=0,
-                    #init_command='export OMP_NUM_THREADS=1',
                     worker_options=' '.join(worker_options),
                     )
                 wq_port += 1
@@ -158,6 +172,7 @@ def generate_parsl_config(
             retries=parsl_retries,
             initialize_logging=parsl_initialize_logging,
             strategy=parsl_strategy,
+            max_idletime=parsl_max_idletime,
             )
     return config
 

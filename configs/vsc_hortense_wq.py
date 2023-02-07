@@ -17,16 +17,16 @@ model_evaluate = ModelEvaluationExecution(
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
         ncores=12, # number of cores per GPU on gpu_rome_a100 partition
-        walltime=3, # in minutes; includes 100s slack
+        walltime=30, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',
         device='cpu',
-        ncores=32,
-        omp_num_threads=1,
+        ncores=32,          # number of cores per singlepoint
+        omp_num_threads=1,  # only use MPI for parallelization
         mpi_command=lambda x: f'mympirun', # use vsc wrapper
-        cp2k_exec='cp2k.psmp',
-        walltime=1, # in minutes
+        cp2k_exec='cp2k.psmp',  # on some platforms, this is cp2k.popt
+        walltime=30,            # minimum walltime per singlepoint
         )
 definitions = {
         MACEModel: [model_evaluate, model_training],
@@ -40,18 +40,19 @@ providers = {}
 
 
 # define provider for default executor (HTEX)
+# each of the workers in this executor is single-core;
+# they do basic processing stuff (reading/writing data/models, ... )
 worker_init =  'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
-provider = SlurmProvider(
+provider = SlurmProvider(       # one block == one slurm job to submit
         partition='cpu_rome',
         account='2022_050',
-        nodes_per_block=1,
-        cores_per_node=16,
-        init_blocks=1,
-        min_blocks=1,
-        max_blocks=1,
-        parallelism=1,
-        walltime='02:00:00',
+        nodes_per_block=1,      # each block fits on (less than) one node
+        cores_per_node=8,       # number of cores per slurm job
+        init_blocks=1,          # initialize a block at the start of the workflow
+        min_blocks=1,           # always keep at least one block open
+        max_blocks=1,           # do not use more than one block
+        walltime='02:00:00',    # walltime per block
         worker_init=worker_init,
         exclusive=False,
         )
@@ -67,9 +68,9 @@ provider = SlurmProvider(
         partition='cpu_rome',
         account='2022_050',
         nodes_per_block=1,
-        cores_per_node=8,
-        init_blocks=0,
-        min_blocks=0,
+        cores_per_node=4,
+        init_blocks=1,
+        min_blocks=1,
         max_blocks=512,
         parallelism=1,
         walltime='02:00:00',
@@ -125,10 +126,10 @@ provider = SlurmProvider(
         partition='cpu_rome',
         account='2022_050',
         nodes_per_block=1,
-        cores_per_node=reference_evaluate.ncores, # 1 worker per block
+        cores_per_node=reference_evaluate.ncores, # 1 worker per block; leave this
         init_blocks=0,
         min_blocks=0,
-        max_blocks=16,
+        max_blocks=100,
         parallelism=1,
         walltime='01:00:00',
         worker_init=worker_init,
@@ -143,5 +144,9 @@ def get_config(path_parsl_internal):
             definitions,
             providers,
             use_work_queue=True,
+            wq_timeout=120,        # timeout for WQ workers before they shut down
+            parsl_app_cache=False, # parsl app caching; disabled for safety
+            parsl_retries=1,       # HTEX may fail when block hits walltime
+            parsl_max_idletime=30, # idletime before parsl tries to scale-in resources
             )
     return config, definitions

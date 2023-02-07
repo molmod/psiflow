@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__) # logging per module
 @typeguard.typechecked
 def set_file_logger( # hacky
         path_log: Union[Path, str],
-        level: type(logging.INFO),
+        level: Union[str, int], # 'DEBUG' or logging.DEBUG
         ):
     formatter = logging.Formatter(fmt='%(levelname)s - %(name)s - %(message)s')
     handler = logging.FileHandler(path_log)

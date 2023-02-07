@@ -9,7 +9,7 @@ import time
 
 from ase.io import read
 
-import psiflow
+import psiflow.experiment
 from psiflow.learning import RandomLearning, OnlineLearning
 from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
@@ -61,31 +61,14 @@ def get_mace_model(context):
     return MACEModel(context, config)
 
 
-def main(context, flow_logger):
+def main(context, flow_manager):
     reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz')
     model = get_mace_model(context) # NequIP; medium-sized network
     bias  = get_bias(context)
+    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz')
 
-    # FIRST STAGE: generate initial data by applying random perturbations
-    walker = RandomWalker(
-            context,
-            atoms,
-            amplitude_pos=0.08,
-            amplitude_box=0.1,
-            seed=0,
-            )
-    learning = RandomLearning(nstates=50, train_valid_split=0.9)
-    data_train, data_valid = learning.run(
-            flow_logger=flow_logger,
-            model=model,
-            reference=reference,
-            walker=walker,
-            bias=bias, # only used for logging errors in terms of CV
-            )
-
-    # SECOND STAGE: define MD walkers and simulate, evaluate, train
-    walker = DynamicWalker( # basic MD parameters
+    # construct online learning ensemble; pure MD in this case
+    walker = DynamicWalker(
             context,
             atoms,
             timestep=0.5,
@@ -93,16 +76,43 @@ def main(context, flow_logger):
             step=50,
             start=0,
             temperature=600,
-            pressure=None, # NVT
+            pressure=0, # NPT
             force_threshold=20,
             initial_temperature=600,
-            seed=0,
             )
     ensemble = Ensemble.from_walker(walker, nwalkers=30) # 30 parallel walkers
     ensemble.add_bias(bias) # add separate MTD for every walker
+
+    # set learning parameters
+    learning = OnlineLearning(
+            niterations=5,
+            nstates=30,
+            retrain_model_per_iteration=True,
+            pretraining_amplitude_pos=0.1,
+            pretraining_amplitude_box=0.05,
+            pretraining_nstates=50,
+            )
+    data_train, data_valid = learning.run_pretraining(
+            flow_manager=flow_manager,
+            model=model,
+            reference=reference,
+            initial_data=Dataset(context, [atoms]), # only one initial state
+            )
+    data_train, data_valid = learning.run(
+            flow_manager=flow_manager,
+            model=model,
+            reference=reference,
+            ensemble=ensemble,
+            data_train=data_train,
+            data_valid=data_valid,
+            )
+
+
+def restart(context, flow_manager):
+    model, ensemble, data_train, data_valid, checks = flow_manager.load(args.restart, context)
     learning = OnlineLearning(niterations=5, nstates=30)
     data_train, data_valid = learning.run(
-            flow_logger=flow_logger,
+            flow_manager=flow_manager,
             model=model,
             reference=reference,
             ensemble=ensemble,
@@ -112,14 +122,11 @@ def main(context, flow_logger):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--psiflow-config', action='store')
-    parser.add_argument('--name', action='store', default=None)
-    args = parser.parse_args()
+    args = psiflow.experiment.parse_arguments()
+    context, flow_manager = psiflow.experiment.initialize(args)
 
-    # initialize parsl, create directories
-    context, flow_logger = psiflow.experiment.initialize(
-            args.psiflow_config, # path to psiflow config.py
-            args.name, # run name
-            )
-    main(context, flow_logger)
+    if not args.restart
+        main(context, flow_manager)
+    else:
+        print('restarting from iteration {}'.format(flow_manager.restart))
+        restart(context, flow_manager, args.restart)
