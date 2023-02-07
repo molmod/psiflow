@@ -335,7 +335,7 @@ class Dataset(Container):
     def __init__(
             self,
             context: ExecutionContext,
-            atoms_list: Optional[Union[List[AppFuture], List[FlowAtoms], AppFuture]],
+            atoms_list: Optional[Union[List[AppFuture], List[Union[FlowAtoms, Atoms]], AppFuture]],
             data_future: Optional[Union[DataFuture, File]] = None,
             ) -> None:
         super().__init__(context)
