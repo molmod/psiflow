@@ -471,19 +471,19 @@ def initialize(args) -> Tuple[ExecutionContext, FlowManager]:
                 path_experiment,
                 args.restart,
                 )
-        path_log       = path_experiment / 'psiflow.log'
-        path_parsl_log = path_experiment / 'parsl.log'
-    else:
         path_log       = path_experiment / 'psiflow_restart_from_{}.log'.format(args.restart)
         path_parsl_log = path_experiment / 'parsl_restart_from_{}.log'.format(args.restart)
         assert not path_log.exists(), ('log file already exists, did you '
                 'already restart from this iteration?')
         assert not path_parsl_log.exists(), ('log file already exists, did you '
                 'already restart from this iteration?')
+    else:
         path_experiment.mkdir()
         path_internal.mkdir()
         path_context.mkdir()
         path_output.mkdir()
+        path_log       = path_experiment / 'psiflow.log'
+        path_parsl_log = path_experiment / 'parsl.log'
     set_file_logger(path_log, args.psiflow_log_level)
     logger.info('setting up psiflow experiment in {}'.format(path_experiment))
     parsl_log_level = getattr(logging, args.parsl_log_level)
