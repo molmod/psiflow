@@ -257,13 +257,15 @@ class Ensemble:
             nwalkers: int,
             dataset: Optional[Dataset] = None,
             ):
-        """Initialize ensemble based on single walker"""
+        """Initialize ensemble based on a single walker"""
         walkers = []
+        if dataset is not None:
+            length = dataset.length().result()
         for i in range(nwalkers):
             _walker = walker.copy()
             _walker.parameters.seed = i
             if dataset is not None:
-                _walker.state_future = copy_app_future(dataset[i])
-                _walker.start_future = copy_app_future(dataset[i])
+                _walker.state_future = copy_app_future(dataset[i % length])
+                _walker.start_future = copy_app_future(dataset[i % length])
             walkers.append(_walker)
         return cls(walker.context, walkers)

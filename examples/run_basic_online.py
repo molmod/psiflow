@@ -64,23 +64,7 @@ def main(context, flow_manager):
     reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
     model = get_mace_model(context) # NequIP; medium-sized network
     bias  = get_bias(context)
-    initial_data = Dataset.load(context, Path.cwd() / 'data' / 'Al_mil53_train.xyz')
-
-    # construct online learning ensemble; pure MD in this case
-    walker = DynamicWalker(
-            context,
-            initial_data[0], # initial state of walkers
-            timestep=0.5,
-            steps=300,
-            step=50,
-            start=0,
-            temperature=600,
-            pressure=0, # NPT
-            force_threshold=20,
-            initial_temperature=600,
-            )
-    ensemble = Ensemble.from_walker(walker, nwalkers=30) # 30 parallel walkers
-    ensemble.add_bias(bias) # add separate MTD for every walker
+    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz')
 
     # set learning parameters
     learning = OnlineLearning(
@@ -90,13 +74,34 @@ def main(context, flow_manager):
             pretraining_amplitude_pos=0.1,
             pretraining_amplitude_box=0.05,
             pretraining_nstates=50,
+            train_valid_split=0.9
             )
     data_train, data_valid = learning.run_pretraining(
             flow_manager=flow_manager,
             model=model,
             reference=reference,
-            initial_data=initial_data[:1], # only one initial state
+            initial_data=Dataset(context, [atoms]), # only one initial state
             )
+
+    # construct online learning ensemble; pure MD in this case
+    walker = DynamicWalker(
+            context,
+            atoms,
+            timestep=0.5,
+            steps=300,
+            step=50,
+            start=0,
+            temperature=600,
+            pressure=0, # NPT
+            force_threshold=20,
+            initial_temperature=600,
+            )
+    ensemble = Ensemble.from_walker(
+            walker,
+            nwalkers=30, # 30 parallel walkers
+            dataset=(data_train + data_valid), # used to initialize walkers
+            )
+    ensemble.add_bias(bias) # add separate MTD for every walker
     data_train, data_valid = learning.run(
             flow_manager=flow_manager,
             model=model,
@@ -109,7 +114,12 @@ def main(context, flow_manager):
 
 def restart(context, flow_manager):
     model, ensemble, data_train, data_valid, checks = flow_manager.load(args.restart, context)
-    learning = OnlineLearning(niterations=5, nstates=30)
+    learning = OnlineLearning(
+            niterations=5,
+            nstates=30,
+            retrain_model_per_iteration=True,
+            train_valid_split=0.9
+            )
     data_train, data_valid = learning.run(
             flow_manager=flow_manager,
             model=model,

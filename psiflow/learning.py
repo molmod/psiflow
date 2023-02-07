@@ -39,18 +39,18 @@ class BaseLearning:
         amplitude_pos = self.pretraining_amplitude_pos
         amplitude_box = self.pretraining_amplitude_box
         logger.info('performing random pretraining')
-        nstates_per_state = (nstates // initial_data.length().result()) + 1
-        random_data = Dataset(reference.context, [])
-        for i in range(initial_data.length().result()):
-            walker = RandomWalker( # create walker for state i in initial data
-                    reference.context,
-                    initial_data[i],
-                    amplitude_pos=amplitude_pos,
-                    amplitude_box=amplitude_box,
-                    seed=i
-                    )
-            ensemble = Ensemble.from_walker(walker, nstates_per_state)
-            random_data = random_data + ensemble.sample(nstates_per_state)
+        walker = RandomWalker( # create walker for state i in initial data
+                reference.context,
+                initial_data[0],
+                amplitude_pos=amplitude_pos,
+                amplitude_box=amplitude_box,
+                )
+        ensemble = Ensemble.from_walker(
+                walker,
+                self.pretraining_nstates,
+                dataset=initial_data,
+                )
+        random_data = ensemble.sample(self.pretraining_nstates)
         data = reference.evaluate(random_data)
         data_success = data.get(indices=data.success)
         train, valid = get_train_valid_indices(
