@@ -1,4 +1,3 @@
-import argparse
 import shutil
 import requests
 import logging
@@ -10,7 +9,7 @@ import time
 from ase.io import read
 
 import psiflow.experiment
-from psiflow.learning import RandomLearning, OnlineLearning
+from psiflow.learning import OnlineLearning
 from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
@@ -65,12 +64,12 @@ def main(context, flow_manager):
     reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
     model = get_mace_model(context) # NequIP; medium-sized network
     bias  = get_bias(context)
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz')
+    initial_data = Dataset.load(context, Path.cwd() / 'data' / 'Al_mil53_train.xyz')
 
     # construct online learning ensemble; pure MD in this case
     walker = DynamicWalker(
             context,
-            atoms,
+            initial_data[0], # initial state of walkers
             timestep=0.5,
             steps=300,
             step=50,
@@ -96,7 +95,7 @@ def main(context, flow_manager):
             flow_manager=flow_manager,
             model=model,
             reference=reference,
-            initial_data=Dataset(context, [atoms]), # only one initial state
+            initial_data=initial_data[:1], # only one initial state
             )
     data_train, data_valid = learning.run(
             flow_manager=flow_manager,
@@ -125,7 +124,7 @@ if __name__ == '__main__':
     args = psiflow.experiment.parse_arguments()
     context, flow_manager = psiflow.experiment.initialize(args)
 
-    if not args.restart
+    if not args.restart:
         main(context, flow_manager)
     else:
         print('restarting from iteration {}'.format(flow_manager.restart))

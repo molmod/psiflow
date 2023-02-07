@@ -10,7 +10,7 @@ import time
 from ase.io import read
 
 import psiflow.experiment
-from psiflow.learning import RandomLearning, OnlineLearning
+from psiflow.learning import OnlineLearning
 from psiflow.models import AllegroModel, AllegroConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
@@ -47,7 +47,7 @@ def main(context):
     errors = np.mean(errors.result(), axis=0)
     print('energy error [RMSE, meV/atom]: {}'.format(errors[0]))
     print('forces error [RMSE, meV/A]   : {}'.format(errors[1]))
-    print('stress error [RMSE, meV/A**3]: {}'.format(errors[2]))
+    print('stress error [RMSE, MPa]     : {}'.format(errors[2]))
 
 
 if __name__ == '__main__':
