@@ -112,8 +112,9 @@ def main(context, flow_manager):
             )
 
 
-def restart(context, flow_manager):
-    model, ensemble, data_train, data_valid, checks = flow_manager.load(args.restart, context)
+def restart(context, flow_manager, restart_arg):
+    reference = get_reference(context)
+    model, ensemble, data_train, data_valid, checks = flow_manager.load(restart_arg, context)
     learning = OnlineLearning(
             niterations=5,
             nstates=30,
@@ -127,6 +128,7 @@ def restart(context, flow_manager):
             ensemble=ensemble,
             data_train=data_train,
             data_valid=data_valid,
+            checks=checks,
             )
 
 
@@ -137,5 +139,5 @@ if __name__ == '__main__':
     if not args.restart:
         main(context, flow_manager)
     else:
-        print('restarting from iteration {}'.format(flow_manager.restart))
+        print('restarting from iteration {}'.format(args.restart))
         restart(context, flow_manager, args.restart)

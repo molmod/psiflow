@@ -359,6 +359,7 @@ class FlowManager:
 
         # model
         model = load_model(context, path)
+        model.create_apps(context) # ensures apps exist in context
 
         # ensemble
         path_ensemble = path / 'ensemble'
