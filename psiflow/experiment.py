@@ -430,17 +430,27 @@ class FlowManager:
                         model=None,
                         error_kwargs=None,
                         ) # no model or error kwargs
+        if bias is None: # if bias is not available, u
+            error_x_axis = 'index'
+        else:
+            assert self.error_x_axis in bias.variables, ('wandb logging is '
+                    'supposed to use {} as x axis for plotting errors, but '
+                    'supplied bias only has the following variables: {}'.format(
+                        self.error_x_axis,
+                        bias.variables,
+                        ))
+            error_x_axis = self.error_x_axis
         logger.info('\twandb project: {}'.format(self.wandb_project))
         logger.info('\twandb group  : {}'.format(self.wandb_group))
         logger.info('\twandb name   : {}'.format(run_name))
-        logger.info('\tx axis       : {}'.format(self.error_x_axis))
+        logger.info('\tx axis       : {}'.format(error_x_axis))
         for key in log_futures.keys():
             logger.info('\t\t{}'.format(key))
         return log_data_to_wandb(
                 run_name,
                 self.wandb_group,
                 self.wandb_project,
-                self.error_x_axis,
+                error_x_axis,
                 list(log_futures.keys()),
                 inputs=list(log_futures.values()),
                 )
