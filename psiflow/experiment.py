@@ -316,17 +316,18 @@ class FlowManager:
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
             checks: Optional[list[Check]] = None,
+            require_done=True,
             ) -> None:
         path = self.path_output / name
         path.mkdir(parents=False, exist_ok=False) # parent should exist
 
         # model
-        model.save(path, require_done=True)
+        model.save(path, require_done=require_done)
 
         # ensemble
         path_ensemble = path / 'ensemble'
         path_ensemble.mkdir(parents=False, exist_ok=False)
-        ensemble.save(path_ensemble, require_done=True)
+        ensemble.save(path_ensemble, require_done=require_done)
 
         # data
         if data_train is not None:
@@ -341,7 +342,7 @@ class FlowManager:
             path_checks = path / 'checks'
             path_checks.mkdir(parents=False, exist_ok=False)
             for check in checks: # all checks stored in same dir
-                check.save(path_checks, require_done=True)
+                check.save(path_checks, require_done=require_done)
 
     def load(
             self,

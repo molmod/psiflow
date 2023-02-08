@@ -9,7 +9,7 @@ import time
 from ase.io import read
 
 import psiflow.experiment
-from psiflow.learning import OnlineLearning
+from psiflow.learning import BatchedLearning
 from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
@@ -62,12 +62,12 @@ def get_mace_model(context):
 
 def main(context, flow_manager):
     reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
-    model = get_mace_model(context) # NequIP; medium-sized network
+    model = get_mace_model(context) # MACE; small model
     bias  = get_bias(context)
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz')
+    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # reads one snapshot
 
     # set learning parameters
-    learning = OnlineLearning(
+    learning = BatchedLearning(
             niterations=5,
             nstates=30,
             retrain_model_per_iteration=True,
@@ -115,7 +115,7 @@ def main(context, flow_manager):
 def restart(context, flow_manager, restart_arg):
     reference = get_reference(context)
     model, ensemble, data_train, data_valid, checks = flow_manager.load(restart_arg, context)
-    learning = OnlineLearning(
+    learning = BatchedLearning(
             niterations=5,
             nstates=30,
             retrain_model_per_iteration=True,

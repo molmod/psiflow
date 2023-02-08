@@ -144,9 +144,10 @@ def get_config(path_parsl_internal):
             definitions,
             providers,
             use_work_queue=True,
-            wq_timeout=120,        # timeout for WQ workers before they shut down
-            parsl_app_cache=False, # parsl app caching; disabled for safety
-            parsl_retries=1,       # HTEX may fail when block hits walltime
-            parsl_max_idletime=30, # idletime before parsl tries to scale-in resources
+            wq_timeout=120,         # timeout for WQ workers before they shut down
+            wq_port=9223,           # start of port range used by WQ executors
+            parsl_app_cache=False,  # parsl app caching; disabled for safety
+            parsl_retries=1,        # HTEX may fail when block hits walltime
+            parsl_max_idletime=30,  # idletime before parsl tries to scale-in resources
             )
     return config, definitions

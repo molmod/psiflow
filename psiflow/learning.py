@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 
-from parsl.app.app import python_app
+from parsl.dataflow.futures import AppFuture
 
 from psiflow.utils import get_train_valid_indices
 from psiflow.data import Dataset
@@ -84,7 +84,7 @@ class BaseLearning:
 
 @typeguard.typechecked
 @dataclass
-class OnlineLearning(BaseLearning):
+class BatchLearning(BaseLearning):
     nstates: int = 30
     niterations: int = 10
     retrain_model_per_iteration : bool = True
@@ -145,3 +145,99 @@ class OnlineLearning(BaseLearning):
                     )
             log.result() # necessary to force execution of logging app
         return data_train, data_valid
+
+
+@typeguard.typechecked
+def train_online(
+        states: List[AppFuture],
+        models: List[BaseModel],
+        data_train: Dataset,
+        data_valid: Dataset,
+        retrain_threshold: int,
+        train_valid_split: float,
+        ) -> None:
+    nfinished = sum([state.done() for state in states])
+    if nfinished >= retrain_threshold:
+        logger.info('found {} finished states'.format(nfinished))
+        if not models[-1].model_future.done():
+            return None # do not restart training if still busy
+        done = []
+        i = 0
+        while i < len(states):
+            if states[i].done():
+                done.append(states[i])
+                states.pop(i)
+            else:
+                i += 1
+        assert len(done) >= retrain_threshold
+        data = Dataset(models[0].context, done)
+        data_success = data.get(indices=data.success)
+        train, valid = get_train_valid_indices(
+                data_success.length(), # can be less than nstates
+                train_valid_split,
+                )
+        data_train.append(data_success.get(indices=train))
+        data_valid.append(data_success.get(indices=valid))
+        data_train.log('data_train')
+        data_valid.log('data_valid')
+        model_ = model.copy()
+        models.append(model_)
+        model_.train(data_train, data_valid)
+    else:
+        pass
+
+
+@typeguard.typechecked
+@dataclass
+class OnlineLearning(BaseLearning):
+    retrain_threshold: int = 20
+
+    def run(
+            self,
+            flow_manager: FlowManager,
+            model: BaseModel,
+            reference: BaseReference,
+            ensemble: Ensemble,
+            data_train: Optional[Dataset] = None,
+            data_valid: Optional[Dataset] = None,
+            checks: Optional[list] = None,
+            ) -> Tuple[Dataset, Dataset]:
+        iterator = zip(ensemble.walkers, ensemble.biases)
+        models = [model]
+        counter = 1 # counts number of models which are 'ready'
+        flow_manager.save(
+                name='model_{}'.format(counter),
+                model=models[0],
+                data_train=data_train,
+                data_valid=data_valid,
+                )
+        while True:
+            for i, (walker, bias) in enumerate(iterator):
+                for model in models[::-1]: # select newest model which is ready
+                    if model.model_future.done():
+                        if len(model.deploy_future) == 0:
+                            model.deploy()
+                        break
+                if walker.state.done():
+                    logger.info('walker {} is evaluated; continuing propagation'.format(i))
+                    state = walker.propagate(model, bias=bias)
+                    states.append(reference.evaluate(state))
+                else:
+                    pass
+            train_online(
+                    states,
+                    models,
+                    data_train,
+                    data_valid,
+                    self.retrain_threshold,
+                    self.train_valid_split,
+                    )
+            if len(models) > counter: # new model was added, save new data
+                counter += 1
+                flow_manager.save(
+                        name='model_{}'.format(counter),
+                        model=models[-1], # save model and its training data
+                        data_train=data_train,
+                        data_valid=data_valid,
+                        require_done=False, # only completes when model is trained
+                        )
