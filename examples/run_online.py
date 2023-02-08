@@ -64,14 +64,21 @@ def main(context, flow_manager):
     reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
     model = get_mace_model(context) # NequIP; medium-sized network
     bias  = get_bias(context)
-    data = Dataset.load(context, Path.cwd() / 'data' / 'Al_mil53_train.xyz')
-    data_train = data[:40]   # start with minimal amount of data
-    data_valid = data[40:50]
+    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz')
 
     # set learning parameters
     learning = OnlineLearning(
             train_valid_split=0.9,
             retrain_threshold=5,
+            pretraining_amplitude_pos=0.1,
+            pretraining_amplitude_box=0.05,
+            pretraining_nstates=50,
+            )
+    data_train, data_valid = learning.run_pretraining(
+            flow_manager=flow_manager,
+            model=model,
+            reference=reference,
+            initial_data=Dataset(context, [atoms]), # only one initial state
             )
 
     # construct online learning ensemble; pure MD in this case
@@ -103,24 +110,24 @@ def main(context, flow_manager):
             )
 
 
-#def restart(context, flow_manager, restart_arg):
-#    reference = get_reference(context)
-#    model, ensemble, data_train, data_valid, checks = flow_manager.load(restart_arg, context)
-#    learning = OnlineLearning(
-#            niterations=5,
-#            nstates=30,
-#            retrain_model_per_iteration=True,
-#            train_valid_split=0.9
-#            )
-#    data_train, data_valid = learning.run(
-#            flow_manager=flow_manager,
-#            model=model,
-#            reference=reference,
-#            ensemble=ensemble,
-#            data_train=data_train,
-#            data_valid=data_valid,
-#            checks=checks,
-#            )
+def restart(context, flow_manager, restart_arg):
+    reference = get_reference(context)
+    model, ensemble, data_train, data_valid, checks = flow_manager.load(restart_arg, context)
+    learning = OnlineLearning(
+            niterations=5,
+            nstates=30,
+            retrain_model_per_iteration=True,
+            train_valid_split=0.9
+            )
+    data_train, data_valid = learning.run(
+            flow_manager=flow_manager,
+            model=model,
+            reference=reference,
+            ensemble=ensemble,
+            data_train=data_train,
+            data_valid=data_valid,
+            checks=checks,
+            )
 
 
 if __name__ == '__main__':
