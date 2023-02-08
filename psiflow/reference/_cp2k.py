@@ -4,6 +4,7 @@ import typeguard
 from dataclasses import dataclass
 import tempfile
 import shutil
+import logging
 
 import parsl
 from parsl.executors import WorkQueueExecutor
@@ -15,6 +16,9 @@ from psiflow.execution import ReferenceEvaluationExecution
 from psiflow.data import FlowAtoms
 from psiflow.utils import get_active_executor
 from .base import BaseReference
+
+
+logger = logging.getLogger(__name__) # logging per module
 
 
 #@typeguard.typechecked
@@ -121,6 +125,9 @@ def regularize_input(cp2k_input: str) -> str:
     inp.update({'FORCE_EVAL': {'SUBSYS': {'COORD': {}}}})
     inp.update({'FORCE_EVAL': {'PRINT': {'FORCES': {}}}})
     inp.update({'FORCE_EVAL': {'PRINT': {'STRESS_TENSOR': {}}}})
+    if not 'STRESS_TENSOR' in inp['FORCE_EVAL'].subsections.keys():
+        logger.warning('adding stress tensor calculation to cp2k input')
+        inp.update({'FORCE_EVAL': {'STRESS_TENSOR': 'ANALYTICAL'}})
     return str(inp)
 
 
@@ -161,7 +168,7 @@ def cp2k_singlepoint_pre(
             parameters.cp2k_input,
             filepaths,
             )
-    cp2k_input = regularize_input(cp2k_input) # before insert_atoms_in_input
+    #cp2k_input = regularize_input(cp2k_input) # before insert_atoms_in_input
     cp2k_input = set_global_section(cp2k_input)
     cp2k_input = insert_atoms_in_input(
             cp2k_input,
@@ -244,13 +251,16 @@ class CP2KReference(BaseReference):
         the cp2k input (e.g. BASIS_SET_FILE_NAME)
 
     """
-    execution_types = set([ReferenceEvaluationExecution])
     parameters_cls = CP2KParameters
     required_files = [
             'basis_set',
             'potential',
             'dftd3',
             ]
+    def __init__(self, context: ExecutionContext, **kwargs) -> None:
+        assert 'cp2k_input' in kwargs.keys()
+        kwargs['cp2k_input'] = regularize_input(kwargs['cp2k_input'])
+        super().__init__(context, **kwargs)
 
     @classmethod
     def create_apps(cls, context):

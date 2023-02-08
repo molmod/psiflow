@@ -182,7 +182,11 @@ class PlumedBias(Container):
             data: Optional[Dict] = None,
             ):
         super().__init__(context)
-        assert 'PRINT' not in plumed_input
+        assert 'ENERGY=kj/mol' in plumed_input, ('please set the PLUMED energy '
+                'units to kj/mol')
+        assert 'PRINT' not in plumed_input, ('remove print statements from '
+                'PLUMED inputs to avoid generating additional (untracked) '
+                'files')
         components = parse_plumed_input(plumed_input)
         assert len(components) > 0
         for c in components:

@@ -31,7 +31,6 @@ from parsl.providers.slurm.template import template_string
 
 
 logger = logging.getLogger(__name__) # logging per module
-#logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked

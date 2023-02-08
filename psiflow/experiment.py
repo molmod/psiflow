@@ -360,7 +360,10 @@ class FlowManager:
 
         # model
         model = load_model(context, path)
-        model.create_apps(context) # ensures apps exist in context
+        try:
+            model.create_apps(context) # ensures apps exist in context
+        except AssertionError: # apps already registered
+            assert context.apps(model.__class__, 'train')
 
         # ensemble
         path_ensemble = path / 'ensemble'
@@ -478,6 +481,9 @@ def initialize(args) -> Tuple[ExecutionContext, FlowManager]:
                 'already restart from this iteration?')
         assert not path_parsl_log.exists(), ('log file already exists, did you '
                 'already restart from this iteration?')
+        assert path_context.is_dir()
+        shutil.rmtree(str(path_context))
+        path_context.mkdir()
     else:
         path_experiment.mkdir()
         path_internal.mkdir()

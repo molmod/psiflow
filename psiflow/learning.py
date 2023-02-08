@@ -70,6 +70,7 @@ class BaseLearning:
                 data_train=data_train,
                 data_valid=data_valid,
                 data_failed=data.get(indices=data.failed),
+                require_done=False,
                 )
         log = flow_manager.log_wandb( # log training
                 run_name='random_pretraining',
@@ -78,7 +79,6 @@ class BaseLearning:
                 data_train=data_train,
                 data_valid=data_valid,
                 )
-        log.result() # necessary to force execution of logging app
         return data_train, data_valid
 
 
@@ -149,16 +149,16 @@ class BatchLearning(BaseLearning):
 
 @typeguard.typechecked
 def train_online(
-        states: List[AppFuture],
-        models: List[BaseModel],
+        states: list[AppFuture],
+        models: list[BaseModel],
         data_train: Dataset,
         data_valid: Dataset,
         retrain_threshold: int,
         train_valid_split: float,
         ) -> None:
     nfinished = sum([state.done() for state in states])
+    logger.info('found {} finished states'.format(nfinished))
     if nfinished >= retrain_threshold:
-        logger.info('found {} finished states'.format(nfinished))
         if not models[-1].model_future.done():
             return None # do not restart training if still busy
         done = []
@@ -208,20 +208,32 @@ class OnlineLearning(BaseLearning):
         flow_manager.save(
                 name='model_{}'.format(counter),
                 model=models[0],
+                ensemble=ensemble,
                 data_train=data_train,
                 data_valid=data_valid,
                 )
         while True:
+            states = []
             for i, (walker, bias) in enumerate(iterator):
-                for model in models[::-1]: # select newest model which is ready
-                    if model.model_future.done():
+                model = None
+                for m in models[::-1]: # select newest model which is ready
+                    if m.model_future.done():
+                        model = m
                         if len(model.deploy_future) == 0:
                             model.deploy()
                         break
-                if walker.state.done():
+                if model is None:
+                    logger.info('did not find a model that was ready for walker propagation')
+                    logger.info('the following models exist: ')
+                    for m in models[::-1]:
+                        logger.info(m)
+                        logger.info(m.model_future.filepath)
+                    continue # no model ready
+                if walker.state_future.done():
                     logger.info('walker {} is evaluated; continuing propagation'.format(i))
-                    state = walker.propagate(model, bias=bias)
-                    states.append(reference.evaluate(state))
+                    states.append(reference.evaluate(walker.state_future))
+                    walker.reset_if_unsafe()
+                    walker.propagate(model=model, bias=bias)
                 else:
                     pass
             train_online(

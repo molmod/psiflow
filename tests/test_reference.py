@@ -66,10 +66,11 @@ def cp2k_data():
 
 @pytest.fixture
 def cp2k_input():
+    # remove stress tensor keyword to ensure it gets added automatically
     return """
 &FORCE_EVAL
    METHOD Quickstep
-   STRESS_TENSOR ANALYTICAL
+   !STRESS_TENSOR ANALYTICAL
    &DFT
       UKS  F
       MULTIPLICITY  1

@@ -3,7 +3,8 @@ from typing import Optional, Union, List, Callable, Tuple, Type
 import typeguard
 from dataclasses import dataclass, asdict
 
-from parsl.app.app import python_app
+import parsl
+from parsl.app.app import python_app, bash_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
@@ -16,7 +17,7 @@ from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 
 
-@typeguard.typechecked
+#@typeguard.typechecked
 def simulate_model(
         device: str,
         ncores: int,
@@ -29,6 +30,8 @@ def simulate_model(
         inputs: List[File] =[],
         outputs: List[File] = [],
         walltime: float = 1e12, # infinite by default
+        stdout: str = '',
+        #stderr: str = '',
         parsl_resource_specification: dict = None,
         ) -> Tuple[FlowAtoms, str]:
     import torch
@@ -36,9 +39,14 @@ def simulate_model(
     import tempfile
     import numpy as np
     import parsl
+    import logging
     from copy import deepcopy
+    from parsl.utils import get_std_fname_mode # from parsl/app/bash.py
+    fname, mode = get_std_fname_mode('stdout', stdout)
+    os.makedirs(os.path.dirname(fname), exist_ok=True)
+    fd = open(fname, mode)
     import yaff
-    yaff.log.set_level(yaff.log.silent)
+    yaff.log.set_file(fd)
     import molmod
     from ase.io.extxyz import write_extxyz
     from psiflow.sampling.utils import ForcePartASE, DataHook, \
@@ -128,6 +136,7 @@ def simulate_model(
     except parsl.app.errors.AppTimeout as e:
         print(e)
     yaff.log.set_level(yaff.log.silent)
+    fd.close()
 
     if len(plumed_input) > 0:
         os.unlink(path_log)
@@ -214,6 +223,7 @@ class DynamicWalker(BaseWalker):
                 executors=[label],
                 cache=False,
                 )
+
         @typeguard.typechecked
         def propagate_wrapped(
                 state: AppFuture,
@@ -249,6 +259,7 @@ class DynamicWalker(BaseWalker):
                     inputs=inputs,
                     outputs=outputs,
                     walltime=(walltime * 60 - 20), # 20s slack
+                    stdout=parsl.AUTO_LOGNAME,
                     parsl_resource_specification=resource_spec,
                     )
             if bias is not None: # ensure dependency on new hills is set

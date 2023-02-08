@@ -65,10 +65,6 @@ def evaluate_dataset(
 @typeguard.typechecked
 class BaseModel(Container):
     """Base Container for a trainable interaction potential"""
-    execution_types = set([
-            ModelEvaluationExecution,
-            ModelTrainingExecution,
-            ])
 
     def __init__(self, context: ExecutionContext, config: Dict) -> None:
         super().__init__(context)
@@ -76,6 +72,14 @@ class BaseModel(Container):
         self.config_future = None
         self.model_future  = None
         self.deploy_future = {} # deployed models in float32 and float64
+
+        # double-check whether required definitions are present
+        assert len(context[self.__class__]) == 2, ('Models require '
+                'definition of both training and evaluation execution. '
+                '{} only has the following definitions: {}'.format(
+                    container,
+                    self.definitions[container],
+                    ))
 
     def train(
             self,
