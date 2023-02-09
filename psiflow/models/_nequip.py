@@ -6,7 +6,10 @@ import inspect
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 
-from ase.calculators.calculator import BaseCalculator
+try:
+    from ase.calculators.calculator import BaseCalculator
+except ImportError: # 3.22.1 and below still use Calculator
+    from ase.calculators.calculator import Calculator as BaseCalculator
 
 import parsl
 from parsl.executors import WorkQueueExecutor
