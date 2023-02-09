@@ -47,13 +47,13 @@ def test_ensemble_sampling(context, dataset, tmp_path):
     assert check.nchecks == 0
     dataset = ensemble.as_dataset(checks=[check]) # walkers still unsafe
     assert check.nchecks == nwalkers # immediately OK because no join app
-    assert dataset.length().result() == nwalkers - 2
-    assert check.npasses.result() == nwalkers - 2
+    assert dataset.length().result() == nwalkers
+    assert check.npasses.result() == nwalkers
     dataset = ensemble.sample(nstates, model=None, checks=[check])
-    assert not check.nchecks == nwalkers + nstates + 2 # because of join app!
+    assert not check.nchecks == nwalkers + nstates # because of join app!
     dataset.data_future.result() # forces join app execution
-    assert check.nchecks == nwalkers + nstates + 2 # now OK
-    assert check.npasses.result() == nwalkers + nstates - 2
+    assert check.nchecks == nwalkers + nstates # now OK
+    assert check.npasses.result() == nwalkers + nstates
     # unsafe walkers are reset after first pass through ensemble, so when
     # batch_size is nonzero to reach nstates samples, no unsafe walkers are
     # present.

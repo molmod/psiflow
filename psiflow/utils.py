@@ -218,7 +218,7 @@ def _app_train_valid_indices(
     assert ntrain > 0
     assert nvalid > 0
     return list(range(ntrain)), list(range(ntrain, ntrain + nvalid))
-app_train_valid_indices = python_app(_app_train_valid_indices)
+app_train_valid_indices = python_app(_app_train_valid_indices, executors=['default'])
 
 
 @typeguard.typechecked

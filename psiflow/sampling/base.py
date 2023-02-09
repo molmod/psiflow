@@ -20,33 +20,42 @@ from psiflow.data import save_atoms, FlowAtoms, Dataset
 
 
 @typeguard.typechecked
-def _app_safe_return(
+def _conditional_reset(
         state: FlowAtoms,
         start: FlowAtoms,
         tag: str,
-        ) -> FlowAtoms:
-    if tag == 'unsafe':
-        return start
-    else:
-        return state
-app_safe_return = python_app(_app_safe_return, executors=['default'])
+        counter: int,
+        conditional: bool,
+        ) -> Tuple[FlowAtoms, str, int]:
+    if (not conditional): # reset anyway
+        return start, 'safe', 0
+    else: # reset if unsafe
+        if tag == 'unsafe':
+            return start, 'safe', 0
+    return state, tag, counter
+conditional_reset = python_app(_conditional_reset, executors=['default'])
 
 
 @typeguard.typechecked
-def _is_reset(state: FlowAtoms, start: FlowAtoms) -> bool:
-    if state == start: # positions, numbers, cell, pbc
-        return True
-    else:
-        return False
+def _is_reset(counter: int) -> bool:
+    return counter == 0
 is_reset = python_app(_is_reset, executors=['default'])
 
 
 @typeguard.typechecked
-def _update_tag(existing_tag: str, new_tag: str) -> str:
-    if (existing_tag == 'safe') and (new_tag == 'safe'):
-        return 'safe'
-    else:
+def _sum_counters(counter0: int, counter1: int) -> int:
+    return counter0 + counter1
+sum_counters = python_app(_sum_counters, executors=['default'])
+
+
+@typeguard.typechecked
+def _update_tag(tag0: str, tag1: str) -> str:
+    if tag0 == 'unsafe':
         return 'unsafe'
+    else:
+        if tag1 == 'unsafe':
+            return 'unsafe'
+    return 'safe'
 update_tag = python_app(_update_tag, executors=['default'])
 
 
@@ -72,9 +81,10 @@ class BaseWalker(Container):
         # futures
         if type(atoms) == Atoms:
             atoms = FlowAtoms.from_atoms(atoms)
-        self.start_future = copy_app_future(atoms) # necessary!
-        self.state_future = copy_app_future(atoms)
-        self.tag_future   = copy_app_future('safe')
+        self.start_future   = copy_app_future(atoms) # necessary!
+        self.state_future   = copy_app_future(atoms)
+        self.tag_future     = copy_app_future('safe')
+        self.counter_future = copy_app_future(0) # counts nsteps
 
         # parameters
         self.parameters = self.parameters_cls(**deepcopy(kwargs))
@@ -104,15 +114,19 @@ class BaseWalker(Container):
                 model=model,
                 **kwargs, # Model or Bias instance
                 )
-        self.state_future = unpack_i(result, 0)
-        self.tag_future   = update_tag(self.tag_future, unpack_i(result, 1))
+        self.state_future   = unpack_i(result, 0)
+        self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
+        self.counter_future = sum_counters(self.counter_future, unpack_i(result, 2))
         if safe_return: # only return state if safe, else return start
             # this does NOT reset the walker!
-            future = app_safe_return(
+            _ = conditional_reset(
                     self.state_future,
                     self.start_future,
                     self.tag_future,
+                    self.counter_future,
+                    conditional=True
                     )
+            future = unpack_i(_, 0)
         else:
             future = self.state_future
         future = copy_app_future(future) # necessary
@@ -127,21 +141,27 @@ class BaseWalker(Container):
     def tag_safe(self) -> None:
         self.tag_future = copy_app_future('safe')
 
-    def reset_if_unsafe(self) -> None:
-        self.state_future = app_safe_return(
+    def reset(self, conditional: bool = False) -> AppFuture:
+        """Resets walker to a copy of its starting configuration
+
+        If conditional is enabled, then the reset is only performed when the
+        current tag of the walker is unsafe.
+
+        """
+        result = conditional_reset(
                 self.state_future,
                 self.start_future,
                 self.tag_future,
+                self.counter_future,
+                conditional,
                 )
-        self.tag_future = copy_app_future('safe')
-
-    def is_reset(self) -> AppFuture:
-        return is_reset(self.state_future, self.start_future)
-
-    def reset(self) -> AppFuture:
-        self.state_future = copy_app_future(self.start_future)
-        self.tag = copy_app_future('safe')
+        self.state_future   = unpack_i(result, 0)
+        self.tag_future     = unpack_i(result, 1)
+        self.counter_future = unpack_i(result, 2)
         return self.state_future
+
+    def is_reset(self):
+        return is_reset(self.counter_future)
 
     def copy(self) -> BaseWalker:
         walker = self.__class__(

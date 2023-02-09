@@ -31,9 +31,10 @@ def simulate_model(
         outputs: List[File] = [],
         walltime: float = 1e12, # infinite by default
         stdout: str = '',
+        stderr: str = '',
         #stderr: str = '',
         parsl_resource_specification: dict = None,
-        ) -> Tuple[FlowAtoms, str]:
+        ) -> Tuple[FlowAtoms, str, int]:
     import torch
     import os
     import tempfile
@@ -41,118 +42,141 @@ def simulate_model(
     import parsl
     import logging
     from copy import deepcopy
+
+    # capture output and error
     from parsl.utils import get_std_fname_mode # from parsl/app/bash.py
-    fname, mode = get_std_fname_mode('stdout', stdout)
+    from contextlib import redirect_stderr
+    fname, mode = get_std_fname_mode('stderr', stderr)
     os.makedirs(os.path.dirname(fname), exist_ok=True)
-    fd = open(fname, mode)
-    import yaff
-    yaff.log.set_file(fd)
-    import molmod
-    from ase.io.extxyz import write_extxyz
-    from psiflow.sampling.utils import ForcePartASE, DataHook, \
-            create_forcefield, ForceThresholdExceededException, ForcePartPlumed
-    from psiflow.sampling.bias import try_manual_plumed_linking
-    if device == 'cpu':
-        torch.set_num_threads(ncores)
-    if dtype == 'float64':
-        torch.set_default_dtype(torch.float64)
-    else:
-        torch.set_default_dtype(torch.float32)
-    pars = parameters
-    np.random.seed(pars.seed)
-    torch.manual_seed(pars.seed)
-    atoms = state.copy()
-    atoms.calc = load_calculator(inputs[0].filepath, device, dtype)
-    forcefield = create_forcefield(atoms, pars.force_threshold)
+    fde = open(fname, mode)
+    with redirect_stderr(fde): # redirect stderr
+        fname, mode = get_std_fname_mode('stdout', stdout)
+        os.makedirs(os.path.dirname(fname), exist_ok=True)
+        fdo = open(fname, mode)
+        import yaff
+        yaff.log.set_file(fdo) # redirect yaff log
+        import molmod
+        from ase.io.extxyz import write_extxyz
+        from psiflow.sampling.utils import ForcePartASE, DataHook, \
+                create_forcefield, ForceThresholdExceededException, ForcePartPlumed
+        from psiflow.sampling.bias import try_manual_plumed_linking
+        if device == 'cpu':
+            torch.set_num_threads(ncores)
+        if dtype == 'float64':
+            torch.set_default_dtype(torch.float64)
+        else:
+            torch.set_default_dtype(torch.float32)
+        pars = parameters
+        np.random.seed(pars.seed)
+        torch.manual_seed(pars.seed)
+        atoms   = state.copy()
+        initial = state.copy()
+        atoms.calc = load_calculator(inputs[0].filepath, device, dtype)
+        forcefield = create_forcefield(atoms, pars.force_threshold)
 
-    loghook  = yaff.VerletScreenLog(step=pars.step, start=0)
-    datahook = DataHook(start=pars.start, step=pars.step)
-    hooks = []
-    hooks.append(loghook)
-    hooks.append(datahook)
-    if len(plumed_input) > 0: # add bias if present
-        try_manual_plumed_linking()
-        if len(inputs) > 1: # item 1 is hills file; only one to backup
-            with open(inputs[1], 'r') as f: # always exists
-                backup_data = f.read() # backup data
-        with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
-            f.write(plumed_input) # write input
-        path_plumed = f.name
-        tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
-        tmp.close()
-        path_log = tmp.name # dummy log file
-        part_plumed = ForcePartPlumed(
-                forcefield.system,
-                timestep=pars.timestep * molmod.units.femtosecond,
-                restart=1,
-                fn=path_plumed,
-                fn_log=path_log,
-                )
-        forcefield.add_part(part_plumed)
-        hooks.append(part_plumed) # NECESSARY!!
+        loghook  = yaff.VerletScreenLog(step=pars.step, start=0)
+        datahook = DataHook(start=pars.start, step=pars.step)
+        hooks = []
+        hooks.append(loghook)
+        hooks.append(datahook)
+        if len(plumed_input) > 0: # add bias if present
+            try_manual_plumed_linking()
+            if len(inputs) > 1: # item 1 is hills file; only one to backup
+                with open(inputs[1], 'r') as f: # always exists
+                    backup_data = f.read() # backup data
+            with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
+                f.write(plumed_input) # write input
+            path_plumed = f.name
+            tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
+            tmp.close()
+            path_log = tmp.name # dummy log file
+            part_plumed = ForcePartPlumed(
+                    forcefield.system,
+                    timestep=pars.timestep * molmod.units.femtosecond,
+                    restart=1,
+                    fn=path_plumed,
+                    fn_log=path_log,
+                    )
+            forcefield.add_part(part_plumed)
+            hooks.append(part_plumed) # NECESSARY!!
 
-    thermo = yaff.LangevinThermostat(
-            pars.temperature,
-            timecon=100 * molmod.units.femtosecond,
-            )
-    if pars.pressure is None:
-        print('sampling NVT ensemble ...')
-        hooks.append(thermo)
-    else:
-        print('sampling NPT ensemble ...')
-        try: # some models do not have stress support; prevent NPT!
-            stress = atoms.get_stress()
-        except Exception as e:
-            raise ValueError('NPT requires stress support in model')
-        baro = yaff.LangevinBarostat(
-                forcefield,
+        thermo = yaff.LangevinThermostat(
                 pars.temperature,
-                pars.pressure * 1e6 * molmod.units.pascal, # in MPa
-                timecon=molmod.units.picosecond,
-                anisotropic=True,
-                vol_constraint=False,
+                timecon=100 * molmod.units.femtosecond,
                 )
-        tbc = yaff.TBCombination(thermo, baro)
-        hooks.append(tbc)
+        if pars.pressure is None:
+            print('sampling NVT ensemble ...')
+            hooks.append(thermo)
+        else:
+            print('sampling NPT ensemble ...')
+            try: # some models do not have stress support; prevent NPT!
+                stress = atoms.get_stress()
+            except Exception as e:
+                raise ValueError('NPT requires stress support in model')
+            baro = yaff.LangevinBarostat(
+                    forcefield,
+                    pars.temperature,
+                    pars.pressure * 1e6 * molmod.units.pascal, # in MPa
+                    timecon=molmod.units.picosecond,
+                    anisotropic=True,
+                    vol_constraint=False,
+                    )
+            tbc = yaff.TBCombination(thermo, baro)
+            hooks.append(tbc)
 
-    tag = 'safe'
-    try: # exception may already be raised at initialization of verlet
-        verlet = yaff.VerletIntegrator(
-                forcefield,
-                timestep=pars.timestep*molmod.units.femtosecond,
-                hooks=hooks,
-                temp0=pars.initial_temperature,
-                )
-        yaff.log.set_level(yaff.log.medium)
-        verlet.run(pars.steps)
-    except ForceThresholdExceededException as e:
-        print(e)
-        print('tagging sample as unsafe')
-        tag = 'unsafe'
+        tag = 'safe'
+        counter = 0
+        try: # exception may already be raised at initialization of verlet
+            verlet = yaff.VerletIntegrator(
+                    forcefield,
+                    timestep=pars.timestep*molmod.units.femtosecond,
+                    hooks=hooks,
+                    temp0=pars.initial_temperature,
+                    )
+            yaff.log.set_level(yaff.log.medium)
+            verlet.run(pars.steps)
+            counter = verlet.counter
+        except ForceThresholdExceededException as e:
+            print(e)
+            print('tagging sample as unsafe')
+            tag = 'unsafe'
+            if len(plumed_input) > 0:
+                if len(inputs) > 1:
+                    with open(inputs[1], 'w') as f: # reset hills
+                        f.write(backup_data)
+            try:
+                counter = verlet.counter
+            except UnboundLocalError: # if it happened during verlet init
+                pass
+        except parsl.app.errors.AppTimeout as e:
+            print(e)
+        yaff.log.set_level(yaff.log.silent)
+        fdo.close()
+
         if len(plumed_input) > 0:
-            if len(inputs) > 1:
-                with open(inputs[1], 'w') as f: # reset hills
-                    f.write(backup_data)
-    except parsl.app.errors.AppTimeout as e:
-        print(e)
-    yaff.log.set_level(yaff.log.silent)
-    fd.close()
+            os.unlink(path_log)
+            os.unlink(path_plumed)
 
-    if len(plumed_input) > 0:
-        os.unlink(path_log)
-        os.unlink(path_plumed)
+        # update state with last stored state if data nonempty
+        if len(datahook.data) > 0:
+            state.set_positions(datahook.data[-1].get_positions())
+            state.set_cell(datahook.data[-1].get_cell())
 
-    # update state with last stored state if data nonempty
-    if len(datahook.data) > 0:
-        state.set_positions(datahook.data[-1].get_positions())
-        state.set_cell(datahook.data[-1].get_cell())
+        # write data to output xyz
+        if keep_trajectory:
+            assert str(outputs[0].filepath).endswith('.xyz')
+            with open(outputs[0], 'w+') as f:
+                write_extxyz(f, datahook.data)
 
-    # write data to output xyz
-    if keep_trajectory:
-        assert str(outputs[0].filepath).endswith('.xyz')
-        with open(outputs[0], 'w+') as f:
-            write_extxyz(f, datahook.data)
-    return FlowAtoms.from_atoms(state), tag
+        # check whether counter == 0 actually means state = start
+        counter_is_reset = counter == 0
+        state_is_reset   = np.allclose(
+                    initial.get_positions(),
+                    state.get_positions(),
+                    )
+        if counter_is_reset: assert state_is_reset
+        if state_is_reset and (parameters.step == 1): assert counter_is_reset
+    return FlowAtoms.from_atoms(state), tag, counter
 
 
 @typeguard.typechecked
@@ -259,7 +283,8 @@ class DynamicWalker(BaseWalker):
                     inputs=inputs,
                     outputs=outputs,
                     walltime=(walltime * 60 - 20), # 20s slack
-                    stdout=parsl.AUTO_LOGNAME,
+                    stdout=parsl.AUTO_LOGNAME, # output redirected to this file
+                    stderr=parsl.AUTO_LOGNAME, # error redirected to this file
                     parsl_resource_specification=resource_spec,
                     )
             if bias is not None: # ensure dependency on new hills is set

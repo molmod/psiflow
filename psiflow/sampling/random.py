@@ -16,7 +16,7 @@ from psiflow.models import BaseModel
 def random_perturbation(
         state: FlowAtoms,
         parameters: RandomParameters,
-        ) -> Tuple[FlowAtoms, str]:
+        ) -> Tuple[FlowAtoms, str, int]:
     import numpy as np
     from psiflow.sampling.utils import apply_strain
     np.random.seed(parameters.seed)
@@ -38,7 +38,7 @@ def random_perturbation(
             )
     state.set_positions(positions)
     state.set_cell(box)
-    return state, 'safe'
+    return state, 'safe', 1
 app_propagate = python_app(random_perturbation, executors=['default'])
 
 
@@ -51,7 +51,8 @@ def propagate_wrapped(
         ) -> AppFuture:
     # ignore additional kwargs; return None as dataset
     assert not keep_trajectory
-    return app_propagate(state, parameters)
+    future = app_propagate(state, parameters)
+    return future
 
 
 @dataclass

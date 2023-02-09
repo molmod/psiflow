@@ -134,6 +134,7 @@ class BatchLearning(BaseLearning):
                     data_train=data_train,
                     data_valid=data_valid,
                     data_failed=data.get(indices=data.failed),
+                    require_done=False,
                     )
             log = flow_manager.log_wandb( # log training
                     run_name=str(i),

@@ -8,7 +8,6 @@ from copy import deepcopy
 from pathlib import Path
 
 import parsl
-from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture

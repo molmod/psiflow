@@ -30,15 +30,6 @@ def _count_nstates(
 count_nstates = python_app(_count_nstates, executors=['default'])
 
 
-@typeguard.typechecked
-def _dependency_dummy(inputs: List[Any]) -> bool:
-    from pathlib import Path
-    for input_ in inputs:
-        assert Path(input_.filepath).is_file()
-    return True
-dependency_dummy = python_app(_dependency_dummy, executors=['default'])
-
-
 @join_app
 @typeguard.typechecked
 def conditional_sample(
@@ -49,7 +40,6 @@ def conditional_sample(
         biases: List[Optional[PlumedBias]],
         model: Optional[BaseModel], # None for e.g. RandomWalker
         checks: List[Check],
-        #dependency: bool:
         inputs: List[Optional[FlowAtoms]] = [],
         outputs: List[File] = [],
         ): # recursive
@@ -73,7 +63,7 @@ def conditional_sample(
             walker.parameters.seed += len(walkers) # avoid generating same states
             for check in checks:
                 state = check(state, walker.tag_future)
-            walker.reset_if_unsafe()
+            walker.reset(conditional=True)
             states.append(state) # some are None
     else:
         batch_size = nstates - nstates_effective
@@ -102,7 +92,7 @@ def conditional_sample(
             walker.parameters.seed += len(walkers) # avoid generating same states
             for check in checks:
                 state = check(state, walker.tag_future)
-            walker.reset_if_unsafe()
+            walker.reset(conditional=True)
             states.append(state) # some are None
     return conditional_sample(
             context,
@@ -115,6 +105,13 @@ def conditional_sample(
             inputs=states,
             outputs=[outputs[0]],
             )
+
+
+@join_app
+@typeguard.typechecked
+def log_walkers(*counters):
+    for i, counter in enumerate(counters):
+        logger.info('\twalker {} propagated for {} steps'.format(i, counter))
 
 
 @join_app
@@ -167,7 +164,7 @@ class Ensemble:
                 logger.info('\t{}'.format(check.__class__.__name__))
         else:
             logger.info('no checks applied to obtained states')
-        data_future = conditional_sample(
+        sample_future = conditional_sample(
                 self.context,
                 nstates,
                 0,
@@ -177,8 +174,9 @@ class Ensemble:
                 checks=checks if checks is not None else [],
                 inputs=[],
                 outputs=[self.context.new_file('data_', '.xyz')],
-                ).outputs[0]
-        dataset = Dataset(self.context, None, data_future=data_future)
+                )
+        log_walkers(*[w.counter_future for w in self.walkers])
+        dataset = Dataset(self.context, None, data_future=sample_future.outputs[0])
         return dataset # possible race condition on checks!
 
     def add_bias(self, bias):

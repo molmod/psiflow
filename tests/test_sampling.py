@@ -44,8 +44,6 @@ def test_base_walker(context, dataset):
     assert walker.state_future != walker.start_future # do not point to same future
     assert isinstance(walker.start_future.result(), Atoms)
     assert isinstance(walker.state_future.result(), Atoms)
-    #walker.reset_if_unsafe()
-    #assert 
 
     with pytest.raises(TypeError): # illegal kwarg
         BaseWalker(context, dataset[0], some_illegal_kwarg=0)
@@ -58,6 +56,7 @@ def test_random_walker(context, dataset):
     assert isinstance(state, AppFuture)
     assert isinstance(walker.is_reset(), AppFuture)
     assert not walker.is_reset().result()
+    assert not walker.counter_future.result() == 0
 
     walker = RandomWalker(context, dataset[0], seed=0)
     safe_state = walker.propagate(safe_return=True)
@@ -66,11 +65,11 @@ def test_random_walker(context, dataset):
             safe_state.result().get_positions(),
             )
 
-    walker.reset_if_unsafe() # random walker is never unsafe
+    walker.reset(conditional=True) # random walker is never unsafe
     assert not walker.is_reset().result()
 
     walker.tag_future = 'unsafe'
-    walker.reset_if_unsafe() # should reset
+    walker.reset(conditional=True) # should reset
     assert walker.is_reset().result() # should reset
     assert walker.tag_future.result() == 'safe'
 
@@ -84,6 +83,7 @@ def test_dynamic_walker(context, dataset, mace_config):
     model.deploy()
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
     assert trajectory.length().result() == 11
+    assert walker.counter_future.result() == 10
     assert np.allclose(
             trajectory[0].result().get_positions(), # initial structure
             walker.start_future.result().get_positions(),
@@ -99,6 +99,7 @@ def test_dynamic_walker(context, dataset, mace_config):
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
     assert not trajectory.length().result() < 1001
     assert trajectory.length().result() > 1
+    assert walker.counter_future.result() == trajectory.length().result() - 1
     walker.parameters.force_threshold = 0.001
     walker.parameters.steps           = 1
     walker.parameters.step            = 1
@@ -106,7 +107,7 @@ def test_dynamic_walker(context, dataset, mace_config):
     assert walker.tag_future.result() == 'unsafe' # raised ForceExceededException
 
 
-def test_optimization(context, dataset, nequip_config):
+def test_optimization_walker(context, dataset, nequip_config):
     training = dataset[:15]
     validate = dataset[15:]
     model = NequIPModel(context, nequip_config)
@@ -118,6 +119,9 @@ def test_optimization(context, dataset, nequip_config):
     final = walker.propagate(model=model)
     assert np.all(np.abs(final.result().positions - dataset[0].result().positions) < 1.0)
     assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved
+    counter = walker.counter_future.result()
+    assert counter > 0
     walker.parameters.fmax = 1e-3
     final_ = walker.propagate(model=model)
     assert not np.all(np.abs(final_.result().positions - dataset[0].result().positions) < 0.001) # moved again
+    assert walker.counter_future.result() > counter # more steps in total

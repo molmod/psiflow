@@ -25,7 +25,7 @@ def optimize_geometry(
         plumed_input: str = '',
         inputs: List[File] = [],
         outputs: List[File] = [],
-        ) -> Tuple[FlowAtoms, str]:
+        ) -> Tuple[FlowAtoms, str, int]:
     import os
     import tempfile
     import torch
@@ -80,7 +80,7 @@ def optimize_geometry(
             trajectory = read(path_traj)
             write_extxyz(f, trajectory)
     os.unlink(path_traj)
-    return FlowAtoms.from_atoms(atoms), tag
+    return FlowAtoms.from_atoms(atoms), tag, optimizer.nsteps
 
 
 @typeguard.typechecked
