@@ -51,6 +51,9 @@ def context(request, tmp_path_factory):
     MACEModel.create_apps(context)
     CP2KReference.create_apps(context)
     yield context
+    from parsl.dataflow.dflow import DataFlowKernelLoader
+    #dfk = DataFlowKernelLoader.dfk()
+    #dfk.wait_for_current_tasks()
     parsl.clear()
 
 
@@ -58,6 +61,7 @@ def context(request, tmp_path_factory):
 def nequip_config(tmp_path):
     nequip_config = NequIPConfig()
     nequip_config.root = str(tmp_path)
+    nequip_config.wandb_group = 'pytest_group'
     return asdict(nequip_config)
 
 

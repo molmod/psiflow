@@ -16,7 +16,7 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.execution import ExecutionContext, generate_parsl_config
-from psiflow.models import BaseModel, load_model
+from psiflow.models import BaseModel, load_model, NequIPModel
 from psiflow.reference.base import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
 from psiflow.ensemble import Ensemble
@@ -462,6 +462,14 @@ class FlowManager:
 
     def output_exists(self, name):
         return (self.path_output / name).is_dir()
+
+    def insert_name(self, model: BaseModel) -> None:
+        # set wandb
+        if isinstance(model, NequIPModel):
+            model.config_raw['wandb_group'] = self.wandb_group
+        else:
+            logger.warning('cannot set wandb name for model {}'.format(model.__class__))
+            pass
 
 
 @typeguard.typechecked

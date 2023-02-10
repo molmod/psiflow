@@ -19,7 +19,7 @@ from psiflow.utils import copy_data_future, save_txt, create_if_empty
 from psiflow.data import read_dataset, Dataset
 
 
-PLUMED_BIAS_KEYWORDS = ['METAD', 'RESTRAINT', 'EXTERNAL', 'UPPER_WALLS']
+PLUMED_BIAS_KEYWORDS = ['METAD', 'RESTRAINT', 'EXTERNAL', 'UPPER_WALLS', 'LOWER_WALLS']
 
 
 @typeguard.typechecked
@@ -313,7 +313,10 @@ class PlumedBias(Container):
         for i, line in enumerate(lines):
             if 'ARG=' in line:
                 if not (variable == line.split('ARG=')[1].split()[0]):
-                    lines[i] = '\n'
+                    for part in line.split(): # remove only if actual bias
+                        for keyword in PLUMED_BIAS_KEYWORDS:
+                            if keyword in part:
+                                lines[i] = '\n'
         for i, line in enumerate(lines):
             if 'METAD' in line.split():
                 line_before = line.split('PACE=')[0]

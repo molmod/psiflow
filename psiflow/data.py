@@ -367,6 +367,11 @@ class Dataset(Container):
     def length(self) -> AppFuture:
         return app_length_dataset(inputs=[self.data_future])
 
+    def shuffle(self):
+        indices = np.arange(self.length().result())
+        np.random.shuffle(indices)
+        return self.get(indices=[int(i) for i in indices])
+
     def __getitem__(
             self,
             index: Union[int, slice, List[int], AppFuture],

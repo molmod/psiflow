@@ -40,7 +40,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
         'forces': 'forces',
         'stress': 'virial'})
     root: Optional[str] = None
-    run_name: str = 'psiflow_nequip'
+    run_name: str = 'training'
     seed: int = 123
     dataset_seed: int = 456
     append: bool = True
@@ -82,6 +82,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     chemical_symbols: Optional[list[str]] = field(default_factory=lambda: ['X']) # gets overridden
     wandb: bool = True # enable by default
     wandb_project: str = 'psiflow'
+    wandb_group: Optional[str] = None
     wandb_watch: bool = False
     verbose: str = 'info'
     log_batch_freq: int = 10
@@ -160,7 +161,7 @@ class AllegroConfig(NequIPConfig):
     r_max: float = 5.0
 
 
-def init_n_update(config, tmpdir):
+def init_n_update(config):
     import wandb
     import logging
     from wandb.util import json_friendly_val
@@ -177,8 +178,8 @@ def init_n_update(config, tmpdir):
     wandb.init(
         project=config.wandb_project,
         config=conf_dict,
+        group=config.wandb_group,
         name=config.run_name,
-        dir=tmpdir,
         resume="allow",
         id=config.run_id,
     )

@@ -107,7 +107,7 @@ def fresh_start(config, path_model):
         from nequip.train.trainer_wandb import TrainerWandB
 
         # download parameters from wandb in case of sweeping
-        from nequip.utils.wandb import init_n_update
+        from psiflow.models._nequip import init_n_update
 
         config = init_n_update(config)
 

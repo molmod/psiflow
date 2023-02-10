@@ -66,6 +66,13 @@ def test_dataset_slice(dataset):
     data = Dataset(dataset.context, atoms_list=[state])
     assert data.length().result() == 1
 
+    dataset_ = dataset.shuffle()
+    for i in range(dataset.length().result()):
+        assert not np.allclose(
+                dataset_[i].result().get_positions(),
+                dataset[i].result().get_positions(),
+                )
+
 
 def test_dataset_from_xyz(context, tmp_path):
     data = generate_emt_cu_data(20, 0.1)

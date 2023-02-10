@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 
+from concurrent.futures import as_completed
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.utils import get_train_valid_indices
@@ -14,6 +15,7 @@ from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
 from psiflow.ensemble import Ensemble
+from psiflow.generator import Generator
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -103,6 +105,8 @@ class BatchLearning(BaseLearning):
             data_train = Dataset(model.context, [])
         if data_valid is None:
             data_valid = Dataset(model.context, [])
+        assert model.model_future is not None, ('model has to be initialized '
+                'before running batch learning')
         for i in range(self.niterations):
             if flow_manager.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
@@ -149,108 +153,61 @@ class BatchLearning(BaseLearning):
 
 
 @typeguard.typechecked
-def train_online(
-        states: list[AppFuture],
-        models: list[BaseModel],
-        data_train: Dataset,
-        data_valid: Dataset,
-        retrain_threshold: int,
-        train_valid_split: float,
-        ) -> None:
-    nfinished = sum([state.done() for state in states])
-    logger.info('found {} finished states'.format(nfinished))
-    if nfinished >= retrain_threshold:
-        if not models[-1].model_future.done():
-            return None # do not restart training if still busy
-        done = []
-        i = 0
-        while i < len(states):
-            if states[i].done():
-                done.append(states[i])
-                states.pop(i)
-            else:
-                i += 1
-        assert len(done) >= retrain_threshold
-        data = Dataset(models[0].context, done)
-        data_success = data.get(indices=data.success)
-        train, valid = get_train_valid_indices(
-                data_success.length(), # can be less than nstates
-                train_valid_split,
-                )
-        data_train.append(data_success.get(indices=train))
-        data_valid.append(data_success.get(indices=valid))
-        data_train.log('data_train')
-        data_valid.log('data_valid')
-        model_ = model.copy()
-        models.append(model_)
-        model_.train(data_train, data_valid)
-    else:
-        pass
-
-
-@typeguard.typechecked
 @dataclass
 class OnlineLearning(BaseLearning):
+    niterations: int = 10
+    retrain_model_per_iteration : bool = True
     retrain_threshold: int = 20
 
     def run(
             self,
             flow_manager: FlowManager,
             model: BaseModel,
-            reference: BaseReference,
-            ensemble: Ensemble,
+            generators: list[Generator],
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             checks: Optional[list] = None,
             ) -> Tuple[Dataset, Dataset]:
-        iterator = zip(ensemble.walkers, ensemble.biases)
-        models = [model]
-        counter = 1 # counts number of models which are 'ready'
-        flow_manager.save(
-                name='model_{}'.format(counter),
-                model=models[0],
-                ensemble=ensemble,
-                data_train=data_train,
-                data_valid=data_valid,
-                )
-        while True:
-            states = []
-            for i, (walker, bias) in enumerate(iterator):
-                model = None
-                for m in models[::-1]: # select newest model which is ready
-                    if m.model_future.done():
-                        model = m
-                        if len(model.deploy_future) == 0:
-                            model.deploy()
-                        break
-                if model is None:
-                    logger.info('did not find a model that was ready for walker propagation')
-                    logger.info('the following models exist: ')
-                    for m in models[::-1]:
-                        logger.info(m)
-                        logger.info(m.model_future.filepath)
-                    continue # no model ready
-                if walker.state_future.done():
-                    logger.info('walker {} is evaluated; continuing propagation'.format(i))
-                    states.append(reference.evaluate(walker.state_future))
-                    walker.reset_if_unsafe()
-                    walker.propagate(model=model, bias=bias)
+        assert model.model_future is not None, ('model has to be initialized '
+                'before running online learning')
+        ngenerators = len(generators)
+        model.deploy()
+        states = []
+        for i in range(self.niterations):
+            for j, generator in enumerate(generators):
+                if i > 0: # wait for previous to get latest model
+                    index = (i - 1) * ngenerators + j
+                    wait_for_it = [states[index]]
                 else:
-                    pass
-            train_online(
-                    states,
-                    models,
-                    data_train,
-                    data_valid,
-                    self.retrain_threshold,
+                    wait_for_it = []
+                states.append(generator(model, checks=checks, wait_for_it))
+            retrain_threshold = i * self.retrain_threshold
+            for k, _ in enumerate(as_completed(states)):
+                if k > retrain_threshold:
+                    break # wait until at least #retrain_threshold have completed
+            try:
+                completed = list(as_completed(states), timeout=2)
+            except TimeoutError:
+                pass
+            data = Dataset(model.context, completed)
+            data_success = data.get(indices=data.success) # should be all of them?
+            train, valid = get_train_valid_indices(
+                    data_success.length(), # can be less than nstates
                     self.train_valid_split,
                     )
-            if len(models) > counter: # new model was added, save new data
-                counter += 1
-                flow_manager.save(
-                        name='model_{}'.format(counter),
-                        model=models[-1], # save model and its training data
-                        data_train=data_train,
-                        data_valid=data_valid,
-                        require_done=False, # only completes when model is trained
-                        )
+            data_train = data_success.get(indices=train)
+            data_valid = data_success.get(indices=valid)
+            data_train.log('data_train')
+            data_valid.log('data_valid')
+            model.train(data_train, data_valid, keep_deployed=True)
+
+            # save model obtained from this iteration
+            model_ = model.copy()
+            model_.deploy()
+            flow_manager.save(
+                    name='model_{}'.format(counter),
+                    model=model_, # save model and its training data
+                    data_train=data_train,
+                    data_valid=data_valid,
+                    require_done=False, # only completes when model is trained
+                    )

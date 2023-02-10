@@ -15,6 +15,7 @@ from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
 from psiflow.ensemble import Ensemble
+from psiflow.generator import Generator
 
 
 def get_bias(context):
@@ -64,22 +65,12 @@ def main(context, flow_manager):
     reference = get_reference(context) # CP2K; PBE-D3(BJ); TZVP
     model = get_mace_model(context) # NequIP; medium-sized network
     bias  = get_bias(context)
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz')
 
-    # set learning parameters
-    learning = OnlineLearning(
-            train_valid_split=0.9,
-            retrain_threshold=5,
-            pretraining_amplitude_pos=0.1,
-            pretraining_amplitude_box=0.05,
-            pretraining_nstates=50,
-            )
-    data_train, data_valid = learning.run_pretraining(
-            flow_manager=flow_manager,
-            model=model,
-            reference=reference,
-            initial_data=Dataset(context, [atoms]), # only one initial state
-            )
+    # pretrain based on initial data
+    data_train = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz')
+    data_valid = read(Path.cwd() / 'data' / 'Al_mil53_valid.xyz')
+    model.initialize(data_train)
+    model.train(data_train, data_valid)
 
     # construct online learning ensemble; pure MD in this case
     walker = DynamicWalker(
@@ -91,22 +82,19 @@ def main(context, flow_manager):
             start=0,
             temperature=600,
             pressure=0, # NPT
-            force_threshold=20,
+            force_threshold=25,
             initial_temperature=600,
             )
-    ensemble = Ensemble.from_walker(
-            walker,
-            nwalkers=30, # 30 parallel walkers
-            dataset=data_train, # used to initialize walkers
-            )
-    ensemble.add_bias(bias) # add separate MTD for every walker
+    generator  = Generator('', walker, reference, bias)
+    generators = generator.multiply(20)
     data_train, data_valid = learning.run(
             flow_manager=flow_manager,
             model=model,
             reference=reference,
-            ensemble=ensemble,
+            generators=generators,
             data_train=data_train,
             data_valid=data_valid,
+            checks=None,
             )
 
 

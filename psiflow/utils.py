@@ -217,7 +217,9 @@ def _app_train_valid_indices(
     nvalid = effective_nstates - ntrain
     assert ntrain > 0
     assert nvalid > 0
-    return list(range(ntrain)), list(range(ntrain, ntrain + nvalid))
+    order = np.arange(ntrain + nvalid)
+    np.random.shuffle(order)
+    return list(order[:ntrain]), list(order[ntrain:(ntrain + nvalid)])
 app_train_valid_indices = python_app(_app_train_valid_indices, executors=['default'])
 
 

@@ -84,13 +84,15 @@ class BaseModel(Container):
             self,
             training: Dataset,
             validation: Dataset,
+            keep_deployed: bool = False,
             ) -> None:
         logger.info('training {} using {} states for training and {} for validation'.format(
             self.__class__.__name__,
             training.length().result(),
             validation.length().result(),
             ))
-        self.deploy_future = {} # no longer valid
+        if not keep_deployed:
+            self.deploy_future = {} # no longer valid
         future  = self.context.apps(self.__class__, 'train')( # new DataFuture instance
                 self.config_future,
                 inputs=[self.model_future, training.data_future, validation.data_future],
