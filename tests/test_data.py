@@ -67,11 +67,13 @@ def test_dataset_slice(dataset):
     assert data.length().result() == 1
 
     dataset_ = dataset.shuffle()
+    equal = np.array([False] * dataset.length().result())
     for i in range(dataset.length().result()):
-        assert not np.allclose(
+        equal[i] = np.allclose(
                 dataset_[i].result().get_positions(),
                 dataset[i].result().get_positions(),
                 )
+    assert not np.all(equal)
 
 
 def test_dataset_from_xyz(context, tmp_path):

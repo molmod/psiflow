@@ -14,12 +14,10 @@ from psiflow.experiment import FlowManager
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
-from psiflow.ensemble import Ensemble
 from psiflow.generator import Generator
 
 
 logger = logging.getLogger(__name__) # logging per module
-logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
@@ -47,13 +45,12 @@ class BaseLearning:
                 amplitude_pos=amplitude_pos,
                 amplitude_box=amplitude_box,
                 )
-        ensemble = Ensemble.from_walker(
-                walker,
+        generators = Generator('random', walker, None).multiply(
                 self.pretraining_nstates,
-                dataset=initial_data,
+                initialize_using=initial_data,
                 )
-        random_data = ensemble.sample(self.pretraining_nstates)
-        data = reference.evaluate(random_data)
+        states = [generator(None, reference) for generator in generators]
+        data = Dataset(reference.context, states)
         data_success = data.get(indices=data.success)
         train, valid = get_train_valid_indices(
                 data_success.length(), # can be less than nstates
@@ -68,7 +65,7 @@ class BaseLearning:
         flow_manager.save(
                 name='random_pretraining',
                 model=model,
-                ensemble=ensemble,
+                generators=generators,
                 data_train=data_train,
                 data_valid=data_valid,
                 data_failed=data.get(indices=data.failed),
@@ -77,7 +74,7 @@ class BaseLearning:
         log = flow_manager.log_wandb( # log training
                 run_name='random_pretraining',
                 model=model,
-                ensemble=ensemble,
+                generators=generators,
                 data_train=data_train,
                 data_valid=data_valid,
                 )
@@ -96,7 +93,7 @@ class BatchLearning(BaseLearning):
             flow_manager: FlowManager,
             model: BaseModel,
             reference: BaseReference,
-            ensemble: Ensemble,
+            generators: list[Generator],
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             checks: Optional[list] = None,
@@ -111,12 +108,8 @@ class BatchLearning(BaseLearning):
             if flow_manager.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
             model.deploy()
-            dataset = ensemble.sample(
-                    self.nstates,
-                    model=model,
-                    checks=checks,
-                    )
-            data = reference.evaluate(dataset)
+            states = [g(model, reference, checks) for g in generators]
+            data = Dataset(reference.context, states)
             data_success = data.get(indices=data.success)
             train, valid = get_train_valid_indices(
                     data_success.length(), # can be less than nstates
@@ -134,7 +127,7 @@ class BatchLearning(BaseLearning):
             flow_manager.save(
                     name=str(i),
                     model=model,
-                    ensemble=ensemble,
+                    generators=generators,
                     data_train=data_train,
                     data_valid=data_valid,
                     data_failed=data.get(indices=data.failed),
@@ -143,10 +136,10 @@ class BatchLearning(BaseLearning):
             log = flow_manager.log_wandb( # log training
                     run_name=str(i),
                     model=model,
-                    ensemble=ensemble,
+                    generators=generators,
                     data_train=data_train,
                     data_valid=data_valid,
-                    bias=ensemble.biases[0], # possibly None
+                    bias=generators[0].bias, # possibly None
                     )
             log.result() # necessary to force execution of logging app
         return data_train, data_valid
@@ -163,14 +156,23 @@ class OnlineLearning(BaseLearning):
             self,
             flow_manager: FlowManager,
             model: BaseModel,
+            reference: BaseReference,
             generators: list[Generator],
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             checks: Optional[list] = None,
             ) -> Tuple[Dataset, Dataset]:
+        @join_app
+        def delayed_deploy(model, wait_for_it):
+            model.deploy()
+
         assert model.model_future is not None, ('model has to be initialized '
                 'before running online learning')
         ngenerators = len(generators)
+        assert self.retrain_threshold < ngenerators, ('the number of '
+                'generators should be larger than the threshold number of '
+                'states for retraining.')
+
         model.deploy()
         states = []
         for i in range(self.niterations):
@@ -180,15 +182,16 @@ class OnlineLearning(BaseLearning):
                     wait_for_it = [states[index]]
                 else:
                     wait_for_it = []
-                states.append(generator(model, checks=checks, wait_for_it))
+                states.append(generator(model, reference, checks, wait_for_it))
             retrain_threshold = i * self.retrain_threshold
             for k, _ in enumerate(as_completed(states)):
                 if k > retrain_threshold:
-                    break # wait until at least #retrain_threshold have completed
+                    break # wait until at least retrain_threshold have completed
             try:
                 completed = list(as_completed(states), timeout=2)
             except TimeoutError:
                 pass
+            logger.info('building dataset with {} states'.format(len(completed)))
             data = Dataset(model.context, completed)
             data_success = data.get(indices=data.success) # should be all of them?
             train, valid = get_train_valid_indices(
@@ -200,6 +203,7 @@ class OnlineLearning(BaseLearning):
             data_train.log('data_train')
             data_valid.log('data_valid')
             model.train(data_train, data_valid, keep_deployed=True)
+            delayed_deploy(model, model.model_future) # only deploy after training
 
             # save model obtained from this iteration
             model_ = model.copy()

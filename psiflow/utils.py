@@ -44,7 +44,7 @@ def set_file_logger( # hacky
     names = [
             'psiflow.checks',
             'psiflow.data',
-            'psiflow.ensemble',
+            'psiflow.generator',
             'psiflow.execution',
             'psiflow.experiment',
             'psiflow.learning',
@@ -199,7 +199,6 @@ def _log_data_to_wandb(
     os.environ['WANDB_SILENT'] = 'True' # suppress logs
     wandb.log(wandb_log)
     wandb.finish()
-    #shutil.rmtree(path_wandb)
 log_data_to_wandb = python_app(
         _log_data_to_wandb,
         executors=['default'],

@@ -30,11 +30,13 @@ def evaluate_emt(
         atoms.arrays['forces'] = atoms.get_forces()
         atoms.info['stress']   = atoms.get_stress(voigt=False)
         atoms.calc = None
-        atoms.reference_stderr  = ''
+        atoms.reference_stderr  = False
+        atoms.reference_stdout  = True
         atoms.reference_status = True
     except Exception as e:
         atoms.reference_stderr = str(e)
         atoms.reference_status = False
+        atoms.reference_stdout = False
     return atoms
 
 

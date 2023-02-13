@@ -10,7 +10,6 @@ from psiflow.models import NequIPModel
 from psiflow.sampling import DynamicWalker, RandomWalker, PlumedBias
 from psiflow.sampling.bias import set_path_in_plumed, parse_plumed_input, \
         generate_external_grid
-from psiflow.ensemble import Ensemble
 
 
 def test_get_filename_hills(tmp_path):
@@ -143,10 +142,8 @@ def test_bias_evaluate(context, dataset):
             'seed': 0,
             }
     walker = RandomWalker(context, dataset[0], **kwargs)
-    ensemble = Ensemble.from_walker(walker, nwalkers=10)
-    for walker in ensemble.walkers:
-        print(walker.tag_future.result())
-    dataset = ensemble.sample(nstates=10)
+    states = [walker.propagate() for i in range(10)]
+    dataset = Dataset(context, states)
 
     plumed_input = """
 RESTART

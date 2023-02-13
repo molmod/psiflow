@@ -19,14 +19,12 @@ from psiflow.ensemble import Ensemble
 
 
 def get_allegro_model(context):
-    AllegroModel.create_apps(context)
     config = AllegroConfig()
     config.loss_coeffs['total_energy'][0] = 10
     return AllegroModel(context, config)
 
 
 def get_mace_model(context):
-    MACEModel.create_apps(context)
     config = MACEConfig()
     config.max_num_epochs = 1000
     return MACEModel(context, config)

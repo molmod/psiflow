@@ -34,7 +34,6 @@ from psiflow.utils import copy_data_future, copy_app_future
 
 
 logger = logging.getLogger(__name__) # logging per module
-logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
@@ -330,7 +329,6 @@ class Dataset(Container):
             to an `.xyz` file.
 
     """
-    execution_definition = ['executor']
 
     def __init__(
             self,

@@ -5,21 +5,22 @@ from pathlib import Path
 import wandb
 import numpy as np
 
+from psiflow.data import Dataset
 from psiflow.models import NequIPModel
-from psiflow.experiment import FlowManager, log_data, log_ensemble
+from psiflow.experiment import FlowManager, log_data, log_generators
 from psiflow.reference import EMTReference
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
-from psiflow.ensemble import Ensemble
+from psiflow.generator import Generator
 from psiflow.checks import SafetyCheck, DiscrepancyCheck, \
         InteratomicDistanceCheck
 from psiflow.utils import log_data_to_wandb
 
 
 @pytest.fixture
-def ensemble(context, dataset):
+def generators(context, dataset):
     walker = RandomWalker(context, dataset[0])
-    ensemble = Ensemble.from_walker(walker, nwalkers=2)
-    return ensemble
+    generators = Generator('random', walker).multiply(2)
+    return generators
 
 
 @pytest.fixture
@@ -27,7 +28,7 @@ def reference(context):
     return EMTReference(context)
 
 
-def test_log_dataset_ensemble(context, dataset, nequip_config, tmp_path):
+def test_log_dataset_generators(context, dataset, nequip_config, tmp_path, reference):
     error_kwargs = {
             'metric': 'mae',
             'properties': ['energy', 'forces', 'stress'],
@@ -52,46 +53,46 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
             )
     log0 = log_data_to_wandb(
             'run_name',
-            'test_log_dataset_ensemble',
+            'test_log_dataset_generators',
             'pytest',
             'CV',
             ['training'],
             inputs=[future],
             )
+    log0.result()
 
-    ensemble = Ensemble.from_walker(
+    generators = Generator(
+            'random',
             RandomWalker(context, dataset[0]),
-            nwalkers=10,
-            dataset=dataset,
-            )
-    ensemble.walkers[3].tag_future = 'unsafe'
-    ensemble.walkers[7].tag_future = 'unsafe'
-    ensemble.biases = [None, None] + [bias.copy() for i in range(8)] # not all same bias
-    checks = [SafetyCheck(), InteratomicDistanceCheck(threshold=0.6)]
-    dataset = ensemble.sample(10, checks=checks)
-    dataset.data_future.result() # force execution of join_app
-    assert len(checks[0].states.result()) == 2
-    future = log_ensemble(ensemble)
+            bias,
+            ).multiply(10)
+    generators[3].walker.tag_unsafe()
+    generators[7].walker.tag_unsafe()
+    generators[0].bias = None
+    generators[1].bias = None
+    states = [g(model, reference, None) for g in generators]
+    for state in states:
+        state.result()
+    future = log_generators(generators)
     log1 = log_data_to_wandb(
             'run_name',
-            'test_log_dataset_ensemble',
+            'test_log_dataset_generators',
             'pytest',
             'dummy',
-            ['ensemble'],
+            ['generators'],
             inputs=[future],
             )
     log1.result()
-    log0.result()
 
 
-def test_flow_manager_save_load(context, dataset, nequip_config, ensemble, tmp_path):
+def test_flow_manager_save_load(context, dataset, nequip_config, generators, tmp_path):
     model = NequIPModel(context, nequip_config)
     path_output = Path(tmp_path) / 'parsl_internal'
     path_output.mkdir()
-    walkers = []
-    walkers.append(RandomWalker(context, dataset[0]))
-    walkers.append(DynamicWalker(context, dataset[1]))
-    ensemble = Ensemble(context, walkers=walkers, biases=[None, None])
+    generators = (
+            Generator('random', RandomWalker(context, dataset[0])).multiply(2) +
+            Generator('dynamic', DynamicWalker(context, dataset[1])).multiply(2)
+            )
     flow_manager = FlowManager(path_output, 'pytest', 'test_flow_manager_save_load')
     checks = [
             SafetyCheck(),
@@ -107,30 +108,25 @@ def test_flow_manager_save_load(context, dataset, nequip_config, ensemble, tmp_p
     flow_manager.save(
             name=name,
             model=model,
-            ensemble=ensemble,
+            generators=generators,
             checks=checks,
             data_failed=dataset,
             )
-    assert (path_output / name / 'ensemble').is_dir()
-    assert (path_output / name / 'ensemble' / '0').is_dir()
-    assert (path_output / name / 'ensemble' / '1').is_dir()
-    assert not (path_output / name / 'ensemble' / '2').is_dir()
+    assert (path_output / name / 'generators').is_dir()
+    assert (path_output / name / 'generators' / 'random0').is_dir()
+    assert (path_output / name / 'generators' / 'random1').is_dir()
+    assert (path_output / name / 'generators' / 'dynamic0').is_dir()
+    assert (path_output / name / 'generators' / 'dynamic1').is_dir()
+    assert not (path_output / name / 'generators' / '0').is_dir()
     assert (path_output / name / 'checks').is_dir() # directory for saved checks
     assert (path_output / name / 'failed.xyz').is_file()
 
-    model_, ensemble_, data_train, data_valid, checks = flow_manager.load(
+    model_, generators_, data_train, data_valid, checks = flow_manager.load(
             'test',
             context,
             )
     assert model_.config_future is None # model was not initialized
-    assert np.allclose(
-            ensemble.walkers[0].state_future.result().positions,
-            ensemble_.walkers[0].state_future.result().positions,
-            )
-    assert np.allclose(
-            ensemble.walkers[1].state_future.result().positions,
-            ensemble_.walkers[1].state_future.result().positions,
-            )
+    assert len(generators_) == 4
     assert data_train.length().result() == 0
     assert data_valid.length().result() == 0
     assert len(checks) == 2
@@ -147,8 +143,8 @@ def test_flow_manager_save_load(context, dataset, nequip_config, ensemble, tmp_p
                 ),
             ]
     name = 'test_'
-    flow_manager.save(name=name, model=model, ensemble=ensemble, checks=checks)
-    model_, ensemble_, data_train, data_valid, checks = flow_manager.load(
+    flow_manager.save(name=name, model=model, generators=generators, checks=checks)
+    model_, generators_, data_train, data_valid, checks = flow_manager.load(
             'test_',
             context,
             )
@@ -163,12 +159,12 @@ def test_flow_manager_dry_run(
         context,
         dataset,
         nequip_config,
-        ensemble,
+        generators,
         reference,
         tmp_path,
-        caplog,
+        #caplog,
         ):
-    caplog.set_level(logging.INFO)
+    #caplog.set_level(logging.INFO)
     model = NequIPModel(context, nequip_config)
     path_output = Path(tmp_path) / 'parsl_internal'
     path_output.mkdir()

@@ -75,7 +75,9 @@ def simulate_model(
         forcefield = create_forcefield(atoms, pars.force_threshold)
 
         loghook  = yaff.VerletScreenLog(step=pars.step, start=0)
-        datahook = DataHook(start=pars.start, step=pars.step)
+        datahook = DataHook() # bug in YAFF: override start/step after init
+        datahook.start = pars.start
+        datahook.step  = pars.step
         hooks = []
         hooks.append(loghook)
         hooks.append(datahook)
@@ -175,7 +177,7 @@ def simulate_model(
                     state.get_positions(),
                     )
         if counter_is_reset: assert state_is_reset
-        if state_is_reset and (parameters.step == 1): assert counter_is_reset
+        if state_is_reset and (pars.step == 1): assert counter_is_reset
     return FlowAtoms.from_atoms(state), tag, counter
 
 

@@ -28,7 +28,6 @@ from psiflow.utils import copy_data_future, get_active_executor
 
 
 logger = logging.getLogger(__name__) # logging per module
-logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
@@ -102,7 +101,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     ema_decay: float = 0.99
     ema_use_num_updates: bool = True
     report_init_validation: bool = True
-    early_stopping_patiences: Optional[dict] = field(default_factory=lambda: {'validation_loss': 50})
+    early_stopping_patiences: Optional[dict] = field(default_factory=lambda: {'validation_loss': 500000})
     early_stopping_delta: Optional[dict] = field(default_factory=lambda: {'validation_loss': 0.005})
     early_stopping_cumulative_delta: bool = False
     early_stopping_lower_bounds: Optional[dict] = field(default_factory=lambda: {'LR': 1e-5})
@@ -123,7 +122,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     max_gradient_norm: Optional[float] = None
     lr_scheduler_name: str = 'ReduceLROnPlateau'
     lr_scheduler_patience: int = 100
-    lr_scheduler_factor: float = 0.5
+    lr_scheduler_factor: float = 0.8
     per_species_rescale_scales_trainable: bool = False
     per_species_rescale_shifts_trainable: bool = False
     per_species_rescale_shifts: Optional[str] = 'dataset_per_atom_total_energy_mean'

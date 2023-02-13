@@ -14,7 +14,7 @@ from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias
-from psiflow.ensemble import Ensemble
+from psiflow.generator import Generator
 
 
 def get_bias(context):
@@ -27,7 +27,6 @@ METAD ARG=CV SIGMA=50 HEIGHT=5 PACE=25 LABEL=metad FILE=test_hills
 
 
 def get_reference(context):
-    CP2KReference.create_apps(context)
     with open(Path.cwd() / 'data' / 'cp2k_input.txt', 'r') as f:
         cp2k_input = f.read()
     reference = CP2KReference(context, cp2k_input=cp2k_input)
@@ -47,14 +46,12 @@ def get_reference(context):
 
 
 def get_nequip_model(context):
-    NequIPModel.create_apps(context)
     config = NequIPConfig()
     config.loss_coeffs['total_energy'][0] = 10
     return NequIPModel(context, config)
 
 
 def get_mace_model(context):
-    MACEModel.create_apps(context)
     config = MACEConfig()
     config.max_num_epochs = 1000
     return MACEModel(context, config)
@@ -96,17 +93,11 @@ def main(context, flow_manager):
             force_threshold=20,
             initial_temperature=600,
             )
-    ensemble = Ensemble.from_walker(
-            walker,
-            nwalkers=30, # 30 parallel walkers
-            dataset=(data_train + data_valid), # used to initialize walkers
-            )
-    ensemble.add_bias(bias) # add separate MTD for every walker
+    generators = Generator(walker, reference, bias).multiply(30, dataset=None)
     data_train, data_valid = learning.run(
             flow_manager=flow_manager,
             model=model,
-            reference=reference,
-            ensemble=ensemble,
+            generators=generators,
             data_train=data_train,
             data_valid=data_valid,
             )

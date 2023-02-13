@@ -6,6 +6,8 @@ import glob
 import yaml
 import numpy as np
 
+from ase import Atoms
+
 from parsl.app.app import python_app, join_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -18,29 +20,19 @@ from psiflow.utils import save_yaml, copy_app_future
 from psiflow.models import load_model
 
 
+@join_app
 @typeguard.typechecked
-def _update_npasses(
-        npasses: int,
-        state: Optional[FlowAtoms],
-        checked_state: Optional[FlowAtoms],
-        ) -> int:
-    if (state is not None) and (checked_state is None):
-        return npasses
+def apply_check(
+        check: Check,
+        state: Union[FlowAtoms, Atoms],
+        checked_state: Optional[Union[FlowAtoms, Atoms]],
+        ) -> AppFuture:
+    check.nchecks += 1
+    if checked_state is not None:
+        check.npasses += 1
     else:
-        return npasses + 1
-update_npasses = python_app(_update_npasses, executors=['default'])
-
-
-@typeguard.typechecked
-def _update_states(
-        states: List[FlowAtoms],
-        state: Optional[FlowAtoms],
-        checked_state: Optional[FlowAtoms],
-        ) -> List[FlowAtoms]:
-    if (state is not None) and (checked_state is None):
-        states.append(state)
-    return states
-update_states = python_app(_update_states, executors=['default'])
+        check.states.append(state)
+    return copy_app_future(checked_state)
 
 
 @typeguard.typechecked
@@ -48,30 +40,23 @@ class Check:
 
     def __init__(self) -> None:
         self.nchecks = 0
-        self.npasses = copy_app_future(0)
-        self.states  = copy_app_future([])
+        self.npasses = 0
+        self.states  = []
 
     def __call__(
             self,
             state: AppFuture,
             tag: Optional[AppFuture] = None,
             ) -> AppFuture:
-        self.nchecks += 1
-        checked_state = self.apply_check(state, tag)
-        self.npasses = update_npasses(self.npasses, state, checked_state)
-        self.states  = update_states(self.states, state, checked_state)
-        return checked_state
-
-    def apply_check(
-            self,
-            state: AppFuture,
-            tag: Optional[AppFuture] = None,
-            ) -> AppFuture:
-        raise NotImplementedError
+        return apply_check(
+                self,
+                state,
+                self._apply_check(state, tag),
+                )
 
     def reset(self) -> None:
         self.nchecks = 0
-        self.npasses = copy_app_future(0)
+        self.npasses = 0
 
     def save(self, path: Union[Path, str], require_done: bool = True) -> DataFuture:
         path = Path(path)
@@ -83,6 +68,9 @@ class Check:
         if require_done:
             future.result()
         return future
+
+    def _apply_check(self):
+        raise NotImplementedError
 
     @classmethod
     def load(cls, path: Union[Path, str], *args: Any):
@@ -132,7 +120,7 @@ class InteratomicDistanceCheck(Check):
         super().__init__()
         self.threshold = threshold
 
-    def apply_check(
+    def _apply_check(
             self,
             state: AppFuture,
             tag: Optional[AppFuture] = None,
@@ -188,7 +176,7 @@ class DiscrepancyCheck(Check):
         self.model_old = model_old # can be initialized with None models
         self.model_new = model_new
 
-    def apply_check(
+    def _apply_check(
             self,
             state: AppFuture,
             tag: Optional[AppFuture] = None,
@@ -204,8 +192,6 @@ class DiscrepancyCheck(Check):
                 metric=self.metric,
                 properties=self.properties,
                 )
-        print('errors: ')
-        print(errors.result())
         return check_discrepancy(state, errors, self.thresholds)
 
     def update_model(self, model: BaseModel) -> None:
@@ -264,7 +250,7 @@ check_safety = python_app(_check_safety, executors=['default'])
 @typeguard.typechecked
 class SafetyCheck(Check):
 
-    def apply_check(
+    def _apply_check(
             self,
             state: AppFuture,
             tag: AppFuture,

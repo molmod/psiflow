@@ -40,16 +40,12 @@ def context(request, tmp_path_factory):
             tmp_path_factory.mktemp('parsl_internal'),
             )
     parsl.load(config)
-    parsl.set_stream_logger('parsl', level=logging.INFO)
+    #parsl.set_stream_logger('parsl', level=logging.DEBUG)
     context = ExecutionContext(
             config,
             definitions,
             path=str(tmp_path_factory.mktemp('context_dir')),
             )
-    NequIPModel.create_apps(context)
-    AllegroModel.create_apps(context)
-    MACEModel.create_apps(context)
-    CP2KReference.create_apps(context)
     yield context
     from parsl.dataflow.dflow import DataFlowKernelLoader
     #dfk = DataFlowKernelLoader.dfk()

@@ -9,11 +9,11 @@ from psiflow.sampling import RandomWalker
 def test_distance_check(context, dataset, tmp_path):
     check = InteratomicDistanceCheck(threshold=0.1)
     assert check(dataset[0]).result() is not None
-    assert check.npasses.result() == 1
-    assert len(check.states.result()) == 0
+    assert check.npasses == 1
+    assert len(check.states) == 0
     check = InteratomicDistanceCheck(threshold=10)
     assert check(dataset[0]).result() is None
-    assert len(check.states.result()) == 1 # contains one AppFuture
+    assert len(check.states) == 1 # contains one AppFuture
     path = Path(tmp_path)
     check.save(path)
     check_ = load_checks(path, context)[0]
@@ -40,13 +40,13 @@ def test_discrepancy_check(context, dataset, nequip_config, tmp_path):
             )
     assert check(dataset[6]).result() is not None
     assert check.nchecks == 1
-    assert check.npasses.result() == 1
-    assert len(check.states.result()) == 0
+    assert check.npasses == 1
+    assert len(check.states) == 0
     check.thresholds = [1e4, 1e4] # mae's should be lower than this
     assert check(dataset[6]).result() is None
     assert check.nchecks == 2
-    assert check.npasses.result() == 1
-    assert len(check.states.result()) == 1
+    assert check.npasses == 1
+    assert len(check.states) == 1
     path = Path(tmp_path)
     check.save(path)
     check_ = load_checks(path, context)[0]
@@ -61,11 +61,11 @@ def test_safety_check(context, dataset, tmp_path):
     check = SafetyCheck()
     assert check(state, walker.tag_future).result() is not None
     assert check.nchecks == 1
-    assert check.npasses.result() == 1
+    assert check.npasses == 1
     walker.tag_unsafe()
     assert check(state, walker.tag_future).result() is None
     assert check.nchecks == 2
-    assert check.npasses.result() == 1
+    assert check.npasses == 1
     path = Path(tmp_path)
     check.save(path)
     check_ = load_checks(path, context)[0]

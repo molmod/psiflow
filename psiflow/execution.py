@@ -17,7 +17,6 @@ from parsl.config import Config
 
 
 logger = logging.getLogger(__name__) # logging per module
-logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked

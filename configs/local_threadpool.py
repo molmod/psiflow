@@ -42,5 +42,5 @@ def get_config(path_internal):
             ThreadPoolExecutor(label=model_evaluate.executor, max_threads=model_evaluate.ncores, working_dir=str(path_internal)),
             ThreadPoolExecutor(label=reference_evaluate.executor, max_threads=reference_evaluate.ncores, working_dir=str(path_internal)),
             ]
-    config = Config(executors, run_dir=str(path_internal), usage_tracking=True)
+    config = Config(executors, run_dir=str(path_internal), usage_tracking=True, app_cache=False)
     return config, definitions

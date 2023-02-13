@@ -79,6 +79,10 @@ class BaseModel(Container):
                     container,
                     self.definitions[container],
                     ))
+        try: # initialize apps in context
+            self.__class__.create_apps(context)
+        except AssertionError: # apps already initialized; do nothing
+            pass
 
     def train(
             self,

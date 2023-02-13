@@ -19,7 +19,7 @@ from psiflow.execution import ExecutionContext, generate_parsl_config
 from psiflow.models import BaseModel, load_model, NequIPModel
 from psiflow.reference.base import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
-from psiflow.ensemble import Ensemble
+from psiflow.generator import Generator, save_generators, load_generators
 from psiflow.data import Dataset
 from psiflow.checks import Check, load_checks, SafetyCheck
 from psiflow.utils import copy_app_future, log_data_to_wandb, \
@@ -70,18 +70,19 @@ app_log_data = python_app(_app_log_data, executors=['default'])
 
 
 @typeguard.typechecked
-def _app_log_ensemble(
+def _app_log_generators(
+        generator_names: list[str],
         errors: Optional[np.ndarray] = None,
         error_labels: Optional[List[str]] = None,
         bias_labels: Optional[List[str]] = None,
-        inputs: List[Union[File, np.ndarray, str, bool]] = [],
+        inputs: List[Union[File, np.ndarray, str, bool, int]] = [],
         ) -> List[List]:
     import numpy as np
     from ase.data import chemical_symbols
     from ase.io import write
     from psiflow.data import read_dataset
     data = read_dataset(slice(None), inputs=[inputs[0]])
-    columns = ['walker index', 'elements', 'natoms', 'tag']
+    columns = ['generator name', 'elements', 'natoms', 'counter']
     if error_labels is not None:
         if errors.shape[0] != len(data):
             raise AssertionError('error evaluation was not performed on every state')
@@ -96,7 +97,8 @@ def _app_log_ensemble(
     for i, atoms in enumerate(data):
         elements = list(set([chemical_symbols[n] for n in atoms.numbers]))
         tag_index = 1 + i
-        row = [i, ', '.join(elements), len(atoms), inputs[tag_index]]
+        name = generator_names[i]
+        row = [name, ', '.join(elements), len(atoms), inputs[tag_index]]
         if error_labels is not None:
             row += [e for e in errors[i, :]]
         if bias_labels is not None:
@@ -112,7 +114,7 @@ def _app_log_ensemble(
         assert len(columns) == len(row)
         table_data.append(row)
     return [columns] + table_data
-app_log_ensemble = python_app(_app_log_ensemble, executors=['default'])
+app_log_generators = python_app(_app_log_generators, executors=['default'])
 
 
 @typeguard.typechecked
@@ -154,31 +156,33 @@ def log_data(
 
 
 @typeguard.typechecked
-def log_ensemble(ensemble: Ensemble) -> AppFuture:
-    assert len(ensemble.walkers) > 0
-    dataset = ensemble.as_dataset()
+def log_generators(generators: list[Generator]) -> AppFuture:
+    assert len(generators) > 0
+    states = [generator.walker.state_future for generator in generators]
+    dataset = Dataset(generators[0].walker.context, states)
     inputs = []
 
-    # add walker tags to inputs
-    for walker in ensemble.walkers:
-        inputs.append(walker.tag_future)
+    # add walker counters to inputs
+    generator_names = [g.name for g in generators]
+    for g in generators:
+        inputs.append(g.walker.counter_future)
 
     # add bias to inputs
     variables = []
-    for bias in ensemble.biases:
-        if bias is not None:
-            variables += bias.variables
+    for g in generators:
+        if g.bias is not None:
+            variables += g.bias.variables
     variables = list(set(variables))
     if len(variables) > 0:
         bias_labels = []
         for variable in variables:
             bias_labels.append(variable)
             bias_labels.append('bias({})'.format(variable))
-        for walker, bias in zip(ensemble.walkers, ensemble.biases): # evaluate bias per walker
+        for g in generators:
             for i, variable in enumerate(variables):
-                if (bias is not None) and (variable in bias.variables):
-                    inputs.append(bias.evaluate(
-                        Dataset(bias.context, [walker.state_future]),
+                if (g.bias is not None) and (variable in g.bias.variables):
+                    inputs.append(g.bias.evaluate(
+                        Dataset(g.bias.context, [g.walker.state_future]),
                         variable=variable,
                         ))
                 else:
@@ -187,8 +191,9 @@ def log_ensemble(ensemble: Ensemble) -> AppFuture:
         bias_labels = None
 
     # double check inputs contains tag info + bias info
-    assert len(inputs) == len(ensemble.walkers) * (len(variables) + 1)
-    return app_log_ensemble(
+    assert len(inputs) == len(generators) * (len(variables) + 1)
+    return app_log_generators(
+            generator_names=generator_names,
             bias_labels=bias_labels,
             inputs=[dataset.data_future] + inputs,
             )
@@ -221,7 +226,7 @@ class FlowManager:
             self,
             model: BaseModel,
             reference: BaseReference,
-            ensemble: Optional[Ensemble] = None,
+            generators: Optional[list[Generator]] = None,
             random_walker: Optional[RandomWalker] = None,
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
@@ -229,10 +234,10 @@ class FlowManager:
             ) -> None:
         context = model.context
         if random_walker is None:
-            assert ensemble is not None
+            assert generators is not None
             random_walker = RandomWalker( # with default parameters
                     context,
-                    ensemble.walkers[0].start_future,
+                    generators[0].walker.start_future,
                     )
 
         # single point evaluation
@@ -241,18 +246,23 @@ class FlowManager:
         evaluated.result()
 
         # generation of small dataset
-        logger.info('generating ensemble from {}'.format(random_walker.__class__.__name__))
-        _ensemble = Ensemble.from_walker(random_walker, nwalkers=5)
+        logger.info('generating from {}'.format(random_walker.__class__.__name__))
+        _generators = Generator('random', random_walker).multiply(10)
         if checks is None:
             checks = [SafetyCheck()]
         else:
             checks = checks + [SafetyCheck()]
-        _ensemble.walkers[3].tag_future = copy_app_future('unsafe')
-        logger.info('sampling from ensemble')
-        data = _ensemble.sample(7, model=None, checks=checks)
-        data = reference.evaluate(data)
-        logger.info('evaluating reference data')
-        data.length().result()
+        _generators[3].walker.tag_unsafe()
+        logger.info('generating samples')
+        states = []
+        for g in _generators:
+            states.append(g(None, reference, checks=checks))
+        data = Dataset(reference.context, states)
+        data_success = data.get(indices=data.success)
+        logger.info('generated {} states, of which {} were successful'.format(
+            data.length().result(),
+            data_success.length().result(),
+            ))
 
         # short training and deploy
         model.reset()
@@ -265,34 +275,32 @@ class FlowManager:
             logger.info('training model')
             model.train(data_train, data_valid)
         else:
-            new_train = data[:5]
-            new_valid = data[5:]
+            assert data_success.length().result() >= 10
+            new_train = data_success[:5]
+            new_valid = data_success[5:]
             model.reset()
             model.initialize(new_train)
             model.config_future.result()
             logger.info('training model')
             model.train(new_train, new_valid)
 
-        # deploy and propagate ensemble
+        # deploy and generate
         model.deploy()
-        if ensemble is not None:
-            logger.info('sampling from ensemble')
-            data = ensemble.sample(
-                    ensemble.nwalkers,
-                    checks=checks,
-                    model=model,
-                    )
-            logger.info('sampling with ensemble')
-            data = reference.evaluate(data)
-            assert data.length().result() == ensemble.nwalkers
+        if generators is not None:
+            logger.info('generating samples')
+            states = []
+            for g in generators:
+                states.append(g(model, reference, checks))
+            data = Dataset(reference.context, states)
+            assert data.length().result() == len(generators)
 
         # log and save objects
-        if ensemble is None:
-            ensemble = _ensemble
+        if generators is None:
+            generators = _generators
         log = self.log_wandb(
                 'dry_run',
                 model,
-                ensemble,
+                generators,
                 data_train=new_train,
                 data_valid=new_valid,
                 checks=checks,
@@ -301,7 +309,7 @@ class FlowManager:
         self.save( # test save
                 name='dry_run',
                 model=model,
-                ensemble=ensemble,
+                generators=generators,
                 data_train=new_train,
                 data_valid=new_valid,
                 checks=checks,
@@ -311,7 +319,7 @@ class FlowManager:
             self,
             name: str,
             model: BaseModel,
-            ensemble: Ensemble,
+            generators: list[Generator],
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
@@ -324,10 +332,10 @@ class FlowManager:
         # model
         model.save(path, require_done=require_done)
 
-        # ensemble
-        path_ensemble = path / 'ensemble'
-        path_ensemble.mkdir(parents=False, exist_ok=False)
-        ensemble.save(path_ensemble, require_done=require_done)
+        # generators
+        path_generators = path / 'generators'
+        path_generators.mkdir(parents=False, exist_ok=False)
+        save_generators(generators, path_generators, require_done=require_done)
 
         # data
         if data_train is not None:
@@ -350,7 +358,7 @@ class FlowManager:
             context: ExecutionContext,
             ) -> Tuple[
                     BaseModel,
-                    Ensemble,
+                    list[Generator],
                     Optional[Dataset],
                     Optional[Dataset],
                     Optional[list[Check]],
@@ -365,9 +373,9 @@ class FlowManager:
         except AssertionError: # apps already registered
             assert context.apps(model.__class__, 'train')
 
-        # ensemble
-        path_ensemble = path / 'ensemble'
-        ensemble = Ensemble.load(context, path_ensemble)
+        # generators
+        path_generators = path / 'generators'
+        generators = load_generators(context, path_generators)
 
         # data; optional
         path_train = path / 'train.xyz'
@@ -387,13 +395,13 @@ class FlowManager:
             checks = load_checks(path_checks, context)
         else:
             checks = None
-        return model, ensemble, data_train, data_valid, checks
+        return model, generators, data_train, data_valid, checks
 
     def log_wandb(
             self,
             run_name: str,
             model: BaseModel,
-            ensemble: Ensemble,
+            generators: list[Generator],
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
@@ -423,8 +431,8 @@ class FlowManager:
                     model=model,
                     error_kwargs=self.error_kwargs,
                     )
-        if ensemble is not None:
-            log_futures['ensemble'] = log_ensemble(ensemble=ensemble)
+        if generators is not None:
+            log_futures['generators'] = log_generators(generators=generators)
         if checks is not None:
             for check in checks:
                 name = check.__class__.__name__

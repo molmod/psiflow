@@ -10,8 +10,6 @@ from ase import Atoms
 from psiflow.models import NequIPModel, MACEModel
 from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, load_walker
-from psiflow.ensemble import Ensemble
-from psiflow.checks import SafetyCheck
 
 
 def test_save_load(context, dataset, tmp_path):
@@ -76,13 +74,13 @@ def test_random_walker(context, dataset):
     state = walker.propagate(model=None) # irrelevant kwargs are ignored
 
 
-def test_dynamic_walker(context, dataset, mace_config):
-    walker = DynamicWalker(context, dataset[0], steps=10, step=1)
+def test_dynamic_walker_plain(context, dataset, mace_config):
+    walker = DynamicWalker(context, dataset[0], steps=10, step=2)
     model = MACEModel(context, mace_config)
     model.initialize(dataset[:3])
     model.deploy()
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    assert trajectory.length().result() == 11
+    assert trajectory.length().result() == 6
     assert walker.counter_future.result() == 10
     assert np.allclose(
             trajectory[0].result().get_positions(), # initial structure
@@ -97,7 +95,7 @@ def test_dynamic_walker(context, dataset, mace_config):
     # test timeout
     walker = DynamicWalker(context, dataset[0], steps=1000, step=1)
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    assert not trajectory.length().result() < 1001
+    assert not trajectory.length().result() < 1001 # timeout
     assert trajectory.length().result() > 1
     assert walker.counter_future.result() == trajectory.length().result() - 1
     walker.parameters.force_threshold = 0.001

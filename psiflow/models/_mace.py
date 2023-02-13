@@ -26,7 +26,6 @@ from psiflow.execution import ExecutionContext, ModelTrainingExecution, \
 
 
 logger = logging.getLogger(__name__) # logging per module
-logger.setLevel(logging.INFO)
 
 
 @typeguard.typechecked
