@@ -65,9 +65,9 @@ def main(context, flow_manager):
 
     # set learning parameters
     learning = BatchedLearning(
-            niterations=5,
+            niterations=10,
             nstates=30,
-            retrain_model_per_iteration=True,
+            retrain_model_per_iteration=False,
             pretraining_amplitude_pos=0.1,
             pretraining_amplitude_box=0.05,
             pretraining_nstates=50,
@@ -85,15 +85,15 @@ def main(context, flow_manager):
             context,
             atoms,
             timestep=0.5,
-            steps=300,
+            steps=400,
             step=50,
             start=0,
             temperature=600,
             pressure=0, # NPT
-            force_threshold=20,
+            force_threshold=30,
             initial_temperature=600,
             )
-    generators = Generator(walker, reference, bias).multiply(30, dataset=None)
+    generators = Generator('mtd', walker, bias).multiply(30, dataset=None)
     data_train, data_valid = learning.run(
             flow_manager=flow_manager,
             model=model,
@@ -109,7 +109,7 @@ def restart(context, flow_manager, restart_arg):
     learning = BatchedLearning(
             niterations=5,
             nstates=30,
-            retrain_model_per_iteration=True,
+            retrain_model_per_iteration=False,
             train_valid_split=0.9
             )
     data_train, data_valid = learning.run(

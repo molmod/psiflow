@@ -34,6 +34,27 @@ def test_generator_mace(context, dataset, mace_config):
     assert checks[0].nchecks == 3
     assert checks[0].npasses == 2
 
+    # test retry mechanism
+    generator.nretries_sampling = 0
+    generator.walker.tag_unsafe()
+    state = generator(model, None, checks)
+    assert state.result().reference_status == False
+    assert np.allclose(
+            state.result().get_positions(),
+            generator.walker.start_future.result().get_positions(),
+            )
+    assert generator.walker.counter_future.result() == 0 # walker was reset
+
+    generator.nretries_sampling = 1
+    generator.walker.tag_unsafe()
+    state = generator(model, reference, checks)
+    assert state.result().reference_status == True
+    assert not np.allclose(
+            state.result().get_positions(),
+            generator.walker.start_future.result().get_positions(),
+            )
+    assert generator.walker.counter_future.result() != 0 # walker propagated
+
     # check whether reference energy/forces/stress are saved
     generated = Dataset(context, [state])
     errors = Dataset.get_errors(
@@ -80,6 +101,7 @@ def test_generator_mace(context, dataset, mace_config):
             assert isinstance(future.result(), FlowAtoms)
         else: # then, the model finishes training
             assert not isinstance(future.result(), FlowAtoms)
+
 
 
 def test_generator_multiply(context, dataset, mace_config, tmp_path):
@@ -133,4 +155,3 @@ def test_generator_multiply(context, dataset, mace_config, tmp_path):
     dataset = Dataset(context, states)
     dataset.length().result()
     assert len(checks[0].states) == 2
-

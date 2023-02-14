@@ -112,7 +112,7 @@ class BatchLearning(BaseLearning):
             data = Dataset(reference.context, states)
             data_success = data.get(indices=data.success)
             train, valid = get_train_valid_indices(
-                    data_success.length(), # can be less than nstates
+                    data_success.length(),
                     self.train_valid_split,
                     )
             data_train.append(data_success.get(indices=train))

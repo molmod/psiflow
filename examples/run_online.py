@@ -28,7 +28,6 @@ METAD ARG=CV SIGMA=50 HEIGHT=5 PACE=25 LABEL=metad FILE=test_hills
 
 
 def get_reference(context):
-    CP2KReference.create_apps(context)
     with open(Path.cwd() / 'data' / 'cp2k_input.txt', 'r') as f:
         cp2k_input = f.read()
     reference = CP2KReference(context, cp2k_input=cp2k_input)
@@ -48,14 +47,12 @@ def get_reference(context):
 
 
 def get_nequip_model(context):
-    NequIPModel.create_apps(context)
     config = NequIPConfig()
     config.loss_coeffs['total_energy'][0] = 10
     return NequIPModel(context, config)
 
 
 def get_mace_model(context):
-    MACEModel.create_apps(context)
     config = MACEConfig()
     config.max_num_epochs = 1000
     return MACEModel(context, config)

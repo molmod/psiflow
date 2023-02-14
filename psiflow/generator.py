@@ -20,93 +20,136 @@ logger = logging.getLogger(__name__) # logging per module
 
 
 @join_app
+def dummy_state(state): # modify FlowAtoms Future before returning
+    state.reference_status = False
+    state.reference_stderr = False
+    state.reference_stdout = False
+    return copy_app_future(state)
+
+
+@join_app
 @typeguard.typechecked
 def generate(
-        name: str,
-        walker: BaseWalker,
+        generator: Generator,
         model: Optional[BaseModel],
         reference: Optional[BaseReference],
         *args, # waits for these futures to complete before execution
-        bias: Optional[PlumedBias] = None,
         checks: Optional[list] = None,
+        retry_sampling: int = 0,
+        retry_reference: int = 0,
         ) -> AppFuture:
+    if not retry_sampling <= generator.nretries_sampling:
+        logger.info('reached {} sampling retries for walker {}, aborting'.format(
+            generator.nretries_sampling,
+            generator.name,
+            ))
+        return dummy_state(generator.walker.start_future)
+    if not retry_reference <= generator.nretries_reference:
+        logger.info('reached {} reference retries for walker {}, aborting'.format(
+            generator.nretries_reference,
+            generator.name,
+            ))
+        return dummy_state(generator.walker.start_future)
     if model is not None:
         float32 = Path(model.deploy_future['float32'].filepath).stem
         float64 = Path(model.deploy_future['float64'].filepath).stem
         logger.info('\tpropagating walker {} using models: {}(float32) and '
-                '{}(float64)'.format(name, float32, float64))
-    state = walker.propagate(
+                '{}(float64)'.format(generator.name, float32, float64))
+    state = generator.walker.propagate(
             safe_return=False,
-            bias=bias,
+            bias=generator.bias,
             model=model,
             keep_trajectory=False,
             )
     if checks is not None:
         for check in checks:
-            state = check(state, walker.tag_future)
-    return evaluate(name, walker, model, reference, state, walker.counter_future, bias=bias, checks=checks)
+            state = check(state, generator.walker.tag_future)
+    return evaluate(
+            generator,
+            model,
+            reference,
+            state,
+            generator.walker.counter_future,
+            checks=checks,
+            retry_sampling=retry_sampling,
+            retry_reference=retry_reference,
+            )
 
 
 @join_app
 @typeguard.typechecked
 def evaluate(
-        name: str,
-        walker: BaseWalker,
+        generator: Generator,
         model: Optional[BaseModel],
         reference: Optional[BaseReference],
         *args, # waits for these futures to complete before execution
-        bias: Optional[PlumedBias] = None,
         checks: Optional[list] = None,
+        retry_sampling: int = 0,
+        retry_reference: int = 0,
         ) -> AppFuture:
     assert len(args) == 2
     state = args[0]
     counter = args[1]
-    logger.info('\twalker {} propagated for {} steps'.format(name, counter))
+    logger.info('\twalker {} propagated for {} steps'.format(generator.name, counter))
     if state is not None:
-        logger.info('\tstate from walker {} OK!'.format(name))
+        logger.info('\tstate from walker {} OK!'.format(generator.name))
         if reference is not None:
-            logger.info('\tevaluating state using {}'.format(name, reference.__class__))
+            logger.info('\tevaluating state using {}'.format(generator.name, reference.__class__))
             return gather(
-                    name,
-                    walker,
+                    generator,
                     model,
                     reference,
                     reference.evaluate(state),
-                    bias=bias,
                     checks=checks,
                     )
         else:
             logger.info('\tno reference level given, returning state')
             return copy_app_future(state)
     else:
-        logger.info('\tstate from walker {} not OK'.format(name, reference.__class__))
+        logger.info('\tstate from walker {} not OK'.format(generator.name, reference.__class__))
         logger.info('\tretrying with reset and different initial seed')
-        walker.reset(conditional=False)
-        walker.parameters.seed += 1
-        return generate(name, walker, model, reference, bias=bias, checks=checks)
+        generator.walker.reset(conditional=False)
+        generator.walker.parameters.seed += 1
+        return generate(
+                generator,
+                model,
+                reference,
+                checks=checks,
+                retry_sampling=retry_sampling + 1,
+                retry_reference=retry_reference,
+                )
 
 
 @join_app
 @typeguard.typechecked
 def gather(
-        name: str,
-        walker: BaseWalker,
+        generator: Generator,
         model: Optional[BaseModel],
         reference: BaseReference,
         *args, # waits for these futures to complete before execution
-        bias: Optional[PlumedBias] = None,
         checks: Optional[list] = None,
         ) -> Union[AppFuture, FlowAtoms]:
     assert len(args) == 1
     state = args[0]
     if state.reference_status: # evaluation successful
-        logger.info('\tstate from walker {} evaluated successfully'.format(name))
+        logger.info('\tstate from walker {} evaluated successfully'.format(generator.name))
         return copy_app_future(state) # join_app must return future??
     else:
-        walker.reset(conditional=False)
-        walker.parameters.seed += 1
-        logger.info('\tstate from walker {} failed during evaluation; retrying with seed {}'.format(name, walker.parameters.seed))
-        return generate(name, walker, model, reference, bias=bias, checks=checks)
+        generator.walker.reset(conditional=False)
+        generator.walker.parameters.seed += 1
+        logger.info('\tstate from walker {} failed during evaluation; '
+                'retrying with seed {}'.format(
+                    generator.name,
+                    generator.walker.parameters.seed,
+                    ))
+        return generate(
+                generator,
+                model,
+                reference,
+                checks=checks,
+                retry_sampling=retry_sampling + 1,
+                retry_reference=retry_reference + 1,
+                )
 
 
 @typeguard.typechecked
@@ -117,10 +160,14 @@ class Generator:
             name: str,
             walker: BaseWalker,
             bias: Optional[PlumedBias] = None,
+            nretries_sampling: int = 1,
+            nretries_reference: int = 0,
             ) -> None:
         self.name = name
         self.walker = walker
         self.bias = bias
+        self.nretries_sampling = nretries_sampling
+        self.nretries_reference = nretries_reference
 
     def __call__(
             self,
@@ -130,13 +177,13 @@ class Generator:
             wait_for_it: list[AppFuture] = [],
             ) -> AppFuture:
         return generate(
-                self.name,
-                self.walker,
+                self,
                 model,
                 reference,
                 *wait_for_it,
-                bias=self.bias,
                 checks=checks,
+                retry_sampling=0,
+                retry_reference=0,
                 )
 
     def multiply(
