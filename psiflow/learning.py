@@ -62,6 +62,7 @@ class BaseLearning:
         data_valid.log('data_valid')
         model.initialize(data_train)
         model.train(data_train, data_valid)
+        model.deploy()
         flow_manager.save(
                 name='random_pretraining',
                 model=model,
@@ -78,6 +79,7 @@ class BaseLearning:
                 data_train=data_train,
                 data_valid=data_valid,
                 )
+        log.result() # force execution
         return data_train, data_valid
 
 

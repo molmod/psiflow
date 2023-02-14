@@ -52,7 +52,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
                 'StressForceOutput',
                 'RescaleEnergyEtc'
                 ])
-    r_max: float = 4.0
+    r_max: float = 5.0
     num_layers: int = 4
     l_max: int = 1
     parity: bool = True
@@ -104,9 +104,9 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     early_stopping_patiences: Optional[dict] = field(default_factory=lambda: {'validation_loss': 500000})
     early_stopping_delta: Optional[dict] = field(default_factory=lambda: {'validation_loss': 0.005})
     early_stopping_cumulative_delta: bool = False
-    early_stopping_lower_bounds: Optional[dict] = field(default_factory=lambda: {'LR': 1e-5})
+    early_stopping_lower_bounds: Optional[dict] = field(default_factory=lambda: {'LR': 1e-10})
     early_stopping_upper_bounds: Optional[dict] = field(default_factory=lambda: {'cumulative_wall': 1e100})
-    loss_coeffs: Optional[dict] = field(default_factory=lambda: {'forces': 1, 'total_energy': [1, 'PerAtomMSELoss']})
+    loss_coeffs: Optional[dict] = field(default_factory=lambda: {'forces': 1, 'total_energy': [10, 'PerAtomMSELoss']})
     metrics_components: Optional[list] = field(default_factory=lambda: [
         ['forces', 'mae'],
         ['forces', 'rmse'],
@@ -121,12 +121,12 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     optimizer_weight_decay: float = 0
     max_gradient_norm: Optional[float] = None
     lr_scheduler_name: str = 'ReduceLROnPlateau'
-    lr_scheduler_patience: int = 100
+    lr_scheduler_patience: int = 1000000
     lr_scheduler_factor: float = 0.8
     per_species_rescale_scales_trainable: bool = False
     per_species_rescale_shifts_trainable: bool = False
     per_species_rescale_shifts: Optional[str] = 'dataset_per_atom_total_energy_mean'
-    per_species_rescale_scales: Optional[str] = 'dataset_forces_rms'
+    per_species_rescale_scales: Optional[str] = 'dataset_per_species_forces_rms'
     global_rescale_shift: Optional[str] = None
     global_rescale_scale: Optional[str] = None
     global_rescale_shift_trainable: bool = False
