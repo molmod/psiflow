@@ -49,7 +49,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
                 'SimpleIrrepsConfig',
                 'EnergyModel',
                 'PerSpeciesRescale',
-                'ForceOutput',
+                'StressForceOutput',
                 'RescaleEnergyEtc'
                 ])
     r_max: float = 4.0
@@ -128,7 +128,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     per_species_rescale_shifts: Optional[str] = 'dataset_per_atom_total_energy_mean'
     per_species_rescale_scales: Optional[str] = 'dataset_forces_rms'
     global_rescale_shift: Optional[str] = None
-    global_rescale_scale: Optional[str] = 'dataset_forces_rms'
+    global_rescale_scale: Optional[str] = None
     global_rescale_shift_trainable: bool = False
     global_rescale_scale_trainable: bool = False
 

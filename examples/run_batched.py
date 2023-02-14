@@ -9,7 +9,7 @@ import time
 from ase.io import read
 
 import psiflow.experiment
-from psiflow.learning import BatchedLearning
+from psiflow.learning import BatchLearning
 from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
@@ -64,10 +64,10 @@ def main(context, flow_manager):
     atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # reads one snapshot
 
     # set learning parameters
-    learning = BatchedLearning(
+    learning = BatchLearning(
             niterations=10,
             nstates=30,
-            retrain_model_per_iteration=False,
+            retrain_model_per_iteration=True,
             pretraining_amplitude_pos=0.1,
             pretraining_amplitude_box=0.05,
             pretraining_nstates=50,
@@ -93,10 +93,11 @@ def main(context, flow_manager):
             force_threshold=30,
             initial_temperature=600,
             )
-    generators = Generator('mtd', walker, bias).multiply(30, dataset=None)
+    generators = Generator('mtd', walker, bias).multiply(30, initialize_using=None)
     data_train, data_valid = learning.run(
             flow_manager=flow_manager,
             model=model,
+            reference=reference,
             generators=generators,
             data_train=data_train,
             data_valid=data_valid,
@@ -106,10 +107,10 @@ def main(context, flow_manager):
 def restart(context, flow_manager, restart_arg):
     reference = get_reference(context)
     model, ensemble, data_train, data_valid, checks = flow_manager.load(restart_arg, context)
-    learning = BatchedLearning(
+    learning = BatchLearning(
             niterations=5,
             nstates=30,
-            retrain_model_per_iteration=False,
+            retrain_model_per_iteration=True,
             train_valid_split=0.9
             )
     data_train, data_valid = learning.run(

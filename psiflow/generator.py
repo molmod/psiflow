@@ -101,6 +101,8 @@ def evaluate(
                     reference,
                     reference.evaluate(state),
                     checks=checks,
+                    retry_sampling=retry_sampling,
+                    retry_reference=retry_reference,
                     )
         else:
             logger.info('\tno reference level given, returning state')
@@ -128,6 +130,8 @@ def gather(
         reference: BaseReference,
         *args, # waits for these futures to complete before execution
         checks: Optional[list] = None,
+        retry_sampling: int = 0,
+        retry_reference: int = 0,
         ) -> Union[AppFuture, FlowAtoms]:
     assert len(args) == 1
     state = args[0]
