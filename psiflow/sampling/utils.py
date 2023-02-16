@@ -81,11 +81,7 @@ class ForcePartASE(yaff.pes.ForcePart):
             self.check_threshold(forces)
             gpos[:] = -forces * molmod.units.electronvolt / molmod.units.angstrom
         if vtens is not None:
-            try: # some models do not have stress support
-                stress = atoms.get_stress(voigt=False)
-            except Exception as e:
-                print(e)
-                stress = np.zeros((3, 3))
+            stress = self.atoms.get_stress(voigt=False)
             volume = np.linalg.det(self.atoms.get_cell())
             vtens[:] = volume * stress * molmod.units.electronvolt
         return energy

@@ -17,17 +17,23 @@ from parsl.app.app import python_app, join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.config import Config
-import parsl.providers.slurm.slurm # to define custom slurm provider
 
 import psiflow
 
-import math # slurm provider imports
+# to define custom slurm provider
+import parsl.providers.slurm.slurm
+import math
 import os
 import time
 import logging
 from parsl.providers.base import JobState, JobStatus
 from parsl.utils import wtime_to_minutes
 from parsl.providers.slurm.template import template_string
+
+# imports for LocalChannel
+import parsl.channels.local.local
+import copy
+import subprocess
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -321,3 +327,39 @@ class SlurmProvider(parsl.providers.slurm.slurm.SlurmProvider):
             logger.error("Submit command failed")
             logger.error("Retcode:%s STDOUT:%s STDERR:%s", retcode, stdout.strip(), stderr.strip())
         return job_id
+
+
+class LocalChannel(parsl.channels.local.local.LocalChannel):
+
+    def __init__(self, prepend_cmd='', **kwargs):
+        super().__init__(**kwargs)
+        self.prepend_cmd = prepend_cmd
+
+    def execute_wait(self, cmd, walltime=None, envs={}):
+        retcode = -1
+        stdout = None
+        stderr = None
+
+        current_env = copy.deepcopy(self._envs)
+        current_env.update(envs)
+
+        cmd = self.prepend_cmd + '; ' + cmd
+
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=self.userhome,
+                env=current_env,
+                shell=True,
+                preexec_fn=os.setpgrp
+            )
+            (stdout, stderr) = proc.communicate(timeout=walltime)
+            retcode = proc.returncode
+
+        except Exception as e:
+            logger.warning("Execution of command '{}' failed due to \n{}".format(cmd, e))
+            raise
+
+        return (retcode, stdout.decode("utf-8"), stderr.decode("utf-8"))

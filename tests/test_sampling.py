@@ -105,10 +105,11 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     assert walker.tag_future.result() == 'unsafe' # raised ForceExceededException
 
 
-def test_optimization_walker(context, dataset, nequip_config):
+def test_optimization_walker(context, dataset, mace_config):
     training = dataset[:15]
     validate = dataset[15:]
-    model = NequIPModel(context, nequip_config)
+    #model = NequIPModel(context, nequip_config)
+    model = MACEModel(context, mace_config)
     model.initialize(training)
     model.train(training, validate)
     model.deploy()

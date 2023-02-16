@@ -242,7 +242,7 @@ def test_cp2k_success(context, cp2k_reference):
     assert np.allclose(
             stress_reference,
             evaluated.result().info['stress'],
-            atol=1e-5,
+            #atol=1e-5,
             )
 
     # check number of mpi processes
