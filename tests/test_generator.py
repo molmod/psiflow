@@ -13,10 +13,10 @@ from psiflow.generator import Generator, save_generators, load_generators
 
 
 def test_generator_mace(context, dataset, mace_config):
-    walker = DynamicWalker(context, dataset[0], steps=10, step=1)
-    reference = EMTReference(context)
+    walker = DynamicWalker(dataset[0], steps=10, step=1)
+    reference = EMTReference()
 
-    model = MACEModel(context, mace_config)
+    model = MACEModel(mace_config)
     model.initialize(dataset[:3])
     model.deploy()
     checks = [SafetyCheck()]
@@ -56,7 +56,7 @@ def test_generator_mace(context, dataset, mace_config):
     assert generator.walker.counter_future.result() != 0 # walker propagated
 
     # check whether reference energy/forces/stress are saved
-    generated = Dataset(context, [state])
+    generated = Dataset([state])
     errors = Dataset.get_errors(
             generated,
             reference.evaluate(generated),
@@ -65,7 +65,7 @@ def test_generator_mace(context, dataset, mace_config):
 
     # use generator without reference
     state = generator(model, None, checks)
-    generated = Dataset(context, [state])
+    generated = Dataset([state])
     errors = Dataset.get_errors(
             generated,
             reference.evaluate(generated),
@@ -103,12 +103,11 @@ def test_generator_mace(context, dataset, mace_config):
             assert not isinstance(future.result(), FlowAtoms)
 
 
-
 def test_generator_multiply(context, dataset, mace_config, tmp_path):
-    walker = DynamicWalker(context, dataset[0], steps=10, step=1)
-    reference = EMTReference(context)
+    walker = DynamicWalker(dataset[0], steps=10, step=1)
+    reference = EMTReference()
 
-    model = MACEModel(context, mace_config)
+    model = MACEModel(mace_config)
     model.initialize(dataset[:3])
     model.deploy()
 
@@ -119,7 +118,7 @@ def test_generator_multiply(context, dataset, mace_config, tmp_path):
                 generator.walker.state_future.result().get_positions(),
                 dataset[i].result().get_positions(),
                 )
-    data = Dataset(context, [g(model, None) for g in generators])
+    data = Dataset([g(model, None) for g in generators])
 
     # no two states should be the same
     for i in range(data.length().result() - 1):
@@ -131,11 +130,11 @@ def test_generator_multiply(context, dataset, mace_config, tmp_path):
 
     # test save and load
     save_generators(generators, tmp_path)
-    _generators = load_generators(context, tmp_path)
+    _generators = load_generators(tmp_path)
     ndirs = len([f for f in os.listdir(tmp_path) if os.path.isdir(tmp_path / f)])
     assert ndirs == len(generators)
 
-    states = Dataset(context, [_g.walker.state_future for _g in _generators])
+    states = Dataset([_g.walker.state_future for _g in _generators])
     for g in generators:
         found = False
         for i in range(states.length().result()):
@@ -152,6 +151,6 @@ def test_generator_multiply(context, dataset, mace_config, tmp_path):
     generators[1].walker.tag_unsafe()
     checks = [SafetyCheck()]
     states = [g(model, reference, checks) for g in generators]
-    dataset = Dataset(context, states)
+    dataset = Dataset(states)
     dataset.length().result()
     assert len(checks[0].states) == 2

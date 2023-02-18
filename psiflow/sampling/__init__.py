@@ -3,8 +3,8 @@ from typing import Optional, Union, List
 import typeguard
 from pathlib import Path
 
+import psiflow
 from psiflow.data import FlowAtoms
-from psiflow.execution import ExecutionContext
 
 from .base import BaseWalker # import base and bias before walkers
 from .bias import PlumedBias
@@ -15,10 +15,8 @@ from .optimization import OptimizationWalker
 
 @typeguard.typechecked
 
-def load_walker(
-        context: ExecutionContext,
-        path: Union[Path, str],
-        ) -> BaseWalker: # not in BaseWalker to avoid circular import
+# not in BaseWalker to avoid circular import
+def load_walker(path: Union[Path, str]) -> BaseWalker:
     from pathlib import Path
     from ase.io import read
     import yaml
@@ -44,6 +42,6 @@ def load_walker(
     state = FlowAtoms.from_atoms(read(str(path_state)))
     with open(path_pars, 'r') as f:
         pars_dict = yaml.load(f, Loader=yaml.FullLoader)
-    walker = walker_cls(context, state, **pars_dict)
+    walker = walker_cls(state, **pars_dict)
     walker.start_future = copy_app_future(start)
     return walker

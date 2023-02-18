@@ -33,7 +33,7 @@ def test_flow_atoms(context, dataset, tmp_path):
 
 
 def test_dataset_empty(context, tmp_path):
-    dataset = Dataset(context, atoms_list=[])
+    dataset = Dataset(atoms_list=[])
     assert dataset.length().result() == 0
     assert isinstance(dataset.data_future, DataFuture)
     path_xyz = tmp_path / 'test.xyz'
@@ -47,7 +47,7 @@ def test_dataset_append(dataset):
     assert len(atoms_list) == 20
     assert type(atoms_list) == list
     assert type(atoms_list[0]) == FlowAtoms
-    empty = Dataset(dataset.context, []) # use [] instead of None
+    empty = Dataset([]) # use [] instead of None
     empty.append(dataset)
     assert 20 == empty.length().result()
     dataset.append(dataset)
@@ -63,7 +63,7 @@ def test_dataset_slice(dataset):
     part = dataset[:8]
     assert part.length().result() == 8
     state = dataset[8]
-    data = Dataset(dataset.context, atoms_list=[state])
+    data = Dataset(atoms_list=[state])
     assert data.length().result() == 1
 
     dataset_ = dataset.shuffle()
@@ -81,7 +81,7 @@ def test_dataset_from_xyz(context, tmp_path):
     path_xyz = tmp_path / 'data.xyz'
     with open(path_xyz, 'w') as f:
         write_extxyz(f, data)
-    dataset = Dataset.load(context, path_xyz)
+    dataset = Dataset.load(path_xyz)
 
     for i in range(20):
         assert np.allclose(
@@ -115,7 +115,7 @@ def test_dataset_metric(context, dataset):
 
     atoms = FlowAtoms(numbers=30 * np.ones(10), positions=np.zeros((10, 3)), pbc=False)
     atoms.info['forces'] = np.random.uniform(-1, 1, size=(10, 3))
-    dataset.append(Dataset(context, [atoms]))
+    dataset.append(Dataset([atoms]))
     errors = Dataset.get_errors(dataset, None, elements=['H'], properties=['forces']) # H present
     assert errors.result().shape[0] == dataset.length().result() - 1
 

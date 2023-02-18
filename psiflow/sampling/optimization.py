@@ -7,9 +7,9 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.execution import Container, ExecutionContext, \
-        ModelEvaluationExecution
+from psiflow.execution import ModelEvaluationExecution
 from psiflow.sampling.base import BaseWalker
 from psiflow.models import BaseModel
 
@@ -97,20 +97,18 @@ class OptimizationWalker(BaseWalker):
 
     def get_propagate_app(self, model):
         name = model.__class__.__name__
+        context = psiflow.context()
         try:
-            app = self.context.apps(OptimizationWalker, 'propagate_' + name)
+            app = context.apps(OptimizationWalker, 'propagate_' + name)
         except KeyError:
-            assert model.__class__ in self.context.definitions.keys()
-            self.create_apps(self.context, model_cls=model.__class__)
-            app = self.context.apps(OptimizationWalker, 'propagate_' + name)
+            assert model.__class__ in context.definitions.keys()
+            self.create_apps(model_cls=model.__class__)
+            app = context.apps(OptimizationWalker, 'propagate_' + name)
         return app
 
     @classmethod
-    def create_apps(
-            cls,
-            context: ExecutionContext,
-            model_cls: Type[BaseModel],
-            ) -> None:
+    def create_apps(cls, model_cls: Type[BaseModel]) -> None:
+        context = psiflow.context()
         for execution in context[model_cls]:
             if type(execution) == ModelEvaluationExecution:
                 label    = execution.executor
@@ -150,4 +148,4 @@ class OptimizationWalker(BaseWalker):
             return result
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, optimize_wrapped)
-        super(OptimizationWalker, cls).create_apps(context)
+        super(OptimizationWalker, cls).create_apps()

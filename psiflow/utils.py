@@ -7,7 +7,6 @@ import tempfile
 import numpy as np
 import wandb
 import importlib
-import pkgutil
 from pathlib import Path
 
 from ase.data import atomic_numbers
@@ -17,8 +16,6 @@ from parsl.app.app import python_app, join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.config import Config
-
-import psiflow
 
 # to define custom slurm provider
 import parsl.providers.slurm.slurm
@@ -52,7 +49,8 @@ def set_file_logger( # hacky
             'psiflow.data',
             'psiflow.generator',
             'psiflow.execution',
-            'psiflow.experiment',
+            'psiflow.wandb_utils',
+            'psiflow.state',
             'psiflow.learning',
             'psiflow.utils',
             'psiflow.models.base',
@@ -81,21 +79,6 @@ create_if_empty = python_app(_create_if_empty, executors=['default'])
 def _combine_futures(inputs: List[Any]) -> List[Any]:
     return list(inputs)
 combine_futures = python_app(_combine_futures, executors=['default'])
-
-
-@typeguard.typechecked
-def get_psiflow_config_from_file(
-        path_config: Union[Path, str],
-        path_internal: Union[Path, str],
-        ) -> tuple[Config, dict]:
-    path_config = Path(path_config)
-    assert path_config.is_file()
-    # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
-    spec = importlib.util.spec_from_file_location('module.name', path_config)
-    psiflow_config_module = importlib.util.module_from_spec(spec)
-    sys.modules['module.name'] = psiflow_config_module
-    spec.loader.exec_module(psiflow_config_module)
-    return psiflow_config_module.get_config(path_internal)
 
 
 @typeguard.typechecked
@@ -159,57 +142,6 @@ def _save_txt(data: str, outputs: List[File] = []) -> None:
     with open(outputs[0], 'w') as f:
         f.write(data)
 save_txt = python_app(_save_txt, executors=['default'])
-
-@typeguard.typechecked
-def _log_data_to_wandb(
-        run_name: str,
-        group: str,
-        project: str,
-        error_x_axis: str,
-        names: List[str],
-        inputs: List[List[List]] = [], # list of 2D tables
-        ) -> None:
-    from pathlib import Path
-    import shutil
-    import tempfile
-    import wandb
-    path_wandb = Path(tempfile.mkdtemp())
-    wandb.init(
-            name=run_name,
-            group=group,
-            project=project,
-            resume='allow',
-            dir=path_wandb,
-            )
-    wandb_log = {}
-    assert len(names) == len(inputs)
-    for name, data in zip(names, inputs):
-        table = wandb.Table(columns=data[0], data=data[1:])
-        if name in ['training', 'validation', 'failed']:
-            errors_to_plot = [] # check which error labels are present
-            for l in data[0]:
-                if l.endswith('energy') or l.endswith('forces') or l.endswith('stress'):
-                    errors_to_plot.append(l)
-            assert error_x_axis in data[0]
-            for error in errors_to_plot:
-                title = name + '_' + error
-                wandb_log[title] = wandb.plot.scatter(
-                        table,
-                        error_x_axis,
-                        error,
-                        title=title,
-                        )
-        else:
-            wandb_log[name + '_table'] = table
-    assert path_wandb.is_dir()
-    os.environ['WANDB_SILENT'] = 'True' # suppress logs
-    wandb.log(wandb_log)
-    wandb.finish()
-log_data_to_wandb = python_app(
-        _log_data_to_wandb,
-        executors=['default'],
-        cache=True,
-        )
 
 
 @typeguard.typechecked

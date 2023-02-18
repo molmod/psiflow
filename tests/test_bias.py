@@ -37,7 +37,7 @@ FLUSH STRIDE=10
 
 
 def test_dynamic_walker_bias(context, nequip_config, dataset):
-    model = NequIPModel(context, nequip_config)
+    model = NequIPModel(nequip_config)
     model.initialize(dataset)
     model.deploy()
     kwargs = {
@@ -49,7 +49,7 @@ def test_dynamic_walker_bias(context, nequip_config, dataset):
             'initial_temperature': 100,
             'pressure'           : None,
             }
-    walker = DynamicWalker(context, dataset[0], **kwargs)
+    walker = DynamicWalker(dataset[0], **kwargs)
 
     # initial unit cell volume is around 125 A**3
     plumed_input = """
@@ -57,7 +57,7 @@ UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
 """
-    bias = PlumedBias(context, plumed_input)
+    bias = PlumedBias(plumed_input)
     assert bias.components[0] == ('RESTRAINT', 'CV')
     walker.propagate(model=model, bias=bias)
     assert walker.tag_future.result() == 'safe'
@@ -72,7 +72,7 @@ CV: VOLUME
 restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 """ # RESTART automatically added in input if not present
-    bias = PlumedBias(context, plumed_input)
+    bias = PlumedBias(plumed_input)
     assert ('METAD', 'CV') in bias.components
     assert ('RESTRAINT', 'CV') in bias.components
     assert bias.keys[0] == 'METAD'
@@ -102,7 +102,7 @@ UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=2 LABEL=metad FILE=test_hills
 """ # RESTART automatically added in input if not present
-    bias_mtd = PlumedBias(context, plumed_input, data={'METAD': bias.data_futures['METAD']})
+    bias_mtd = PlumedBias(plumed_input, data={'METAD': bias.data_futures['METAD']})
     values_mtd = bias_mtd.evaluate(dataset, variable='CV').result()
     assert np.allclose(
             values[:, 0],
@@ -123,7 +123,7 @@ SOMEOTHER: VOLUME
 restraint: RESTRAINT ARG=SOMEOTHER AT=150 KAPPA=1
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 """ # RESTART automatically added in input if not present
-    bias_ = PlumedBias(context, plumed_input, data={'METAD': bias.data_futures['METAD']})
+    bias_ = PlumedBias(plumed_input, data={'METAD': bias.data_futures['METAD']})
     values_ = bias_.evaluate(dataset, variable='CV').result()
     assert np.allclose(
             values_[:, 0],
@@ -141,9 +141,9 @@ def test_bias_evaluate(context, dataset):
             'amplitude_pos': 0.1,
             'seed': 0,
             }
-    walker = RandomWalker(context, dataset[0], **kwargs)
+    walker = RandomWalker(dataset[0], **kwargs)
     states = [walker.propagate() for i in range(10)]
-    dataset = Dataset(context, states)
+    dataset = Dataset(states)
 
     plumed_input = """
 RESTART
@@ -152,7 +152,7 @@ CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 FLUSH STRIDE=1
 """
-    bias = PlumedBias(context, plumed_input)
+    bias = PlumedBias(plumed_input)
     assert len(bias.components) == 1
     assert tuple(bias.keys) == ('METAD',)
     values = bias.evaluate(dataset, variable='CV').result()
@@ -166,13 +166,13 @@ UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 """
-    bias = PlumedBias(context, plumed_input)
+    bias = PlumedBias(plumed_input)
     values = bias.evaluate(dataset, variable='CV').result()
     assert np.allclose(
             values[:, 1],
             0.5 * (values[:, 0] - 150) ** 2,
             )
-    singleton = Dataset(context, atoms_list=[dataset[0]])
+    singleton = Dataset(atoms_list=[dataset[0]])
     values_ = bias.evaluate(singleton, variable='CV').result()
     assert np.allclose(
             values[0, :],
@@ -190,14 +190,14 @@ external: EXTERNAL ARG=CV FILE=test_grid
     variable = np.linspace(0, 300, 500)
     grid = generate_external_grid(bias_function, variable, 'CV', periodic=False)
     data = {'EXTERNAL': grid}
-    bias = PlumedBias(context, plumed_input, data)
+    bias = PlumedBias(plumed_input, data)
     values = bias.evaluate(dataset, variable='CV').result()
     for i in range(dataset.length().result()):
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(bias_function(values[:, 0]), values[:, 1])
     input_future, data_futures = bias.save(tmp_path)
-    bias_ = PlumedBias.load(context, tmp_path)
+    bias_ = PlumedBias.load(tmp_path)
     values_ = bias_.evaluate(dataset, variable='CV').result()
     assert np.allclose(values, values_)
 
@@ -208,7 +208,7 @@ external: EXTERNAL ARG=CV FILE=test_grid
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
 """
-    bias = PlumedBias(context, plumed_input, data)
+    bias = PlumedBias(plumed_input, data)
     assert len(bias.components) == 3
     assert bias.keys[0] == 'METAD' # in front
     values = bias.evaluate(dataset, variable='CV').result()
@@ -218,7 +218,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
     reference = bias_function(values[:, 0]) + 0.5 * (values[:, 0] - 150) ** 2
     assert np.allclose(reference, values[:, 1])
     bias.save(tmp_path)
-    bias_ = PlumedBias.load(context, tmp_path)
+    bias_ = PlumedBias.load(tmp_path)
     values_ = bias_.evaluate(dataset, variable='CV').result()
     assert np.allclose(values, values_)
 
@@ -230,7 +230,7 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
 """
-    bias   = PlumedBias(context, plumed_input, data={})
+    bias   = PlumedBias(plumed_input, data={})
     values = bias.evaluate(dataset, variable='CV').result()
     bias.adjust_restraint('CV', kappa=2, center=150)
     assert bias.plumed_input == """
@@ -264,7 +264,7 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
 """
-    bias = PlumedBias(context, plumed_input, data={})
+    bias = PlumedBias(plumed_input, data={})
     values = bias.evaluate(dataset, variable='CV').result()[:, 0]
     #cv_min = np.min(cv_values)
     #cv_max = np.max(cv_values)

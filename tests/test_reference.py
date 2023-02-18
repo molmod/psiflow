@@ -12,6 +12,7 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 from ase import Atoms
 from ase.io.extxyz import write_extxyz
 
+import psiflow
 from psiflow.data import FlowAtoms
 from psiflow.reference import EMTReference, CP2KReference
 from psiflow.reference._cp2k import insert_filepaths_in_input, \
@@ -136,7 +137,7 @@ def cp2k_input():
 
 @pytest.fixture
 def cp2k_reference(context, cp2k_input, cp2k_data, tmp_path):
-    reference = CP2KReference(context, cp2k_input=cp2k_input)
+    reference = CP2KReference(cp2k_input=cp2k_input)
     for key, value in cp2k_data.items():
         with open(tmp_path / key, 'w') as f:
             f.write(value)
@@ -145,13 +146,13 @@ def cp2k_reference(context, cp2k_input, cp2k_data, tmp_path):
 
 
 def test_reference_emt(context, dataset, tmp_path):
-    reference = EMTReference(context)
+    reference = EMTReference()
     # modify dataset to include states for which EMT fails:
     _ = reference.evaluate(dataset).as_list()
     atoms_list = dataset.as_list()
     atoms_list[6].numbers[1] = 90
     atoms_list[9].numbers[1] = 3
-    dataset_ = Dataset(context, atoms_list)
+    dataset_ = Dataset(atoms_list)
     evaluated = reference.evaluate(dataset_)
     assert evaluated.length().result() == len(atoms_list)
 
@@ -211,7 +212,7 @@ def test_cp2k_success(context, cp2k_reference):
             positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
             pbc=True,
             )
-    dataset = Dataset(context, [atoms])
+    dataset = Dataset([atoms])
     evaluated = cp2k_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status == True
@@ -248,7 +249,7 @@ def test_cp2k_success(context, cp2k_reference):
     # check number of mpi processes
     with open(evaluated.result().reference_stdout, 'r') as f:
         content = f.read()
-    print(content)
+    context = psiflow.context()
     ncores = context[CP2KReference][0].ncores
     omp_num_threads = context[CP2KReference][0].omp_num_threads
     mpi_num_procs = ncores // omp_num_threads
@@ -328,7 +329,7 @@ def test_cp2k_failure(context, cp2k_data, tmp_path):
    &END PRINT
 &END FORCE_EVAL
 """ # incorrect input file
-    reference = CP2KReference(context, cp2k_input=cp2k_input)
+    reference = CP2KReference(cp2k_input=cp2k_input)
     for key, value in cp2k_data.items():
         with open(tmp_path / key, 'w') as f:
             f.write(value)
@@ -360,3 +361,7 @@ def test_cp2k_timeout(context, cp2k_reference):
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status == False
     assert 'energy' not in evaluated.result().info.keys()
+
+
+#def test_emt_atomic_energies(context, dataset):
+#    

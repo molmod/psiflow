@@ -14,7 +14,7 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.execution import Container, ExecutionContext
+import psiflow
 from psiflow.utils import copy_data_future, save_txt, create_if_empty
 from psiflow.data import read_dataset, Dataset
 
@@ -171,17 +171,11 @@ app_find_states = python_app(find_states_in_data, executors=['default'])
 
 
 @typeguard.typechecked
-class PlumedBias(Container):
+class PlumedBias:
     """Represents a PLUMED bias potential"""
     keys_with_future = ['EXTERNAL', 'METAD']
 
-    def __init__(
-            self,
-            context: ExecutionContext,
-            plumed_input: str,
-            data: Optional[Dict] = None,
-            ):
-        super().__init__(context)
+    def __init__(self, plumed_input: str, data: Optional[Dict] = None):
         assert 'ENERGY=kj/mol' in plumed_input, ('please set the PLUMED energy '
                 'units to kj/mol')
         assert 'PRINT' not in plumed_input, ('remove print statements from '
@@ -191,9 +185,10 @@ class PlumedBias(Container):
         assert len(components) > 0
         for c in components:
             assert ',' not in c[1] # require 1D bias
-        #assert len(set([c[1] for c in components])) == 1 # single CV
         self.components   = components
         self.plumed_input = plumed_input
+
+        context = psiflow.context()
 
         # initialize data future for each component
         self.data_futures = OrderedDict()
@@ -268,17 +263,14 @@ class PlumedBias(Container):
         return plumed_input
 
     def copy(self) -> PlumedBias:
+        context = psiflow.context()
         new_futures = OrderedDict()
         for key, future in self.data_futures.items():
             new_futures[key] = copy_data_future(
                     inputs=[future],
-                    outputs=[self.context.new_file('bias_', '.txt')],
+                    outputs=[context.new_file('bias_', '.txt')],
                     ).outputs[0]
-        return PlumedBias(
-                self.context,
-                self.plumed_input,
-                data=new_futures,
-                )
+        return PlumedBias(self.plumed_input, data=new_futures)
 
     def adjust_restraint(self, variable: str, kappa: float, center: float) -> None:
         plumed_input = str(self.plumed_input)
@@ -359,7 +351,7 @@ class PlumedBias(Container):
         return input_future, data_futures
 
     @classmethod
-    def load(cls, context: ExecutionContext, path: Union[Path, str]) -> PlumedBias:
+    def load(cls, path: Union[Path, str]) -> PlumedBias:
         path = Path(path)
         assert path.is_dir()
         path_input = path / 'plumed_input.txt'
@@ -372,7 +364,7 @@ class PlumedBias(Container):
             if path_key.is_file():
                 with open(path_key, 'r') as f:
                     data[key] = f.read()
-        return cls(context, plumed_input, data=data)
+        return cls(plumed_input, data=data)
 
     @property
     def keys(self) -> List[str]:
@@ -393,5 +385,5 @@ class PlumedBias(Container):
         return [value for _, value in self.data_futures.items()] # MTD first
 
     @classmethod
-    def create_apps(cls, context: ExecutionContext) -> None:
+    def create_apps(cls) -> None:
         pass

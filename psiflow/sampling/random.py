@@ -7,7 +7,6 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import FlowAtoms
-from psiflow.execution import ExecutionContext
 from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 
@@ -70,5 +69,5 @@ class RandomWalker(BaseWalker):
         return propagate_wrapped
 
     @classmethod
-    def create_apps(cls, context: ExecutionContext) -> None:
+    def create_apps(cls) -> None:
         pass

@@ -13,7 +13,7 @@ from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
 
 
 def test_save_load(context, dataset, tmp_path):
-    walker = DynamicWalker(context, dataset[0], steps=10, step=1)
+    walker = DynamicWalker(dataset[0], steps=10, step=1)
     path_start = tmp_path / 'start.xyz'
     path_state = tmp_path / 'state.xyz'
     path_pars  = tmp_path / 'DynamicWalker.yaml' # has name of walker class
@@ -21,7 +21,7 @@ def test_save_load(context, dataset, tmp_path):
     assert os.path.exists(path_start)
     assert os.path.exists(path_state)
     assert os.path.exists(path_pars)
-    walker_ = load_walker(context, tmp_path)
+    walker_ = load_walker(tmp_path)
     assert type(walker_) == DynamicWalker
     assert np.allclose(
             walker.start_future.result().positions,
@@ -36,7 +36,7 @@ def test_save_load(context, dataset, tmp_path):
 
 
 def test_base_walker(context, dataset):
-    walker = BaseWalker(context, dataset[0])
+    walker = BaseWalker(dataset[0])
     assert isinstance(walker.state_future, AppFuture)
     assert isinstance(walker.start_future, AppFuture)
     assert walker.state_future != walker.start_future # do not point to same future
@@ -44,11 +44,11 @@ def test_base_walker(context, dataset):
     assert isinstance(walker.state_future.result(), Atoms)
 
     with pytest.raises(TypeError): # illegal kwarg
-        BaseWalker(context, dataset[0], some_illegal_kwarg=0)
+        BaseWalker(dataset[0], some_illegal_kwarg=0)
 
 
 def test_random_walker(context, dataset):
-    walker = RandomWalker(context, dataset[0], seed=0)
+    walker = RandomWalker(dataset[0], seed=0)
 
     state = walker.propagate()
     assert isinstance(state, AppFuture)
@@ -56,7 +56,7 @@ def test_random_walker(context, dataset):
     assert not walker.is_reset().result()
     assert not walker.counter_future.result() == 0
 
-    walker = RandomWalker(context, dataset[0], seed=0)
+    walker = RandomWalker(dataset[0], seed=0)
     safe_state = walker.propagate(safe_return=True)
     assert np.allclose(
             state.result().get_positions(),
@@ -75,8 +75,8 @@ def test_random_walker(context, dataset):
 
 
 def test_dynamic_walker_plain(context, dataset, mace_config):
-    walker = DynamicWalker(context, dataset[0], steps=10, step=2)
-    model = MACEModel(context, mace_config)
+    walker = DynamicWalker(dataset[0], steps=10, step=2)
+    model = MACEModel(mace_config)
     model.initialize(dataset[:3])
     model.deploy()
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
@@ -93,7 +93,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
             )
 
     # test timeout
-    walker = DynamicWalker(context, dataset[0], steps=1000, step=1)
+    walker = DynamicWalker(dataset[0], steps=1000, step=1)
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
     assert not trajectory.length().result() < 1001 # timeout
     assert trajectory.length().result() > 1
@@ -108,13 +108,12 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
 def test_optimization_walker(context, dataset, mace_config):
     training = dataset[:15]
     validate = dataset[15:]
-    #model = NequIPModel(context, nequip_config)
-    model = MACEModel(context, mace_config)
+    model = MACEModel(mace_config)
     model.initialize(training)
     model.train(training, validate)
     model.deploy()
 
-    walker = OptimizationWalker(context, dataset[0], optimize_cell=False, fmax=1e-2)
+    walker = OptimizationWalker(dataset[0], optimize_cell=False, fmax=1e-2)
     final = walker.propagate(model=model)
     assert np.all(np.abs(final.result().positions - dataset[0].result().positions) < 1.0)
     assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved

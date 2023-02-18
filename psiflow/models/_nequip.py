@@ -19,11 +19,11 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
 
+import psiflow
 from psiflow.models.base import evaluate_dataset
 from psiflow.models import BaseModel
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.execution import ExecutionContext, ModelTrainingExecution, \
-        ModelEvaluationExecution
+from psiflow.execution import ModelTrainingExecution, ModelEvaluationExecution
 from psiflow.utils import copy_data_future, get_active_executor
 
 
@@ -393,16 +393,12 @@ def train(
 class NequIPModel(BaseModel):
     """Container class for NequIP models"""
 
-    def __init__(
-            self,
-            context: ExecutionContext,
-            config: Union[dict, NequIPConfig],
-            ) -> None:
+    def __init__(self, config: Union[dict, NequIPConfig]) -> None:
         if isinstance(config, NequIPConfig):
             config = asdict(config)
         else:
             config = dict(config)
-        super().__init__(context, config)
+        super().__init__(config)
 
     def initialize(self, dataset: Dataset) -> None:
         assert self.config_future is None
@@ -410,25 +406,27 @@ class NequIPModel(BaseModel):
         self.deploy_future = {}
         logger.info('initializing {} using dataset of {} states'.format(
             self.__class__.__name__, dataset.length().result()))
-        self.config_future = self.context.apps(self.__class__, 'initialize')( # to initialized config
+        context = psiflow.context()
+        self.config_future = context.apps(self.__class__, 'initialize')( # to initialized config
                 self.config_raw,
                 inputs=[dataset.data_future],
-                outputs=[self.context.new_file('model_', '.pth')],
+                outputs=[context.new_file('model_', '.pth')],
                 )
         self.model_future = self.config_future.outputs[0] # to undeployed model
 
     def deploy(self) -> None:
         assert self.config_future is not None
         assert self.model_future is not None
-        self.deploy_future['float32'] = self.context.apps(self.__class__, 'deploy_float32')(
+        context = psiflow.context()
+        self.deploy_future['float32'] = context.apps(self.__class__, 'deploy_float32')(
                 self.config_future,
                 inputs=[self.model_future],
-                outputs=[self.context.new_file('deployed_', '.pth')],
+                outputs=[context.new_file('deployed_', '.pth')],
                 ).outputs[0]
-        self.deploy_future['float64'] = self.context.apps(self.__class__, 'deploy_float64')(
+        self.deploy_future['float64'] = context.apps(self.__class__, 'deploy_float64')(
                 self.config_future,
                 inputs=[self.model_future],
-                outputs=[self.context.new_file('deployed_', '.pth')],
+                outputs=[context.new_file('deployed_', '.pth')],
                 ).outputs[0]
 
     def save_deployed(
@@ -446,7 +444,8 @@ class NequIPModel(BaseModel):
         self.config_raw['dataset_seed'] = seed
 
     @classmethod
-    def create_apps(cls, context: ExecutionContext) -> None:
+    def create_apps(cls) -> None:
+        context = psiflow.context()
         for execution in context[cls]:
             if type(execution) == ModelTrainingExecution:
                 training_label    = execution.executor
@@ -533,19 +532,9 @@ class NequIPModel(BaseModel):
 @typeguard.typechecked
 class AllegroModel(NequIPModel):
 
-    def __init__(
-            self,
-            context: ExecutionContext,
-            config: Union[dict, AllegroConfig],
-            ) -> None:
+    def __init__(self, config: Union[dict, AllegroConfig]) -> None:
         if isinstance(config, AllegroConfig):
             config = asdict(config)
         else:
             config = dict(config)
-        super().__init__(context, config)
-
-
-@id_for_memo.register(type(NequIPModel.load_calculator))
-def id_for_memo_method(method, output_ref=False):
-    string = inspect.getsource(method)
-    return bytes(string, 'utf-8')
+        super().__init__(config)

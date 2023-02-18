@@ -2,7 +2,7 @@ from typing import Union
 import typeguard
 from pathlib import Path
 
-from psiflow.execution import ExecutionContext
+import psiflow
 
 from .base import BaseModel
 from ._nequip import NequIPModel, NequIPConfig, AllegroModel, AllegroConfig
@@ -10,7 +10,7 @@ from ._mace import MACEModel, MACEConfig
 
 
 @typeguard.typechecked
-def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
+def load_model(path: Union[Path, str]) -> BaseModel:
     from pathlib import Path
     import yaml
     from parsl.data_provider.files import File
@@ -30,7 +30,7 @@ def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
             break
     with open(path_config_raw, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
-    model = model_cls(context, config)
+    model = model_cls(config)
     path_config = path / 'config_after_init.yaml'
     path_model  = path / 'model_undeployed.pth'
     if path_model.is_file():
@@ -40,6 +40,6 @@ def load_model(context: ExecutionContext, path: Union[Path, str]) -> BaseModel:
         model.config_future = copy_app_future(config_init)
         model.model_future = copy_data_future(
                 inputs=[File(str(path_model))],
-                outputs=[context.new_file('model_', '.pth')],
+                outputs=[psiflow.context().new_file('model_', '.pth')],
                 ).outputs[0]
     return model

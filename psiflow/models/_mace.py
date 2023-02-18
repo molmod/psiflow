@@ -17,6 +17,7 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.models import BaseModel
 from psiflow.models.base import evaluate_dataset
 from psiflow.data import Dataset
@@ -478,18 +479,14 @@ def deploy(
 @typeguard.typechecked
 class MACEModel(BaseModel):
 
-    def __init__(
-            self,
-            context: ExecutionContext,
-            config: Union[dict, MACEConfig],
-            ) -> None:
+    def __init__(self, config: Union[dict, MACEConfig]) -> None:
         if isinstance(config, MACEConfig):
             config = asdict(config)
         else:
             config = dict(config)
         assert not config['swa'], 'usage of SWA is currently not supported'
         config['device'] = 'cpu' # guarantee consistent initialization
-        super().__init__(context, config)
+        super().__init__(config)
 
     def initialize(self, dataset: Dataset) -> None:
         assert self.config_future is None
@@ -497,30 +494,33 @@ class MACEModel(BaseModel):
         self.deploy_future = {}
         logger.info('initializing {} using dataset of {} states'.format(
             self.__class__.__name__, dataset.length().result()))
-        self.config_future = self.context.apps(self.__class__, 'initialize')(
+        context = psiflow.context()
+        self.config_future = context.apps(self.__class__, 'initialize')(
                 self.config_raw,
                 inputs=[dataset.data_future],
-                outputs=[self.context.new_file('model_', '.pth')],
+                outputs=[context.new_file('model_', '.pth')],
                 )
         self.model_future = self.config_future.outputs[0] # to undeployed model
 
     def deploy(self) -> None:
         assert self.config_future is not None
         assert self.model_future is not None
-        self.deploy_future['float32'] = self.context.apps(MACEModel, 'deploy_float32')(
+        context = psiflow.context()
+        self.deploy_future['float32'] = context.apps(MACEModel, 'deploy_float32')(
                 inputs=[self.model_future],
-                outputs=[self.context.new_file('deployed_', '.pth')],
+                outputs=[context.new_file('deployed_', '.pth')],
                 ).outputs[0]
-        self.deploy_future['float64'] = self.context.apps(MACEModel, 'deploy_float64')(
+        self.deploy_future['float64'] = context.apps(MACEModel, 'deploy_float64')(
                 inputs=[self.model_future],
-                outputs=[self.context.new_file('deployed_', '.pth')],
+                outputs=[context.new_file('deployed_', '.pth')],
                 ).outputs[0]
 
     def set_seed(self, seed: int) -> None:
         self.config_raw['seed'] = seed
 
     @classmethod
-    def create_apps(cls, context: ExecutionContext) -> None:
+    def create_apps(cls) -> None:
+        context = psiflow.context()
         for execution in context[cls]:
             if type(execution) == ModelTrainingExecution:
                 training_label    = execution.executor

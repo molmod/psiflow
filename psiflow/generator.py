@@ -90,11 +90,11 @@ def evaluate(
     assert len(args) == 2
     state = args[0]
     counter = args[1]
-    logger.info('\twalker {} propagated for {} steps'.format(generator.name, counter))
+    logger.info('\twalker {} has a (total) counter value of {} steps'.format(generator.name, counter))
     if state is not None:
         logger.info('\tstate from walker {} OK!'.format(generator.name))
         if reference is not None:
-            logger.info('\tevaluating state using {}'.format(generator.name, reference.__class__))
+            logger.info('\tevaluating state using {}'.format(reference.__class__))
             return gather(
                     generator,
                     model,
@@ -213,7 +213,6 @@ class Generator:
 
 
 def load_generators(
-        context: ExecutionContext,
         path: Union[Path, str],
         ) -> list[Generator]:
     path = Path(path)
@@ -223,10 +222,10 @@ def load_generators(
         if not (path / name).is_dir():
             continue
         path_walker = path / name
-        walker = load_walker(context, path_walker)
+        walker = load_walker(path_walker)
         path_plumed = path_walker / 'plumed_input.txt'
         if path_plumed.is_file(): # check if bias present
-            bias = PlumedBias.load(context, path_walker)
+            bias = PlumedBias.load(path_walker)
         else:
             bias = None
         generators.append(Generator(name, walker, bias))

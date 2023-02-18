@@ -11,13 +11,14 @@ from parsl.dataflow.futures import AppFuture
 from ase.data import chemical_symbols
 from ase.io.extxyz import read_extxyz
 
+import psiflow
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.data import Dataset
 from psiflow.models import MACEModel, NequIPModel, AllegroModel, load_model
 
 
 def test_nequip_init(context, nequip_config, dataset):
-    model = NequIPModel(context, nequip_config)
+    model = NequIPModel(nequip_config)
     model.set_seed(1)
     model.initialize(dataset[:3])
     assert isinstance(model.model_future, DataFuture)
@@ -29,7 +30,7 @@ def test_nequip_init(context, nequip_config, dataset):
     assert isinstance(model.deploy_future['float64'], DataFuture)
 
     # simple test
-    for e in context[NequIPModel]:
+    for e in psiflow.context()[NequIPModel]:
         if type(e) == ModelEvaluationExecution:
             device = e.device
     torch.set_default_dtype(torch.float32)
@@ -72,7 +73,7 @@ def test_nequip_init(context, nequip_config, dataset):
 def test_nequip_train(context, nequip_config, dataset, tmp_path):
     training   = dataset[:-5]
     validation = dataset[-5:]
-    model = NequIPModel(context, nequip_config)
+    model = NequIPModel(nequip_config)
     model.initialize(training)
     model.deploy()
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
@@ -90,7 +91,7 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
 
 
 def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
-    model = NequIPModel(context, nequip_config)
+    model = NequIPModel(nequip_config)
     future_raw, _, _ = model.save(tmp_path)
     assert future_raw.done()
     assert _ is None
@@ -106,7 +107,7 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
     assert os.path.exists(path_config)
     assert os.path.exists(path_model)
 
-    model_ = load_model(context, tmp_path)
+    model_ = load_model(tmp_path)
     assert type(model_) == NequIPModel
     assert model_.model_future is not None
     model_.deploy()
@@ -115,8 +116,8 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
 
 
 @pytest.mark.skipif(torch.__version__.split('+')[0] != '1.11.0', reason='allegro only compatible with torch 1.11')
-def test_allegro_init(context, allegro_config, dataset):
-    model = AllegroModel(context, allegro_config)
+def test_allegro_init(allegro_config, dataset):
+    model = AllegroModel(allegro_config)
     model.set_seed(1)
     model.initialize(dataset[:3])
     assert isinstance(model.model_future, DataFuture)
@@ -128,7 +129,7 @@ def test_allegro_init(context, allegro_config, dataset):
     assert isinstance(model.deploy_future['float64'], DataFuture)
 
     # simple test
-    for e in context[AllegroModel]:
+    for e in psiflow.context()[AllegroModel]:
         if type(e) == ModelEvaluationExecution:
             device = e.device
     torch.set_default_dtype(torch.float32)
@@ -172,7 +173,7 @@ def test_allegro_init(context, allegro_config, dataset):
 def test_allegro_train(context, allegro_config, dataset, tmp_path):
     training   = dataset[:-5]
     validation = dataset[-5:]
-    model = AllegroModel(context, allegro_config)
+    model = AllegroModel(allegro_config)
     model.initialize(training)
     model.deploy()
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
@@ -191,7 +192,7 @@ def test_allegro_train(context, allegro_config, dataset, tmp_path):
 
 @pytest.mark.skipif(torch.__version__.split('+')[0] != '1.11.0', reason='allegro only compatible with torch 1.11')
 def test_allegro_save_load(context, allegro_config, dataset, tmp_path):
-    model = AllegroModel(context, allegro_config)
+    model = AllegroModel(allegro_config)
     future_raw, _, _ = model.save(tmp_path)
     assert future_raw.done()
     assert _ is None
@@ -207,7 +208,7 @@ def test_allegro_save_load(context, allegro_config, dataset, tmp_path):
     assert os.path.exists(path_config)
     assert os.path.exists(path_model)
 
-    model_ = load_model(context, tmp_path)
+    model_ = load_model(tmp_path)
     assert type(model_) == AllegroModel
     assert model_.model_future is not None
     model_.deploy()
@@ -216,7 +217,7 @@ def test_allegro_save_load(context, allegro_config, dataset, tmp_path):
 
 
 def test_mace_init_deploy(context, mace_config, dataset):
-    model = MACEModel(context, mace_config)
+    model = MACEModel(mace_config)
     model.initialize(dataset[:1])
     initialized_config = model.config_future.result()
     assert initialized_config['avg_num_neighbors'] is not None
@@ -226,7 +227,7 @@ def test_mace_init_deploy(context, mace_config, dataset):
     assert '29:' in initialized_config['E0s']
     model.deploy()
 
-    model = MACEModel(context, mace_config)
+    model = MACEModel(mace_config)
     model.set_seed(1)
     model.initialize(dataset[:3])
     assert isinstance(model.model_future, DataFuture)
@@ -238,7 +239,7 @@ def test_mace_init_deploy(context, mace_config, dataset):
     assert isinstance(model.deploy_future['float64'], DataFuture)
 
     # simple test
-    for e in context[MACEModel]:
+    for e in psiflow.context()[MACEModel]:
         if type(e) == ModelEvaluationExecution:
             device = e.device
     torch.set_default_dtype(torch.float32)
@@ -284,7 +285,7 @@ def test_mace_train(context, mace_config, dataset, tmp_path):
     # it with the manually computed value
     training   = dataset[:-5]
     validation = dataset[-5:]
-    model = MACEModel(context, mace_config)
+    model = MACEModel(mace_config)
     model.initialize(training)
     model.deploy()
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
@@ -308,7 +309,7 @@ def test_mace_train(context, mace_config, dataset, tmp_path):
 
 
 def test_mace_save_load(context, mace_config, dataset, tmp_path):
-    model = MACEModel(context, mace_config)
+    model = MACEModel(mace_config)
     future_raw, _, _ = model.save(tmp_path)
     assert future_raw.done()
     assert _ is None
@@ -324,7 +325,7 @@ def test_mace_save_load(context, mace_config, dataset, tmp_path):
     assert os.path.exists(path_config)
     assert os.path.exists(path_model)
 
-    model_ = load_model(context, tmp_path)
+    model_ = load_model(tmp_path)
     assert type(model_) == MACEModel
     assert model_.model_future is not None
     model_.deploy()

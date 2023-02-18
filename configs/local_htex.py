@@ -42,9 +42,9 @@ providers = {
         }
 
 
-def get_config(path_parsl_internal):
+def get_config(path_internal):
     config = generate_parsl_config(
-            path_parsl_internal,
+            path_internal,
             definitions,
             providers,
             use_work_queue=False,

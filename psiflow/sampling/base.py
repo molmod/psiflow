@@ -12,8 +12,8 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.models import BaseModel
-from psiflow.execution import Container, ExecutionContext
 from psiflow.utils import copy_app_future, unpack_i, copy_data_future, \
         save_yaml
 from psiflow.data import save_atoms, FlowAtoms, Dataset
@@ -27,11 +27,12 @@ def _conditional_reset(
         counter: int,
         conditional: bool,
         ) -> Tuple[FlowAtoms, str, int]:
+    from copy import deepcopy # copy necessary!
     if (not conditional): # reset anyway
-        return start, 'safe', 0
+        return deepcopy(start), 'safe', 0
     else: # reset if unsafe
         if tag == 'unsafe':
-            return start, 'safe', 0
+            return deepcopy(start), 'safe', 0
     return state, tag, counter
 conditional_reset = python_app(_conditional_reset, executors=['default'])
 
@@ -66,17 +67,10 @@ class EmptyParameters:
 
 
 @typeguard.typechecked
-class BaseWalker(Container):
+class BaseWalker:
     parameters_cls = EmptyParameters
 
-    def __init__(
-            self,
-            context: ExecutionContext,
-            atoms: Union[Atoms, FlowAtoms, AppFuture],
-            **kwargs,
-            ) -> None:
-        super().__init__(context)
-        self.context = context
+    def __init__(self, atoms: Union[Atoms, FlowAtoms, AppFuture], **kwargs) -> None:
 
         # futures
         if type(atoms) == Atoms:
@@ -103,7 +97,7 @@ class BaseWalker(Container):
             ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
         app = self.get_propagate_app(model)
         if keep_trajectory:
-            file = self.context.new_file('data_', '.xyz')
+            file = psiflow.context().new_file('data_', '.xyz')
         else:
             file = None
         result = app(
@@ -131,7 +125,7 @@ class BaseWalker(Container):
             future = self.state_future
         future = copy_app_future(future) # necessary
         if keep_trajectory:
-            return future, Dataset(self.context, None, data_future=result.outputs[0])
+            return future, Dataset(None, data_future=result.outputs[0])
         else:
             return future
 
@@ -164,10 +158,7 @@ class BaseWalker(Container):
         return is_reset(self.counter_future)
 
     def copy(self) -> BaseWalker:
-        walker = self.__class__(
-                self.context,
-                self.state_future,
-                )
+        walker = self.__class__(self.state_future)
         walker.start_future = copy_app_future(self.start_future)
         walker.tag_future   = copy_app_future(self.tag_future)
         walker.parameters   = deepcopy(self.parameters)
@@ -203,5 +194,5 @@ class BaseWalker(Container):
         return future_start, future_state, future_pars
 
     @classmethod
-    def create_apps(cls, context: ExecutionContext) -> None:
+    def create_apps(cls) -> None:
         assert not (cls == BaseWalker) # should never be called directly

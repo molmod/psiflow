@@ -10,8 +10,9 @@ from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
 from parsl.executors import WorkQueueExecutor
 
+import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.execution import ExecutionContext, ModelEvaluationExecution
+from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor
 from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
@@ -207,18 +208,18 @@ class DynamicWalker(BaseWalker):
 
     def get_propagate_app(self, model):
         name = model.__class__.__name__
+        context = psiflow.context()
         try:
-            app = self.context.apps(DynamicWalker, 'propagate_' + name)
+            app = context.apps(DynamicWalker, 'propagate_' + name)
         except (KeyError, AssertionError):
-            assert model.__class__ in self.context.definitions.keys()
-            self.create_apps(self.context, model_cls=model.__class__)
-            app = self.context.apps(DynamicWalker, 'propagate_' + name)
+            assert model.__class__ in context.definitions.keys()
+            self.create_apps(model_cls=model.__class__)
+            app = context.apps(DynamicWalker, 'propagate_' + name)
         return app
 
     @classmethod
     def create_apps(
             cls,
-            context: ExecutionContext,
             model_cls: Type[BaseModel],
             ) -> None:
         """Registers propagate app in context
@@ -230,6 +231,7 @@ class DynamicWalker(BaseWalker):
         model itself.
 
         """
+        context = psiflow.context()
         for execution in context[model_cls]:
             if type(execution) == ModelEvaluationExecution:
                 label    = execution.executor
@@ -300,4 +302,4 @@ class DynamicWalker(BaseWalker):
         # register using model_cls, not cls!
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
-        super(DynamicWalker, cls).create_apps(context)
+        super(DynamicWalker, cls).create_apps()

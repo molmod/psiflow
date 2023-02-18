@@ -13,7 +13,6 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.execution import ExecutionContext
 from psiflow.models import BaseModel
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.utils import save_yaml, copy_app_future
@@ -185,7 +184,7 @@ class DiscrepancyCheck(Check):
         assert self.model_old.config_future is not None
         assert self.model_new is not None
         assert self.model_new.config_future is not None
-        dataset = Dataset(self.model_old.context, [state]) # dummy
+        dataset = Dataset([state]) # dummy
         errors = Dataset.get_errors(
                 self.model_old.evaluate(dataset),
                 self.model_new.evaluate(dataset),
@@ -213,16 +212,16 @@ class DiscrepancyCheck(Check):
             self.model_new.save(path_new, require_done=require_done)
 
     @classmethod
-    def load(cls, path: Union[Path, str], context: ExecutionContext) -> DiscrepancyCheck:
+    def load(cls, path: Union[Path, str]) -> DiscrepancyCheck:
         check = super(DiscrepancyCheck, cls).load(path)
         path_old = path / 'model_old'
         if path_old.is_dir():
-            model = load_model(context, path_old)
+            model = load_model(path_old)
             model.deploy()
             check.update_model(model)
         path_new = path / 'model_new'
         if path_new.is_dir():
-            model = load_model(context, path_new)
+            model = load_model(path_new)
             model.deploy()
             check.update_model(model)
         return check
@@ -259,7 +258,7 @@ class SafetyCheck(Check):
 
 
 @typeguard.typechecked
-def load_checks(path: Union[Path, str], context: ExecutionContext) -> Optional[List[Check]]:
+def load_checks(path: Union[Path, str]) -> Optional[List[Check]]:
     path = Path(path)
     assert path.is_dir()
     checks = []
@@ -274,7 +273,7 @@ def load_checks(path: Union[Path, str], context: ExecutionContext) -> Optional[L
             assert check_cls is not None
             if Path(filename).stem == check_cls.__name__:
                 break
-        checks.append(check_cls.load(path, context))
+        checks.append(check_cls.load(path))
     if len(checks) == 0:
         return None
     return checks

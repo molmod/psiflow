@@ -7,6 +7,8 @@ from pathlib import Path
 from copy import deepcopy
 import logging
 import os
+import sys
+import importlib
 
 import parsl
 from parsl.executors import HighThroughputExecutor, WorkQueueExecutor
@@ -14,6 +16,8 @@ from parsl.providers.base import ExecutionProvider
 from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 from parsl.config import Config
+
+from psiflow.utils import set_file_logger
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -78,9 +82,24 @@ class ReferenceEvaluationExecution(Execution):
 
 
 @typeguard.typechecked
+def get_psiflow_config_from_file(
+        path_config: Union[Path, str],
+        path_internal: Union[Path, str],
+        ) -> tuple[Config, dict]:
+    path_config = Path(path_config)
+    assert path_config.is_file()
+    # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
+    spec = importlib.util.spec_from_file_location('module.name', path_config)
+    psiflow_config_module = importlib.util.module_from_spec(spec)
+    sys.modules['module.name'] = psiflow_config_module
+    spec.loader.exec_module(psiflow_config_module)
+    return psiflow_config_module.get_config(path_internal)
+
+
+@typeguard.typechecked
 def generate_parsl_config(
-        path_parsl_internal: Union[Path, str],
-        definitions: dict[Type[Container], list[Execution]],
+        path_internal: Union[Path, str],
+        definitions: dict[Any, list[Execution]],
         providers: dict[str, ExecutionProvider],
         use_work_queue: bool = True,
         wq_timeout: int = 120, # in seconds
@@ -104,7 +123,7 @@ def generate_parsl_config(
             executor = HighThroughputExecutor(
                     address=htex_address,
                     label='default',
-                    working_dir=str(Path(path_parsl_internal) / label),
+                    working_dir=str(Path(path_internal) / label),
                     cores_per_worker=1,
                     provider=provider,
                     )
@@ -145,7 +164,7 @@ def generate_parsl_config(
                     worker_options.append('--parent-death')
                 executor = WorkQueueExecutor(
                     label=label,
-                    working_dir=str(Path(path_parsl_internal) / label),
+                    working_dir=str(Path(path_internal) / label),
                     provider=provider,
                     shared_fs=True,
                     autocategory=False,
@@ -158,14 +177,14 @@ def generate_parsl_config(
                 executor = HighThroughputExecutor(
                         address=htex_address,
                         label=label,
-                        working_dir=str(Path(path_parsl_internal) / label),
+                        working_dir=str(Path(path_internal) / label),
                         cores_per_worker=execution.ncores,
                         provider=provider,
                         )
         executors[label] = executor
     config = Config(
             executors=list(executors.values()),
-            run_dir=str(path_parsl_internal),
+            run_dir=str(path_internal),
             usage_tracking=True,
             app_cache=parsl_app_cache,
             retries=parsl_retries,
@@ -182,7 +201,7 @@ class ExecutionContext:
     def __init__(
             self,
             config: Config,
-            definitions: dict[Type[Container], list[Execution]],
+            definitions: dict[Any, list[Execution]],
             path: Union[Path, str],
             ) -> None:
         self.config = config
@@ -191,14 +210,9 @@ class ExecutionContext:
         self.definitions = definitions
         self._apps = {}
         self.file_index = {}
+        parsl.load(config)
 
-    def initialize(self):
-        parsl.load(self.config)
-
-    def __getitem__(
-            self,
-            container: Type[Container],
-            ) -> list[Execution]:
+    def __getitem__(self, container) -> list[Execution]:
         assert container in self.definitions.keys(), ('container {}'
                 ' has no registered execution definitions with this context. '
                 '\navailable definitions are {}'.format(
@@ -213,7 +227,7 @@ class ExecutionContext:
 
     def register_app(
             self,
-            container, # type hints fail to allow Container subclasses?
+            container,
             app_name: str,
             app: Callable,
             ) -> None:
@@ -239,17 +253,31 @@ class ExecutionContext:
         return list(self.executors.keys())
 
 
-@typeguard.typechecked
-class Container:
+class ExecutionContextLoader:
+    _context: Optional[ExecutionContext] = None
 
-    def __init__(self, context: ExecutionContext) -> None:
-        self.context = context
+    @classmethod
+    def load(
+            cls,
+            path_config: Union[Path, str],
+            path_internal: Union[Path, str],
+            psiflow_log_level: int = logging.DEBUG,
+            parsl_log_level: int = logging.DEBUG,
+            ) -> ExecutionContext:
+        if cls._context is not None:
+            raise RuntimeError('ExecutionContext has already been loaded')
+        config, definitions = get_psiflow_config_from_file(
+                path_config,
+                path_internal,
+                )
+        set_file_logger(path_internal / 'psiflow.log', psiflow_log_level)
+        parsl.set_file_logger(str(path_internal / 'parsl.log'), level=parsl_log_level)
+        path_context = path_internal / 'context_dir'
+        cls._context = ExecutionContext(config, definitions, path_context)
+        return cls._context
 
-    @staticmethod
-    def create_apps(context: ExecutionContext):
-        raise NotImplementedError
-
-
-@id_for_memo.register(File)
-def id_for_memo_file(file: File, output_ref=False):
-    return bytes(file.filepath, 'utf-8')
+    @classmethod
+    def context(cls):
+        if cls._context is None:
+            raise RuntimeError('No ExecutionContext is currently loaded')
+        return cls._context

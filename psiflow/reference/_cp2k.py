@@ -1,7 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union
 import typeguard
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import tempfile
 import shutil
 import logging
@@ -12,6 +12,7 @@ from parsl.app.app import python_app, bash_app
 from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 
+import psiflow
 from psiflow.execution import ReferenceEvaluationExecution
 from psiflow.data import FlowAtoms
 from psiflow.utils import get_active_executor
@@ -142,7 +143,7 @@ def set_global_section(cp2k_input: str) -> str:
 # typeguarding not compatible with parsl WQEX for some reason
 def cp2k_singlepoint_pre(
         atoms: FlowAtoms,
-        parameters: CP2KParameters,
+        cp2k_input: str,
         cp2k_command: str,
         file_names: list[str],
         omp_num_threads: int,
@@ -165,7 +166,7 @@ def cp2k_singlepoint_pre(
         shutil.copyfile(file.filepath, tmp.name)
         filepaths[name] = tmp.name
     cp2k_input = insert_filepaths_in_input(
-            parameters.cp2k_input,
+            cp2k_input,
             filepaths,
             )
     #cp2k_input = regularize_input(cp2k_input) # before insert_atoms_in_input
@@ -221,18 +222,7 @@ def cp2k_singlepoint_post(
     return atoms
 
 
-@dataclass
-class CP2KParameters:
-    cp2k_input : str
-
-
-@id_for_memo.register(CP2KParameters)
-def id_for_memo_cp2k_parameters(parameters: CP2KParameters, output_ref=False):
-    assert not output_ref
-    b1 = id_for_memo(parameters.cp2k_input, output_ref=output_ref)
-    return b1
-
-
+@typeguard.typechecked
 class CP2KReference(BaseReference):
     """CP2K Reference
 
@@ -242,28 +232,20 @@ class CP2KReference(BaseReference):
     cp2k_input : str
         string representation of the cp2k input file.
 
-    cp2k_data : dict
-        dictionary with data required during the calculation. E.g. basis
-        sets, pseudopotentials, ...
-        They are written to the local execution directory in order to make
-        them available to the cp2k executable.
-        The keys of the dictionary correspond to the capitalized keys in
-        the cp2k input (e.g. BASIS_SET_FILE_NAME)
-
     """
-    parameters_cls = CP2KParameters
-    required_files = [
-            'basis_set',
-            'potential',
-            'dftd3',
-            ]
-    def __init__(self, context: ExecutionContext, **kwargs) -> None:
-        assert 'cp2k_input' in kwargs.keys()
-        kwargs['cp2k_input'] = regularize_input(kwargs['cp2k_input'])
-        super().__init__(context, **kwargs)
+    required_files = ['basis_set', 'potential', 'dftd3']
+
+    def __init__(self, cp2k_input: str):
+        self.cp2k_input = regularize_input(cp2k_input)
+        super().__init__()
+
+    @property
+    def parameters(self):
+        return {'cp2k_input': self.cp2k_input}
 
     @classmethod
-    def create_apps(cls, context):
+    def create_apps(cls):
+        context = psiflow.context()
         execution  = context[cls][0]
         label       = execution.executor
         device      = execution.device
@@ -309,7 +291,7 @@ class CP2KReference(BaseReference):
                 assert name in file_names
             pre = singlepoint_pre(
                     atoms,
-                    parameters,
+                    parameters['cp2k_input'],
                     command,
                     file_names,
                     omp_num_threads,
@@ -324,4 +306,4 @@ class CP2KReference(BaseReference):
                     inputs=[pre.stdout, pre.stderr, pre], # wait for bash app
                     )
         context.register_app(cls, 'evaluate_single', singlepoint_wrapped)
-        super(CP2KReference, cls).create_apps(context)
+        super(CP2KReference, cls).create_apps()

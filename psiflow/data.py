@@ -29,7 +29,7 @@ from parsl.dataflow.memoization import id_for_memo
 
 from ase import Atoms
 
-from psiflow.execution import Container, ExecutionContext
+import psiflow
 from psiflow.utils import copy_data_future, copy_app_future
 
 
@@ -319,7 +319,7 @@ app_compute_metrics = python_app(compute_metrics, executors=['default'])
 
 
 @typeguard.typechecked
-class Dataset(Container):
+class Dataset:
     """Container to represent a dataset of atomic structures
 
     Args:
@@ -332,11 +332,10 @@ class Dataset(Container):
 
     def __init__(
             self,
-            context: ExecutionContext,
             atoms_list: Optional[Union[List[AppFuture], List[Union[FlowAtoms, Atoms]], AppFuture]],
             data_future: Optional[Union[DataFuture, File]] = None,
             ) -> None:
-        super().__init__(context)
+        context = psiflow.context()
 
         if data_future is None: # generate new DataFuture
             assert atoms_list is not None
@@ -384,14 +383,15 @@ class Dataset(Container):
             index: Optional[int] = None,
             indices: Optional[Union[List[int], AppFuture, slice]] = None,
             ) -> Union[Dataset, AppFuture]:
+        context = psiflow.context()
         if indices is not None:
             assert index is None
             data_future = app_read_dataset(
                     indices,
                     inputs=[self.data_future],
-                    outputs=[self.context.new_file('data_', '.xyz')],
+                    outputs=[context.new_file('data_', '.xyz')],
                     ).outputs[0]
-            return Dataset(self.context, None, data_future=data_future)
+            return Dataset(None, data_future=data_future)
         else:
             assert index is not None
             atoms = app_read_dataset(
@@ -420,17 +420,19 @@ class Dataset(Container):
                 ).result()
 
     def append(self, dataset: Dataset) -> None:
+        context = psiflow.context()
         self.data_future = app_join_dataset(
                 inputs=[self.data_future, dataset.data_future],
-                outputs=[self.context.new_file('data_', '.xyz')],
+                outputs=[context.new_file('data_', '.xyz')],
                 ).outputs[0]
 
     def __add__(self, dataset: Dataset) -> Dataset:
+        context = psiflow.context()
         data_future = app_join_dataset(
                 inputs=[self.data_future, dataset.data_future],
-                outputs=[self.context.new_file('data_', '.xyz')],
+                outputs=[context.new_file('data_', '.xyz')],
                 ).outputs[0]
-        return Dataset(self.context, None, data_future)
+        return Dataset(None, data_future)
 
     def log(self, name):
         logger.info('dataset {} contains {} states'.format(name, self.length().result()))
@@ -476,12 +478,12 @@ class Dataset(Container):
     @classmethod
     def load(
             cls,
-            context: ExecutionContext,
             path_xyz: Union[Path, str],
             ) -> Dataset:
         assert os.path.isfile(path_xyz) # needs to be locally accessible
-        return cls(context, None, data_future=File(str(path_xyz)))
+        context = psiflow.context()
+        return cls(None, data_future=File(str(path_xyz)))
 
     @staticmethod
-    def create_apps(context: ExecutionContext) -> None:
+    def create_apps() -> None:
         pass # no apps beyond default executor

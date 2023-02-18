@@ -16,18 +16,18 @@ def test_distance_check(context, dataset, tmp_path):
     assert len(check.states) == 1 # contains one AppFuture
     path = Path(tmp_path)
     check.save(path)
-    check_ = load_checks(path, context)[0]
+    check_ = load_checks(path)[0]
     assert type(check_) == InteratomicDistanceCheck
     assert check_.threshold == 10
 
 
 # test occasionally fails due to torch.jit compilation errors
 def test_discrepancy_check(context, dataset, nequip_config, tmp_path):
-    model_old = NequIPModel(context, nequip_config)
+    model_old = NequIPModel(nequip_config)
     model_old.set_seed(123)
     model_old.initialize(dataset[5:])
     model_old.deploy()
-    model_new = NequIPModel(context, nequip_config)
+    model_new = NequIPModel(nequip_config)
     model_new.set_seed(111) # networks only substantially different with different seeds
     model_new.initialize(dataset[-5:])
     model_new.deploy()
@@ -49,14 +49,14 @@ def test_discrepancy_check(context, dataset, nequip_config, tmp_path):
     assert len(check.states) == 1
     path = Path(tmp_path)
     check.save(path)
-    check_ = load_checks(path, context)[0]
+    check_ = load_checks(path)[0]
     assert type(check_) == DiscrepancyCheck
     assert check_.model_old.config_raw['seed'] == 123
     assert check_.model_new.config_raw['seed'] == 111
 
 
 def test_safety_check(context, dataset, tmp_path):
-    walker = RandomWalker(context, dataset[0])
+    walker = RandomWalker(dataset[0])
     state = walker.propagate()
     check = SafetyCheck()
     assert check(state, walker.tag_future).result() is not None
@@ -68,5 +68,5 @@ def test_safety_check(context, dataset, tmp_path):
     assert check.npasses == 1
     path = Path(tmp_path)
     check.save(path)
-    check_ = load_checks(path, context)[0]
+    check_ = load_checks(path)[0]
     assert type(check_) == SafetyCheck

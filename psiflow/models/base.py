@@ -12,8 +12,8 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.execution import Container, ExecutionContext, \
-        ModelTrainingExecution, ModelEvaluationExecution
+import psiflow
+from psiflow.execution import ModelTrainingExecution, ModelEvaluationExecution
 from psiflow.data import Dataset
 from psiflow.utils import copy_app_future, save_yaml, copy_data_future
 
@@ -62,17 +62,17 @@ def evaluate_dataset(
 
 
 @typeguard.typechecked
-class BaseModel(Container):
+class BaseModel:
     """Base Container for a trainable interaction potential"""
 
-    def __init__(self, context: ExecutionContext, config: Dict) -> None:
-        super().__init__(context)
+    def __init__(self, config: Dict) -> None:
         self.config_raw    = deepcopy(config)
         self.config_future = None
         self.model_future  = None
         self.deploy_future = {} # deployed models in float32 and float64
 
         # double-check whether required definitions are present
+        context = psiflow.context()
         assert len(context[self.__class__]) == 2, ('Models require '
                 'definition of both training and evaluation execution. '
                 '{} only has the following definitions: {}'.format(
@@ -80,7 +80,7 @@ class BaseModel(Container):
                     self.definitions[container],
                     ))
         try: # initialize apps in context
-            self.__class__.create_apps(context)
+            self.__class__.create_apps()
         except AssertionError: # apps already initialized; do nothing
             pass
 
@@ -97,10 +97,11 @@ class BaseModel(Container):
             ))
         if not keep_deployed:
             self.deploy_future = {} # no longer valid
-        future  = self.context.apps(self.__class__, 'train')( # new DataFuture instance
+        context = psiflow.context()
+        future  = context.apps(self.__class__, 'train')( # new DataFuture instance
                 self.config_future,
                 inputs=[self.model_future, training.data_future, validation.data_future],
-                outputs=[self.context.new_file('model_', '.pth')],
+                outputs=[context.new_file('model_', '.pth')],
                 )
         self.model_future = future.outputs[0]
 
@@ -110,12 +111,13 @@ class BaseModel(Container):
 
     def evaluate(self, dataset: Dataset) -> Dataset:
         """Evaluates a dataset using a model"""
-        data_future = self.context.apps(self.__class__, 'evaluate')(
+        context = psiflow.context()
+        data_future = context.apps(self.__class__, 'evaluate')(
                 self.deploy_future,
                 inputs=[dataset.data_future],
-                outputs=[self.context.new_file('data_', '.xyz')],
+                outputs=[context.new_file('data_', '.xyz')],
                 ).outputs[0]
-        return Dataset(self.context, None, data_future=data_future)
+        return Dataset(None, data_future=data_future)
 
     def reset(self) -> None:
         self.config_future = None
@@ -166,17 +168,18 @@ class BaseModel(Container):
         return future_raw, future_config, future_model
 
     def copy(self) -> BaseModel:
-        model = self.__class__(self.context, self.config_raw)
+        context = psiflow.context()
+        model = self.__class__(self.config_raw)
         if self.config_future is not None:
             model.config_future = copy_app_future(self.config_future)
             model.model_future = copy_data_future(
                     inputs=[self.model_future],
-                    outputs=[self.context.new_file('model_', '.pth')],
+                    outputs=[context.new_file('model_', '.pth')],
                     ).outputs[0]
         if len(self.deploy_future) > 0:
             for key, future in self.deploy_future.items():
                 model.deploy_future[key] = copy_data_future(
                         inputs=[self.deploy_future[key]],
-                        outputs=[self.context.new_file('model_', '.pth')],
+                        outputs=[context.new_file('model_', '.pth')],
                         ).outputs[0]
         return model
