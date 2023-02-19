@@ -1,3 +1,9 @@
+---
+hide:
+  - toc
+  - navigation
+---
+
 # **psiflow** - interatomic potentials using online learning
 
 Psiflow is a modular and scalable library for developing interatomic potentials.
@@ -19,17 +25,8 @@ quantum mechanical energy evaluations and model training.
 In this way, the entire (relevant part of the) phase space of the system(s)
 of interest may be explored and learned by the model without ever having to
 perform *ab initio* molecular dynamics.
-Go to the [overview](overview.md) for a walkthrough of the most
+Go to the [Overview](overview.md) for a walkthrough of the most
 important features. 
-
-!!! note "Parsl: Scalable execution"
-    All computations in psiflow are managed by Parsl, a scalable parallel programming
-    library for Python.
-    This ensures support for a large number of different execution resources,
-    including clouds (e.g. Amazon Web Services, Google Cloud),
-    clusters (e.g. SLURM, Torque/PBS, HTCondor)
-    and even container orchestration systems (e.g. Kubernetes).
-    Visit the [Parsl documentation](https://parsl.readthedocs.io/en/stable/) for more details.
 
 <!---
 ## Core functionality 
@@ -46,7 +43,8 @@ atomic configurations, which can again be labeled using `BaseReference` etc.
 --->
 
 
-# Configuration
+__Scalable execution using Parsl__
+
 When executing psiflow workflows, individual training, sampling, and
 QM evaluation operations are automatically organized in Parsl `apps`,
 whose execution is fully customizable by the user.
@@ -63,15 +61,23 @@ sampling, and QM evaluation operations to ensure they proceed as requested.
 Effectively, the `ExecutionContext` hides all details of the execution
 infrastructure and exposes simple and platform-agnostic resources which may be
 used by training, sampling, and QM evaluation apps.
-As such, we ensure that the execution-side configuration remains fully decoupled
-from the computational graph itself.
+As such, we ensure that execution-side details are strictly separated from
+the definition of the computational graph itself.
 For more information, check out the psiflow [Configuration](config.md) page.
 
 !!! note "Psiflow: An Unexpected Journey"
 
-    Psiflow is still in beta, which means that you may encounter unexpected behavior.
+    Psiflow is still in beta, which means that you may encounter the occasional
+    bug.
     If you do, we encourage you to open an issue or ask a question on the
     [GitHub repository](https://github.com/svandenhaute/psiflow).
 
+!!! note "Citing psiflow"
+
+    Machine learning Potentials for Metal-Organic Frameworks using an
+    Incremental Learning Approach,
+    _Sander Vandenhaute et al._,
+    [npj Computational Materials](https://www.nature.com/articles/s41524-023-00969-x),
+    __9__, 19 __(2023)__
 
 [^1]: Otherwise known as active learning, incremental learning, on-the-fly learning.

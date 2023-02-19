@@ -73,7 +73,6 @@ def main(path_output):
     learning = SequentialLearning(
             path_output=path_output,
             niterations=10,
-            nstates=30,
             retrain_model_per_iteration=True,
             pretraining_amplitude_pos=0.1,
             pretraining_amplitude_box=0.05,

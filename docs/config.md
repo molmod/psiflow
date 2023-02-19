@@ -13,9 +13,8 @@ such workflows, psiflow is built on top of Parsl to allow for distributed execut
 across a large variety of computing resources
 
 All execution-level configuration options are expected to be bundled
-in a single `config.py` file, which is passed as a command line argument when
-executing a psiflow workflow. This allows users to easily execute the same
-workflow with different configuration options.
+in a single `config.py` file, which is read by psiflow during workflow
+initialization.
 
 !!! note "Parsl 103: Execution"
     It may be worthwhile to take a quick look at the
@@ -122,51 +121,56 @@ def get_config(path_parsl_internal):
 ```
 Example configurations for local execution can be found on the GitHub repository.
 In the same directory, you'll find configuration files for the
-[Hortense](https://vlaams-supercomputing-centrum-vscdocumentation.readthedocs-hosted.com/en/latest/gent/tier1_hortense.html)
-cluster in Belgium, which has the typical SLURM/Lmod/EasyBuild setup as found
+[Flemish supercomputers](https://vlaams-supercomputing-centrum-vscdocumentation.readthedocs-hosted.com/en/latest/gent/tier1_hortense.html)
+in Belgium, which have the typical SLURM/Lmod/EasyBuild setup as found
 in many other European HPCs.
+Naturally, these configurations rely on one or more `SlurmProvider` instances
+which provide the computational resources,
+as opposed to the `LocalProvider` shown here. A `SlurmProvider` may
+be configured in terms of the minimum and maximum number of jobs it may request
+during the workflow,
+the number of cores, nodes, GPUs, and amount of walltime per job, as well as
+the cluster(s), partition(s), and account(s) to use.
+See the [Hortense](https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_hortense.py)
+and [Stevin](https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_stevin.py)
+example configurations for more details.
 
-## 3. Putting it all together: the `ExecutionContext`
-Once the `config.py` is defined, psiflow should read its contents
-and create the `ExecutionContext` object that is present throughout all psiflow workflows
-(see the [Overview](overview.md)).
-A `context` stores both the execution definitions as well as the full Parsl
-configuration.
+## 3. Putting it all together: `psiflow.load`
+The execution configuration as determined by a `config.py` is to be loaded
+into psiflow in order to start workflow execution.
+The first step in any psiflow script is therefore to call `psiflow.load`:
+it will generate a local cache directory for output
+logs and intermediate files, and create a global `ExecutionContext` object.
 The `BaseModel`, `BaseReference`, and `BaseWalker` subclasses
 will use the information in the execution context to create and store
 Parsl apps with the desired execution configuration.
-This is all done automatically; psiflow users should never directly interact with the `context` object.
+End users do not need to worry about the internal organization of psiflow;
+all they need to make sure is that they call `psiflow.load()` on a valid
+configuration file before they commence their workflow.
+The following is a trivial example in which a dataset is loaded, a simple MACE
+model is trained, and the result is saved for future usage.
 
-
-As explained in the [Examples](examples.md), a typical psiflow script will
-use more or less the following template:
-
-```py title="scientific_breakthrough.py"
-import argparse
-
+```py title='my_script.py'
 import psiflow
+from psiflow.data import Dataset
+from psiflow.models import MACEModel, MACEConfig
 
 
-def main(context, flow_manager):
-    # your psiflow workflow here
-    pass
+def my_scientific_breakthrough():
+    data  = Dataset.load('chemical_accuracy.xyz')   # the best dataset in the world
+    data_train = data[:-10]                 # first n - 10 states are training
+    data_valid = data[-10:]                 # last 10 states are validation
+    model = MACEModel(MACEConfig(r_max=7))  # use default MACE parameters, but increase the cutoff to 7 A
+    model.initialize(data_train)            # initialize weights, and scaling/normalization factors in layers
+    model.train(data_train, data_valid)     # training magic
+    model.save('./')                        # done!
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--psiflow-config', action='store')
-    parser.add_argument('--name', action='store', default=None)
-    args = parser.parse_args()
-
-    context, flow_manager = psiflow.experiment.initialize(   # initialize context
-            args.psiflow_config,                            # path to psiflow config.py
-            args.name,                                      # run name
+    psiflow.load(
+            './config.py',        # will load config.py as module and execute its get_config() method
+            './psiflow_internal', # directory in which to store logs; this path should not already exist
             )
-    main(context, flow_manager)
+    my_scientific_breakthrough()
 
 ```
-which is then executed via
-```sh
-python scientific_breakthrough.py --psiflow-config=config.py
-```
-

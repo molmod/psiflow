@@ -1,4 +1,4 @@
-from psiflow.utils import SlurmProviderVSC # SlurmProvider for VSC systems
+from psiflow.external import SlurmProviderVSC # SlurmProvider for VSC systems
 
 from psiflow.models import MACEModel, NequIPModel, AllegroModel
 from psiflow.reference import CP2KReference
@@ -58,6 +58,7 @@ provider = SlurmProviderVSC(
         max_blocks=1,           # do not use more than one block
         walltime='02:00:00',    # walltime per block
         worker_init=worker_init,
+        cmd_timeout=20,
         exclusive=False,
         )
 providers['default'] = provider
@@ -81,6 +82,7 @@ provider = SlurmProviderVSC(
         parallelism=1,
         walltime='02:00:00',
         worker_init=worker_init,
+        cmd_timeout=20,
         exclusive=False,
         )
 providers['model'] = provider
@@ -108,6 +110,7 @@ provider = SlurmProviderVSC(
         parallelism=1.0,
         walltime='01:05:00',
         worker_init=worker_init,
+        cmd_timeout=20,
         scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n', # request gpu
         exclusive=False,
         )
@@ -141,6 +144,7 @@ provider = SlurmProviderVSC(
         parallelism=1,
         walltime='01:00:00',
         worker_init=worker_init,
+        cmd_timeout=20,
         exclusive=False,
         )
 providers['reference'] = provider

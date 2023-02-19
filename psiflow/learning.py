@@ -110,7 +110,6 @@ class BaseLearning:
 @typeguard.typechecked
 @dataclass
 class SequentialLearning(BaseLearning):
-    nstates: int = 30
     niterations: int = 10
     retrain_model_per_iteration : bool = True
 

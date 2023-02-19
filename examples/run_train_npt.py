@@ -51,8 +51,9 @@ def main(path_output):
 
     walker = DynamicWalker(train[0], steps=300, step=50)
     _, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    errors = Dataset.get_errors(
-            trajectory,
+    reference = get_reference()
+    errors = Dataset.get_errors( # compare model and DFT predictions
+            reference.evaluate(trajectory),
             model.evaluate(trajectory),
             )
     errors = np.mean(errors.result(), axis=0)
@@ -64,7 +65,7 @@ def main(path_output):
 
 if __name__ == '__main__':
     psiflow.load(
-            'local_htex.py',    # path to psiflow config file
+            'local_wq.py',      # path to psiflow config file
             'psiflow_internal', # internal psiflow cache dir
             logging.DEBUG,      # psiflow log level
             logging.INFO,       # parsl log level

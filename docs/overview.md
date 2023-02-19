@@ -68,9 +68,9 @@ A `Dataset` instance mimics the behavior of a list of ASE `Atoms` instances:
 from psiflow.data import Dataset
 
 
-data_train  = Dataset.load(context, 'train.xyz')    # create a psiflow Dataset from a file
-data_subset = data_train[:10]                       # create a new Dataset instance with the first 10 states
-data_train  = data_subset + data_train[10:]         # combining two datasets is easy
+data_train  = Dataset.load('train.xyz')         # create a psiflow Dataset from a file
+data_subset = data_train[:10]                   # create a new Dataset instance with the first 10 states
+data_train  = data_subset + data_train[10:]     # combining two datasets is easy
 
 ```
 The main difference between a psiflow `Dataset` instance and an actual Python `list` of
@@ -111,7 +111,7 @@ Actually getting the data would require the user to make a `.result()` call simi
 to the trivial Parsl example above.
 Let's go back to the first example and try and get the actual list of `Atoms` instances:
 ```py
-data_train  = Dataset.load(context, 'train.xyz')
+data_train  = Dataset.load('train.xyz')
 atoms_list  = data_train.as_list()                  # returns AppFuture
 
 isinstance(atoms_list, list)                        # returns False! 
@@ -163,25 +163,25 @@ from psiflow.models import NequIPModel, NequIPConfig
 
 
 # setup
-data_train = Dataset.load(context, 'train.xyz') # load training and validation data
-data_valid = Dataset.load(context, 'valid.xyz')
+data_train = Dataset.load('train.xyz') # load training and validation data
+data_valid = Dataset.load('valid.xyz')
 
 config = NequIPConfig()
-config.num_features = 16                # modify NequIP parameters to whatever
-model = NequIPModel(context, config)    # create model instance
+config.num_features = 16        # modify NequIP parameters to whatever
+model = NequIPModel(config)     # create model instance
 
 
 # initialize, train, deploy
 model.initialize(data_train)            # this will calculate the scale/shifts, and average number of neighbors
 model.train(data_train, data_valid)     # train using supplied datasets
 
-model.save('./')                # save initialized config, undeployed model to current working directory!
-model.deploy()                  # prepare for inference, e.g. test error evaluation or molecular dynamics
+model.save('./')        # save initialized config, undeployed model to current working directory!
+model.deploy()          # prepare for inference, e.g. test error evaluation or molecular dynamics
 
 
 # evaluate test error
-data_test       = Dataset.load(context, 'test.xyz')   # test data; contains QM reference energy/forces/stress
-data_test_model = model.evaluate(data_test)           # same test data, but with predicted energ/forces/stress
+data_test       = Dataset.load('test.xyz')      # test data; contains QM reference energy/forces/stress
+data_test_model = model.evaluate(data_test)     # same test data, but with predicted energ/forces/stress
 
 errors = Dataset.get_errors(        # static method of Dataset to compute the error between two datasets
         data_test,                  
@@ -192,12 +192,12 @@ errors = Dataset.get_errors(        # static method of Dataset to compute the er
         ).result()                  # errors is an AppFuture, use .result() to get the actual values!
 
 ```
-Note that depending on the specific configurations in the `ExecutionContext` instance,
+Note that depending on how the psiflow execution is configured,
 it is perfectly possible
 that the `model.train()` command will end up being executed using a GPU on SLURM cluster,
 whereas model deployment and evaluation of the test error gets
 executed on your local computer.
-
+See the psiflow [Configuration](config.md) page for more information.
 
 ## Molecular simulation
 Having trained and deployed a model, it is possible to explore the phase space
@@ -233,7 +233,6 @@ from psiflow.sampling import DynamicWalker
 
 
 walker = DynamicWalker(
-        context,
         data_train[0],      # initialize walker to first configuration in dataset
         timestep=0.5,       # Verlet timestep
         steps=1000,         # number of timesteps to perform
@@ -298,57 +297,6 @@ If walkers are tagged as _unsafe_, the `state` that is returned after propagatio
 may not be physically relevant, and it may be advised to not include those in
 training or validation sets. 
 
-
-## Ensemble
-In online learning applications, it is almost always beneficial to maximally
-parallelize the phase space sampling computations in the data generation stage.
-For example, to generate 10 decorrelated configurations, it is much more efficient
-to initialize 10 walkers and use `walker.propagate()` exactly once for each
-walker, rather than using a single walker that performs 10 sequential propagations.
-To accomodate for this scenario, psiflow provides the `Ensemble` class.
-It basically contains a list of walkers, and provides a `sample()` method
-which uses those walkers to sample a user-defined number of states and store
-them in a `Dataset` instance.
-The ensemble does not have to be homogeneous, i.e. it can contain multiple
-different types of walkers.
-```py
-from psiflow.sampling import RandomWalker, DynamicWalker
-from psiflow.ensemble import Ensemble
-
-
-walkers = [
-        RandomWalker(),
-        RandomWalker(),
-        DynamicWalker(temperature=400),
-        DynamicWalker(temperature=600),
-        ]
-ensemble = Ensemble(context, walkers)
-small = ensemble.sample(4, model)           # sample 4 states; 1 per model
-large = ensemble.sample(7, model)           # sample 7 states; at least 1 per model
-
-small.length().result()       # returns 4
-large.length().result()       # returns 7
-
-```
-In online learning, a common scenario is to generate data using
-many different molecular dynamics simulations; all of which with the same parameters but
-simply initialized in a different way (either with a different seed or a different starting configuration).
-Psiflow provides a simple way to generate an ensemble of walkers based on a
-single 'template' walker; the only difference between each pair of walkers will
-be the random number seed and possibly the starting configuration.
-```py
-template = DynamicWalker(steps=1000, temperature=600)
-ensemble = Ensemble.from_walker(
-        template,
-        nwalkers=10,
-        dataset=None,       # if dataset is not None, it provides the initial configurations for each walker
-        )
-
-print(len(ensemble.walkers))                   # 10
-print(ensemble.walkers[0].parameters.seed)     # unique seed: 0
-print(ensemble.walkers[1].parameters.seed)     # unique seed: 1
-```
-
 ## Bias potentials and enhanced sampling
 In the vast majority of molecular dynamics simulations of realistic systems,
 it is beneficial to modify the equilibrium Boltzmann distribution with bias potentials
@@ -376,7 +324,7 @@ UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=10 LABEL=metad FILE=dummy
 """
-bias = PlumedBias(context, plumed_input)        # a new hills file is generated
+bias = PlumedBias(plumed_input)        # a new hills file is generated
 
 walker = DynamicWalker()
 state = walker.propagate(model, bias=bias)      # this state is obtained through biased MD
@@ -406,7 +354,7 @@ UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 """
-bias  = PlumedBias(context, plumed_input)
+bias  = PlumedBias(plumed_input)
 state0 = walker.propagate(model, bias=bias)                 # propagation with bias centered at CV=150
 
 bias.adjust_restraint(variable='CV', kappa=2, center=200)   # decrease width and shift center to higher volume
@@ -431,10 +379,8 @@ grid = generate_external_grid(      # generate contents of PLUMED grid file
         'CV',                       # use ARG=CV in the EXTERNAL action
         periodic=False,             # periodicity of CV
         )
-bias = PlumedBias(context, plumed_input, data={'EXTERNAL': grid})   # pass grid file as external dependency
+bias = PlumedBias(plumed_input, data={'EXTERNAL': grid})   # pass grid file as external dependency
 ```
-Bias potentials can also be added to an `Ensemble`, either upon initialization
-or using the `ensemble.add_bias()` method.
 Note that metadynamics hills files cannot be shared between walkers 
 (as is the case in multiple walker metadynamics) as this would
 violate their strict independence.
@@ -446,25 +392,55 @@ violate their strict independence.
 
 
 ## Level of theory
-Data sampled using the `Ensemble` should be labeled with the correct QM energy,
+Atomic configurations should be labeled with the correct QM energy,
 force, and virial stress before it can be used during model training.
 The `BaseReference` class implements the singlepoint evaluations using specific
 QM software packages and levels of theory.
 At the moment, psiflow only supports CP2K as the reference level of theory,
 though VASP and ORCA will be added in the near future.
+
+The main functionality of a `BaseReference` instance is provided by its
+`evaluate` method, which accepts both a `Dataset` as well as a (future of a)
+single `FlowAtoms` instance, and performs the single-point calculations.
+Depending on which argument it receives, it returns either a future or a `Dataset`
+which contain the QM energy, forces, and stress. 
+
+```py
+_, trajectory = walker.propagate(model=model, keep_trajectory=True)    # trajectory of states
+
+labeled = reference.evaluate(trajectory)  # massively parallel evaluation (returns new Dataset with results)   
+assert isinstance(labeled, Dataset)
+print(labeled[0].result().info['energy']) # cp2k potential energy!
+
+labeled = reference.evaluate(trajectory[0])     # evaluates single state (returns a FlowAtoms future)
+assert isinstance(labeled, AppFuture)
+assert isinstance(labeled.result(), FlowAtoms)
+print(labeled.result().info['energy'])          # will print the same energy
+```
+The output and error logs that were generated during the actual evaluation
+are automatically stored in case they need to checked for errors or unexpected
+behavior.
+Their location in the file system is kept track of using additional attributes
+provided by the `FlowAtoms` class:
+
+```py
+assert labeled.result().reference_status    # True, because state is successfully evaluated
+print(labeled.result().reference_stdout)    # e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stdout
+print(labeled.result().reference_stderr)    # e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stderr
+```
 ### CP2K
 The `CP2KReference` expects a traditional CP2K
 [input file](https://github.com/svandenhaute/psiflow/blob/main/examples/data/cp2k_input.txt)
 (again represented as a multi-line string in Python, just like the PLUMED input);
 it should only contain the FORCE_EVAL section.
 Additional input files which define the basis sets, pseudopotentials, and
-dispersion correction parameters can be added to the calculator after initialization.
+dispersion correction parameters have to be added to the calculator after initialization.
 ```py
 from psiflow.reference import CP2KReference
 
 
 cp2k_input = with file('cp2k_input.txt', 'r') as f: f.read()
-reference  = CP2KReference(context, cp2k_input)
+reference  = CP2KReference(cp2k_input)
 
 # register additional input files with the following mapping
 # if the corresponding keyword in the CP2K input file is X, use Y as key here:
@@ -474,49 +450,168 @@ reference  = CP2KReference(context, cp2k_input)
 reference.add_file('basis_set', 'BASIS_MOLOPT_UZH')
 reference.add_file('potential', 'POTENTIAL_UZH')
 reference.add_file('dftd3', 'dftd3.dat')
-
-unlabeled = ensemble.sample(model=model)            # sample some states using some ensemble
-labeled = reference.evaluate(unlabeled)             # perform parallel singlepoint of all snapshots
-
-print(labeled[0].result().info['energy'])           # cp2k potential energy!
 ```
 
+## Generators
+In online learning, data generation proceeds by taking an intermediate model
+(and optionally, a bias potential)
+and using it in a phase space sampling algorithm in order to generate
+a new structure starting from some existing structure, which is then evaluated
+using a reference level of theory. In psiflow terms, this 
+means that a `BaseWalker` will be propagated using a `PlumedBias` and a `BaseModel`,
+and the final state that is obtained will be passed to the `BaseReference`
+instance after which it may be included in training/validation datasets.
+```py
+from ase.io import read
 
-## Learning Algorithms
-The following is a (simplified) excerpt that illustrates how these basic
-building blocks may be used to implement a simple online
-learning approach:
+start = read('atoms.xyz')
+
+walker = DynamicWalker(state, steps=100, temperature=300)
+bias   = None       # or PlumedBias(plumed_input)
+
+state = walker.propagate(model=model, bias=bias, keep_trajectory=False)
+final = reference.evaluate(state)
+
+```
+However, there are few additional considerations
+that come into play when generating data with imperfect interaction potentials:
+
+- __imposing physical constraints__: interatomic potentials such as MACE or NequIP
+tend to produce unphysical states when they are not yet sufficiently trained.
+For example, it is sometimes possible that two atoms essentially collide
+onto each other during molecular dynamics; i.e. that the interatomic distance
+becomes far smaller than what is physically reasonable.
+It is not desireable to waste computational
+time on evaluating those states at the DFT level or including them during training,
+and psiflow gives the user the ability to define __checks__ which are applied to
+the sampled data in order to include or exclude samples according to some set of rules.
+If the check passes, the state is evaluated using the 
+reference; if not, the walker is reset and sampling is retried with a different
+configuration of initial velocities.
+An example of such a check is the `InteratomicDistanceCheck`,
+which, as the name suggests, computes all interatomic
+distances and demands that they are all larger than some minimum threshold.
+Another example is the `DiscrepancyCheck`, which evaluates the sampled configuration
+using a set of models, and only accepts the state if the predictions are sufficiently
+different (as to avoid including redundant samples in the training data).
+This approach in literature is known as query-by-committee.
+- __retry handling__: even when imposing additional constraints on the sampled states,
+unexpected behavior is bound to occur.
+The SCF cycles in the reference evaluation may fail to converge for some particular
+configuration,
+a specific worker is running on faulty hardware, or a metadynamics bias potential may have become too aggressive due to 
+which the force threshold is systematically exceeded.
+Generators allow to specify a number of retries both for sampling and for
+the reference evaluation to avoid having to restart the entire workflow when
+unexpected but insignificant failures occur.
+
+To accomodate all of this, psiflow makes use of a `Generator` class which
+groups the walker and bias into a single object, along with the retry policy.
+The above code block would look like this when implemented using a generator:
 
 ```py
-# parameters (dataclass)        : defines number of iterations and the number of states to sample
-# model (type BaseModel)        : represents a trainable potential (e.g. NequIP)
-# data_train (type Dataset)     : represents the initial training and validation data
-# data_valid
-# ensemble (type Ensemble)      : defines phase space sampling (e.g. 20 parallel MD runs)
-# reference (type BaseReference): defines the QM level of theory and calculator (e.g. CP2K, PBE-D3(BJ)+TZVP)
+from psiflow.generator import Generator
+from psiflow.checks import InteratomicDistanceCheck
 
-for i in range(parameters.niterations):
-    model.deploy() # performs e.g. torch.jit.compile in desired precision
+generator = Generator(
+        'simple',               # name to use when logging status of this generator
+        walker,                 # e.g. DynamicWalker
+        bias,                   # PlumedBias or None
+        nretries_sampling=2,    # walker.propagate() will be called at most thrice
+        nretries_reference=0,   # reference.evaluate() will be called precisely once
+        )
+checks = [InteratomicDistanceCheck(threshold=0.5)]  # reject state if d(atom1, atom2) < 0.5 A for any two atoms
+state = generator(model, reference, checks=checks)  # retries are handled internally
 
-    # ensemble wraps a set of phase space walkers (e.g. multiple NPT simulations)
-    dataset = ensemble.sample(
-            parameters.nstates, # sample this number of states
-            model=model, # use current best model as potential energy surface
-            )
-    data = reference.evaluate(dataset) # massively parallel QM evaluation of sampled states
-    data_success = data.get(indices=data.success) # some calculations may fail!
-    train, valid = get_train_valid_indices(
-            data_success.length(),
-            self.parameters.train_valid_split,
-            )
-    data_train.append(data_success.get(indices=train))
-    data_valid.append(data_success.get(indices=valid))
-
-    if parameters.retrain_model_per_iteration: # recalibrate scale/shift/avg_num_neighbors
-        model.reset()
-        model.initialize(data_train)
-
-    epochs = model.train(data_train, data_valid) # train model for some time
+assert state.result().reference_status              # is already evaluated by the generator
 ```
-[TODO]
 
+In online learning, a common scenario is to generate data using
+many different molecular dynamics simulations; all of which with more or less the same parameters but
+simply initialized in a different way (either with a different seed or a different starting configuration).
+Psiflow provides a simple way to _multiply_ a generator in order to obtain a list
+of generators, all of which identical except for the random number seed
+(and possibly the initial configuration).
+```py
+generators = Generator('simple', walker, bias).multiply(10) # same initial configuration, different seed
+assert type(generators) == list
+
+initial_states = Dataset.load('initial_states.xyz')         # different initial configuration, different seed
+generators = Generator('simple', walker, bias).multiply(10, initialize_using=initial_states)
+```
+
+## Learning algorithms
+The endgame of psiflow is to allow for seamless development and scalable
+execution of online learning algorithms for interatomic
+potentials.
+The `BaseLearning` class provides an example interface based on which such
+algorithms may be implemented.
+Within the space of online learning, the most trivial approach is represented
+using the `SequentialLearning` class.
+In sequential learning, the data generation (as performed by a set of generators)
+is interleaved with short model training steps as to update
+the knowledge in the model with the states that were sampled and evaluated
+by the generators.
+Take a look at the following example:
+```py
+from psiflow.learning import SequentialLearning
+
+
+data_train = Dataset.load('initial_train.xyz')
+data_valid = Dataset.load('initial_valid.xyz')
+
+walker = DynamicWalker(     # template walker based on which generators will be built
+        data_train[0],      # initial state
+        timestep=0.5,
+        steps=400,
+        step=50,
+        start=0,
+        temperature=600,
+        pressure=0, # NPT
+        force_threshold=30,
+        initial_temperature=600,
+        )
+generators = Generator('mtd', walker, bias).multiply(30, initialize_using=None)
+print(len(generators))                      # 30 generators, same initial state but different seed
+
+learning = SequentialLearning(              # implements sequential learning
+        path_output=path_output,            # folder in which consecutive models and data should be saved
+        niterations=10,                     # number of (generate, train) iterations
+        retrain_model_per_iteration=True,   # whether to train with reinitialized weights in each iteration
+        train_valid_split=0.9,              # partitioning of generated states into training and validation
+        )
+
+data_train, data_valid = learning.run(
+        model=model,                                # initial model
+        reference=reference,                        # reference level of theory
+        generators=generators,                      # list of generators
+        data_train=data_train,                      # initial training data
+        data_valid=data_valid,                      # initial validation data
+        checks=[InteratomicDistanceCheck(0.5)],     # require all distances > 0.5 A
+        )
+
+model.save(path_output)                 # save new model separately
+data_train.save('final_train.xyz')      # save final training data
+data_valid.save('final_valid.xyz')      # save final validation data
+
+```
+The `learning.run()` method implements the actual online learning algorithm.
+In this case, it will repeat the following
+[sequence](https://github.com/svandenhaute/psiflow/blob/master/psiflow/learning.py#L117)
+of operations `niterations = 10` times:
+
+1. deploy the model;
+2. call each generator using the most recently deployed model, the provided reference, and
+any checks that were provided -- this may involve a certain number of retries depending on whether the
+sampling and/or reference evaluation fails;
+3. gather the data, and add it to the existing training and validation datasets;
+4. reinitialize the model, and train it.
+
+After this script has executed, the `path_output` directory will contain 10
+folders (named `0`, `1`, ... `9`) in which the model and datasets are logged as well
+as the entire state of the generators (i.e. start and stop configuration,
+and state of the bias potentials).
+Additional features relate to Weights & Biases logging and optional
+pretraining based on quick-and-dirty dataset with random perturbations applied
+to both atomic positions and strain components; see the [Examples](examples.md)
+for more information.

@@ -53,6 +53,7 @@ include = [
     "psiflow.models",
     "psiflow.reference",
     "psiflow.sampling",
+    "psiflow.external",
     ]
 
 
