@@ -32,12 +32,15 @@ def pytest_addoption(parser):
 @pytest.fixture(scope='session')
 def context(request, tmp_path_factory):
     path_config = Path(request.config.getoption('--psiflow-config'))
-    context = psiflow.load(
-            path_config,
-            tmp_path_factory.mktemp('parsl_internal'),
-            psiflow_log_level=logging.DEBUG,
-            parsl_log_level=logging.DEBUG,
-            )
+    try:
+        context = psiflow.context()
+    except RuntimeError:
+        context = psiflow.load(
+                path_config,
+                tmp_path_factory.mktemp('psiflow_internal'),
+                psiflow_log_level=logging.DEBUG,
+                parsl_log_level=logging.DEBUG,
+                )
     return context
 
 

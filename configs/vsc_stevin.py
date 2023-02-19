@@ -13,6 +13,7 @@ model_evaluate = ModelEvaluationExecution(
         device='cpu',
         ncores=4,
         dtype='float32',
+        walltime=30,
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
