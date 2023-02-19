@@ -1,4 +1,4 @@
-from psiflow.utils import SlurmProvider # fixed SlurmProvider
+from psiflow.external import SlurmProviderVSC # fixed SlurmProvider
 
 from psiflow.models import MACEModel, NequIPModel, AllegroModel
 from psiflow.reference import CP2KReference
@@ -38,13 +38,15 @@ definitions = {
 
 providers = {}
 
+cluster = 'dodrio' # all partitions reside on a single cluster
 
 # define provider for default executor (HTEX)
 # each of the workers in this executor is single-core;
 # they do basic processing stuff (reading/writing data/models, ... )
 worker_init =  'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
-provider = SlurmProvider(       # one block == one slurm job to submit
+provider = SlurmProviderVSC(       # one block == one slurm job to submit
+        cluster=cluster,
         partition='cpu_rome',
         account='2022_050',
         nodes_per_block=1,      # each block fits on (less than) one node
@@ -64,7 +66,8 @@ worker_init =  'ml cctools/7.4.16-GCCcore-10.3.0\n'
 worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_evaluate.ncores)
-provider = SlurmProvider(
+provider = SlurmProviderVSC(
+        cluster=cluster,
         partition='cpu_rome',
         account='2022_050',
         nodes_per_block=1,
@@ -90,7 +93,8 @@ worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(model_training.ncores)
 worker_init += 'export SLURM_NTASKS={}\n'.format(model_training.ncores)
 worker_init += 'export SLURM_NPROCS={}\n'.format(model_training.ncores)
 worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_training.ncores)
-provider = SlurmProvider(
+provider = SlurmProviderVSC(
+        cluster=cluster,
         partition='gpu_rome_a100',
         account='2022_050',
         nodes_per_block=1,
@@ -102,7 +106,7 @@ provider = SlurmProvider(
         walltime='01:05:00',
         worker_init=worker_init,
         exclusive=False,
-        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n#SBATCH --export=None', # request gpu
+        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n', # request gpu
         )
 providers['training'] = provider
 
@@ -122,7 +126,8 @@ worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(reference_evaluate.ncor
 worker_init += 'export SLURM_NTASKS={}\n'.format(reference_evaluate.ncores)
 worker_init += 'export SLURM_NPROCS={}\n'.format(reference_evaluate.ncores)
 #worker_init += 'export OMP_NUM_THREADS=1\n'
-provider = SlurmProvider(
+provider = SlurmProviderVSC(
+        cluster=cluster,
         partition='cpu_rome',
         account='2022_050',
         nodes_per_block=1,

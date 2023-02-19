@@ -67,11 +67,11 @@ As such, we ensure that the execution-side configuration remains fully decoupled
 from the computational graph itself.
 For more information, check out the psiflow [Configuration](config.md) page.
 
-!!! note "Cut some slack!"
+!!! note "Psiflow: An Unexpected Journey"
 
-    Psiflow is new. Its API is still subject to change, and you may
-    run into unexpected behavior or undocumented features. If you do, we encourage
-    you to open an issue or ask a question on the [GitHub repository](https://github.com/svandenhaute/psiflow).
+    Psiflow is still in beta, which means that you may encounter unexpected behavior.
+    If you do, we encourage you to open an issue or ask a question on the
+    [GitHub repository](https://github.com/svandenhaute/psiflow).
 
 
 [^1]: Otherwise known as active learning, incremental learning, on-the-fly learning.

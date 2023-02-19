@@ -23,17 +23,23 @@ for anything that takes an initial atomic configuration as input and generates n
 atomic configurations as output. This includes classical molecular dynamics 
 at different external conditions (NVT, NPT), but also geometry optimizations and
 even simple random perturbations/random walks.
-- __ensemble__: the `Ensemble` class wraps a set of walkers into an ensemble
-in order to perform massively parallel sampling. Each of the walkers in the
-ensemble has its own parameters and sampling algorithms,
-and they may be executed independently from each
-other. The ensemble is the main instrument in psiflow based on which data is
-generated.
 - __bias potentials and enhanced sampling__ the `PlumedBias` class interfaces
 the popular PLUMED library with specific walkers. This allows the user to
 define bias potentials (e.g. harmonic restraints or metadynamics) that should
 be used when a walker is propagating through phase space.
-Biases may be set per walker or defined globally in an ensemble.
+- __generators__: the `Generator` class wraps the generation of a single
+atomic configuration using a walker and, optionally, a bias potential.
+It implements additional features related to error handling during either the
+sampling or the reference evaluation, and allows to user to include additional
+checks to filter out unwanted data.
+For example, newly initialized models may induce walkers to explore unphysical
+regions in phase space when sampling at high temperature and/or for long
+timescales.
+When this happens, users might want to impose an `InteratomicDistanceCheck`
+in order to filter out sampled configurations in which some of the
+interatomic distances are unphysically close (e.g closer than 0.5 A).
+Checks can also be employed to implement uncertainty-based data selection such
+as query-by-committee.
 - __level of theory__: the `BaseReference` class is used to define the _target_
 QM reference which the model should reproduce after training. Its main functionality
 is to perform massively parallel singlepoint evaluation of a dataset of 

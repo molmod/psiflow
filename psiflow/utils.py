@@ -3,34 +3,18 @@ from typing import Optional, Union, List, Any, Tuple, Dict
 import typeguard
 import os
 import sys
+import logging
 import tempfile
 import numpy as np
-import wandb
 import importlib
 from pathlib import Path
 
 from ase.data import atomic_numbers
 
 from parsl.executors.base import ParslExecutor
-from parsl.app.app import python_app, join_app
+from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-from parsl.config import Config
-
-# to define custom slurm provider
-import parsl.providers.slurm.slurm
-import math
-import os
-import time
-import logging
-from parsl.providers.base import JobState, JobStatus
-from parsl.utils import wtime_to_minutes
-from parsl.providers.slurm.template import template_string
-
-# imports for LocalChannel
-import parsl.channels.local.local
-import copy
-import subprocess
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -180,118 +164,3 @@ def get_active_executor(label: str) -> ParslExecutor:
         if executor.label == label:
             return executor
     raise ValueError('executor with label {} not found!'.format(label))
-
-
-class SlurmProvider(parsl.providers.slurm.slurm.SlurmProvider):
-
-    def submit(self, command, tasks_per_node, job_name="parsl.slurm"):
-        """Submit the command as a slurm job.
-
-        This function differs in its parent in the self.execute_wait()
-        call, in which the slurm partition is explicitly passed as a command
-        line argument as this is necessary for some SLURM-configered systems
-        (notably, Belgium's HPC infrastructure).
-        In addition, the way in which the job_id is extracted from the returned
-        log after submission is slightly modified, again to account for
-        the specific cluster configuration of HPCs in Belgium.
-
-        Parameters
-        ----------
-        command : str
-            Command to be made on the remote side.
-        tasks_per_node : int
-            Command invocations to be launched per node
-        job_name : str
-            Name for the job
-        Returns
-        -------
-        None or str
-            If at capacity, returns None; otherwise, a string identifier for the job
-        """
-
-        scheduler_options = self.scheduler_options
-        worker_init = self.worker_init
-        if self.mem_per_node is not None:
-            scheduler_options += '#SBATCH --mem={}g\n'.format(self.mem_per_node)
-            worker_init += 'export PARSL_MEMORY_GB={}\n'.format(self.mem_per_node)
-        if self.cores_per_node is not None:
-            cpus_per_task = math.floor(self.cores_per_node / tasks_per_node)
-            scheduler_options += '#SBATCH --cpus-per-task={}'.format(cpus_per_task)
-            worker_init += 'export PARSL_CORES={}\n'.format(cpus_per_task)
-
-        job_name = "{0}.{1}".format(job_name, time.time())
-
-        script_path = "{0}/{1}.submit".format(self.script_dir, job_name)
-        script_path = os.path.abspath(script_path)
-
-
-        job_config = {}
-        job_config["submit_script_dir"] = self.channel.script_dir
-        job_config["nodes"] = self.nodes_per_block
-        job_config["tasks_per_node"] = tasks_per_node
-        job_config["walltime"] = wtime_to_minutes(self.walltime)
-        job_config["scheduler_options"] = scheduler_options
-        job_config["worker_init"] = worker_init
-        job_config["user_script"] = command
-
-        # Wrap the command
-        job_config["user_script"] = self.launcher(command,
-                                                  tasks_per_node,
-                                                  self.nodes_per_block)
-
-        self._write_submit_script(template_string, script_path, job_name, job_config)
-
-        if self.move_files:
-            channel_script_path = self.channel.push_file(script_path, self.channel.script_dir)
-        else:
-            channel_script_path = script_path
-
-        retcode, stdout, stderr = self.execute_wait("sbatch --partition={1} {0}".format(channel_script_path, self.partition))
-
-        job_id = None
-        if retcode == 0:
-            for line in stdout.split('\n'):
-                if line.startswith("Submitted batch job"):
-                    #job_id = line.split("Submitted batch job")[1].strip()
-                    job_id = line.split("Submitted batch job")[1].strip().split()[0]
-                    self.resources[job_id] = {'job_id': job_id, 'status': JobStatus(JobState.PENDING)}
-        else:
-            logger.error("Submit command failed")
-            logger.error("Retcode:%s STDOUT:%s STDERR:%s", retcode, stdout.strip(), stderr.strip())
-        return job_id
-
-
-class LocalChannel(parsl.channels.local.local.LocalChannel):
-
-    def __init__(self, prepend_cmd='', **kwargs):
-        super().__init__(**kwargs)
-        self.prepend_cmd = prepend_cmd
-
-    def execute_wait(self, cmd, walltime=None, envs={}):
-        retcode = -1
-        stdout = None
-        stderr = None
-
-        current_env = copy.deepcopy(self._envs)
-        current_env.update(envs)
-
-        cmd = self.prepend_cmd + '; ' + cmd
-
-        try:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=self.userhome,
-                env=current_env,
-                shell=True,
-                preexec_fn=os.setpgrp
-            )
-            (stdout, stderr) = proc.communicate(timeout=walltime)
-            retcode = proc.returncode
-
-        except Exception as e:
-            logger.warning("Execution of command '{}' failed due to \n{}".format(cmd, e))
-            raise
-
-        return (retcode, stdout.decode("utf-8"), stderr.decode("utf-8"))

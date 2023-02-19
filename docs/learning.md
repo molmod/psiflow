@@ -1,4 +1,2 @@
-:::psiflow.learning.RandomLearningParameters
-:::psiflow.learning.RandomLearning
-:::psiflow.learning.OnlineLearningParameters
-:::psiflow.learning.OnlineLearning
+:::psiflow.learning.SequentialLearning
+:::psiflow.learning.ConcurrentLearning

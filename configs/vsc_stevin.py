@@ -1,4 +1,4 @@
-from psiflow.utils import SlurmProvider, LocalChannel # fixed SlurmProvider
+from psiflow.utils import SlurmProviderVSC # SlurmProvider for VSC systems
 
 from psiflow.models import MACEModel, NequIPModel, AllegroModel
 from psiflow.reference import CP2KReference
@@ -48,8 +48,8 @@ cluster = 'doduo'
 worker_init = ''
 worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
-provider = SlurmProvider(
-        channel=LocalChannel(prepend_cmd='module swap cluster/{}'.format(cluster)),
+provider = SlurmProviderVSC(
+        cluster=cluster,
         partition=cluster,      # redundant specification of partition is necessary!
         nodes_per_block=1,      # each block fits on (less than) one node
         cores_per_node=1,       # number of cores per slurm job
@@ -58,7 +58,6 @@ provider = SlurmProvider(
         max_blocks=1,           # do not use more than one block
         walltime='02:00:00',    # walltime per block
         worker_init=worker_init,
-        scheduler_options='#SBATCH --export=NONE\n',
         exclusive=False,
         )
 providers['default'] = provider
@@ -71,8 +70,8 @@ worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_evaluate.ncores)
-provider = SlurmProvider(
-        channel=LocalChannel(prepend_cmd='module swap cluster/{}'.format(cluster)),
+provider = SlurmProviderVSC(
+        cluster=cluster,
         partition=cluster,
         nodes_per_block=1,
         cores_per_node=4,
@@ -82,7 +81,6 @@ provider = SlurmProvider(
         parallelism=1,
         walltime='02:00:00',
         worker_init=worker_init,
-        scheduler_options='#SBATCH --export=NONE\n',
         exclusive=False,
         )
 providers['model'] = provider
@@ -99,8 +97,8 @@ worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(model_training.ncores)
 worker_init += 'export SLURM_NTASKS={}\n'.format(model_training.ncores)
 worker_init += 'export SLURM_NPROCS={}\n'.format(model_training.ncores)
 worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_training.ncores)
-provider = SlurmProvider(
-        channel=LocalChannel(prepend_cmd='module swap cluster/{}'.format(cluster)),
+provider = SlurmProviderVSC(
+        cluster=cluster,
         partition=cluster,
         nodes_per_block=1,
         cores_per_node=12,
@@ -110,7 +108,7 @@ provider = SlurmProvider(
         parallelism=1.0,
         walltime='01:05:00',
         worker_init=worker_init,
-        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n#SBATCH --export=None', # request gpu
+        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n', # request gpu
         exclusive=False,
         )
 providers['training'] = provider
@@ -132,8 +130,8 @@ worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(reference_evaluate.nco
 worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(reference_evaluate.ncores)
 worker_init += 'export SLURM_NTASKS={}\n'.format(reference_evaluate.ncores)
 worker_init += 'export SLURM_NPROCS={}\n'.format(reference_evaluate.ncores)
-provider = SlurmProvider(
-        channel=LocalChannel(prepend_cmd='module swap cluster/{}'.format(cluster)),
+provider = SlurmProviderVSC(
+        cluster=cluster,
         partition=cluster,
         nodes_per_block=1,
         cores_per_node=reference_evaluate.ncores, # 1 worker per block; leave this
@@ -143,7 +141,6 @@ provider = SlurmProvider(
         parallelism=1,
         walltime='01:00:00',
         worker_init=worker_init,
-        scheduler_options='#SBATCH --export=NONE\n',
         exclusive=False,
         )
 providers['reference'] = provider
