@@ -37,7 +37,8 @@ class BaseLearning:
 
     def __post_init__(self) -> None: # save self in output folder
         self.path_output = Path(self.path_output)
-        assert self.path_output.is_dir()
+        if not self.path_output.is_dir():
+            self.path_output.mkdir()
         config = asdict(self)
         config['path_output'] = str(self.path_output) # yaml requires str
         config.pop('wandb_logger')
@@ -108,7 +109,7 @@ class BaseLearning:
 
 @typeguard.typechecked
 @dataclass
-class BatchLearning(BaseLearning):
+class SequentialLearning(BaseLearning):
     nstates: int = 30
     niterations: int = 10
     retrain_model_per_iteration : bool = True
@@ -174,7 +175,7 @@ class BatchLearning(BaseLearning):
 
 @typeguard.typechecked
 @dataclass
-class OnlineLearning(BaseLearning):
+class ConcurrentLearning(BaseLearning):
     niterations: int = 10
     retrain_model_per_iteration : bool = True
     retrain_threshold: int = 20
@@ -236,7 +237,7 @@ class OnlineLearning(BaseLearning):
             # save model obtained from this iteration
             model_ = model.copy()
             model_.deploy()
-            self.flow_manager.save(
+            save_state(
                     name='model_{}'.format(counter),
                     model=model_, # save model and its training data
                     data_train=data_train,
@@ -250,8 +251,8 @@ def load_learning(path_output: Union[Path, str]):
     path_output = Path(path_output)
     assert path_output.is_dir()
     classes = [
-            BatchLearning,
-            OnlineLearning,
+            SequentialLearning,
+            ConcurrentLearning,
             None,
             ]
     for learning_cls in classes:

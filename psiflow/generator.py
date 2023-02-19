@@ -94,7 +94,7 @@ def evaluate(
     if state is not None:
         logger.info('\tstate from walker {} OK!'.format(generator.name))
         if reference is not None:
-            logger.info('\tevaluating state using {}'.format(reference.__class__))
+            logger.info('\tevaluating state using {}'.format(reference.__class__.__name__))
             return gather(
                     generator,
                     model,

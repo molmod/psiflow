@@ -326,8 +326,12 @@ def _to_wandb(
         if name in ['training', 'validation', 'failed']:
             errors_to_plot = [] # check which error labels are present
             for l in data[0]:
-                if l.endswith('energy') or l.endswith('forces') or l.endswith('stress'):
-                    errors_to_plot.append(l)
+                if l.endswith('energy'):
+                    errors_to_plot.append(l + ' [meV/atom]')
+                if l.endswith('forces'):
+                    errors_to_plot.append(l + ' [meV/A]')
+                if l.endswith('stress'):
+                    errors_to_plot.append(l + ' [MPa]')
             assert error_x_axis in data[0]
             for error in errors_to_plot:
                 title = name + '_' + error
@@ -343,7 +347,4 @@ def _to_wandb(
     os.environ['WANDB_SILENT'] = 'True' # suppress logs
     wandb.log(wandb_log)
     wandb.finish()
-to_wandb = python_app(
-        _to_wandb,
-        executors=['default'],
-        )
+to_wandb = python_app(_to_wandb, executors=['default'])

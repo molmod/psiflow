@@ -48,11 +48,11 @@ provider = SlurmProvider(       # one block == one slurm job to submit
         partition='cpu_rome',
         account='2022_050',
         nodes_per_block=1,      # each block fits on (less than) one node
-        cores_per_node=8,       # number of cores per slurm job
+        cores_per_node=1,       # number of cores per slurm job, 1 is OK
         init_blocks=1,          # initialize a block at the start of the workflow
         min_blocks=1,           # always keep at least one block open
         max_blocks=1,           # do not use more than one block
-        walltime='02:00:00',    # walltime per block
+        walltime='24:00:00',    # walltime per block
         worker_init=worker_init,
         exclusive=False,
         )
@@ -129,9 +129,9 @@ provider = SlurmProvider(
         cores_per_node=reference_evaluate.ncores, # 1 worker per block; leave this
         init_blocks=0,
         min_blocks=0,
-        max_blocks=100,
+        max_blocks=10,
         parallelism=1,
-        walltime='01:00:00',
+        walltime='00:59:59',
         worker_init=worker_init,
         exclusive=False,
         )

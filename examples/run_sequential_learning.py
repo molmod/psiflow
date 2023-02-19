@@ -6,12 +6,13 @@ import numpy as np
 from ase.io import read
 
 import psiflow
-from psiflow.learning import BatchLearning, load_learning
+from psiflow.learning import SequentialLearning, load_learning
 from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import DynamicWalker, PlumedBias
 from psiflow.generator import Generator
+from psiflow.state import load_state
 
 
 def get_bias():
@@ -61,8 +62,16 @@ def main(path_output):
     bias  = get_bias()          # simple MTD bias on unit cell volume
     atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # load single atoms
 
+    # set up wandb logging
+    wandb_logger = WandBLogger(
+            wandb_project='psiflow',
+            wandb_group='run_batch_learning',
+            error_x_axis='CV',  # plot errors against PLUMED 'ARG=CV'
+            )
+
     # set learning parameters
-    learning = BatchLearning(
+    learning = SequentialLearning(
+            path_output=path_output,
             niterations=10,
             nstates=30,
             retrain_model_per_iteration=True,
@@ -70,6 +79,7 @@ def main(path_output):
             pretraining_amplitude_box=0.05,
             pretraining_nstates=50,
             train_valid_split=0.9,
+            wandb_logger=wandb_logger,
             )
     data_train, data_valid = learning.run_pretraining(
             model=model,
@@ -104,10 +114,9 @@ def restart(path_output):
     learning  = load_learning(path_output)
     model, generators, data_train, data_valid, checks = load_state(path_output, '5')
     data_train, data_valid = learning.run(
-            flow_manager=flow_manager,
             model=model,
             reference=reference,
-            ensemble=ensemble,
+            generators=generators,
             data_train=data_train,
             data_valid=data_valid,
             checks=checks,

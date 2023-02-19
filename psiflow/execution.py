@@ -270,6 +270,9 @@ class ExecutionContextLoader:
                 path_config,
                 path_internal,
                 )
+        path_internal = Path(path_internal)
+        assert not path_internal.is_dir(), '{} already exists'.format(path_internal)
+        path_internal.mkdir()
         set_file_logger(path_internal / 'psiflow.log', psiflow_log_level)
         parsl.set_file_logger(str(path_internal / 'parsl.log'), level=parsl_log_level)
         path_context = path_internal / 'context_dir'

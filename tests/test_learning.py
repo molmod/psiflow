@@ -1,14 +1,14 @@
 import shutil
 import pytest
 
-from psiflow.learning import BatchLearning, load_learning
+from psiflow.learning import SequentialLearning, load_learning
 from psiflow.wandb_utils import WandBLogger
 
 
 def test_learning_save_load(context, tmp_path):
     path_output = tmp_path / 'output'
     path_output.mkdir()
-    learning = BatchLearning(
+    learning = SequentialLearning(
             path_output=path_output,
             wandb_logger=None,
             pretraining_nstates=100,
@@ -22,7 +22,7 @@ def test_learning_save_load(context, tmp_path):
             wandb_project='pytest',
             wandb_group='test_learning_save_load',
             )
-    learning = BatchLearning(
+    learning = SequentialLearning(
             path_output=path_output,
             wandb_logger=wandb_logger,
             pretraining_nstates=99,
