@@ -81,7 +81,9 @@
     
       
 
-<header class="md-header" data-md-component="header">
+  
+
+<header class="md-header md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href=".." title="psiflow" class="md-header__button md-logo" aria-label="psiflow" data-md-component="logo">
       
@@ -125,13 +127,84 @@
     
   </nav>
   
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-tabs__inner md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href=".." class="md-tabs__link">
+      Introduction
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../overview/" class="md-tabs__link">
+      Overview
+    </a>
+  </li>
+
+      
+        
+  
+  
+    
+  
+
+
+  <li class="md-tabs__item">
+    <a href="./" class="md-tabs__link md-tabs__link--active">
+      Configuration
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../examples/" class="md-tabs__link">
+      Examples
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../installation/" class="md-tabs__link">
+      Installation
+    </a>
+  </li>
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
 </header>
     
     <div class="md-container" data-md-component="container">
       
       
-        
-          
         
       
       <main class="md-main" data-md-component="main">
@@ -144,10 +217,12 @@
                   <div class="md-sidebar__inner">
                     
 
+  
+
 
   
 
-<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href=".." title="psiflow" class="md-nav__button md-logo" aria-label="psiflow" data-md-component="logo">
       
@@ -257,8 +332,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#3-putting-it-all-together-the-executioncontext" class="md-nav__link">
-    3. Putting it all together: the ExecutionContext
+  <a href="#3-putting-it-all-together-psiflowload" class="md-nav__link">
+    3. Putting it all together: psiflow.load
   </a>
   
 </li>
@@ -293,388 +368,10 @@
   
   
   
-    
-      
-    
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
-      
-      
-      
-      
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
-      
-      
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-          
-        
-      
-      
-        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="false">
-          API
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <nav class="md-nav" aria-label="API" data-md-level="1">
-        <label class="md-nav__title" for="__nav_5">
-          <span class="md-nav__icon md-icon"></span>
-          API
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-              
-  
-  
-  
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-      
-      
-      
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_1" type="checkbox" id="__nav_5_1" >
-      
-      
-        
-          
-        
-          
-        
-      
-      
-        <label class="md-nav__link" for="__nav_5_1" tabindex="0" aria-expanded="false">
-          Models
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <nav class="md-nav" aria-label="Models" data-md-level="2">
-        <label class="md-nav__title" for="__nav_5_1">
-          <span class="md-nav__icon md-icon"></span>
-          Models
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-              
-  
-  
-  
     <li class="md-nav__item">
-      <a href="../models/nequip/" class="md-nav__link">
-        NequIP
+      <a href="../installation/" class="md-nav__link">
+        Installation
       </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../models/mace/" class="md-nav__link">
-        MACE
-      </a>
-    </li>
-  
-
-            
-          
-        </ul>
-      </nav>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-      
-      
-      
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_2" type="checkbox" id="__nav_5_2" >
-      
-      
-        
-          
-        
-          
-        
-          
-        
-          
-        
-      
-      
-        <label class="md-nav__link" for="__nav_5_2" tabindex="0" aria-expanded="false">
-          Sampling
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <nav class="md-nav" aria-label="Sampling" data-md-level="2">
-        <label class="md-nav__title" for="__nav_5_2">
-          <span class="md-nav__icon md-icon"></span>
-          Sampling
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../sampling/random/" class="md-nav__link">
-        Random
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../sampling/optimization/" class="md-nav__link">
-        Optimization
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../sampling/dynamic/" class="md-nav__link">
-        Dynamic
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../sampling/plumed_bias/" class="md-nav__link">
-        PLUMED
-      </a>
-    </li>
-  
-
-            
-          
-        </ul>
-      </nav>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-      
-      
-      
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5_3" type="checkbox" id="__nav_5_3" >
-      
-      
-        
-          
-        
-          
-        
-          
-        
-      
-      
-        <label class="md-nav__link" for="__nav_5_3" tabindex="0" aria-expanded="false">
-          Reference
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <nav class="md-nav" aria-label="Reference" data-md-level="2">
-        <label class="md-nav__title" for="__nav_5_3">
-          <span class="md-nav__icon md-icon"></span>
-          Reference
-        </label>
-        <ul class="md-nav__list" data-md-scrollfix>
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../reference/EMT/" class="md-nav__link">
-        EMT
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../reference/CP2K/" class="md-nav__link">
-        CP2K
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../reference/VASP/" class="md-nav__link">
-        VASP
-      </a>
-    </li>
-  
-
-            
-          
-        </ul>
-      </nav>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../data/" class="md-nav__link">
-        Data
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../ensemble/" class="md-nav__link">
-        Ensemble
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../checks/" class="md-nav__link">
-        Checks
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../learning/" class="md-nav__link">
-        Learning
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../execution/" class="md-nav__link">
-        Execution
-      </a>
-    </li>
-  
-
-            
-          
-            
-              
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../experiment/" class="md-nav__link">
-        Experiment
-      </a>
-    </li>
-  
-
-            
-          
-        </ul>
-      </nav>
     </li>
   
 
@@ -711,9 +408,8 @@ Because a single computer cannot provide the computing resources that are necess
 such workflows, psiflow is built on top of Parsl to allow for distributed execution
 across a large variety of computing resources</p>
 <p>All execution-level configuration options are expected to be bundled
-in a single <code>config.py</code> file, which is passed as a command line argument when
-executing a psiflow workflow. This allows users to easily execute the same
-workflow with different configuration options.</p>
+in a single <code>config.py</code> file, which is read by psiflow during workflow
+initialization.</p>
 <div class="admonition note">
 <p class="admonition-title">Parsl 103: Execution</p>
 <p>It may be worthwhile to take a quick look at the
@@ -812,46 +508,55 @@ deal with errors during the workflow.</p>
 </code></pre></div>
 Example configurations for local execution can be found on the GitHub repository.
 In the same directory, you'll find configuration files for the
-<a href="https://vlaams-supercomputing-centrum-vscdocumentation.readthedocs-hosted.com/en/latest/gent/tier1_hortense.html">Hortense</a>
-cluster in Belgium, which has the typical SLURM/Lmod/EasyBuild setup as found
-in many other European HPCs.</p>
-<h2 id="3-putting-it-all-together-the-executioncontext">3. Putting it all together: the <code>ExecutionContext</code></h2>
-<p>Once the <code>config.py</code> is defined, psiflow should read its contents
-and create the <code>ExecutionContext</code> object that is present throughout all psiflow workflows
-(see the <a href="../overview/">Overview</a>).
-A <code>context</code> stores both the execution definitions as well as the full Parsl
-configuration.
+<a href="https://vlaams-supercomputing-centrum-vscdocumentation.readthedocs-hosted.com/en/latest/gent/tier1_hortense.html">Flemish supercomputers</a>
+in Belgium, which have the typical SLURM/Lmod/EasyBuild setup as found
+in many other European HPCs.
+Naturally, these configurations rely on one or more <code>SlurmProvider</code> instances
+which provide the computational resources,
+as opposed to the <code>LocalProvider</code> shown here. A <code>SlurmProvider</code> may
+be configured in terms of the minimum and maximum number of jobs it may request
+during the workflow,
+the number of cores, nodes, GPUs, and amount of walltime per job, as well as
+the cluster(s), partition(s), and account(s) to use.
+See the <a href="https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_hortense.py">Hortense</a>
+and <a href="https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_stevin.py">Stevin</a>
+example configurations for more details.</p>
+<h2 id="3-putting-it-all-together-psiflowload">3. Putting it all together: <code>psiflow.load</code></h2>
+<p>The execution configuration as determined by a <code>config.py</code> is to be loaded
+into psiflow in order to start workflow execution.
+The first step in any psiflow script is therefore to call <code>psiflow.load</code>:
+it will generate a local cache directory for output
+logs and intermediate files, and create a global <code>ExecutionContext</code> object.
 The <code>BaseModel</code>, <code>BaseReference</code>, and <code>BaseWalker</code> subclasses
 will use the information in the execution context to create and store
 Parsl apps with the desired execution configuration.
-This is all done automatically; psiflow users should never directly interact with the <code>context</code> object.</p>
-<p>As explained in the <a href="../examples/">Examples</a>, a typical psiflow script will
-use more or less the following template:</p>
-<p><div class="highlight"><span class="filename">scientific_breakthrough.py</span><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span> <span class="nn">argparse</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">import</span> <span class="nn">psiflow</span>
+End users do not need to worry about the internal organization of psiflow;
+all they need to make sure is that they call <code>psiflow.load()</code> on a valid
+configuration file before they commence their workflow.
+The following is a trivial example in which a dataset is loaded, a simple MACE
+model is trained, and the result is saved for future usage.</p>
+<div class="highlight"><span class="filename">my_script.py</span><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span> <span class="nn">psiflow</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span> <span class="nn">psiflow.data</span> <span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span> <span class="nn">psiflow.models</span> <span class="kn">import</span> <span class="n">MACEModel</span><span class="p">,</span> <span class="n">MACEConfig</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">flow_logger</span><span class="p">):</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="c1"># your psiflow workflow here</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="k">pass</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--psiflow-config&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store&#39;</span><span class="p">)</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--name&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>    <span class="n">context</span><span class="p">,</span> <span class="n">flow_logger</span> <span class="o">=</span> <span class="n">psiflow</span><span class="o">.</span><span class="n">experiment</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span>   <span class="c1"># initialize context</span>
-<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>            <span class="n">args</span><span class="o">.</span><span class="n">psiflow_config</span><span class="p">,</span>                            <span class="c1"># path to psiflow config.py</span>
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>            <span class="n">args</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>                                      <span class="c1"># run name</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">def</span> <span class="nf">my_scientific_breakthrough</span><span class="p">():</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">data</span>  <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;chemical_accuracy.xyz&#39;</span><span class="p">)</span>   <span class="c1"># the best dataset in the world</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">data_train</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:</span><span class="o">-</span><span class="mi">10</span><span class="p">]</span>                 <span class="c1"># first n - 10 states are training</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">data_valid</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="o">-</span><span class="mi">10</span><span class="p">:]</span>                 <span class="c1"># last 10 states are validation</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">model</span> <span class="o">=</span> <span class="n">MACEModel</span><span class="p">(</span><span class="n">MACEConfig</span><span class="p">(</span><span class="n">r_max</span><span class="o">=</span><span class="mi">7</span><span class="p">))</span>  <span class="c1"># use default MACE parameters, but increase the cutoff to 7 A</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>            <span class="c1"># initialize weights, and scaling/normalization factors in layers</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span><span class="p">)</span>     <span class="c1"># training magic</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">&#39;./&#39;</span><span class="p">)</span>                        <span class="c1"># done!</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>    <span class="n">psiflow</span><span class="o">.</span><span class="n">load</span><span class="p">(</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>            <span class="s1">&#39;./config.py&#39;</span><span class="p">,</span>        <span class="c1"># will load config.py as module and execute its get_config() method</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>            <span class="s1">&#39;./psiflow_internal&#39;</span><span class="p">,</span> <span class="c1"># directory in which to store logs; this path should not already exist</span>
 <a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>            <span class="p">)</span>
-<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>    <span class="n">main</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">flow_logger</span><span class="p">)</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>    <span class="n">my_scientific_breakthrough</span><span class="p">()</span>
 </code></pre></div>
-which is then executed via
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>scientific_breakthrough.py<span class="w"> </span>--psiflow-config<span class="o">=</span>config.py
-</code></pre></div></p>
 
 
 
@@ -889,7 +594,7 @@ which is then executed via
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.sections", "toc.integrate"], "search": "../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.indexes", "navigation.sections", "toc.integrate"], "search": "../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
       <script src="../assets/javascripts/bundle.ba449ae6.min.js"></script>
