@@ -87,7 +87,6 @@ class SlurmProviderVSC(parsl.providers.slurm.slurm.SlurmProvider):
         script_path = "{0}/{1}.submit".format(self.script_dir, job_name)
         script_path = os.path.abspath(script_path)
 
-
         job_config = {}
         job_config["submit_script_dir"] = self.channel.script_dir
         job_config["nodes"] = self.nodes_per_block
@@ -149,7 +148,7 @@ class SlurmProviderVSC(parsl.providers.slurm.slurm.SlurmProvider):
 
         # Execute_wait failed. Do no update
         if retcode != 0:
-            logger.warning("squeue failed with non-zero exit code {}".format(retcode))
+            logger.warning("squeue failed with non-zero exit code {}:".format(retcode))
             return
 
         jobs_missing = set(self.resources.keys())

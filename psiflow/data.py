@@ -318,6 +318,33 @@ def compute_metrics(
 app_compute_metrics = python_app(compute_metrics, executors=['default'])
 
 
+#@typeguard.typechecked
+def replace_energy(
+        elements,
+        inputs=[],
+        outputs=[],
+        ):
+    import numpy as np
+    from ase.data import atomic_numbers
+    from ase.io.extxyz import write_extxyz
+    assert len(inputs) == len(elements) + 1
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    numbers = [atomic_numbers[e] for e in elements]
+    for atoms in data:
+        reference = 0
+        for i in range(len(atoms)):
+            assert atoms.numbers[i] in numbers
+            assert np.sum(atoms.numbers[i] == numbers) == 1
+            index = np.argmax(atoms.numbers[i] == numbers)
+            assert atoms.numbers[i] == numbers[index]
+            reference += inputs[1 + index]
+        assert reference != 0
+        atoms.info['energy'] -= reference
+    with open(outputs[0], 'w') as f:
+        write_extxyz(f, data)
+app_replace_energy = python_app(replace_energy, executors=['default'])
+
+
 @typeguard.typechecked
 class Dataset:
     """Container to represent a dataset of atomic structures
@@ -436,6 +463,17 @@ class Dataset:
 
     def log(self, name):
         logger.info('dataset {} contains {} states'.format(name, self.length().result()))
+
+    def compute_formation_energy(self, **atomic_energies):
+        context = psiflow.context()
+        elements = list(atomic_energies.keys())
+        energies = [atomic_energies[e] for e in elements]
+        data_future = app_replace_energy(
+                elements,
+                inputs=[self.data_future] + energies,
+                outputs=[context.new_file('data_', '.xyz')],
+                ).outputs[0]
+        return Dataset(None, data_future)
 
     @property
     def success(self) -> AppFuture:

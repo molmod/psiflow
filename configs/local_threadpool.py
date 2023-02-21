@@ -25,7 +25,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         omp_num_threads=2,
         mpi_command=lambda x: f'mpirun -np {x}',
         cp2k_exec='cp2k.psmp',
-        walltime=1, # in minutes
+        walltime=3, # in minutes
         )
 
 definitions = {

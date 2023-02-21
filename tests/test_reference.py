@@ -124,6 +124,26 @@ def cp2k_input():
          BASIS_SET TZVP-MOLOPT-PBE-GTH-q1
          POTENTIAL GTH-PBE-q1
       &END KIND
+      &KIND O
+         ELEMENT  O
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q6
+         POTENTIAL GTH-PBE-q6
+      &END KIND
+      &KIND Si
+         ELEMENT  Si
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q4
+         POTENTIAL GTH-PBE-q4
+      &END KIND
+      &KIND C
+         ELEMENT  C
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q4
+         POTENTIAL GTH-PBE-q4
+      &END KIND
+      &KIND Al
+         ELEMENT  Al
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q3
+         POTENTIAL GTH-PBE-q3
+      &END KIND
    &END SUBSYS
 !   &PRINT
 !      &STRESS_TENSOR ON
@@ -363,5 +383,36 @@ def test_cp2k_timeout(context, cp2k_reference):
     assert 'energy' not in evaluated.result().info.keys()
 
 
-#def test_emt_atomic_energies(context, dataset):
-#    
+def test_emt_atomic_energies(context, dataset):
+    reference = EMTReference()
+    for element in ['H', 'Cu']:
+        energy  = reference.get_atomic_energy(element, box_size=5)
+        energy_ = reference.get_atomic_energy(element, box_size=7)
+        assert energy.result() < energy_.result()
+
+
+def test_cp2k_atomic_energies(cp2k_reference, dataset):
+    element = 'H'
+    energy  = cp2k_reference.get_atomic_energy(element, box_size=8)
+    assert abs(energy.result() - (-13.6)) < 1e-1
+    # testing of additional atoms is possible but not really critical
+
+
+def test_data_compute_formation_energy(context, dataset):
+    reference = EMTReference()
+    nstates = dataset.length().result()
+    energies = [dataset[i].result().info['energy'] for i in range(nstates)]
+    dataset_ = dataset.compute_formation_energy(
+            H=reference.get_atomic_energy('H', box_size=8),
+            Cu=reference.get_atomic_energy('Cu', box_size=8),
+            )
+    energies_ = [dataset_[i].result().info['energy'] for i in range(nstates)]
+
+    energy_Cu = reference.get_atomic_energy('Cu', box_size=8).result()
+    energy_H = reference.get_atomic_energy('H', box_size=8).result()
+    assert energy_Cu != 0
+    assert energy_H  != 0
+    assert np.allclose(
+            energies_[0],
+            energies[0] - 3 * energy_Cu - energy_H,
+            )

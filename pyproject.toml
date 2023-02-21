@@ -63,7 +63,7 @@ addopts = [
     "--basetemp=pytest-tmp", # /tmp/ may be different for each worker!
     "--import-mode=importlib",
     "--psiflow-config=configs/local_threadpool.py",
-    "--log-cli-level=WARNING",
+    "--log-cli-level=INFO",
     #"-vv",
 ]
 testpaths = ["tests"]

@@ -1,10 +1,13 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union
 import typeguard
+import copy
 from dataclasses import dataclass, field
 import tempfile
 import shutil
 import logging
+
+from ase.data import atomic_numbers
 
 import parsl
 from parsl.executors import WorkQueueExecutor
@@ -238,6 +241,39 @@ class CP2KReference(BaseReference):
     def __init__(self, cp2k_input: str):
         self.cp2k_input = regularize_input(cp2k_input)
         super().__init__()
+
+    def get_single_atom_references(self, element):
+        from pymatgen.io.cp2k.inputs import Cp2kInput
+        number = atomic_numbers[element]
+        configurations = [
+                {'UKS': 'TRUE', 'MULTIPLICITY': 1},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 2},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 3},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 4},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 5},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 6},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 8},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 9},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 10},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 11},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 12},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 13},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 14},
+                {'UKS': 'TRUE', 'MULTIPLICITY': 15},
+                ]
+        references = []
+        for config in configurations:
+            inp = Cp2kInput.from_string(self.cp2k_input)
+            if config['UKS'] == 'FALSE': # only possible with even #electrons
+                if number % 2 == 0:
+                    pass
+            inp.update({'FORCE_EVAL': {'DFT': {'UKS': config['UKS']}}})
+            inp.update({'FORCE_EVAL': {'DFT': {'MULTIPLICITY': config['MULTIPLICITY']}}})
+            inp.update({'FORCE_EVAL': {'DFT': {'XC': {'VDW_POTENTIAL': {}}}}}) # disable d3
+            reference = self.__class__(str(inp))
+            reference.files = copy.deepcopy(self.files)
+            references.append((config, reference))
+        return references
 
     @property
     def parameters(self):
