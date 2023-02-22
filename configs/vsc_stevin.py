@@ -66,8 +66,7 @@ providers['default'] = provider
 
 # define provider for executing model evaluations (e.g. MD)
 cluster = 'doduo'
-worker_init =  'ml cctools/7.4.16-GCCcore-10.3.0\n'
-worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
+worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_evaluate.ncores)
@@ -90,8 +89,7 @@ providers['model'] = provider
 
 # define provider for executing model training
 cluster = 'accelgor'
-worker_init =  'ml cctools/7.4.16-GCCcore-10.3.0\n'
-worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
+worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
 worker_init += 'unset SLURM_CPUS_PER_TASK\n'
 worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(model_training.ncores)
@@ -125,8 +123,7 @@ providers['training'] = provider
 # The custom mpirun wrapper on the VSC Stevin infrastructure is built
 # using Python 3.6, which does not go well with psiflow and/or CP2K
 cluster = 'doduo'
-worker_init =  'ml cctools/7.4.16-GCCcore-10.3.0\n'
-worker_init += 'ml CP2K/8.2-foss-2021a\n'
+worker_init = 'ml CP2K/8.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 worker_init += 'unset SLURM_CPUS_PER_TASK\n'
 worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(reference_evaluate.ncores)

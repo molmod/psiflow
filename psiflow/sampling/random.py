@@ -17,7 +17,9 @@ def random_perturbation(
         parameters: RandomParameters,
         ) -> Tuple[FlowAtoms, str, int]:
     import numpy as np
+    import copy
     from psiflow.sampling.utils import apply_strain
+    state = copy.deepcopy(state)
     np.random.seed(parameters.seed)
     frac = state.positions @ np.linalg.inv(state.cell)
     strain = np.random.uniform(

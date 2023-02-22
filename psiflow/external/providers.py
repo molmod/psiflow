@@ -149,6 +149,8 @@ class SlurmProviderVSC(parsl.providers.slurm.slurm.SlurmProvider):
         # Execute_wait failed. Do no update
         if retcode != 0:
             logger.warning("squeue failed with non-zero exit code {}:".format(retcode))
+            logger.warning(stdout)
+            logger.warning(stderr)
             return
 
         jobs_missing = set(self.resources.keys())

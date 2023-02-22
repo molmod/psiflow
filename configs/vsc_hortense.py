@@ -63,8 +63,7 @@ providers['default'] = provider
 
 
 # define provider for executing model evaluations (e.g. MD)
-worker_init =  'ml cctools/7.4.16-GCCcore-10.3.0\n'
-worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
+worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_evaluate.ncores)
 provider = SlurmProviderVSC(
@@ -85,8 +84,7 @@ providers['model'] = provider
 
 
 # define provider for executing model training
-worker_init =  'ml cctools/7.4.16-GCCcore-10.3.0\n'
-worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
+worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
 worker_init += 'unset SLURM_CPUS_PER_TASK\n'
 worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(model_training.ncores)
@@ -117,8 +115,7 @@ providers['training'] = provider
 # based on the number of parsl tasks, NOT on the number of MPI tasks for
 # cp2k. Essentially, this means we have to reproduce the environment as
 # if we launched a job using 'qsub -l nodes=1:ppn=cores_per_singlepoint'
-worker_init =  'ml cctools/7.4.16-GCCcore-10.3.0\n'
-worker_init += 'ml vsc-mympirun\n'
+worker_init = 'ml vsc-mympirun\n'
 worker_init += 'ml CP2K/8.2-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 worker_init += 'unset SLURM_CPUS_PER_TASK\n'

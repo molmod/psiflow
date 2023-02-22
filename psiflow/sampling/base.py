@@ -33,7 +33,7 @@ def _conditional_reset(
     else: # reset if unsafe
         if tag == 'unsafe':
             return deepcopy(start), 'safe', 0
-    return state, tag, counter
+    return deepcopy(state), tag, counter
 conditional_reset = python_app(_conditional_reset, executors=['default'])
 
 

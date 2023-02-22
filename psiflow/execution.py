@@ -271,6 +271,8 @@ class ExecutionContextLoader:
                 path_internal,
                 )
         path_internal = Path(path_internal)
+        if not path_internal.is_dir():
+            path_internal.mkdir()
         assert not any(path_internal.iterdir()), '{} should be empty'.format(str(path_internal))
         set_file_logger(path_internal / 'psiflow.log', psiflow_log_level)
         parsl.set_file_logger(str(path_internal / 'parsl.log'), level=parsl_log_level)
