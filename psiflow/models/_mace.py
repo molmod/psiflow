@@ -88,13 +88,13 @@ class MACEConfig:
     amsgrad: bool = True
     scheduler: str = 'ReduceLROnPlateau'
     lr_factor: str = 0.8
-    scheduler_patience: int = 50
+    scheduler_patience: int = 100
     lr_scheduler_gamma: float = 0.9993
     swa: bool = False
     start_swa: Optional[int] = None
     ema: bool = False
     ema_decay: float = 0.99
-    max_num_epochs: int = 2048
+    max_num_epochs: int = int(1e6)
     patience: int = 2048
     eval_interval: int = 2
     keep_checkpoints: bool = False

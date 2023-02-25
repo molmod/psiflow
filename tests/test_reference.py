@@ -256,7 +256,7 @@ def test_cp2k_success(context, cp2k_reference):
             evaluated.result().arrays['forces'],
             atol=1e-5,
             )
-    stress_reference = np.array([
+    stress_reference = -1 * np.array([
         [ 3.00710159e-03,  4.80921129e-07,  4.80921129e-07],
         [ 4.80921129e-07, -5.92990320e-05,  1.00902101e-06],
         [ 4.80921129e-07,  1.00902101e-06, -5.92990320e-05]])

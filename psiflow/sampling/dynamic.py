@@ -28,7 +28,7 @@ def simulate_model(
         load_calculator: Callable,
         keep_trajectory: bool = False,
         plumed_input: str = '',
-        inputs: List[File] =[],
+        inputs: List[File] = [],
         outputs: List[File] = [],
         walltime: float = 1e12, # infinite by default
         stdout: str = '',
@@ -143,10 +143,6 @@ def simulate_model(
             print(e)
             print('tagging sample as unsafe')
             tag = 'unsafe'
-            if len(plumed_input) > 0:
-                if len(inputs) > 1:
-                    with open(inputs[1], 'w') as f: # reset hills
-                        f.write(backup_data)
             try:
                 counter = verlet.counter
             except UnboundLocalError: # if it happened during verlet init
@@ -177,6 +173,11 @@ def simulate_model(
                     initial.get_positions(),
                     state.get_positions(),
                     )
+        if state_is_reset:
+            if len(plumed_input) > 0:
+                if len(inputs) > 1:
+                    with open(inputs[1], 'w') as f: # reset hills
+                        f.write(backup_data)
         if counter_is_reset: assert state_is_reset
         if state_is_reset and (pars.step == 1): assert counter_is_reset
     return FlowAtoms.from_atoms(state), tag, counter
@@ -271,8 +272,8 @@ class DynamicWalker(BaseWalker):
                 outputs.append(file)
             if bias is not None:
                 plumed_input = bias.prepare_input()
-                inputs += list(bias.data_futures.values())
-                outputs += [File(f.filepath) for f in bias.data_futures.values()]
+                inputs += bias.futures
+                outputs += [File(f.filepath) for f in bias.futures]
             else:
                 plumed_input = ''
             result = app_propagate(

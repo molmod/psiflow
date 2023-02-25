@@ -13,6 +13,7 @@ from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import DynamicWalker, PlumedBias
 from psiflow.generator import Generator
 from psiflow.state import load_state
+from psiflow.wandb_utils import WandBLogger
 
 
 def get_bias():

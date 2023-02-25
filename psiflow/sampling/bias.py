@@ -209,19 +209,11 @@ class PlumedBias:
             if (key not in self.data_futures.keys()) and (key in PlumedBias.keys_with_future):
                 assert key != 'EXTERNAL' # has to be initialized by user
                 self.data_futures[key] = save_txt(
-                        '',
-                        outputs=[context.new_file(key + '_', '.txt')],
-                        ).outputs[0]
-        for key, value in self.data_futures.items():
-            if isinstance(value, File): # convert to DataFuture for consistency
-                self.data_futures[key] = copy_data_future(
-                        inputs=[value],
+                        ' ',
                         outputs=[context.new_file(key + '_', '.txt')],
                         ).outputs[0]
         if 'METAD' in self.keys:
             self.data_futures.move_to_end('METAD', last=False)
-        #for key, value in self.data_futures.items(): # some are empty
-        #    create_if_empty(outputs=[value]).result()
 
     def evaluate(self, dataset: Dataset, variable: str) -> AppFuture:
         assert variable in [c[1] for c in self.components]
@@ -268,8 +260,10 @@ class PlumedBias:
         for key, future in self.data_futures.items():
             new_futures[key] = copy_data_future(
                     inputs=[future],
-                    outputs=[context.new_file('bias_', '.txt')],
+                    outputs=[context.new_file(key + '_', '.txt')],
                     ).outputs[0]
+        if len(new_futures) == 0: # let constructor take care of it
+            new_futures = None
         return PlumedBias(self.plumed_input, data=new_futures)
 
     def adjust_restraint(self, variable: str, kappa: float, center: float) -> None:

@@ -47,6 +47,7 @@ providers = {}
 cluster = 'doduo'
 worker_init = ''
 worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
+worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 provider = SlurmProviderVSC(
         cluster=cluster,
@@ -58,6 +59,7 @@ provider = SlurmProviderVSC(
         max_blocks=1,           # do not use more than one block
         walltime='00:15:00',    # walltime per block
         worker_init=worker_init,
+        scheduler_options='#SBATCH --export=NONE\n',
         cmd_timeout=20,
         exclusive=False,
         )
@@ -81,6 +83,7 @@ provider = SlurmProviderVSC(
         parallelism=1,
         walltime='02:00:00',
         worker_init=worker_init,
+        scheduler_options='#SBATCH --export=NONE\n',
         cmd_timeout=20,
         exclusive=False,
         )
@@ -109,7 +112,7 @@ provider = SlurmProviderVSC(
         walltime='01:05:00',
         worker_init=worker_init,
         cmd_timeout=20,
-        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n', # request gpu
+        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n#SBATCH --export=NONE\n', # request gpu
         exclusive=False,
         )
 providers['training'] = provider
@@ -141,6 +144,7 @@ provider = SlurmProviderVSC(
         parallelism=1,
         walltime='01:00:00',
         worker_init=worker_init,
+        scheduler_options='#SBATCH --export=NONE\n',
         cmd_timeout=20,
         exclusive=False,
         )

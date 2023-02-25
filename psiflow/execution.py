@@ -266,11 +266,13 @@ class ExecutionContextLoader:
             ) -> ExecutionContext:
         if cls._context is not None:
             raise RuntimeError('ExecutionContext has already been loaded')
+        # convert all paths into absolute paths as this is necssary when using
+        # WQ executor with shared_fs=True
+        path_internal = Path(path_internal).resolve()
         config, definitions = get_psiflow_config_from_file(
                 path_config,
                 path_internal,
                 )
-        path_internal = Path(path_internal)
         if not path_internal.is_dir():
             path_internal.mkdir()
         assert not any(path_internal.iterdir()), '{} should be empty'.format(str(path_internal))

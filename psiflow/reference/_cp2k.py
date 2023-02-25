@@ -216,6 +216,7 @@ def cp2k_singlepoint_post(
         energy_ = out.data['total_energy'][0] # already in eV
         forces_ = np.array(out.data['forces'][0]) * (Hartree / Bohr) # to eV/A
         stress_ = np.array(out.data['stress_tensor'][0]) * (1e9 * Pascal)
+        stress_ *= (-1.0) # cp2k uses opposite sign convention!
         atoms.info['energy'] = energy_
         atoms.info['stress'] = stress_
         atoms.arrays['forces'] = forces_

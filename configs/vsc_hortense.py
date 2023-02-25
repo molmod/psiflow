@@ -45,6 +45,7 @@ cluster = 'dodrio' # all partitions reside on a single cluster
 # each of the workers in this executor is single-core;
 # they do basic processing stuff (reading/writing data/models, ... )
 worker_init =  'ml PLUMED/2.7.2-foss-2021a\n'
+worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 provider = SlurmProviderVSC(       # one block == one slurm job to submit
         cluster=cluster,
@@ -64,6 +65,7 @@ providers['default'] = provider
 
 # define provider for executing model evaluations (e.g. MD)
 worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
+worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_evaluate.ncores)
 provider = SlurmProviderVSC(
@@ -85,6 +87,7 @@ providers['model'] = provider
 
 # define provider for executing model training
 worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
+worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
 worker_init += 'unset SLURM_CPUS_PER_TASK\n'
 worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(model_training.ncores)
@@ -117,13 +120,13 @@ providers['training'] = provider
 # if we launched a job using 'qsub -l nodes=1:ppn=cores_per_singlepoint'
 worker_init = 'ml vsc-mympirun\n'
 worker_init += 'ml CP2K/8.2-foss-2021a\n'
+worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
 worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
 worker_init += 'unset SLURM_CPUS_PER_TASK\n'
 worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(reference_evaluate.ncores)
 worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(reference_evaluate.ncores)
 worker_init += 'export SLURM_NTASKS={}\n'.format(reference_evaluate.ncores)
 worker_init += 'export SLURM_NPROCS={}\n'.format(reference_evaluate.ncores)
-#worker_init += 'export OMP_NUM_THREADS=1\n'
 provider = SlurmProviderVSC(
         cluster=cluster,
         partition='cpu_rome',
