@@ -150,7 +150,8 @@ class SequentialLearning(BaseLearning):
             data_train.log('data_train')
             data_valid.log('data_valid')
             model.train(data_train, data_valid)
-            self.flow_manager.save(
+            save_state(
+                    self.path_output,
                     name=str(i),
                     model=model,
                     generators=generators,

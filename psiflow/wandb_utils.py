@@ -217,7 +217,7 @@ class WandBLogger:
             self,
             run_name: str,
             model: BaseModel,
-            generators: list[Generator],
+            generators: Optional[list[Generator]] = None,
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
@@ -326,15 +326,18 @@ def _to_wandb(
         if name in ['training', 'validation', 'failed']:
             errors_to_plot = [] # check which error labels are present
             for l in data[0]:
-                if l.endswith('energy'):
-                    errors_to_plot.append(l + ' [meV/atom]')
-                if l.endswith('forces'):
-                    errors_to_plot.append(l + ' [meV/A]')
-                if l.endswith('stress'):
-                    errors_to_plot.append(l + ' [MPa]')
+                if l.endswith('energy') or l.endswith('forces') or l.endswith('stress'):
+                    errors_to_plot.append(l)
+            #for l in data[0]:
             assert error_x_axis in data[0]
             for error in errors_to_plot:
                 title = name + '_' + error
+                if error.endswith('energy'):
+                    title += ' [meV/atom]'
+                if error.endswith('forces'):
+                    title += ' [meV/A]'
+                if error.endswith('stress'):
+                    title += ' [MPa]'
                 wandb_log[title] = wandb.plot.scatter(
                         table,
                         error_x_axis,
