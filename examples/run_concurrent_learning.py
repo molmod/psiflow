@@ -6,7 +6,7 @@ import numpy as np
 from ase.io import read
 
 import psiflow
-from psiflow.learning import SequentialLearning, load_learning
+from psiflow.learning import ConcurrentLearning, load_learning
 from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
@@ -66,12 +66,12 @@ def main(path_output):
     # set up wandb logging
     wandb_logger = WandBLogger(
             wandb_project='psiflow',
-            wandb_group='run_sequential',
+            wandb_group='run_concurrent',
             error_x_axis='CV',  # plot errors against PLUMED 'ARG=CV'
             )
 
     # set learning parameters
-    learning = SequentialLearning(
+    learning = ConcurrentLearning(
             path_output=path_output,
             niterations=10,
             retrain_model_per_iteration=True,
