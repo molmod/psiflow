@@ -98,11 +98,11 @@ class BaseLearning:
             if require_done:
                 log.result() # force execution
 
-    def compute_atomic_energies(self, reference):
+    def compute_atomic_energies(self, reference, data):
         if self.atomic_energies is None:
             logger.info('computing energies of isolated atoms:')
             self.atomic_energies = {}
-            for element in initial_data.elements().result():
+            for element in data.elements().result():
                 energy = reference.get_atomic_energy(
                         element,
                         self.atomic_energies_box_size,
@@ -125,7 +125,7 @@ class BaseLearning:
         assert initial_data.length().result() > 0
         logger.info('performing random pretraining')
         if self.use_formation_energy:
-            self.compute_atomic_energies(reference)
+            self.compute_atomic_energies(reference, initial_data)
         walker = RandomWalker( # create walker for state i in initial data
                 initial_data[0],
                 amplitude_pos=amplitude_pos,
@@ -185,7 +185,8 @@ class SequentialLearning(BaseLearning):
         if data_valid is None:
             data_valid = Dataset([])
         if self.use_formation_energy:
-            self.compute_atomic_energies(reference)
+            data = Dataset([g.walker.state_future for g in generators])
+            self.compute_atomic_energies(reference, data)
         assert model.model_future is not None, ('model has to be initialized '
                 'before running batch learning')
         for i in range(self.niterations):
@@ -242,7 +243,8 @@ class ConcurrentLearning(BaseLearning):
         if self.wandb_logger is not None:
             self.wandb_logger.insert_name(model)
         if self.use_formation_energy:
-            self.compute_atomic_energies(reference)
+            data = Dataset([g.walker.state_future for g in generators])
+            self.compute_atomic_energies(reference, data)
         @join_app
         def delayed_deploy(model, wait_for_it):
             model.deploy()
