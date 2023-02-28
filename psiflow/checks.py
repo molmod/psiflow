@@ -180,10 +180,8 @@ class DiscrepancyCheck(Check):
             state: AppFuture,
             tag: Optional[AppFuture] = None,
             ) -> AppFuture:
-        assert self.model_old is not None
-        assert self.model_old.config_future is not None
-        assert self.model_new is not None
-        assert self.model_new.config_future is not None
+        if (self.model_old is None) or (self.model_new is None):
+            return state
         dataset = Dataset([state]) # dummy
         errors = Dataset.get_errors(
                 self.model_old.evaluate(dataset),
@@ -197,7 +195,7 @@ class DiscrepancyCheck(Check):
         assert model.config_future is not None # initialized
         assert len(model.deploy_future) > 0 # and deployed
         self.model_old = self.model_new
-        self.model_new = model
+        self.model_new = model.copy()
 
     def save(self, path: Union[Path, str], require_done: bool = True) -> None:
         path = Path(path)

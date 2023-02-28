@@ -318,7 +318,7 @@ def compute_metrics(
 app_compute_metrics = python_app(compute_metrics, executors=['default'])
 
 
-#@typeguard.typechecked
+@typeguard.typechecked
 def replace_energy(
         elements,
         inputs=[],
@@ -343,6 +343,15 @@ def replace_energy(
     with open(outputs[0], 'w') as f:
         write_extxyz(f, data)
 app_replace_energy = python_app(replace_energy, executors=['default'])
+
+
+@typeguard.typechecked
+def get_elements(inputs=[]):
+    from ase.data import chemical_symbols
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    numbers = set([n for a in data for n in a.numbers])
+    return [chemical_symbols[n] for n in numbers]
+app_get_elements = python_app(get_elements, executors=['default'])
 
 
 @typeguard.typechecked
@@ -474,6 +483,9 @@ class Dataset:
                 outputs=[context.new_file('data_', '.xyz')],
                 ).outputs[0]
         return Dataset(None, data_future)
+
+    def elements(self):
+        return app_get_elements(inputs=[self.data_future])
 
     @property
     def success(self) -> AppFuture:

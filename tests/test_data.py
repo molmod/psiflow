@@ -169,3 +169,9 @@ def test_dataset_gather(context, dataset):
                 dataset[index].result().positions,
                 gathered[i].result().positions,
                 )
+
+
+def test_data_elements(context, dataset):
+    assert 'H' in dataset.elements().result()
+    assert 'Cu' in dataset.elements().result()
+    assert len(dataset.elements().result()) == 2

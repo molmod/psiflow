@@ -53,6 +53,14 @@ def test_discrepancy_check(context, dataset, nequip_config, tmp_path):
     assert type(check_) == DiscrepancyCheck
     assert check_.model_old.config_raw['seed'] == 123
     assert check_.model_new.config_raw['seed'] == 111
+    check = DiscrepancyCheck(
+            metric='mae',
+            properties=['energy', 'forces'],
+            thresholds=[1e6, 1e6], # never exceeded, except when models are None
+            model_old=model_old,
+            model_new=None,
+            )
+    assert check(dataset[7]).result() is not None
 
 
 def test_safety_check(context, dataset, tmp_path):

@@ -79,6 +79,7 @@ def main(path_output):
             pretraining_amplitude_box=0.05,
             pretraining_nstates=50,
             train_valid_split=0.9,
+            use_formation_energies=True,
             wandb_logger=wandb_logger,
             )
     data_train, data_valid = learning.run_pretraining(

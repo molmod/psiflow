@@ -7,7 +7,9 @@ from pathlib import Path
 import yaml
 import logging
 
+from concurrent.futures._base import TimeoutError
 from concurrent.futures import as_completed
+from parsl.app.app import join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
@@ -18,7 +20,7 @@ from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
 from psiflow.sampling import RandomWalker, PlumedBias
 from psiflow.generator import Generator
-from psiflow.checks import Check
+from psiflow.checks import Check, DiscrepancyCheck
 from psiflow.state import save_state, load_state
 
 
@@ -34,6 +36,9 @@ class BaseLearning:
     pretraining_amplitude_pos: float = 0.05
     pretraining_amplitude_box: float = 0.05
     wandb_logger: Optional[WandBLogger] = None
+    use_formation_energy: bool = True
+    atomic_energies: Optional[dict[str, float]] = None
+    atomic_energies_box_size: float = 10
 
     def __post_init__(self) -> None: # save self in output folder
         self.path_output = Path(self.path_output)
@@ -52,6 +57,62 @@ class BaseLearning:
     def output_exists(self, name):
         return (self.path_output / name).is_dir()
 
+    def finalize(
+            self,
+            name,
+            model,
+            generators,
+            data_train,
+            data_valid,
+            data_failed,
+            checks=None,
+            require_done=False,
+            ):
+        save_state(
+                self.path_output,
+                name=name,
+                model=model,
+                generators=generators,
+                data_train=data_train,
+                data_valid=data_valid,
+                data_failed=data_failed,
+                require_done=False,
+                )
+        if checks is not None:
+            for check in checks:
+                if isinstance(check, DiscrepancyCheck):
+                    if len(model.deploy_future) == 0:
+                        model.deploy()
+                    check.update_model(model)
+        if self.wandb_logger is not None:
+            if generators is not None:
+                bias = generators[0].bias
+            log = self.wandb_logger( # log training
+                    run_name=name,
+                    model=model,
+                    generators=generators,
+                    data_train=data_train,
+                    data_valid=data_valid,
+                    bias=bias,
+                    )
+            if require_done:
+                log.result() # force execution
+
+    def compute_atomic_energies(self, reference):
+        if self.atomic_energies is None:
+            logger.info('computing energies of isolated atoms:')
+            self.atomic_energies = {}
+            for element in initial_data.elements().result():
+                energy = reference.get_atomic_energy(
+                        element,
+                        self.atomic_energies_box_size,
+                        )
+                self.atomic_energies[element] = energy
+        else:
+            logger.info('found the following atomic energies in learning config')
+            for element, energy in self.atomic_energies.items():
+                logger.info('\t{}: {} eV'.format(element, energy.result()))
+
     def run_pretraining(
             self,
             model: BaseModel,
@@ -61,7 +122,10 @@ class BaseLearning:
         nstates = self.pretraining_nstates
         amplitude_pos = self.pretraining_amplitude_pos
         amplitude_box = self.pretraining_amplitude_box
+        assert initial_data.length().result() > 0
         logger.info('performing random pretraining')
+        if self.use_formation_energy:
+            self.compute_atomic_energies(reference)
         walker = RandomWalker( # create walker for state i in initial data
                 initial_data[0],
                 amplitude_pos=amplitude_pos,
@@ -74,6 +138,8 @@ class BaseLearning:
         states = [generator(None, reference) for generator in generators]
         data = Dataset(states)
         data_success = data.get(indices=data.success)
+        if self.use_formation_energy: # replace absolute with relative energies
+            data_success = data_success.compute_formation_energy(**self.atomic_energies)
         train, valid = get_train_valid_indices(
                 data_success.length(), # can be less than nstates
                 self.train_valid_split,
@@ -85,25 +151,15 @@ class BaseLearning:
         model.initialize(data_train)
         model.train(data_train, data_valid)
         model.deploy()
-        save_state(
-                self.path_output,
+        self.finalize(
                 name='random_pretraining',
                 model=model,
                 generators=generators,
                 data_train=data_train,
                 data_valid=data_valid,
                 data_failed=data.get(indices=data.failed),
-                require_done=False,
+                require_done=True,
                 )
-        if self.wandb_logger is not None:
-            log = self.wandb_logger( # log training
-                    run_name='random_pretraining',
-                    model=model,
-                    generators=generators,
-                    data_train=data_train,
-                    data_valid=data_valid,
-                    )
-            log.result() # force execution
         return data_train, data_valid
 
 
@@ -128,6 +184,8 @@ class SequentialLearning(BaseLearning):
             data_train = Dataset([])
         if data_valid is None:
             data_valid = Dataset([])
+        if self.use_formation_energy:
+            self.compute_atomic_energies(reference)
         assert model.model_future is not None, ('model has to be initialized '
                 'before running batch learning')
         for i in range(self.niterations):
@@ -137,6 +195,8 @@ class SequentialLearning(BaseLearning):
             states = [g(model, reference, checks) for g in generators]
             data = Dataset(states)
             data_success = data.get(indices=data.success)
+            if self.use_formation_energy: # replace absolute with relative energies
+                data_success = data_success.compute_formation_energy(**self.atomic_energies)
             train, valid = get_train_valid_indices(
                     data_success.length(),
                     self.train_valid_split,
@@ -150,26 +210,16 @@ class SequentialLearning(BaseLearning):
             data_train.log('data_train')
             data_valid.log('data_valid')
             model.train(data_train, data_valid)
-            save_state(
-                    self.path_output,
+            self.finalize(
                     name=str(i),
                     model=model,
                     generators=generators,
                     data_train=data_train,
                     data_valid=data_valid,
                     data_failed=data.get(indices=data.failed),
-                    require_done=False,
+                    checks=checks,
+                    require_done=True,
                     )
-            if self.wandb_logger is not None:
-                log = self.wandb_logger( # log training
-                        run_name=str(i),
-                        model=model,
-                        generators=generators,
-                        data_train=data_train,
-                        data_valid=data_valid,
-                        bias=generators[0].bias, # possibly None
-                        )
-                log.result() # necessary to force execution of logging app
         return data_train, data_valid
 
 
@@ -191,6 +241,8 @@ class ConcurrentLearning(BaseLearning):
             ) -> tuple[Dataset, Dataset]:
         if self.wandb_logger is not None:
             self.wandb_logger.insert_name(model)
+        if self.use_formation_energy:
+            self.compute_atomic_energies(reference)
         @join_app
         def delayed_deploy(model, wait_for_it):
             model.deploy()
@@ -205,6 +257,8 @@ class ConcurrentLearning(BaseLearning):
         model.deploy()
         states = []
         for i in range(self.niterations):
+            if self.output_exists(str(i)):
+                continue # skip iterations in case of restarted run
             for j, generator in enumerate(generators):
                 if i > 0: # wait for previous to get latest model
                     index = (i - 1) * ngenerators + j
@@ -212,17 +266,26 @@ class ConcurrentLearning(BaseLearning):
                 else:
                     wait_for_it = []
                 states.append(generator(model, reference, checks, wait_for_it))
-            retrain_threshold = i * self.retrain_threshold
+
+            # finish previous training before gathering data
+            model.model_future.result()
+
+            # gather finished data, with a minimum of retrain_threshold
+            retrain_threshold = (i + 1) * self.retrain_threshold
             for k, _ in enumerate(as_completed(states)):
                 if k > retrain_threshold:
                     break # wait until at least retrain_threshold have completed
+            completed = []
             try:
-                completed = list(as_completed(states), timeout=2)
+                for k, future in enumerate(as_completed(states, timeout=5)):
+                    completed.append(future)
             except TimeoutError:
                 pass
             logger.info('building dataset with {} states'.format(len(completed)))
             data = Dataset(completed)
             data_success = data.get(indices=data.success) # should be all of them?
+            if self.use_formation_energy: # replace absolute with relative energies
+                data_success = data_success.compute_formation_energy(**self.atomic_energies)
             train, valid = get_train_valid_indices(
                     data_success.length(), # can be less than nstates
                     self.train_valid_split,
@@ -237,12 +300,15 @@ class ConcurrentLearning(BaseLearning):
             # save model obtained from this iteration
             model_ = model.copy()
             model_.deploy()
-            save_state(
-                    name='model_{}'.format(counter),
-                    model=model_, # save model and its training data
+            self.finalize(
+                    name=str(i),
+                    model=model,
+                    generators=generators,
                     data_train=data_train,
                     data_valid=data_valid,
-                    require_done=False, # only completes when model is trained
+                    data_failed=data.get(indices=data.failed),
+                    checks=checks,
+                    require_done=False,
                     )
 
 
