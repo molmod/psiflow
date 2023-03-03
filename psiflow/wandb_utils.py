@@ -192,11 +192,12 @@ def log_generators(generators: list[Generator]) -> AppFuture:
                     ))
             else:
                 inputs.append(False)
+        assert len(inputs) == len(generators) * (len(variables) + 2)
     else:
+        assert len(inputs) == len(generators)
         bias_labels = None
 
     # double check inputs contains tag info + bias info
-    assert len(inputs) == len(generators) * (len(variables) + 2)
     return app_log_generators(
             generator_names=generator_names,
             bias_labels=bias_labels,
