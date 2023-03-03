@@ -573,7 +573,8 @@ class MACEModel(BaseModel):
                 cache=False,
                 )
         def evaluate_wrapped(deploy_future, inputs=[], outputs=[]):
-            assert model_dtype in deploy_future.keys()
+            assert model_dtype in deploy_future.keys(), ('model is not '
+                    'deployed; use model.deploy() before using model.evaluate()')
             inputs.append(deploy_future[model_dtype])
             return evaluate_unwrapped(
                     model_device,
