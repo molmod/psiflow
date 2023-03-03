@@ -278,7 +278,12 @@ class ConcurrentLearning(BaseLearning):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
             for j, generator in enumerate(generators):
-                state = generator(model, reference, checks, [queue[j]])
+                queued_future = queue[j]
+                if queued_future is not None:
+                    wait_for_it = [queued_future]
+                else:
+                    wait_for_it = []
+                state = generator(model, reference, checks, wait_for_it)
                 queue[j] = state
                 states.append(state)
 
