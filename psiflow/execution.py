@@ -87,7 +87,7 @@ def get_psiflow_config_from_file(
         path_internal: Union[Path, str],
         ) -> tuple[Config, dict]:
     path_config = Path(path_config)
-    assert path_config.is_file()
+    assert path_config.is_file(), 'cannot find psiflow config at {}'.format(path_config)
     # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
     spec = importlib.util.spec_from_file_location('module.name', path_config)
     psiflow_config_module = importlib.util.module_from_spec(spec)

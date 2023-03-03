@@ -5,7 +5,7 @@ import os
 from concurrent.futures import as_completed
 
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.sampling import DynamicWalker
+from psiflow.sampling import DynamicWalker, PlumedBias
 from psiflow.models import MACEModel
 from psiflow.checks import SafetyCheck
 from psiflow.reference import EMTReference
@@ -154,3 +154,30 @@ def test_generator_multiply(context, dataset, mace_config, tmp_path):
     dataset = Dataset(states)
     dataset.length().result()
     assert len(checks[0].states) == 2
+
+
+def test_generator_distribute(context, dataset):
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=50 KAPPA=1000 LABEL=umbrella
+"""
+    bias = PlumedBias(plumed_input)
+    values = bias.evaluate(dataset).result()[:, 0]
+    walker = DynamicWalker(dataset[0], steps=10, step=1)
+    generator = Generator('U', walker, bias)
+    generators = generator.distribute(
+            variable='CV',
+            kappa=1000,
+            min_value=np.min(values),
+            max_value=np.max(values),
+            ngenerators=20,
+            initialize_using=dataset,
+            )
+    new_values = bias.evaluate(
+            Dataset([g.walker.start_future for g in generators]),
+            ).result()[:, 0]
+    assert np.allclose(
+            new_values,
+            np.sort(new_values),
+            )

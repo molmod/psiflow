@@ -3,6 +3,7 @@ from typing import Optional, Union
 import typeguard
 import copy
 from dataclasses import dataclass, field
+from pathlib import Path
 import tempfile
 import shutil
 import logging
@@ -25,19 +26,29 @@ from .base import BaseReference
 logger = logging.getLogger(__name__) # logging per module
 
 
-#@typeguard.typechecked
+@typeguard.typechecked
 def insert_filepaths_in_input(
         cp2k_input: str,
-        files: dict[str, Union[str, list[str]]]) -> str:
+        files: dict[str, Union[str, Path, File]]) -> str:
     from pymatgen.io.cp2k.inputs import Cp2kInput, Keyword, KeywordList
     inp = Cp2kInput.from_string(cp2k_input)
+    # merge basis set files into list
+    basis = []
+    for name in list(files.keys()):
+        if name.startswith('basis'):
+            basis.append(files.pop(name)) # delete key from dict
+    files['basis'] = basis
     for name, path in files.items():
-        if name == 'basis_set':
+        if name == 'basis':
             key = 'BASIS_SET_FILE_NAME'
         elif name == 'potential':
             key = 'POTENTIAL_FILE_NAME'
         elif name == 'dftd3':
             key = 'PARAMETER_FILE_NAME'
+        elif name == 'tcg_data':
+            key = 'T_C_G_DATA'
+        else:
+            raise ValueError('input file {} not recognized'.format(name))
 
         if isinstance(path, list): # set as KeywordList
             keywords = []
@@ -53,6 +64,11 @@ def insert_filepaths_in_input(
         elif key == 'PARAMETER_FILE_NAME':
             inp.update(
                     {'FORCE_EVAL': {'DFT': {'XC': {'VDW_POTENTIAL': {'PAIR_POTENTIAL': {key: to_add}}}}}},
+                    strict=True,
+                    )
+        elif key == 'T_C_G_DATA':
+            inp.update(
+                    {'FORCE_EVAL': {'DFT': {'XC': {'HF': {'INTERACTION_POTENTIAL': {key: to_add}}}}}},
                     strict=True,
                     )
         else:
@@ -344,3 +360,30 @@ class CP2KReference(BaseReference):
                     )
         context.register_app(cls, 'evaluate_single', singlepoint_wrapped)
         super(CP2KReference, cls).create_apps()
+
+
+@typeguard.typechecked
+class HybridCP2KReference(CP2KReference):
+    required_files = [
+            'basis_set',
+            'basis_admm',
+            'potential',
+            'dftd3',
+            'tcg_data',
+            ]
+
+
+@typeguard.typechecked
+class MP2CP2KReference(HybridCP2KReference):
+    required_files = [
+            'basis_ccgrb',
+            'basis_ri',
+            'basis_admm',
+            'potential',
+            'tcg_data',
+            ]
+
+
+@typeguard.typechecked
+class DoubleHybridCP2KReference(MP2CP2KReference):
+    pass # no extra files required

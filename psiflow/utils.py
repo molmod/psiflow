@@ -41,6 +41,7 @@ def set_file_logger( # hacky
             'psiflow.models._mace',
             'psiflow.models._nequip',
             'psiflow.reference._cp2k',
+            'psiflow.sampling.bias',
             ]
     for name in names:
         logger = logging.getLogger(name)

@@ -1,7 +1,8 @@
 from psiflow.external import SlurmProviderVSC # fixed SlurmProvider
 
 from psiflow.models import MACEModel, NequIPModel, AllegroModel
-from psiflow.reference import CP2KReference
+from psiflow.reference import CP2KReference, HybridCP2KReference, \
+        MP2CP2KReference, DoubleHybridCP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
 from psiflow.execution import generate_parsl_config
@@ -34,6 +35,9 @@ definitions = {
         NequIPModel: [model_evaluate, model_training],
         AllegroModel: [model_evaluate, model_training],
         CP2KReference: [reference_evaluate],
+        MP2CP2KReference: [reference_evaluate],
+        HybridReference: [reference_evaluate],
+        DoubleHybridReference: [reference_evaluate],
         }
 
 

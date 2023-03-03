@@ -2,6 +2,7 @@ from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union
 import typeguard
 import logging
+import numpy as np
 from pathlib import Path
 import os
 
@@ -209,6 +210,45 @@ class Generator:
             else:
                 bias_ = None
             generators.append(Generator(self.name + str(i), walker_, bias_))
+        return generators
+
+    def distribute(
+            self,
+            variable: str,
+            kappa: float,
+            min_value: float,
+            max_value: float,
+            ngenerators: int,
+            initialize_using: Optional[Dataset] = None,
+            ):
+        assert self.bias is not None
+        assert variable in self.bias.variables
+        assert 'RESTRAINT' in self.bias.keys # has to be umbrella sampling
+        if initialize_using is not None:
+            targets = np.linspace(min_value, max_value, num=ngenerators, endpoint=True)
+            data = self.bias.extract_grid(
+                    initialize_using,
+                    variable,
+                    targets=targets,
+                    )
+            assert data.length().result() == ngenerators, ('could not find '
+                    'states for all of the CV values: {} '.format(targets))
+        else:
+            data = None
+        assert ngenerators > 1
+        generators = []
+        step_value = (max_value - min_value) / (ngenerators - 1)
+        for i in range(ngenerators):
+            walker_ = self.walker.copy()
+            walker_.parameters.seed = i
+            if data is not None:
+                walker_.state_future = copy_app_future(data[i])
+                walker_.start_future = copy_app_future(data[i])
+            bias_ = self.bias.copy()
+            center = min_value + i * step_value
+            bias_.adjust_restraint(variable, kappa, center)
+            name = self.name + str(i)
+            generators.append(Generator(name, walker_, bias_))
         return generators
 
 

@@ -99,6 +99,16 @@ class BaseLearning:
                 log.result() # force execution
 
     def compute_atomic_energies(self, reference, data):
+        @join_app
+        def log_and_save_energies(path_learning, elements, *energies):
+            logger.info('atomic energies:')
+            for element, energy in zip(elements, energies):
+                logger.info('\t{}: {} eV'.format(element, energy))
+            with open(path_learning, 'r') as f:
+                config = yaml.load(f, Loader=yaml.FullLoader)
+            config['atomic_energies'] = {el: en for el, en in zip(elements, energies)}
+            return save_yaml(config, outputs=[File(path_config)])
+
         if self.atomic_energies is None:
             logger.info('computing energies of isolated atoms:')
             self.atomic_energies = {}
@@ -108,6 +118,11 @@ class BaseLearning:
                         self.atomic_energies_box_size,
                         )
                 self.atomic_energies[element] = energy
+            log_and_save_energies(
+                    self.path_output / (self.__class__.__name__ + '.yaml'),
+                    list(atomic_energies.keys()),
+                    list(atomic_energies.values()),
+                    )
         else:
             logger.info('found the following atomic energies in learning config')
             for element, energy in self.atomic_energies.items():
@@ -258,16 +273,14 @@ class ConcurrentLearning(BaseLearning):
 
         model.deploy()
         states = []
+        queue  = [None for i in range(ngenerators)]
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
             for j, generator in enumerate(generators):
-                if i > 0: # wait for previous to get latest model
-                    index = (i - 1) * ngenerators + j
-                    wait_for_it = [states[index]]
-                else:
-                    wait_for_it = []
-                states.append(generator(model, reference, checks, wait_for_it))
+                state = generator(model, reference, checks, [queue[j]])
+                queue[j] = state
+                states.append(state)
 
             # finish previous training before gathering data
             model.model_future.result()
@@ -281,6 +294,7 @@ class ConcurrentLearning(BaseLearning):
             try:
                 for k, future in enumerate(as_completed(states, timeout=5)):
                     completed.append(future)
+                    states.remove(future)
             except TimeoutError:
                 pass
             logger.info('building dataset with {} states'.format(len(completed)))
@@ -292,8 +306,8 @@ class ConcurrentLearning(BaseLearning):
                     data_success.length(), # can be less than nstates
                     self.train_valid_split,
                     )
-            data_train = data_success.get(indices=train)
-            data_valid = data_success.get(indices=valid)
+            data_train.append(data_success.get(indices=train))
+            data_valid.append(data_success.get(indices=valid))
             data_train.log('data_train')
             data_valid.log('data_valid')
             model.train(data_train, data_valid, keep_deployed=True)
@@ -312,6 +326,7 @@ class ConcurrentLearning(BaseLearning):
                     checks=checks,
                     require_done=False,
                     )
+        return data_train, data_valid
 
 
 @typeguard.typechecked

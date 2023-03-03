@@ -320,10 +320,10 @@ app_compute_metrics = python_app(compute_metrics, executors=['default'])
 
 @typeguard.typechecked
 def replace_energy(
-        elements,
-        inputs=[],
-        outputs=[],
-        ):
+        elements: list[str],
+        inputs: list[Union[File, float]] = [],
+        outputs: list[File] = [],
+        ) -> None:
     import numpy as np
     from ase.data import atomic_numbers
     from ase.io.extxyz import write_extxyz
@@ -346,7 +346,7 @@ app_replace_energy = python_app(replace_energy, executors=['default'])
 
 
 @typeguard.typechecked
-def get_elements(inputs=[]):
+def get_elements(inputs: list[File] = []) -> list[str]:
     from ase.data import chemical_symbols
     data = read_dataset(slice(None), inputs=[inputs[0]])
     numbers = set([n for a in data for n in a.numbers])

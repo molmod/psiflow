@@ -14,7 +14,7 @@ from ase.io.extxyz import write_extxyz
 
 import psiflow
 from psiflow.data import FlowAtoms
-from psiflow.reference import EMTReference, CP2KReference
+from psiflow.reference import EMTReference, CP2KReference, MP2CP2KReference
 from psiflow.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
 from psiflow.data import Dataset
@@ -186,7 +186,8 @@ def test_reference_emt(context, dataset, tmp_path):
 
 def test_cp2k_insert_filepaths(fake_cp2k_input):
     filepaths = {
-            'basis_set': ['basisset0', 'basisset1'],
+            'basis_set': 'basisset0',
+            'basis_giggle': 'basisset1',
             'potential': 'potential',
             'dftd3': 'parameter',
             }
@@ -197,9 +198,9 @@ def test_cp2k_insert_filepaths(fake_cp2k_input):
    &DFT
       UKS  F
       MULTIPLICITY  1
+      POTENTIAL_FILE_NAME  potential
       BASIS_SET_FILE_NAME  basisset0
       BASIS_SET_FILE_NAME  basisset1
-      POTENTIAL_FILE_NAME  potential
       &XC
          &VDW_POTENTIAL
             &PAIR_POTENTIAL

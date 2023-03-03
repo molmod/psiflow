@@ -1,10 +1,12 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List, Tuple, Dict, Callable
+from typing import Optional, Union, Callable
 import typeguard
+import re
 import os
 import tempfile
 import yaff
 import molmod
+import logging
 import numpy as np
 from pathlib import Path
 from collections import OrderedDict
@@ -19,7 +21,24 @@ from psiflow.utils import copy_data_future, save_txt, create_if_empty
 from psiflow.data import read_dataset, Dataset
 
 
+logger = logging.getLogger(__name__) # logging per module
+
+
 PLUMED_BIAS_KEYWORDS = ['METAD', 'RESTRAINT', 'EXTERNAL', 'UPPER_WALLS', 'LOWER_WALLS']
+
+
+@typeguard.typechecked
+def remove_comments_printflush(plumed_input: str) -> str:
+    new_input = []
+    for line in list(plumed_input.split('\n')):
+        if line.strip().startswith('#'):
+            continue
+        if line.strip().startswith('PRINT'):
+            continue
+        if line.strip().startswith('FLUSH'):
+            continue
+        new_input.append(line)
+    return '\n'.join(new_input)
 
 
 @typeguard.typechecked
@@ -53,17 +72,32 @@ def set_path_in_plumed(plumed_input: str, keyword: str, path_to_set: str) -> str
 
 
 @typeguard.typechecked
-def parse_plumed_input(plumed_input: str) -> List[Tuple]:
-    biases = []
+def parse_plumed_input(plumed_input: str) -> tuple[list[tuple], tuple[str, ...]]:
+    components = []
+    variables = set()
+    metad_exists = False
+    external_exists = False
     for key in PLUMED_BIAS_KEYWORDS:
         lines = plumed_input.split('\n')
         for i, line in enumerate(lines):
             if key in line.split():
-                #assert not found
-                variable = line.split('ARG=')[1].split()[0]
-                #label = line.split('LABEL=')[1].split()[0]
-                biases.append((key, variable))
-    return biases
+                if key == 'METAD':
+                    assert not metad_exists, 'only one METAD action is allowed'
+                    metad_exists = True
+                if key == 'EXTERNAL':
+                    assert not external_exists, 'only one EXTERNAL action is allowed'
+                    external_exists = True
+                args = line.split('ARG=')[1].split()[0]
+                args = tuple(args.split(','))
+                for variable in args:
+                    #assert not '.' in variable, ('do not use e.g. CV.x as '
+                    #        'arguments to an action; define a different '
+                    #        'variable CV0: CV.x and then use CV0 in the action')
+                    variables.add(variable)
+                components.append((key, args))
+    nvariables = len(variables)
+    assert nvariables > 0, 'define at least one CV'
+    return components, tuple(sorted(variables))
 
 
 @typeguard.typechecked
@@ -88,8 +122,8 @@ def generate_external_grid(
 @typeguard.typechecked
 def evaluate_bias(
         plumed_input: str,
-        variable: str,
-        inputs: List[File] = [],
+        variables: tuple[str, ...],
+        inputs: list[File] = [],
         ) -> np.ndarray:
     import tempfile
     import os
@@ -102,7 +136,7 @@ def evaluate_bias(
     from psiflow.sampling.bias import try_manual_plumed_linking
     from psiflow.data import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
-    values = np.zeros((len(dataset), 2)) # column 0 for CV, 1 for bias
+    values = np.zeros((len(dataset), len(variables) + 1)) # column 0 for CV, 1 for bias
     system = yaff.System(
             numbers=dataset[0].get_atomic_numbers(),
             pos=dataset[0].get_positions() * molmod.units.angstrom,
@@ -113,7 +147,7 @@ def evaluate_bias(
     tmp.close()
     colvar_log = tmp.name # dummy log file
     plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
-    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(variable, colvar_log)
+    plumed_input += '\nPRINT STRIDE=1 ARG={} FILE={}'.format(','.join(variables), colvar_log)
     tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
     tmp.close()
     plumed_log = tmp.name # dummy log file
@@ -131,12 +165,12 @@ def evaluate_bias(
     for i, atoms in enumerate(dataset):
         ff.update_pos(atoms.get_positions() * molmod.units.angstrom)
         ff.update_rvecs(atoms.get_cell() * molmod.units.angstrom)
-        values[i, 1] = ff.compute() / molmod.units.kjmol
+        values[i, -1] = ff.compute() / molmod.units.kjmol
         part_plumed.plumed.cmd('update')
         part_plumed.plumedstep = 3 # can be anything except zero; pick a prime
     if len(dataset) > 1: # counter weird behavior
         part_plumed.plumed.cmd('update') # flush last
-    values[:, 0] = np.loadtxt(colvar_log).reshape(-1, 2)[:, 1]
+    values[:, :-1] = np.loadtxt(colvar_log).reshape(-1, len(variables) + 1)[:, 1:]
     os.unlink(plumed_log)
     os.unlink(colvar_log)
     os.unlink(path_input)
@@ -145,17 +179,17 @@ app_evaluate = python_app(evaluate_bias, executors=['default'])
 
 
 @typeguard.typechecked
-def find_states_in_data(
-        plumed_input: str,
-        variable: str,
+def extract_grid(
+        index: int,
+        values: np.ndarray,
         targets: np.ndarray,
-        slack: float,
-        inputs: List[File] = [],
-        ) -> List[int]:
+        slack: Optional[float] = None,
+        ) -> list[int]:
     import numpy as np
-    from psiflow.sampling.bias import evaluate_bias
-    variable_values = evaluate_bias(plumed_input, variable, inputs=inputs)[:, 0]
     nstates = len(targets)
+    variable_values = values[:, index]
+    if slack is None:
+        slack = 1e10 # infinite slack
     deltas  = np.abs(targets[:, np.newaxis] - variable_values[np.newaxis, :])
     indices = np.argmin(deltas, axis=1)
     found   = np.abs(targets - variable_values[indices]) < slack
@@ -165,9 +199,33 @@ def find_states_in_data(
             index = indices[i]
             to_extract.append(int(index))
         else:
-            pass
+            raise ValueError('could not find state for target value {}'.format(targets[i]))
+    assert len(to_extract) == nstates
     return to_extract
-app_find_states = python_app(find_states_in_data, executors=['default'])
+app_extract_grid = python_app(extract_grid, executors=['default'])
+
+
+@typeguard.typechecked
+def extract_between(
+        index: int,
+        values: np.ndarray,
+        min_value: float,
+        max_value: float,
+        ) -> list[int]:
+    import numpy as np
+    variable_values = values[:, index]
+    mask_higher = variable_values > min_value
+    mask_lower  = variable_values < max_value
+    indices = np.arange(len(variable_values))[mask_higher * mask_lower]
+    return [int(index) for index in indices]
+app_extract_between = python_app(extract_between, executors=['default'])
+
+
+@typeguard.typechecked
+def extract_column(array, index):
+    assert index < array.shape[0]
+    return array[:, int(index)].reshape(-1, 1) # maintain shape
+app_extract_column = python_app(extract_column, executors=['default'])
 
 
 @typeguard.typechecked
@@ -175,22 +233,34 @@ class PlumedBias:
     """Represents a PLUMED bias potential"""
     keys_with_future = ['EXTERNAL', 'METAD']
 
-    def __init__(self, plumed_input: str, data: Optional[Dict] = None):
+    def __init__(self, plumed_input: str, data: Optional[dict] = None):
         assert 'ENERGY=kj/mol' in plumed_input, ('please set the PLUMED energy '
                 'units to kj/mol')
-        assert 'PRINT' not in plumed_input, ('remove print statements from '
-                'PLUMED inputs to avoid generating additional (untracked) '
-                'files')
-        components = parse_plumed_input(plumed_input)
+        assert '...' not in plumed_input, ('combine each of the PLUMED actions '
+                'into a single line in the input file')
+        assert '__FILL__' not in plumed_input, ('__FILL__ is not supported')
+        if ('PRINT' in plumed_input) or ('FLUSH' in plumed_input):
+            logger.warning('removing *all* print and flush statements '
+                    'in the input to avoid generating additional (untracked) '
+                    'files')
+        logger.warning('PLUMED input files are notoriously '
+                'difficult to parse, and no generic Python API exists. '
+                'To avoid potential bugs as much as possible, psiflow puts a '
+                'few restrictions on the use of PLUMED files: \n'
+                '\tdo not use METAD or EXTERNAL actions more than once\n'
+                '\tonly use the following bias potentials: {}\n'
+                '\tdo not use the "..." syntax; ensure that all actions are '
+                'in a single line in the input.'.format(str(PLUMED_BIAS_KEYWORDS)))
+        plumed_input = remove_comments_printflush(plumed_input)
+        components, variables = parse_plumed_input(plumed_input)
+        assert len(variables) > 0
         assert len(components) > 0
-        for c in components:
-            assert ',' not in c[1] # require 1D bias
-        self.components   = components
+        self.variables  = variables
+        self.components = components
         self.plumed_input = plumed_input
 
+        # initialize data future for METAD and EXTERNAL components
         context = psiflow.context()
-
-        # initialize data future for each component
         self.data_futures = OrderedDict()
         if data is None:
             data = {}
@@ -213,19 +283,11 @@ class PlumedBias:
                         outputs=[context.new_file(key + '_', '.txt')],
                         ).outputs[0]
         if 'METAD' in self.keys:
-            self.data_futures.move_to_end('METAD', last=False)
+            self.data_futures.move_to_end('METAD', last=False) # put it first
 
-    def evaluate(self, dataset: Dataset, variable: str) -> AppFuture:
-        assert variable in [c[1] for c in self.components]
+    def evaluate(self, dataset: Dataset, variable: Optional[str] = None) -> AppFuture:
         plumed_input = self.prepare_input()
         lines = plumed_input.split('\n')
-        for i, line in enumerate(lines):
-            if 'ARG=' in line:
-                if not (variable == line.split('ARG=')[1].split()[0]):
-                    for part in line.split(): # remove only if actual bias
-                        for keyword in PLUMED_BIAS_KEYWORDS:
-                            if keyword in part:
-                                lines[i] = '\n'
         for i, line in enumerate(lines):
             if 'METAD' in line.split():
                 assert 'PACE=' in line # PACE needs to be specified
@@ -234,11 +296,17 @@ class PlumedBias:
                 pace = 2147483647 # some random high prime number
                 lines[i] = line_before + 'PACE={} '.format(pace) + ' '.join(line_after)
         plumed_input = '\n'.join(lines)
-        return app_evaluate(
+        values = app_evaluate(
                 plumed_input,
-                variable,
+                self.variables,
                 inputs=[dataset.data_future] + self.futures,
                 )
+        if variable is not None:
+            assert variable in self.variables
+            index = self.variables.index(variable)
+            return app_extract_column(values, index)
+        else:
+            return values
 
     def prepare_input(self) -> str:
         plumed_input = str(self.plumed_input)
@@ -251,7 +319,7 @@ class PlumedBias:
                         )
         if 'METAD' in self.keys: # necessary to print hills properly
             plumed_input = 'RESTART\n' + plumed_input
-            plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
+            #plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
         return plumed_input
 
     def copy(self) -> PlumedBias:
@@ -286,36 +354,39 @@ class PlumedBias:
         assert found
         self.plumed_input = '\n'.join(lines)
 
-    def extract_states(
+    def extract_grid(
             self,
             dataset: Dataset,
             variable: str,
             targets: np.ndarray,
-            slack: float = 0.1,
+            slack: Optional[float] = None,
             ) -> Dataset:
         assert variable in self.variables
-        plumed_input = self.prepare_input()
-        lines = plumed_input.split('\n')
-        for i, line in enumerate(lines):
-            if 'ARG=' in line:
-                if not (variable == line.split('ARG=')[1].split()[0]):
-                    for part in line.split(): # remove only if actual bias
-                        for keyword in PLUMED_BIAS_KEYWORDS:
-                            if keyword in part:
-                                lines[i] = '\n'
-        for i, line in enumerate(lines):
-            if 'METAD' in line.split():
-                line_before = line.split('PACE=')[0]
-                line_after  = line.split('PACE=')[1].split()[1:]
-                pace = 2147483647 # some random high prime number
-                lines[i] = line_before + 'PACE={} '.format(pace) + ' '.join(line_after)
-        plumed_input = '\n'.join(lines)
-        indices = app_find_states( # is future!
-                plumed_input,
-                variable,
+        index = self.variables.index(variable)
+        values = self.evaluate(dataset)
+        indices = app_extract_grid( # is future!
+                index,
+                values,
                 targets,
                 slack,
-                inputs=[dataset.data_future] + self.futures,
+                )
+        return dataset[indices]
+
+    def extract_between(
+            self,
+            dataset: Dataset,
+            variable: str,
+            min_value: float,
+            max_value: float,
+            ) -> Dataset:
+        assert variable in self.variables
+        index = self.variables.index(variable)
+        values = self.evaluate(dataset)
+        indices = app_extract_between(
+                index,
+                values,
+                min_value,
+                max_value,
                 )
         return dataset[indices]
 
@@ -323,7 +394,7 @@ class PlumedBias:
             self,
             path: Union[Path, str],
             require_done: bool = True,
-            ) -> Tuple[DataFuture, Dict[str, DataFuture]]:
+            ) -> tuple[DataFuture, dict[str, DataFuture]]:
         path = Path(path)
         assert path.is_dir()
         path_input = path / 'plumed_input.txt'
@@ -361,9 +432,8 @@ class PlumedBias:
         return cls(plumed_input, data=data)
 
     @property
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         keys = sorted([c[0] for c in self.components])
-        assert len(set(keys)) == len(keys) # keys should be unique!
         if 'METAD' in keys:
             keys.remove('METAD')
             return ['METAD'] + keys
@@ -371,11 +441,7 @@ class PlumedBias:
             return keys
 
     @property
-    def variables(self) -> List[str]: # not sorted
-        return list(set([c[1] for c in self.components]))
-
-    @property
-    def futures(self) -> List[DataFuture]:
+    def futures(self) -> list[DataFuture]:
         return [value for _, value in self.data_futures.items()] # MTD first
 
     @classmethod
