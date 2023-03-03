@@ -36,7 +36,7 @@ def test_log_dataset_generators(context, dataset, nequip_config, tmp_path, refer
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
-CV1: VOLUME
+CV1: MATHEVAL ARG=CV VAR=a FUNC=2*a PERIODIC=NO
 mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
 """
     bias = PlumedBias(plumed_input)

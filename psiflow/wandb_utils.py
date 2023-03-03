@@ -41,10 +41,11 @@ def _app_log_data(
         assert len(error_labels) == errors.shape[1]
         columns += error_labels
     if bias_labels is not None:
-        assert len(bias_labels) == 2 * (len(inputs) - 1)
-        for values in inputs[1:]:
-            assert values.shape[0] == len(data)
-            assert values.shape[1] == 2
+        assert len(inputs) == 2
+        #assert len(bias_labels) == 2 * (len(inputs) - 1)
+        #for values in inputs[1:]:
+        #    assert values.shape[0] == len(data)
+        #    assert values.shape[1] == 1
         columns += bias_labels
     table_data = []
     location = Path(inputs[0].filepath).name
@@ -54,9 +55,9 @@ def _app_log_data(
         if error_labels is not None:
             row += [e for e in errors[i, :]]
         if bias_labels is not None:
-            for values in inputs[1:]:
-                row.append(values[i, 0])
-                row.append(values[i, 1])
+            #for values in inputs[1:]:
+            for j in range(inputs[1].shape[1]):
+                row.append(inputs[1][i, j])
         assert len(columns) == len(row)
         table_data.append(row)
     return [columns] + table_data
@@ -83,9 +84,9 @@ def _app_log_generators(
         assert len(error_labels) == errors.shape[1]
         columns += error_labels
     if bias_labels is not None:
-        assert len(bias_labels) % 2 == 0
-        nvariables = len(bias_labels) // 2
-        assert len(inputs[1:]) == len(data) * (nvariables + 1) # +1 due to tags
+        #assert len(bias_labels) % 2 == 0
+        nvariables = len(bias_labels) - 1
+        assert len(inputs[1:]) == len(data) * (nvariables + 2)
         columns += bias_labels
     table_data = []
     for i, atoms in enumerate(data):
@@ -96,15 +97,18 @@ def _app_log_generators(
         if error_labels is not None:
             row += [e for e in errors[i, :]]
         if bias_labels is not None:
-            for j in range(nvariables):
-                index = int(1 + len(data) + i * nvariables + j) # casting necessary?
+            for j in range(nvariables + 1):
+                index = int(1 + len(data) + i * (nvariables + 1) + j) # casting necessary?
                 if isinstance(inputs[index], np.ndarray): # False if bias not present
-                    assert inputs[index].shape == (1, 2)
-                    row.append(inputs[index][0, 0])
-                    row.append(inputs[index][0, 1])
+                    if j < nvariables:
+                        assert inputs[index].shape == (1, 1)
+                        row.append(inputs[index][0, 0])
+                    else:
+                        row.append(inputs[index][0, -1])
+                    #row.append(inputs[index][0, 1])
                 else:
                     row.append(None)
-                    row.append(None)
+                    #row.append(None)
         assert len(columns) == len(row)
         table_data.append(row)
     return [columns] + table_data
@@ -122,9 +126,10 @@ def log_data(
     if bias is not None:
         bias_labels = []
         for variable in bias.variables:
-            inputs.append(bias.evaluate(dataset, variable=variable))
+            #inputs.append(bias.evaluate(dataset, variable=variable))
             bias_labels.append(variable)
-            bias_labels.append('bias({})'.format(variable))
+        bias_labels.append('total bias energy')
+        inputs.append(bias.evaluate(dataset))
     else:
         bias_labels = None
     if model is not None:
@@ -171,7 +176,7 @@ def log_generators(generators: list[Generator]) -> AppFuture:
         bias_labels = []
         for variable in variables:
             bias_labels.append(variable)
-            bias_labels.append('bias({})'.format(variable))
+        bias_labels.append('total bias energy')
         for g in generators:
             for i, variable in enumerate(variables):
                 if (g.bias is not None) and (variable in g.bias.variables):
@@ -181,11 +186,17 @@ def log_generators(generators: list[Generator]) -> AppFuture:
                         ))
                 else:
                     inputs.append(False) # cannot pass None as input
+            if (g.bias is not None):
+                inputs.append(g.bias.evaluate(
+                    Dataset([g.walker.state_future]),
+                    ))
+            else:
+                inputs.append(False)
     else:
         bias_labels = None
 
     # double check inputs contains tag info + bias info
-    assert len(inputs) == len(generators) * (len(variables) + 1)
+    assert len(inputs) == len(generators) * (len(variables) + 2)
     return app_log_generators(
             generator_names=generator_names,
             bias_labels=bias_labels,

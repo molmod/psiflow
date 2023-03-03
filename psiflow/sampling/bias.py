@@ -90,9 +90,6 @@ def parse_plumed_input(plumed_input: str) -> tuple[list[tuple], tuple[str, ...]]
                 args = line.split('ARG=')[1].split()[0]
                 args = tuple(args.split(','))
                 for variable in args:
-                    #assert not '.' in variable, ('do not use e.g. CV.x as '
-                    #        'arguments to an action; define a different '
-                    #        'variable CV0: CV.x and then use CV0 in the action')
                     variables.add(variable)
                 components.append((key, args))
     nvariables = len(variables)
@@ -223,7 +220,7 @@ app_extract_between = python_app(extract_between, executors=['default'])
 
 @typeguard.typechecked
 def extract_column(array, index):
-    assert index < array.shape[0]
+    assert index < array.shape[1]
     return array[:, int(index)].reshape(-1, 1) # maintain shape
 app_extract_column = python_app(extract_column, executors=['default'])
 

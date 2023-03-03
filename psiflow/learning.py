@@ -120,8 +120,8 @@ class BaseLearning:
                 self.atomic_energies[element] = energy
             log_and_save_energies(
                     self.path_output / (self.__class__.__name__ + '.yaml'),
-                    list(atomic_energies.keys()),
-                    list(atomic_energies.values()),
+                    list(self.atomic_energies.keys()),
+                    list(self.atomic_energies.values()),
                     )
         else:
             logger.info('found the following atomic energies in learning config')
