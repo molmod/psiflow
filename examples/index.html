@@ -308,9 +308,54 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Examples
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         Examples
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#simple-training-and-validation" class="md-nav__link">
+    Simple training and validation
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#online-learning-1-sequential-learning-with-metadynamics" class="md-nav__link">
+    Online learning 1: sequential learning with metadynamics
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#online-learning-2-concurrent-learning-with-umbrella-sampling" class="md-nav__link">
+    Online learning 2: concurrent learning with umbrella sampling
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -351,7 +396,297 @@
 
 
 <h1 id="examples">Examples</h1>
-<p>[COMING SOON]</p>
+<p>Psiflow can be used to implement many different simulation workflows,
+ranging from simple active learning to enhanced sampling molecular dynamics or
+more advanced uncertainty-based high-throughput learning.
+In all cases, the main driver of the workflow is a single Python script that
+starts with a <code>psiflow.load()</code> command which loads the execution parameters from
+a configuration file and initializes the internal cache directory in which
+to store log files of various kinds
+(assumed to be located at <code>./psiflow_internal/</code>).</p>
+<p>Below, we will showcase the functionality of psiflow using a number of examples.
+The input files required to execute these examples can be found on the GitHub
+repository, in the
+<a href="https://github.com/svandenhaute/psiflow/tree/main/examples/data">data</a> folder.
+It is recommended to read the <a href="../overview/">Overview</a> page before trying out
+the examples below.</p>
+<h2 id="simple-training-and-validation">Simple training and validation</h2>
+<p>The following example demonstrates how to use an existing dataset to train an
+interatomic potential, and evaluate its performance based on a few short molecular dynamics
+trajectories. Click
+<a href="https://github.com/svandenhaute/psiflow/tree/main/examples/run_train_npt.py">here</a>
+for the full example.</p>
+<details class="note">
+<summary>import statements and helper functions</summary>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span> <span class="nn">requests</span>     <span class="c1"># required for downloading cp2k input</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">import</span> <span class="nn">logging</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="kn">import</span> <span class="nn">psiflow</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="kn">from</span> <span class="nn">psiflow.models</span> <span class="kn">import</span> <span class="n">MACEModel</span><span class="p">,</span> <span class="n">MACEConfig</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="kn">from</span> <span class="nn">psiflow.data</span> <span class="kn">import</span> <span class="n">Dataset</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">CP2KReference</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">DynamicWalker</span>
+</code></pre></div>
+The <code>get_reference()</code> helper function defines a generic PBE-D3/TZVP reference level of theory.
+Basis set, pseudopotentials, and D3 correction parameters are obtained from
+the official CP2K repository, v9.1, and saved in the internal directory of
+psiflow. The input file is assumed to be available locally.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span> <span class="nf">get_reference</span><span class="p">():</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;data&#39;</span> <span class="o">/</span> <span class="s1">&#39;cp2k_input.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        <span class="n">cp2k_input</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">reference</span> <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="o">=</span><span class="n">cp2k_input</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">basis</span>     <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">dftd3</span>     <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">potential</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">cp2k_data</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>            <span class="s1">&#39;basis_set&#39;</span><span class="p">:</span> <span class="n">basis</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>            <span class="s1">&#39;potential&#39;</span><span class="p">:</span> <span class="n">potential</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>            <span class="s1">&#39;dftd3&#39;</span><span class="p">:</span> <span class="n">dftd3</span><span class="p">,</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>            <span class="p">}</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">cp2k_data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">psiflow</span><span class="o">.</span><span class="n">context</span><span class="p">()</span><span class="o">.</span><span class="n">path</span> <span class="o">/</span> <span class="n">key</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>        <span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">psiflow</span><span class="o">.</span><span class="n">context</span><span class="p">()</span><span class="o">.</span><span class="n">path</span> <span class="o">/</span> <span class="n">key</span><span class="p">)</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>    <span class="k">return</span> <span class="n">reference</span>
+</code></pre></div></p>
+<p>The <code>get_mace_model()</code> helper function defines the model architecture for
+the potential we want to train, in this case MACE.
+A full list of parameters can be found in the MACE repository, or in the
+psiflow source code at <code>psiflow.models._mace</code>.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">def</span> <span class="nf">get_mace_model</span><span class="p">():</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">MACEConfig</span><span class="p">()</span>           <span class="c1"># load default MACE parameters</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">config</span><span class="o">.</span><span class="n">max_num_epochs</span> <span class="o">=</span> <span class="mi">1000</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">config</span><span class="o">.</span><span class="n">r_max</span> <span class="o">=</span> <span class="mf">6.0</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="k">return</span> <span class="n">MACEModel</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+</code></pre></div></p>
+</details>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">path_output</span><span class="p">):</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">train</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;data/Al_mil53_train.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">valid</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;data/Al_mil53_valid.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">model</span> <span class="o">=</span> <span class="n">get_mace_model</span><span class="p">()</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">train</span><span class="p">)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train</span><span class="p">,</span> <span class="n">valid</span><span class="p">)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">model</span><span class="o">.</span><span class="n">deploy</span><span class="p">()</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span><span class="n">train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">steps</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">_</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="n">reference</span> <span class="o">=</span> <span class="n">get_reference</span><span class="p">()</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="n">errors</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">get_errors</span><span class="p">(</span> <span class="c1"># compare model and DFT predictions</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>            <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">trajectory</span><span class="p">),</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>            <span class="n">model</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">trajectory</span><span class="p">),</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>            <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;rmse&#39;</span><span class="p">,</span>          <span class="c1"># &#39;mae&#39; or &#39;max&#39; are also possible</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>            <span class="p">)</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>    <span class="n">errors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">errors</span><span class="o">.</span><span class="n">result</span><span class="p">(),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;energy error [RMSE, meV/atom]: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">errors</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;forces error [RMSE, meV/A]   : </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">errors</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;stress error [RMSE, MPa]     : </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">errors</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>    <span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">path_output</span><span class="p">)</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>              <span class="c1"># entry point</span>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>    <span class="n">psiflow</span><span class="o">.</span><span class="n">load</span><span class="p">(</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>            <span class="s1">&#39;../configs/local_wq.py&#39;</span><span class="p">,</span>   <span class="c1"># path to psiflow config file</span>
+<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a>            <span class="s1">&#39;./psiflow_internal&#39;</span><span class="p">,</span>       <span class="c1"># internal psiflow cache dir</span>
+<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a>            <span class="p">)</span>
+<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a>
+<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>    <span class="n">path_output</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;output&#39;</span> <span class="c1"># stores final model</span>
+<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a>    <span class="n">main</span><span class="p">(</span><span class="n">path_output</span><span class="p">)</span>
+</code></pre></div>
+The following operations are performed:</p>
+<ul>
+<li>The (existing) datasets are loaded as <code>Dataset</code> objects; one for training,
+one for validation.</li>
+<li>A <code>MACEModel</code> is initialized based on the training data. In particular, this
+includes calculating the average number of neighbors for each atom given a
+specific cutoff radius (used for normalization purposes throughout
+the network) or the average atomic energies. All network parameters are initialized
+in this step as well.</li>
+<li>The model is trained using both the training and validation sets. The actual
+output logs of the training (as you would normally obtain when training a MACE
+model outside of psiflow) are stored in the seemingly peculiar
+<code>psiflow_internal/000/task_logs/0000</code> directory. Fear not; except for
+output logs, users do not need to venture into <code>psiflow_internal</code>.
+After the training, the model is (formally) deployed. In the specific case of
+MACE, deploying does not have any practical implications yet. For NequIP models,
+deploying essentially boils down to calling <code>torch.jit.compile()</code> on the entire
+model.</li>
+<li>A dynamic walker is initialized and used to perform molecular dynamics using
+the newly trained model; we use the <code>keep_trajectory</code> option to ensure that the
+walker returns not just the final state but the entire trajectory.</li>
+<li>The reference level of theory is used to perform singlepoint evaluations
+of each of the states in the trajectory. Note that this will automatically
+proceed in a massively parallel manner as there exists no dependency between
+the evaluation of consecutive states.</li>
+<li>The obtained QM energy/forces/stress of each of the states in the trajectory
+are compared with the MACE predictions in the RMS sense.</li>
+<li>the model is saved in the output directory (here: <code>./output/</code>) -- this will
+generate a total of 3 files: <code>MACEModel.yaml</code>, <code>config_after_init.yaml</code>, and
+the actual PyTorch model <code>model_undeployed.pth</code>.</li>
+</ul>
+<h2 id="online-learning-1-sequential-learning-with-metadynamics">Online learning 1: sequential learning with metadynamics</h2>
+<p>The next example demonstrates the most straightforward way of doing
+online learning with psiflow; the <code>SequentialLearning</code> class.
+Click
+<a href="https://github.com/svandenhaute/psiflow/tree/main/examples/run_sequential_learning.py">here</a>
+for the full example.</p>
+<details class="note">
+<summary>import statements and helper functions</summary>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span> <span class="nn">requests</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span> <span class="nn">logging</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span> <span class="nn">pathlib</span> <span class="kn">import</span> <span class="n">Path</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="kn">from</span> <span class="nn">ase.io</span> <span class="kn">import</span> <span class="n">read</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="kn">import</span> <span class="nn">psiflow</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="kn">from</span> <span class="nn">psiflow.learning</span> <span class="kn">import</span> <span class="n">SequentialLearning</span><span class="p">,</span> <span class="n">load_learning</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="kn">from</span> <span class="nn">psiflow.models</span> <span class="kn">import</span> <span class="n">NequIPModel</span><span class="p">,</span> <span class="n">NequIPConfig</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">CP2KReference</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="kn">from</span> <span class="nn">psiflow.data</span> <span class="kn">import</span> <span class="n">FlowAtoms</span><span class="p">,</span> <span class="n">Dataset</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">DynamicWalker</span><span class="p">,</span> <span class="n">PlumedBias</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="kn">from</span> <span class="nn">psiflow.generator</span> <span class="kn">import</span> <span class="n">Generator</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="kn">from</span> <span class="nn">psiflow.state</span> <span class="kn">import</span> <span class="n">load_state</span>            <span class="c1"># necessary for restart</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="kn">from</span> <span class="nn">psiflow.wandb_utils</span> <span class="kn">import</span> <span class="n">WandBLogger</span>     <span class="c1"># takes care of W&amp;B logging</span>
+</code></pre></div>
+Helper functions that were defined in previous examples are not repeated
+here -- see the Python file on Github for a complete script.</p>
+<p>The <code>get_bias()</code> helper function defines the metadynamics bias settings
+that are used during the phase space exploration by the walkers/generators.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">def</span> <span class="nf">get_bias</span><span class="p">():</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2">CV: VOLUME</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">METAD ARG=CV SIGMA=200 HEIGHT=5 PACE=100 LABEL=metad FILE=test_hills</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="k">return</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">)</span>
+</code></pre></div>
+The <code>get_nequip_model()</code> helper function is similar to its MACE equivalent;
+all parameters are stored in a <code>NequIPConfig</code> dataclass which is can be
+modified before creating the <code>NequIPModel</code>.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span> <span class="nf">get_nequip_model</span><span class="p">():</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">NequIPConfig</span><span class="p">()</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">config</span><span class="o">.</span><span class="n">r_max</span> <span class="o">=</span> <span class="mf">4.5</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="k">return</span> <span class="n">NequIPModel</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+</code></pre></div></p>
+</details>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">path_output</span><span class="p">):</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="k">assert</span> <span class="ow">not</span> <span class="n">path_output</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">reference</span> <span class="o">=</span> <span class="n">get_reference</span><span class="p">()</span>     <span class="c1"># CP2K; PBE-D3(BJ); TZVP</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">model</span> <span class="o">=</span> <span class="n">get_nequip_model</span><span class="p">()</span>      <span class="c1"># MACE; small model</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">bias</span>  <span class="o">=</span> <span class="n">get_bias</span><span class="p">()</span>              <span class="c1"># simple MTD bias on unit cell volume</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">atoms</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;data&#39;</span> <span class="o">/</span> <span class="s1">&#39;Al_mil53_train.xyz&#39;</span><span class="p">)</span> <span class="c1"># single strucutre</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="c1"># set up wandb logging</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">wandb_logger</span> <span class="o">=</span> <span class="n">WandBLogger</span><span class="p">(</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>            <span class="n">wandb_project</span><span class="o">=</span><span class="s1">&#39;psiflow&#39;</span><span class="p">,</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>            <span class="n">wandb_group</span><span class="o">=</span><span class="s1">&#39;run_sequential&#39;</span><span class="p">,</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>            <span class="n">error_x_axis</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">,</span>  <span class="c1"># plot errors against PLUMED variable; &#39;ARG=CV&#39;</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>            <span class="p">)</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>    <span class="c1"># set learning parameters and do pretraining</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>    <span class="n">learning</span> <span class="o">=</span> <span class="n">SequentialLearning</span><span class="p">(</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>            <span class="n">path_output</span><span class="o">=</span><span class="n">path_output</span><span class="p">,</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>            <span class="n">niterations</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>            <span class="n">retrain_model_per_iteration</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>            <span class="n">pretraining_amplitude_pos</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>            <span class="n">pretraining_amplitude_box</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>            <span class="n">pretraining_nstates</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>            <span class="n">train_valid_split</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>            <span class="n">use_formation_energy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>            <span class="n">wandb_logger</span><span class="o">=</span><span class="n">wandb_logger</span><span class="p">,</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>            <span class="p">)</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>    <span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">run_pretraining</span><span class="p">(</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a>            <span class="n">reference</span><span class="o">=</span><span class="n">reference</span><span class="p">,</span>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a>            <span class="n">initial_data</span><span class="o">=</span><span class="n">Dataset</span><span class="p">([</span><span class="n">atoms</span><span class="p">]),</span> <span class="c1"># only one initial state</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a>            <span class="p">)</span>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a>
+<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a>    <span class="c1"># construct generators; biased MTD MD in this case</span>
+<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a>    <span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span>
+<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a>            <span class="n">atoms</span><span class="p">,</span>
+<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a>            <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a>            <span class="n">steps</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span>
+<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a>            <span class="n">step</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a>            <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a>            <span class="n">temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
+<a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a>            <span class="n">pressure</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="c1"># NPT</span>
+<a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a>            <span class="n">force_threshold</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+<a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a>            <span class="n">initial_temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
+<a id="__codelineno-7-44" name="__codelineno-7-44" href="#__codelineno-7-44"></a>            <span class="p">)</span>
+<a id="__codelineno-7-45" name="__codelineno-7-45" href="#__codelineno-7-45"></a>    <span class="n">generators</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">(</span><span class="s1">&#39;mtd&#39;</span><span class="p">,</span> <span class="n">walker</span><span class="p">,</span> <span class="n">bias</span><span class="p">)</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="mi">30</span><span class="p">)</span>
+<a id="__codelineno-7-46" name="__codelineno-7-46" href="#__codelineno-7-46"></a>    <span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="__codelineno-7-47" name="__codelineno-7-47" href="#__codelineno-7-47"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-7-48" name="__codelineno-7-48" href="#__codelineno-7-48"></a>            <span class="n">reference</span><span class="o">=</span><span class="n">reference</span><span class="p">,</span>
+<a id="__codelineno-7-49" name="__codelineno-7-49" href="#__codelineno-7-49"></a>            <span class="n">generators</span><span class="o">=</span><span class="n">generators</span><span class="p">,</span>
+<a id="__codelineno-7-50" name="__codelineno-7-50" href="#__codelineno-7-50"></a>            <span class="n">data_train</span><span class="o">=</span><span class="n">data_train</span><span class="p">,</span>
+<a id="__codelineno-7-51" name="__codelineno-7-51" href="#__codelineno-7-51"></a>            <span class="n">data_valid</span><span class="o">=</span><span class="n">data_valid</span><span class="p">,</span>
+<a id="__codelineno-7-52" name="__codelineno-7-52" href="#__codelineno-7-52"></a>            <span class="p">)</span>
+<a id="__codelineno-7-53" name="__codelineno-7-53" href="#__codelineno-7-53"></a>
+<a id="__codelineno-7-54" name="__codelineno-7-54" href="#__codelineno-7-54"></a>
+<a id="__codelineno-7-55" name="__codelineno-7-55" href="#__codelineno-7-55"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>              <span class="c1"># entry point</span>
+<a id="__codelineno-7-56" name="__codelineno-7-56" href="#__codelineno-7-56"></a>    <span class="n">psiflow</span><span class="o">.</span><span class="n">load</span><span class="p">(</span>
+<a id="__codelineno-7-57" name="__codelineno-7-57" href="#__codelineno-7-57"></a>            <span class="s1">&#39;../configs/local_wq.py&#39;</span><span class="p">,</span>   <span class="c1"># path to psiflow config file</span>
+<a id="__codelineno-7-58" name="__codelineno-7-58" href="#__codelineno-7-58"></a>            <span class="s1">&#39;./psiflow_internal&#39;</span><span class="p">,</span>       <span class="c1"># internal psiflow cache dir</span>
+<a id="__codelineno-7-59" name="__codelineno-7-59" href="#__codelineno-7-59"></a>            <span class="p">)</span>
+<a id="__codelineno-7-60" name="__codelineno-7-60" href="#__codelineno-7-60"></a>
+<a id="__codelineno-7-61" name="__codelineno-7-61" href="#__codelineno-7-61"></a>    <span class="n">path_output</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;output&#39;</span> <span class="c1"># stores output from each iteration</span>
+<a id="__codelineno-7-62" name="__codelineno-7-62" href="#__codelineno-7-62"></a>    <span class="n">main</span><span class="p">(</span><span class="n">path_output</span><span class="p">)</span>
+</code></pre></div>
+The following operations are performed:</p>
+<ul>
+<li>The main objects to be used during the online learning are created; a bias, a
+trainable potential, the reference level of theory, and an ASE <code>atoms</code>
+instance which defines the initial structure which the phase space
+exploration will start from in the first iteration.</li>
+<li>The <code>WandBLogger</code> is instantiated. While optional, it is highly recommended
+to use this.
+After each loop of (sampling, QM evaluation, training), the logger
+will generate useful analysis graphs on Weights &amp; Biases
+(although this requires some configuration by the user;
+see the <a href="https://docs.wandb.ai/quickstart">W&amp;B tutorial</a> for more information).
+These graphs show the energy, forces, and stress errors in each iteration
+by the model, optionally plotted against (one of) the collective variable(s)
+along which the bias potential is applied, for additional insight.</li>
+<li>The <code>SequentialLearning</code> object is created.
+It centralizes all learning-level parameters such as the number of
+iterations, the number
+of (parallel) molecular dynamics simulations to perform, the train/validation
+split, whether to train to absolute or formation energies etc.
+In addition, it takes care of saving models,
+datasets, and the state of the walkers and/or bias potentials for each iteration.</li>
+<li>Initial training and validation sets are generated using the
+<code>learning.run_pretraining()</code> function. It will use the provided initial data
+-- in this case, a <code>Dataset</code> with a single atomic configuration -- 
+and apply small random perturbations to the atomic positions and strain components;
+this can serve as a sufficient initial dataset based on which the NequIP model
+may be briefly trained as a first (and inexpensive) step.
+When multiple initial structures are available,
+e.g. a reactant and a product state of a chemical reaction,
+it is recommended to gather all of them in a <code>Dataset</code> and pass them into the 
+pretraining step, as this guarantees that the pretraining does not overfit
+on either reactant or product.</li>
+<li>After the pretraining, the sampling parameters of the molecular dynamics
+simulation are defined using a <code>DynamicWalker</code> instance.
+A template generator is defined using the walker and the created <code>PlumedBias</code>,
+which is then <em>multiplied</em> in order to parallelize the data generation across
+multiple walkers (in this case: 30). All walkers share the same parameters but
+will receive different initial velocities and will <strong>not</strong> share any metadynamics
+hills files; i.e. each metadynamics run is independent from the others.
+The returned object is simply a Python <code>list</code> of <code>Generator</code> instances.</li>
+<li>The actual iterative algorithm is executed by calling <code>learning.run()</code>.
+The state of walker <code>i</code> and its bias potential at the end of iteration <code>j</code> are
+used as starting point for walker <code>i</code> in iteration <code>j+1</code>.
+In this way, the walkers explore a new region in each iteration, and due to
+the bias will increasingly explore higher-energy regions.
+This approach to online learning is extensively discussed in the original
+<a href="https://www.nature.com/articles/s41524-023-00969-x">psiflow paper</a>.
+At the end of each iteration, the state of all walkers, the trained model,
+and the obtained (and QM-evaluated) data are saved in the specified
+output folder, and if enabled, logged to W&amp;B.</li>
+</ul>
+<h2 id="online-learning-2-concurrent-learning-with-umbrella-sampling">Online learning 2: concurrent learning with umbrella sampling</h2>
 
 
 

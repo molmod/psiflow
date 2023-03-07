@@ -470,7 +470,8 @@
 <span class="normal"><a href="#__codelineno-0-598">598</a></span>
 <span class="normal"><a href="#__codelineno-0-599">599</a></span>
 <span class="normal"><a href="#__codelineno-0-600">600</a></span>
-<span class="normal"><a href="#__codelineno-0-601">601</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-479" name="__codelineno-0-479"></a><span class="nd">@typeguard</span><span class="o">.</span><span class="n">typechecked</span>
+<span class="normal"><a href="#__codelineno-0-601">601</a></span>
+<span class="normal"><a href="#__codelineno-0-602">602</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-479" name="__codelineno-0-479"></a><span class="nd">@typeguard</span><span class="o">.</span><span class="n">typechecked</span>
 <a id="__codelineno-0-480" name="__codelineno-0-480"></a><span class="k">class</span> <span class="nc">MACEModel</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
 <a id="__codelineno-0-481" name="__codelineno-0-481"></a>
 <a id="__codelineno-0-482" name="__codelineno-0-482"></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="n">MACEConfig</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -567,32 +568,33 @@
 <a id="__codelineno-0-573" name="__codelineno-0-573"></a>                <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
 <a id="__codelineno-0-574" name="__codelineno-0-574"></a>                <span class="p">)</span>
 <a id="__codelineno-0-575" name="__codelineno-0-575"></a>        <span class="k">def</span> <span class="nf">evaluate_wrapped</span><span class="p">(</span><span class="n">deploy_future</span><span class="p">,</span> <span class="n">inputs</span><span class="o">=</span><span class="p">[],</span> <span class="n">outputs</span><span class="o">=</span><span class="p">[]):</span>
-<a id="__codelineno-0-576" name="__codelineno-0-576"></a>            <span class="k">assert</span> <span class="n">model_dtype</span> <span class="ow">in</span> <span class="n">deploy_future</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
-<a id="__codelineno-0-577" name="__codelineno-0-577"></a>            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">deploy_future</span><span class="p">[</span><span class="n">model_dtype</span><span class="p">])</span>
-<a id="__codelineno-0-578" name="__codelineno-0-578"></a>            <span class="k">return</span> <span class="n">evaluate_unwrapped</span><span class="p">(</span>
-<a id="__codelineno-0-579" name="__codelineno-0-579"></a>                    <span class="n">model_device</span><span class="p">,</span>
-<a id="__codelineno-0-580" name="__codelineno-0-580"></a>                    <span class="n">model_dtype</span><span class="p">,</span>
-<a id="__codelineno-0-581" name="__codelineno-0-581"></a>                    <span class="n">model_ncores</span><span class="p">,</span>
-<a id="__codelineno-0-582" name="__codelineno-0-582"></a>                    <span class="bp">cls</span><span class="o">.</span><span class="n">load_calculator</span><span class="p">,</span>
-<a id="__codelineno-0-583" name="__codelineno-0-583"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
-<a id="__codelineno-0-584" name="__codelineno-0-584"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
-<a id="__codelineno-0-585" name="__codelineno-0-585"></a>                    <span class="p">)</span>
-<a id="__codelineno-0-586" name="__codelineno-0-586"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">evaluate_wrapped</span><span class="p">)</span>
-<a id="__codelineno-0-587" name="__codelineno-0-587"></a>
-<a id="__codelineno-0-588" name="__codelineno-0-588"></a>    <span class="nd">@classmethod</span>
-<a id="__codelineno-0-589" name="__codelineno-0-589"></a>    <span class="k">def</span> <span class="nf">load_calculator</span><span class="p">(</span>
-<a id="__codelineno-0-590" name="__codelineno-0-590"></a>            <span class="bp">cls</span><span class="p">,</span>
-<a id="__codelineno-0-591" name="__codelineno-0-591"></a>            <span class="n">path_model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
-<a id="__codelineno-0-592" name="__codelineno-0-592"></a>            <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-593" name="__codelineno-0-593"></a>            <span class="n">dtype</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-594" name="__codelineno-0-594"></a>            <span class="n">set_global_options</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;warn&#39;</span><span class="p">,</span>
-<a id="__codelineno-0-595" name="__codelineno-0-595"></a>            <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BaseCalculator</span><span class="p">:</span>
-<a id="__codelineno-0-596" name="__codelineno-0-596"></a>        <span class="kn">from</span> <span class="nn">mace.calculators</span> <span class="kn">import</span> <span class="n">MACECalculator</span>
-<a id="__codelineno-0-597" name="__codelineno-0-597"></a>        <span class="k">return</span> <span class="n">MACECalculator</span><span class="p">(</span>
-<a id="__codelineno-0-598" name="__codelineno-0-598"></a>                <span class="n">model_path</span><span class="o">=</span><span class="n">path_model</span><span class="p">,</span>
-<a id="__codelineno-0-599" name="__codelineno-0-599"></a>                <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
-<a id="__codelineno-0-600" name="__codelineno-0-600"></a>                <span class="n">default_dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
-<a id="__codelineno-0-601" name="__codelineno-0-601"></a>                <span class="p">)</span>
+<a id="__codelineno-0-576" name="__codelineno-0-576"></a>            <span class="k">assert</span> <span class="n">model_dtype</span> <span class="ow">in</span> <span class="n">deploy_future</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="p">(</span><span class="s1">&#39;model is not &#39;</span>
+<a id="__codelineno-0-577" name="__codelineno-0-577"></a>                    <span class="s1">&#39;deployed; use model.deploy() before using model.evaluate()&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-578" name="__codelineno-0-578"></a>            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">deploy_future</span><span class="p">[</span><span class="n">model_dtype</span><span class="p">])</span>
+<a id="__codelineno-0-579" name="__codelineno-0-579"></a>            <span class="k">return</span> <span class="n">evaluate_unwrapped</span><span class="p">(</span>
+<a id="__codelineno-0-580" name="__codelineno-0-580"></a>                    <span class="n">model_device</span><span class="p">,</span>
+<a id="__codelineno-0-581" name="__codelineno-0-581"></a>                    <span class="n">model_dtype</span><span class="p">,</span>
+<a id="__codelineno-0-582" name="__codelineno-0-582"></a>                    <span class="n">model_ncores</span><span class="p">,</span>
+<a id="__codelineno-0-583" name="__codelineno-0-583"></a>                    <span class="bp">cls</span><span class="o">.</span><span class="n">load_calculator</span><span class="p">,</span>
+<a id="__codelineno-0-584" name="__codelineno-0-584"></a>                    <span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span>
+<a id="__codelineno-0-585" name="__codelineno-0-585"></a>                    <span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span>
+<a id="__codelineno-0-586" name="__codelineno-0-586"></a>                    <span class="p">)</span>
+<a id="__codelineno-0-587" name="__codelineno-0-587"></a>        <span class="n">context</span><span class="o">.</span><span class="n">register_app</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="s1">&#39;evaluate&#39;</span><span class="p">,</span> <span class="n">evaluate_wrapped</span><span class="p">)</span>
+<a id="__codelineno-0-588" name="__codelineno-0-588"></a>
+<a id="__codelineno-0-589" name="__codelineno-0-589"></a>    <span class="nd">@classmethod</span>
+<a id="__codelineno-0-590" name="__codelineno-0-590"></a>    <span class="k">def</span> <span class="nf">load_calculator</span><span class="p">(</span>
+<a id="__codelineno-0-591" name="__codelineno-0-591"></a>            <span class="bp">cls</span><span class="p">,</span>
+<a id="__codelineno-0-592" name="__codelineno-0-592"></a>            <span class="n">path_model</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
+<a id="__codelineno-0-593" name="__codelineno-0-593"></a>            <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-594" name="__codelineno-0-594"></a>            <span class="n">dtype</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-595" name="__codelineno-0-595"></a>            <span class="n">set_global_options</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;warn&#39;</span><span class="p">,</span>
+<a id="__codelineno-0-596" name="__codelineno-0-596"></a>            <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BaseCalculator</span><span class="p">:</span>
+<a id="__codelineno-0-597" name="__codelineno-0-597"></a>        <span class="kn">from</span> <span class="nn">mace.calculators</span> <span class="kn">import</span> <span class="n">MACECalculator</span>
+<a id="__codelineno-0-598" name="__codelineno-0-598"></a>        <span class="k">return</span> <span class="n">MACECalculator</span><span class="p">(</span>
+<a id="__codelineno-0-599" name="__codelineno-0-599"></a>                <span class="n">model_path</span><span class="o">=</span><span class="n">path_model</span><span class="p">,</span>
+<a id="__codelineno-0-600" name="__codelineno-0-600"></a>                <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span>
+<a id="__codelineno-0-601" name="__codelineno-0-601"></a>                <span class="n">default_dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+<a id="__codelineno-0-602" name="__codelineno-0-602"></a>                <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
         </details>
 
