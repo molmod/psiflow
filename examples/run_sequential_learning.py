@@ -7,16 +7,17 @@ from ase.io import read
 
 import psiflow
 from psiflow.learning import SequentialLearning, load_learning
-from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
+from psiflow.models import NequIPModel, NequIPConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import DynamicWalker, PlumedBias
 from psiflow.generator import Generator
-from psiflow.state import load_state
-from psiflow.wandb_utils import WandBLogger
+from psiflow.state import load_state        # necessary for restarting a run
+from psiflow.wandb_utils import WandBLogger # takes care of W&B logging
 
 
 def get_bias():
+    """Defines the metadynamics parameters based on a plumed input script"""
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -26,6 +27,13 @@ METAD ARG=CV SIGMA=200 HEIGHT=5 PACE=100 LABEL=metad FILE=test_hills
 
 
 def get_reference():
+    """Defines a generic PBE-D3/TZVP reference level of theory
+
+    Basis set, pseudopotentials, and D3 correction parameters are obtained from
+    the official CP2K repository, v9.1, and saved in the internal directory of
+    psiflow. The input file is assumed to be available locally.
+
+    """
     with open(Path.cwd() / 'data' / 'cp2k_input.txt', 'r') as f:
         cp2k_input = f.read()
     reference = CP2KReference(cp2k_input=cp2k_input)
@@ -45,32 +53,32 @@ def get_reference():
 
 
 def get_nequip_model():
+    """Defines a MACE model architecture
+
+    A full list of parameters can be found in the MACE repository, or in the
+    psiflow source code at psiflow.models._nequip.
+
+    """
     config = NequIPConfig()
     config.loss_coeffs['total_energy'][0] = 10
     return NequIPModel(config)
 
 
-def get_mace_model():
-    config = MACEConfig()
-    config.max_num_epochs = 1000
-    return MACEModel(config)
-
-
 def main(path_output):
     assert not path_output.is_dir()
-    reference = get_reference() # CP2K; PBE-D3(BJ); TZVP
-    model = get_mace_model()    # MACE; small model
-    bias  = get_bias()          # simple MTD bias on unit cell volume
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # load single atoms
+    reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
+    model = get_nequip_model()      # NequIP; default model
+    bias  = get_bias()              # simple MTD bias on unit cell volume
+    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # single strucutre
 
     # set up wandb logging
     wandb_logger = WandBLogger(
             wandb_project='psiflow',
             wandb_group='run_sequential',
-            error_x_axis='CV',  # plot errors against PLUMED 'ARG=CV'
+            error_x_axis='CV',  # plot errors against PLUMED variable; 'ARG=CV'
             )
 
-    # set learning parameters
+    # set learning parameters and do pretraining
     learning = SequentialLearning(
             path_output=path_output,
             niterations=10,
@@ -88,7 +96,7 @@ def main(path_output):
             initial_data=Dataset([atoms]), # only one initial state
             )
 
-    # construct generators; biased MD in this case
+    # construct generators; biased MTD MD in this case
     walker = DynamicWalker(
             atoms,
             timestep=0.5,
@@ -100,7 +108,7 @@ def main(path_output):
             force_threshold=30,
             initial_temperature=600,
             )
-    generators = Generator('mtd', walker, bias).multiply(30, initialize_using=None)
+    generators = Generator('mtd', walker, bias).multiply(30)
     data_train, data_valid = learning.run(
             model=model,
             reference=reference,

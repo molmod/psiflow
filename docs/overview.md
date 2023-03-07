@@ -1,4 +1,4 @@
-Psiflow is designed as a modular and flexible library that allows the user to
+Psiflow is a modular and flexible library that allows the user to
 design and execute arbitrarily complex workflows based on a variety of sampling
 algorithms, trainable interaction potentials, and reference levels of theory.
 While all computations are orchestrated internally using Parsl, psiflow provides
@@ -302,7 +302,7 @@ In the vast majority of molecular dynamics simulations of realistic systems,
 it is beneficial to modify the equilibrium Boltzmann distribution with bias potentials
 or advanced sampling schemes as to increase the sampling efficiency and reduce
 redundancy within the trajectory.
-The [PLUMED](plumed.org) library provides the user with various choices of enhanced sampling
+The [PLUMED](https://plumed.org) library provides the user with various choices of enhanced sampling
 techniques, and psiflow provides a specific `PlumedBias` class to implement
 these techniques in the existing `DynamicWalker` implementation of molecular
 dynamics.
@@ -612,6 +612,6 @@ folders (named `0`, `1`, ... `9`) in which the model and datasets are logged as 
 as the entire state of the generators (i.e. start and stop configuration,
 and state of the bias potentials).
 Additional features relate to Weights & Biases logging and optional
-pretraining based on quick-and-dirty dataset with random perturbations applied
+pretraining based on a quick-and-dirty dataset with random perturbations applied
 to both atomic positions and strain components; see the [Examples](examples.md)
 for more information.

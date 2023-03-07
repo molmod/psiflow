@@ -271,16 +271,17 @@ class WandBLogger:
                         model=None,
                         error_kwargs=None,
                         ) # no model or error kwargs
-        if bias is None: # if bias is not available, u
+        if bias is None: # if bias is not available, use index in dataset
             error_x_axis = 'index'
         else:
-            assert self.error_x_axis in bias.variables, ('wandb logging is '
-                    'supposed to use {} as x axis for plotting errors, but '
-                    'supplied bias only has the following variables: {}'.format(
-                        self.error_x_axis,
-                        bias.variables,
-                        ))
-            error_x_axis = self.error_x_axis
+            if self.error_x_axis != 'index':
+                assert self.error_x_axis in bias.variables, ('wandb logging is '
+                        'supposed to use {} as x axis for plotting errors, but '
+                        'supplied bias only has the following variables: {}'
+                        ''.format(self.error_x_axis, bias.variables))
+                error_x_axis = self.error_x_axis
+            else:
+                error_x_axis = 'index'
         logger.info('\twandb project: {}'.format(self.wandb_project))
         logger.info('\twandb group  : {}'.format(self.wandb_group))
         logger.info('\twandb name   : {}'.format(run_name))
