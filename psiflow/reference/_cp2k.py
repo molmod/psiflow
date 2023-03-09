@@ -229,6 +229,8 @@ def cp2k_singlepoint_post(
         out.parse_energies()
         out.parse_forces()
         out.parse_stresses()
+        out.convergence() # check SCF convergence
+        assert all(out.data['scf_converged'])
         energy_ = out.data['total_energy'][0] # already in eV
         forces_ = np.array(out.data['forces'][0]) * (Hartree / Bohr) # to eV/A
         stress_ = np.array(out.data['stress_tensor'][0]) * (1e9 * Pascal)

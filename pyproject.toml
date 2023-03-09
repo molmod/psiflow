@@ -63,6 +63,6 @@ addopts = [
     "--import-mode=importlib",
     "--psiflow-config=configs/local_threadpool.py",
     "--log-cli-level=WARNING",
-    #"-vv",
+    "-vv",
 ]
 testpaths = ["tests"]
