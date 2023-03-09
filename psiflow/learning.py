@@ -107,7 +107,7 @@ class BaseLearning:
             with open(path_learning, 'r') as f:
                 config = yaml.load(f, Loader=yaml.FullLoader)
             config['atomic_energies'] = {el: en for el, en in zip(elements, energies)}
-            return save_yaml(config, outputs=[File(path_config)])
+            return save_yaml(config, outputs=[File(path_learning)])
 
         if self.atomic_energies is None:
             logger.info('computing energies of isolated atoms:')
