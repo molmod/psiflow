@@ -412,8 +412,8 @@ It is recommended to read the <a href="../overview/">Overview</a> page before tr
 the examples below.</p>
 <h2 id="simple-training-and-validation">Simple training and validation</h2>
 <p>The following example demonstrates how to use an existing dataset to train an
-interatomic potential, and evaluate its performance based on a few short molecular dynamics
-trajectories. Click
+interatomic potential, and evaluate its performance based on a short molecular dynamics
+trajectory. Click
 <a href="https://github.com/svandenhaute/psiflow/tree/main/examples/run_train_npt.py">here</a>
 for the full example.</p>
 <details class="note">
@@ -576,9 +576,9 @@ modified before creating the <code>NequIPModel</code>.
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">reference</span> <span class="o">=</span> <span class="n">get_reference</span><span class="p">()</span>     <span class="c1"># CP2K; PBE-D3(BJ); TZVP</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">model</span> <span class="o">=</span> <span class="n">get_nequip_model</span><span class="p">()</span>      <span class="c1"># MACE; small model</span>
 <a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">bias</span>  <span class="o">=</span> <span class="n">get_bias</span><span class="p">()</span>              <span class="c1"># simple MTD bias on unit cell volume</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">atoms</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;data&#39;</span> <span class="o">/</span> <span class="s1">&#39;Al_mil53_train.xyz&#39;</span><span class="p">)</span> <span class="c1"># single strucutre</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">atoms</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;data&#39;</span> <span class="o">/</span> <span class="s1">&#39;Al_mil53_train.xyz&#39;</span><span class="p">)</span> <span class="c1"># single structure</span>
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="c1"># set up wandb logging</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="c1"># set up wandb logging; optional but recommended</span>
 <a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">wandb_logger</span> <span class="o">=</span> <span class="n">WandBLogger</span><span class="p">(</span>
 <a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>            <span class="n">wandb_project</span><span class="o">=</span><span class="s1">&#39;psiflow&#39;</span><span class="p">,</span>
 <a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>            <span class="n">wandb_group</span><span class="o">=</span><span class="s1">&#39;run_sequential&#39;</span><span class="p">,</span>
@@ -686,6 +686,19 @@ At the end of each iteration, the state of all walkers, the trained model,
 and the obtained (and QM-evaluated) data are saved in the specified
 output folder, and if enabled, logged to W&amp;B.</li>
 </ul>
+<figure>
+<p><img alt="Image title" src="../wandb.png" />
+  </p>
+<figcaption>Force errors as a function of the collective variable and the
+  iteration in a learning algorithm, as visualized in W&amp;B. In this case,
+  NequIP was used to model the proton hopping process in aluminum-doped zeolites;
+  collective variable values of 1 and -1 represent a stable O-H bond; a value
+  of 0 indicates a transition from one oxygen to another.
+  </figcaption>
+</figure>
+<p>After completing the requested number of learning iterations (as specified with
+the <code>niterations</code> keyword argument), psiflow will exit and the output folder will
+contain the state of the entire system after each step:</p>
 <h2 id="online-learning-2-concurrent-learning-with-umbrella-sampling">Online learning 2: concurrent learning with umbrella sampling</h2>
 
 
