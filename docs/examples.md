@@ -17,8 +17,8 @@ the examples below.
 
 ## Simple training and validation
 The following example demonstrates how to use an existing dataset to train an
-interatomic potential, and evaluate its performance based on a few short molecular dynamics
-trajectories. Click
+interatomic potential, and evaluate its performance based on a short molecular dynamics
+trajectory. Click
 [here](https://github.com/svandenhaute/psiflow/tree/main/examples/run_train_npt.py)
 for the full example.
 ??? note "import statements and helper functions"
@@ -190,9 +190,9 @@ def main(path_output):
     reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
     model = get_nequip_model()      # MACE; small model
     bias  = get_bias()              # simple MTD bias on unit cell volume
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # single strucutre
+    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # single structure
 
-    # set up wandb logging
+    # set up wandb logging; optional but recommended
     wandb_logger = WandBLogger(
             wandb_project='psiflow',
             wandb_group='run_sequential',
@@ -299,5 +299,18 @@ This approach to online learning is extensively discussed in the original
 At the end of each iteration, the state of all walkers, the trained model,
 and the obtained (and QM-evaluated) data are saved in the specified
 output folder, and if enabled, logged to W&B.
+<figure markdown>
+  ![Image title](wandb.png)
+  <figcaption>Force errors as a function of the collective variable and the
+  iteration in a learning algorithm, as visualized in W&B. In this case,
+  NequIP was used to model the proton hopping process in aluminum-doped zeolites;
+  collective variable values of 1 and -1 represent a stable O-H bond; a value
+  of 0 indicates a transition from one oxygen to another.
+  </figcaption>
+</figure>
+
+After completing the requested number of learning iterations (as specified with
+the `niterations` keyword argument), psiflow will exit and the output folder will
+contain the state of the entire system after each step:
 
 ## Online learning 2: concurrent learning with umbrella sampling

@@ -69,7 +69,7 @@ def main(path_output):
     reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
     model = get_nequip_model()      # NequIP; default model
     bias  = get_bias()              # simple MTD bias on unit cell volume
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # single strucutre
+    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # single structure
 
     # set up wandb logging
     wandb_logger = WandBLogger(

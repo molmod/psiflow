@@ -74,6 +74,10 @@ For more information, check out the psiflow [Configuration](config.md) page.
 
 !!! note "Citing psiflow"
 
+    Psiflow is developed at the
+    [Center for Molecular Modeling](https://molmod.ugent.be).
+    If you use it in your research, please cite the following paper:
+
     Machine learning Potentials for Metal-Organic Frameworks using an
     Incremental Learning Approach,
     _Sander Vandenhaute et al._,

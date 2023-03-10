@@ -53,6 +53,7 @@ plugins:
     
 repo_url: https://github.com/svandenhaute/psiflow
 markdown_extensions:
+  - md_in_html
   - admonition
   - footnotes
   - pymdownx.highlight:

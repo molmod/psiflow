@@ -1,1 +1,0 @@
-:::psiflow.sampling.OptimizationWalker
