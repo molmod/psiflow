@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psiflow"
-version = "0.0.1"
+version = "0.2.0"
 description = "Library for developing interatomic potentials"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -63,6 +63,6 @@ addopts = [
     "--import-mode=importlib",
     "--psiflow-config=configs/local_threadpool.py",
     "--log-cli-level=WARNING",
-    "-vv",
+    #"-vv",
 ]
 testpaths = ["tests"]

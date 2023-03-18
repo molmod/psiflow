@@ -39,8 +39,11 @@ def context(request, tmp_path_factory):
                 path_config,
                 tmp_path_factory.mktemp('psiflow_internal'),
                 psiflow_log_level=logging.DEBUG,
-                parsl_log_level=logging.DEBUG,
+                parsl_log_level=logging.INFO,
                 )
+    def cleanup():
+        parsl.dfk().wait_for_current_tasks()
+    request.addfinalizer(cleanup)
     return context
 
 

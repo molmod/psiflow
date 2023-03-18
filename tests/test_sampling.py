@@ -9,7 +9,8 @@ from ase import Atoms
 
 from psiflow.models import NequIPModel, MACEModel
 from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
-        OptimizationWalker, load_walker
+        OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker, \
+        MovingRestraintDynamicWalker
 
 
 def test_save_load(context, dataset, tmp_path):
@@ -123,3 +124,195 @@ def test_optimization_walker(context, dataset, mace_config):
     final_ = walker.propagate(model=model)
     assert not np.all(np.abs(final_.result().positions - dataset[0].result().positions) < 0.001) # moved again
     assert walker.counter_future.result() > counter # more steps in total
+
+
+def test_biased_dynamic_walker(context, nequip_config, dataset):
+    model = NequIPModel(nequip_config)
+    model.initialize(dataset)
+    model.deploy()
+    parameters = {
+            'timestep'           : 1,
+            'steps'              : 10,
+            'step'               : 1,
+            'start'              : 0,
+            'temperature'        : 100,
+            'initial_temperature': 100,
+            'pressure'           : None,
+            }
+
+    # initial unit cell volume is around 125 A**3
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+CV1: MATHEVAL ARG=CV VAR=a FUNC=3*a PERIODIC=NO
+restraint: RESTRAINT ARG=CV,CV1 AT=150,450 KAPPA=1,10
+"""
+    bias = PlumedBias(plumed_input)
+    walker = BiasedDynamicWalker(dataset[0], bias=bias, **parameters)
+    assert bias.components[0] == ('RESTRAINT', ('CV','CV1'))
+    _, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    values = bias.evaluate(trajectory).result()
+    assert np.allclose(
+            3 * values[:, 0],
+            values[:, 1],
+            )
+    assert walker.tag_future.result() == 'safe'
+    assert not np.allclose(
+            walker.state_future.result().positions,
+            walker.start_future.result().positions,
+            )
+
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
+""" # RESTART automatically added in input if not present
+    bias = PlumedBias(plumed_input)
+    assert ('METAD', ('CV',)) in bias.components
+    assert ('RESTRAINT', ('CV',)) in bias.components
+    parameters = {
+            'timestep'           : 1,
+            'steps'              : 10,
+            'step'               : 1,
+            'start'              : 0,
+            'temperature'        : 100,
+            'initial_temperature': 100,
+            'pressure'           : None,
+            }
+    walker = BiasedDynamicWalker(dataset[0], bias=bias, **parameters)
+    walker.propagate(model=model)
+
+    with open(bias.data_futures['METAD'].result(), 'r') as f:
+        single_length = len(f.read().split('\n'))
+    assert walker.tag_future.result() == 'safe'
+    walker.propagate(model=model)
+    with open(bias.data_futures['METAD'].result(), 'r') as f:
+        double_length = len(f.read().split('\n'))
+    assert double_length == 2 * single_length - 1 # twice as many gaussians
+
+    # double check MTD gives correct nonzero positive contribution
+    values = walker.bias.evaluate(dataset).result()
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=2 LABEL=metad FILE=test_hills
+""" # RESTART automatically added in input if not present
+    bias_mtd = PlumedBias(plumed_input, data={'METAD': walker.bias.data_futures['METAD']})
+    values_mtd = bias_mtd.evaluate(dataset).result()
+    assert np.allclose(
+            values[:, 0],
+            values_mtd[:, 0],
+            )
+    assert np.any(values_mtd[:, 1] >  0)
+    bias.adjust_restraint('CV', kappa=0, center=150) # only compute MTD contrib
+    assert np.all(bias.evaluate(dataset).result()[:, 1] == 0) # MTD bias == 0
+    assert np.all(values_mtd[:, 1] >= 0)
+    total  = values[:, 1]
+    manual = values_mtd[:, 1] + 0.5 * (values[:, 0] - 150) ** 2
+    assert np.allclose(
+            total,
+            manual,
+            )
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+SOMEOTHER: VOLUME
+restraint: RESTRAINT ARG=SOMEOTHER AT=150 KAPPA=1
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
+""" # RESTART automatically added in input if not present
+    bias_ = PlumedBias(plumed_input, data={'METAD': walker.bias.data_futures['METAD']})
+    values_ = bias_.evaluate(dataset).result()
+    assert np.allclose(
+            values_[:, 0],
+            values[:, 0],
+            )
+
+
+def test_walker_multiply_distribute(context, dataset, mace_config):
+    def check(walkers):
+        for i, walker in enumerate(walkers):
+            assert np.allclose(
+                    walker.start_future.result().positions,
+                    walker.state_future.result().positions,
+                    )
+            assert np.allclose(
+                    dataset[i].result().positions,
+                    walker.state_future.result().positions,
+                    )
+            for j in range(i + 1, len(walkers)):
+                if hasattr(walker, 'bias'): # check whether bias is copied
+                    assert id(walker.bias) != id(walkers[j].bias)
+    walkers = DynamicWalker.multiply(3, dataset)
+    check(walkers)
+
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+restraint: RESTRAINT ARG=CV AT=15 KAPPA=100
+"""
+    bias = PlumedBias(plumed_input)
+    walkers = BiasedDynamicWalker.multiply(3, dataset, bias=bias, steps=123)
+    assert len(walkers) == 3
+    assert type(walkers[0]) == BiasedDynamicWalker
+    assert walkers[0].parameters.steps == 123
+    check(walkers)
+
+    walkers = BiasedDynamicWalker.distribute(
+            nwalkers=2,
+            data_start=dataset,
+            bias=bias,
+            variable='CV',
+            min_value=0,
+            max_value=50000,
+            ) # should extract min and max volume state
+    assert len(walkers) == 2
+    volumes = [dataset[i].result().get_volume() for i in range(dataset.length().result())]
+    volume_min = min(volumes)
+    volume_max = max(volumes)
+    assert not volume_min == volume_max
+    assert walkers[0].state_future.result().get_volume() == volume_min
+    assert walkers[1].state_future.result().get_volume() == volume_max
+    assert walkers[0].bias.plumed_input != walkers[1].bias.plumed_input
+
+
+def test_moving_restraint_walker(context, dataset, mace_config, tmp_path):
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
+"""
+    bias = PlumedBias(plumed_input)
+    walkers = MovingRestraintDynamicWalker.multiply(
+            3,
+            dataset,
+            bias=bias,
+            variable='CV',
+            min_value=100,
+            max_value=200,
+            increment=50,
+            steps=11,
+            )
+    assert walkers[0].parameters.steps == 11
+    assert np.allclose(
+            walkers[0].targets,
+            100 + np.arange(3) * 50,
+            )
+    model = MACEModel(mace_config)
+    model.initialize(dataset[:2])
+    model.deploy()
+    walkers[0].propagate(model=model)
+    assert walkers[0].parameters.index == 1
+
+    walkers[0].save(tmp_path)
+    walker = load_walker(tmp_path)
+    assert type(walker) == MovingRestraintDynamicWalker
+    assert walker.parameters.index == 1
+
+    assert walkers[1].bias.plumed_input == walkers[2].bias.plumed_input
+    assert not (walkers[0].bias.plumed_input == walkers[1].bias.plumed_input)
+
+    walker.propagate(model=model) # 200
+    walker.propagate(model=model) # 150
+    walker.propagate(model=model) # 100
+    assert walker.bias.plumed_input.split('\n')[-1] == walkers[1].bias.plumed_input.split('\n')[-1]

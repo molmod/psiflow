@@ -56,6 +56,7 @@ def propagate_wrapped(
     return future
 
 
+@typeguard.typechecked
 @dataclass
 class RandomParameters:
     amplitude_pos: float = 0.05

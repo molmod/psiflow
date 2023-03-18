@@ -90,7 +90,7 @@ class BaseReference:
             retval = data
         return retval
 
-    def get_atomic_energy(self, element, box_size=5):
+    def compute_atomic_energy(self, element, box_size=5):
         energies = []
         references = self.get_single_atom_references(element)
         configs  = [c for c, _ in references]

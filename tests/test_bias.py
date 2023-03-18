@@ -8,7 +8,7 @@ from ase.build import bulk
 
 from psiflow.data import Dataset
 from psiflow.models import NequIPModel
-from psiflow.sampling import DynamicWalker, RandomWalker, PlumedBias
+from psiflow.sampling import RandomWalker, PlumedBias
 from psiflow.sampling.bias import set_path_in_plumed, parse_plumed_input, \
         generate_external_grid, remove_comments_printflush
 
@@ -65,104 +65,20 @@ METADD ARG=CV1 SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
     assert components[0] == ('METAD', ('CV0',))
 
 
-def test_dynamic_walker_bias(context, nequip_config, dataset):
-    model = NequIPModel(nequip_config)
-    model.initialize(dataset)
-    model.deploy()
-    kwargs = {
-            'timestep'           : 1,
-            'steps'              : 10,
-            'step'               : 1,
-            'start'              : 0,
-            'temperature'        : 100,
-            'initial_temperature': 100,
-            'pressure'           : None,
-            }
-    walker = DynamicWalker(dataset[0], **kwargs)
-
-    # initial unit cell volume is around 125 A**3
+def test_bias_from_file(context, tmp_path):
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-CV1: MATHEVAL ARG=CV VAR=a FUNC=3*a PERIODIC=NO
-restraint: RESTRAINT ARG=CV,CV1 AT=150,450 KAPPA=1,10
+CV1: VOLUME
+METAD ARG=CV1 SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 """
-    bias = PlumedBias(plumed_input)
-    assert bias.components[0] == ('RESTRAINT', ('CV','CV1'))
-    _, trajectory = walker.propagate(model=model, bias=bias, keep_trajectory=True)
-    values = bias.evaluate(trajectory).result()
-    assert np.allclose(
-            3 * values[:, 0],
-            values[:, 1],
-            )
-    assert walker.tag_future.result() == 'safe'
-    assert not np.allclose(
-            walker.state_future.result().positions,
-            walker.start_future.result().positions,
-            )
+    path_plumed = tmp_path / 'plumed_input.txt'
+    with open(path_plumed, 'w') as f:
+        f.write(plumed_input)
+    bias  = PlumedBias.from_file(path_plumed)
+    bias_ = PlumedBias(plumed_input)
 
-    plumed_input = """
-UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-restraint: RESTRAINT ARG=CV AT=150 KAPPA=1
-METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
-""" # RESTART automatically added in input if not present
-    bias = PlumedBias(plumed_input)
-    assert ('METAD', ('CV',)) in bias.components
-    assert ('RESTRAINT', ('CV',)) in bias.components
-    kwargs = {
-            'timestep'           : 1,
-            'steps'              : 10,
-            'step'               : 1,
-            'start'              : 0,
-            'temperature'        : 100,
-            'initial_temperature': 100,
-            'pressure'           : None,
-            }
-    walker.propagate(model=model, bias=bias)
-
-    with open(bias.data_futures['METAD'].result(), 'r') as f:
-        single_length = len(f.read().split('\n'))
-    assert walker.tag_future.result() == 'safe'
-    walker.propagate(model=model, bias=bias)
-    with open(bias.data_futures['METAD'].result(), 'r') as f:
-        double_length = len(f.read().split('\n'))
-    assert double_length == 2 * single_length - 1 # twice as many gaussians
-
-    # double check MTD gives correct nonzero positive contribution
-    values = bias.evaluate(dataset).result()
-    plumed_input = """
-UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=2 LABEL=metad FILE=test_hills
-""" # RESTART automatically added in input if not present
-    bias_mtd = PlumedBias(plumed_input, data={'METAD': bias.data_futures['METAD']})
-    values_mtd = bias_mtd.evaluate(dataset).result()
-    assert np.allclose(
-            values[:, 0],
-            values_mtd[:, 0],
-            )
-    assert np.any(values_mtd[:, 1] >  0)
-    assert np.all(values_mtd[:, 1] >= 0)
-    total  = values[:, 1]
-    manual = values_mtd[:, 1] + 0.5 * (values[:, 0] - 150) ** 2
-    assert np.allclose(
-            total,
-            manual,
-            )
-    plumed_input = """
-UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-SOMEOTHER: VOLUME
-restraint: RESTRAINT ARG=SOMEOTHER AT=150 KAPPA=1
-METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
-""" # RESTART automatically added in input if not present
-    bias_ = PlumedBias(plumed_input, data={'METAD': bias.data_futures['METAD']})
-    values_ = bias_.evaluate(dataset).result()
-    assert np.allclose(
-            values_[:, 0],
-            values[:, 0],
-            )
+    assert bias.plumed_input == bias_.plumed_input # check equivalence
+    assert tuple(bias.data_futures.keys()) == tuple(bias_.data_futures.keys())
 
 
 def test_bias_evaluate(context, dataset):

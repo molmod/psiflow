@@ -21,13 +21,14 @@ import logging
 import numpy as np
 from pathlib import Path
 
+from ase.data import chemical_symbols
+from ase import Atoms
+
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
-
-from ase import Atoms
 
 import psiflow
 from psiflow.utils import copy_data_future, copy_app_future
@@ -85,6 +86,11 @@ class FlowAtoms(Atoms):
     def reference_stderr(self, path: Union[bool, str]) -> None:
         self.info['reference_stderr'] = path
 
+    @property
+    def elements(self) -> list[str]:
+        numbers = set([n for n in self.numbers])
+        return [chemical_symbols[n] for n in numbers]
+
     def copy(self) -> FlowAtoms:
         """Performs a deepcopy of `self`"""
         flow_atoms = FlowAtoms.from_atoms(self)
@@ -94,6 +100,22 @@ class FlowAtoms(Atoms):
         if 'stress' in flow_atoms.info.keys(): # bug in ASE constructor!
             flow_atoms.info['stress'] = flow_atoms.info['stress'].copy()
         return flow_atoms
+
+    def reset(self) -> None:
+        info = {}
+        retain_keys = [
+                'lattice',
+                'properties',
+                'pbc',
+                ]
+        for key, value in self.info.items():
+            if key.lower() in retain_keys:
+                info[key] = value
+        info['reference_stdout'] = False
+        info['reference_stderr'] = False
+        info['reference_status'] = False
+        self.info = info
+        self.arrays.pop('forces', None)
 
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> FlowAtoms:
@@ -120,21 +142,13 @@ class FlowAtoms(Atoms):
         return flow_atoms
 
 
-@id_for_memo.register(FlowAtoms)
-def id_for_memo_flowatoms(atoms: FlowAtoms, output_ref=False):
-    """Returns unique bytestring of instance used by Parsl for caching
-
-    Args:
-        atoms (FlowAtoms): object for which to construct a bytestring
-        output_ref (bool): whether or not it is part of the app outputs
-
-    """
-    assert not output_ref
-    string = ''
-    string += str(atoms.numbers)
-    string += str(atoms.cell.round(decimals=4))
-    string += str(atoms.positions.round(decimals=4))
-    return bytes(string, 'utf-8')
+@typeguard.typechecked
+def reset_atoms(atoms: Union[Atoms, FlowAtoms]): # modify FlowAtoms Future before returning
+    if not type(atoms) == FlowAtoms:
+        atoms = FlowAtoms.from_atoms(atoms)
+    atoms.reset()
+    return atoms.copy()
+app_reset_atoms = python_app(reset_atoms, executors=['default'])
 
 
 @typeguard.typechecked
@@ -194,6 +208,21 @@ def read_dataset(
             write_extxyz(f, data)
     return data
 app_read_dataset = python_app(read_dataset, executors=['default'])
+
+
+@typeguard.typechecked
+def reset_dataset(
+        inputs: List[File] = [],
+        outputs: List[File] = [],
+        ) -> None:
+    from psiflow.data import read_dataset
+    from ase.io.extxyz import write_extxyz
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    for atoms in data:
+        atoms.reset()
+    with open(outputs[0], 'w') as f:
+        write_extxyz(f, data)
+app_reset_dataset = python_app(reset_dataset, executors=['default'])
 
 
 @typeguard.typechecked
@@ -319,7 +348,7 @@ app_compute_metrics = python_app(compute_metrics, executors=['default'])
 
 
 @typeguard.typechecked
-def replace_energy(
+def insert_formation_energy(
         elements: list[str],
         inputs: list[Union[File, float]] = [],
         outputs: list[File] = [],
@@ -331,27 +360,52 @@ def replace_energy(
     data = read_dataset(slice(None), inputs=[inputs[0]])
     numbers = [atomic_numbers[e] for e in elements]
     for atoms in data:
+        assert 'formation_energy' not in atoms.info.keys(), ('formation_energy'
+                ' label already present in data, please remove it first using '
+                'dataset.reset()')
         reference = 0
-        for i in range(len(atoms)):
-            assert atoms.numbers[i] in numbers
-            assert np.sum(atoms.numbers[i] == numbers) == 1
-            index = np.argmax(atoms.numbers[i] == numbers)
-            assert atoms.numbers[i] == numbers[index]
-            reference += inputs[1 + index]
-        assert reference != 0
-        atoms.info['energy'] -= reference
+        indices = []
+        natoms = len(atoms)
+        for i, number in enumerate(numbers):
+            natoms_per_number = np.sum(atoms.numbers == number)
+            if natoms_per_number == 0:
+                continue
+            element = elements[i]
+            energy = inputs[1 + i]
+            label = 'atomic_energy_{}'.format(element)
+            assert label not in atoms.info.keys()
+            atoms.info[label] = energy
+            reference += natoms_per_number * energy
+            natoms -= natoms_per_number
+        assert natoms == 0 # all atoms accounted for
+        atoms.info['formation_energy'] = atoms.info['energy'] - reference
+        #assert atoms.info['formation_energy'] < 0, ('The formation'
+        #        ' energy is nonnegative, meaning that the system is unstable; '
+        #        'total energy: {}\t computed reference energy: {}'.format(
+        #            atoms.info['energy'], reference))
     with open(outputs[0], 'w') as f:
         write_extxyz(f, data)
-app_replace_energy = python_app(replace_energy, executors=['default'])
+app_insert_formation_energy = python_app(insert_formation_energy, executors=['default'])
 
 
 @typeguard.typechecked
-def get_elements(inputs: list[File] = []) -> list[str]:
+def get_elements(inputs=[]) -> set[str]:
     from ase.data import chemical_symbols
     data = read_dataset(slice(None), inputs=[inputs[0]])
-    numbers = set([n for a in data for n in a.numbers])
-    return [chemical_symbols[n] for n in numbers]
+    return set([e for atoms in data for e in atoms.elements])
 app_get_elements = python_app(get_elements, executors=['default'])
+
+
+@typeguard.typechecked
+def get_energy_labels(inputs=[]) -> list[str]:
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    labels = ['total_energy', 'energy', 'formation_energy']
+    for atoms in data:
+        for label in list(labels):
+            if not label in atoms.info:
+                labels.remove(label)
+    return labels
+app_get_energy_labels = python_app(get_energy_labels, executors=['default'])
 
 
 @typeguard.typechecked
@@ -396,6 +450,9 @@ class Dataset:
                     inputs=[data_future],
                     outputs=[context.new_file('data_', '.xyz')],
                     ).outputs[0] # ensure type(data_future) == DataFuture
+
+    def energy_labels(self) -> AppFuture:
+        return app_get_energy_labels(inputs=[self.data_future])
 
     def length(self) -> AppFuture:
         return app_length_dataset(inputs=[self.data_future])
@@ -473,11 +530,12 @@ class Dataset:
     def log(self, name):
         logger.info('dataset {} contains {} states'.format(name, self.length().result()))
 
-    def compute_formation_energy(self, **atomic_energies):
+    def set_formation_energy(self, **atomic_energies) -> Dataset:
         context = psiflow.context()
         elements = list(atomic_energies.keys())
         energies = [atomic_energies[e] for e in elements]
-        data_future = app_replace_energy(
+        assert not 'formation_energy' in self.energy_labels().result()
+        data_future = app_insert_formation_energy(
                 elements,
                 inputs=[self.data_future] + energies,
                 outputs=[context.new_file('data_', '.xyz')],
@@ -486,6 +544,14 @@ class Dataset:
 
     def elements(self):
         return app_get_elements(inputs=[self.data_future])
+
+    def reset(self):
+        context = psiflow.context()
+        data_future = app_reset_dataset(
+                inputs=[self.data_future],
+                outputs=[context.new_file('data_', '.xyz')],
+                ).outputs[0]
+        return Dataset(None, data_future)
 
     @property
     def success(self) -> AppFuture:

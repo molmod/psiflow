@@ -5,7 +5,7 @@ import logging
 
 from psiflow.models import BaseModel, load_model
 from psiflow.data import Dataset
-from psiflow.generator import Generator, save_generators, load_generators
+from psiflow.sampling import BaseWalker, save_walkers, load_walkers
 from psiflow.checks import Check, load_checks
 
 
@@ -17,7 +17,7 @@ def save_state(
         path_output: Union[Path, str],
         name: str,
         model: BaseModel,
-        generators: list[Generator],
+        walkers: list[BaseWalker],
         data_train: Optional[Dataset] = None,
         data_valid: Optional[Dataset] = None,
         data_failed: Optional[Dataset] = None,
@@ -30,10 +30,10 @@ def save_state(
     # model
     model.save(path, require_done=require_done)
 
-    # generators
-    path_generators = path / 'generators'
-    path_generators.mkdir(exist_ok=False)
-    save_generators(generators, path_generators, require_done=require_done)
+    # walkers
+    path_walkers = path / 'walkers'
+    path_walkers.mkdir(exist_ok=False)
+    save_walkers(walkers, path_walkers, require_done=require_done)
 
     # data
     if data_train is not None:
@@ -54,7 +54,7 @@ def save_state(
 @typeguard.typechecked
 def load_state(path_output: Union[Path, str], name: str) -> tuple[
                 BaseModel,
-                list[Generator],
+                list[BaseWalker],
                 Optional[Dataset],
                 Optional[Dataset],
                 Optional[list[Check]],
@@ -65,9 +65,9 @@ def load_state(path_output: Union[Path, str], name: str) -> tuple[
     # model
     model = load_model(path)
 
-    # generators
-    path_generators = path / 'generators'
-    generators = load_generators(path_generators)
+    # walkers
+    path_walkers = path / 'walkers'
+    walkers = load_walkers(path_walkers)
 
     # data; optional
     path_train = path / 'train.xyz'
@@ -87,4 +87,4 @@ def load_state(path_output: Union[Path, str], name: str) -> tuple[
         checks = load_checks(path_checks)
     else:
         checks = None
-    return model, generators, data_train, data_valid, checks
+    return model, walkers, data_train, data_valid, checks

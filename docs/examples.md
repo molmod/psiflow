@@ -314,3 +314,4 @@ the `niterations` keyword argument), psiflow will exit and the output folder wil
 contain the state of the entire system after each step:
 
 ## Online learning 2: concurrent learning with umbrella sampling
+

@@ -192,10 +192,11 @@ def init_n_update(config):
             if repr(v_new) == repr(v_old):
                 skip = True
         if skip:
-            logging.info(f"# skipping wandb update {k} from {v_old} to {v_new}")
+            #logging.info(f"# skipping wandb update {k} from {v_old} to {v_new}")
+            pass
         else:
             config.update({k: v_new})
-            logging.info(f"# wandb update {k} from {v_old} to {v_new}")
+            #logging.info(f"# wandb update {k} from {v_old} to {v_new}")
     return config
 
 
@@ -400,20 +401,6 @@ class NequIPModel(BaseModel):
             config = dict(config)
         super().__init__(config)
 
-    def initialize(self, dataset: Dataset) -> None:
-        assert self.config_future is None
-        assert self.model_future is None
-        self.deploy_future = {}
-        logger.info('initializing {} using dataset of {} states'.format(
-            self.__class__.__name__, dataset.length().result()))
-        context = psiflow.context()
-        self.config_future = context.apps(self.__class__, 'initialize')( # to initialized config
-                self.config_raw,
-                inputs=[dataset.data_future],
-                outputs=[context.new_file('model_', '.pth')],
-                )
-        self.model_future = self.config_future.outputs[0] # to undeployed model
-
     def deploy(self) -> None:
         assert self.config_future is not None
         assert self.model_future is not None
@@ -527,6 +514,26 @@ class NequIPModel(BaseModel):
                 device=device,
                 set_global_options=set_global_options,
                 )
+
+    @property
+    def use_formation_energy(self) -> bool:
+        energy_key = None
+        for key, value in self.config_raw['dataset_key_mapping'].items():
+            if value == 'total_energy':
+                energy_key = key
+        assert energy_key is not None, ('could not determine which key to use for extracting'
+                ' the total energy from the XYZ header of a configuration')
+        return key == 'formation_energy'
+
+    @use_formation_energy.setter
+    def use_formation_energy(self, arg) -> None:
+        for key in list(self.config_raw['dataset_key_mapping'].keys()):
+            if 'energy' in key:
+                self.config_raw['dataset_key_mapping'].pop(key)
+        if arg: # use formation_energy
+            self.config_raw['dataset_key_mapping']['formation_energy'] = 'total_energy'
+        else: # switch to total energy
+            self.config_raw['dataset_key_mapping']['energy'] = 'total_energy'
 
 
 @typeguard.typechecked

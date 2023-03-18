@@ -103,7 +103,6 @@ def generate_parsl_config(
         providers: dict[str, ExecutionProvider],
         use_work_queue: bool = True,
         wq_timeout: int = 120, # in seconds
-        wq_port: int = 9223, # in seconds
         parsl_app_cache: bool = False,
         parsl_retries: int = 0,
         parsl_max_idletime: int = 30, # in seconds
@@ -168,11 +167,10 @@ def generate_parsl_config(
                     provider=provider,
                     shared_fs=True,
                     autocategory=False,
-                    port=wq_port,
+                    port=0,
                     max_retries=0,
                     worker_options=' '.join(worker_options),
                     )
-                wq_port += 1 # use different port for each WQ executor
             else:
                 executor = HighThroughputExecutor(
                         address=htex_address,

@@ -31,7 +31,7 @@ def set_file_logger( # hacky
     names = [
             'psiflow.checks',
             'psiflow.data',
-            'psiflow.generator',
+            'psiflow.generate',
             'psiflow.execution',
             'psiflow.wandb_utils',
             'psiflow.state',

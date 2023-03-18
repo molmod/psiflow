@@ -13,8 +13,8 @@ from parsl.dataflow.futures import AppFuture
 
 from psiflow.models import BaseModel, NequIPModel
 from psiflow.reference.base import BaseReference
-from psiflow.sampling import RandomWalker, PlumedBias
-from psiflow.generator import Generator
+from psiflow.sampling import RandomWalker, PlumedBias, BiasedDynamicWalker, \
+        BaseWalker
 from psiflow.data import Dataset
 from psiflow.checks import Check
 from psiflow.utils import copy_app_future
@@ -65,8 +65,8 @@ app_log_data = python_app(_app_log_data, executors=['default'])
 
 
 @typeguard.typechecked
-def _app_log_generators(
-        generator_names: list[str],
+def _app_log_walkers(
+        walker_names: list[str],
         errors: Optional[np.ndarray] = None,
         error_labels: Optional[list[str]] = None,
         bias_labels: Optional[list[str]] = None,
@@ -77,12 +77,7 @@ def _app_log_generators(
     from ase.io import write
     from psiflow.data import read_dataset
     data = read_dataset(slice(None), inputs=[inputs[0]])
-    columns = ['generator name', 'elements', 'natoms', 'counter']
-    if error_labels is not None:
-        if errors.shape[0] != len(data):
-            raise AssertionError('error evaluation was not performed on every state')
-        assert len(error_labels) == errors.shape[1]
-        columns += error_labels
+    columns = ['name', 'elements', 'natoms', 'counter']
     if bias_labels is not None:
         #assert len(bias_labels) % 2 == 0
         nvariables = len(bias_labels) - 1
@@ -92,10 +87,8 @@ def _app_log_generators(
     for i, atoms in enumerate(data):
         elements = list(set([chemical_symbols[n] for n in atoms.numbers]))
         tag_index = 1 + i
-        name = generator_names[i]
+        name = walker_names[i]
         row = [name, ', '.join(elements), len(atoms), inputs[tag_index]]
-        if error_labels is not None:
-            row += [e for e in errors[i, :]]
         if bias_labels is not None:
             for j in range(nvariables + 1):
                 index = int(1 + len(data) + i * (nvariables + 1) + j) # casting necessary?
@@ -109,10 +102,11 @@ def _app_log_generators(
                 else:
                     row.append(None)
                     #row.append(None)
-        assert len(columns) == len(row)
+        assert len(columns) == len(row), ('{} columns but row has length {}'
+                ''.format(len(columns), len(row)))
         table_data.append(row)
     return [columns] + table_data
-app_log_generators = python_app(_app_log_generators, executors=['default'])
+app_log_walkers = python_app(_app_log_walkers, executors=['default'])
 
 
 @typeguard.typechecked
@@ -155,51 +149,50 @@ def log_data(
 
 
 @typeguard.typechecked
-def log_generators(generators: list[Generator]) -> AppFuture:
-    assert len(generators) > 0
-    states = [generator.walker.state_future for generator in generators]
-    dataset = Dataset(states)
+def log_walkers(walkers: list[BaseWalker]) -> AppFuture:
+    assert len(walkers) > 0
+    dataset = Dataset([w.state_future for w in walkers])
     inputs = []
 
     # add walker counters to inputs
-    generator_names = [g.name for g in generators]
-    for g in generators:
-        inputs.append(g.walker.counter_future)
+    walker_names = [w.__class__.__name__ + str(i) for i, w in enumerate(walkers)]
+    for walker in walkers:
+        inputs.append(walker.counter_future)
 
     # add bias to inputs
     variables = []
-    for g in generators:
-        if g.bias is not None:
-            variables += g.bias.variables
+    for walker in walkers:
+        if isinstance(walker, BiasedDynamicWalker):
+            variables += walker.bias.variables
     variables = list(set(variables))
     if len(variables) > 0:
         bias_labels = []
         for variable in variables:
             bias_labels.append(variable)
-        bias_labels.append('total bias energy')
-        for g in generators:
+        bias_labels.append('bias energy [kJ_per_mol]')
+        for walker in walkers:
             for i, variable in enumerate(variables):
-                if (g.bias is not None) and (variable in g.bias.variables):
-                    inputs.append(g.bias.evaluate(
-                        Dataset([g.walker.state_future]),
+                if isinstance(walker, BiasedDynamicWalker) and (variable in walker.bias.variables):
+                    inputs.append(walker.bias.evaluate(
+                        Dataset([walker.state_future]),
                         variable=variable,
                         ))
                 else:
                     inputs.append(False) # cannot pass None as input
-            if (g.bias is not None):
-                inputs.append(g.bias.evaluate(
-                    Dataset([g.walker.state_future]),
+            if isinstance(walker, BiasedDynamicWalker) and (walker.bias is not None):
+                inputs.append(walker.bias.evaluate(
+                    Dataset([walker.state_future]),
                     ))
             else:
                 inputs.append(False)
-        assert len(inputs) == len(generators) * (len(variables) + 2)
+        assert len(inputs) == len(walkers) * (len(variables) + 2)
     else:
-        assert len(inputs) == len(generators)
+        assert len(inputs) == len(walkers)
         bias_labels = None
 
     # double check inputs contains tag info + bias info
-    return app_log_generators(
-            generator_names=generator_names,
+    return app_log_walkers(
+            walker_names=walker_names,
             bias_labels=bias_labels,
             inputs=[dataset.data_future] + inputs,
             )
@@ -229,7 +222,7 @@ class WandBLogger:
             self,
             run_name: str,
             model: BaseModel,
-            generators: Optional[list[Generator]] = None,
+            walkers: Optional[list[BaseWalker]] = None,
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
@@ -248,7 +241,7 @@ class WandBLogger:
                         ''.format(self.error_x_axis, bias.variables))
                 error_x_axis = self.error_x_axis
             else:
-                logger.warning('ignoring bias when logging generators and data')
+                logger.warning('ignoring bias when logging data')
                 bias = None
                 error_x_axis = 'index'
         if data_train is not None:
@@ -272,8 +265,8 @@ class WandBLogger:
                     model=model,
                     error_kwargs=self.error_kwargs,
                     )
-        if generators is not None:
-            log_futures['generators'] = log_generators(generators=generators)
+        if walkers is not None:
+            log_futures['walkers'] = log_walkers(walkers=walkers)
         if checks is not None:
             for check in checks:
                 name = check.__class__.__name__
@@ -337,30 +330,32 @@ def _to_wandb(
     wandb_log = {}
     assert len(names) == len(inputs)
     for name, data in zip(names, inputs):
+        for i in range(len(data[0])):
+            label = data[0][i]
+            if label.endswith('energy'):
+                data[0][i] = label# + ' [meV_per_atom]'
+            if label.endswith('forces'):
+                data[0][i] = label# + ' [meV_per_A]'
+            if label.endswith('stress'):
+                data[0][i] = label# + ' [MPa]'
         table = wandb.Table(columns=data[0], data=data[1:])
         if name in ['training', 'validation', 'failed']:
             errors_to_plot = [] # check which error labels are present
             for l in data[0]:
-                if l.endswith('energy') or l.endswith('forces') or l.endswith('stress'):
+                if ('energy' in l) or ('forces' in l) or ('stress' in l):
                     errors_to_plot.append(l)
-            #for l in data[0]:
             assert error_x_axis in data[0]
             for error in errors_to_plot:
                 title = name + '_' + error
-                if error.endswith('energy'):
-                    title += ' [meV/atom]'
-                if error.endswith('forces'):
-                    title += ' [meV/A]'
-                if error.endswith('stress'):
-                    title += ' [MPa]'
                 wandb_log[title] = wandb.plot.scatter(
                         table,
                         error_x_axis,
                         error,
                         title=title,
                         )
+                #wandb_log['tables/' + title] = table
         else:
-            wandb_log[name + '_table'] = table
+            wandb_log['tables/' + name] = table
     assert path_wandb.is_dir()
     os.environ['WANDB_SILENT'] = 'True' # suppress logs
     wandb.log(wandb_log)

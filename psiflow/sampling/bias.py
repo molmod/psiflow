@@ -331,7 +331,7 @@ class PlumedBias:
             new_futures = None
         return PlumedBias(self.plumed_input, data=new_futures)
 
-    def adjust_restraint(self, variable: str, kappa: float, center: float) -> None:
+    def adjust_restraint(self, variable: str, kappa: Optional[float], center: Optional[float]) -> None:
         plumed_input = str(self.plumed_input)
         lines = plumed_input.split('\n')
         found = False
@@ -340,12 +340,14 @@ class PlumedBias:
                 if 'ARG={}'.format(variable) in line.split():
                     assert not found
                     line_ = line
-                    line_before = line_.split('KAPPA=')[0]
-                    line_after  = line_.split('KAPPA=')[1].split()[1:]
-                    line_ = line_before + 'KAPPA={} '.format(kappa) + ' '.join(line_after)
-                    line_before = line_.split('AT=')[0]
-                    line_after  = line_.split('AT=')[1].split()[1:]
-                    line_ = line_before + 'AT={} '.format(center) + ' '.join(line_after)
+                    if kappa is not None:
+                        line_before = line_.split('KAPPA=')[0]
+                        line_after  = line_.split('KAPPA=')[1].split()[1:]
+                        line_ = line_before + 'KAPPA={} '.format(kappa) + ' '.join(line_after)
+                    if center is not None:
+                        line_before = line_.split('AT=')[0]
+                        line_after  = line_.split('AT=')[1].split()[1:]
+                        line_ = line_before + 'AT={} '.format(center) + ' '.join(line_after)
                     lines[i] = line_
                     found = True
         assert found
@@ -427,6 +429,13 @@ class PlumedBias:
                 with open(path_key, 'r') as f:
                     data[key] = f.read()
         return cls(plumed_input, data=data)
+
+    @classmethod
+    def from_file(cls, path_plumed: Union[Path, str]) -> PlumedBias:
+        assert path_plumed.is_file()
+        with open(path_plumed, 'r') as f:
+            plumed_input = f.read()
+        return cls(plumed_input)
 
     @property
     def keys(self) -> list[str]:

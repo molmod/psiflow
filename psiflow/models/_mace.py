@@ -111,7 +111,7 @@ def initialize( # taken from MACE @ d520aba
         ) -> dict:
     import torch
     import ast
-    import logging
+    #import logging
     from pathlib import Path
     from typing import Optional
     import tempfile
@@ -136,12 +136,12 @@ def initialize( # taken from MACE @ d520aba
 
     # Setup
     tools.set_seeds(mace_config.seed)
-    tools.setup_logger(level=mace_config.log_level, tag=tag, directory=mace_config.log_dir)
-    try:
-        logging.info(f"MACE version: {mace.__version__}")
-    except AttributeError:
-        logging.info("Cannot find MACE version, please install MACE via pip")
-    logging.info(f"Configuration: {mace_config}")
+    #tools.setup_logger(level=mace_config.log_level, tag=tag, directory=mace_config.log_dir)
+    #try:
+    #    logging.info(f"MACE version: {mace.__version__}")
+    #except AttributeError:
+    #    logging.info("Cannot find MACE version, please install MACE via pip")
+    #logging.info(f"Configuration: {mace_config}")
     device = tools.init_device(mace_config.device)
     tools.set_default_dtype(mace_config.default_dtype)
 
@@ -149,9 +149,9 @@ def initialize( # taken from MACE @ d520aba
         config_type_weights = ast.literal_eval(mace_config.config_type_weights)
         assert isinstance(config_type_weights, dict)
     except Exception as e:  # pylint: disable=W0703
-        logging.warning(
-            f"Config type weights not specified correctly ({e}), using Default"
-        )
+        #logging.warning(
+        #    f"Config type weights not specified correctly ({e}), using Default"
+        #)
         config_type_weights = {"Default": 1.0}
 
     # Data preparation
@@ -171,10 +171,10 @@ def initialize( # taken from MACE @ d520aba
         charges_key=mace_config.charges_key,
     )
 
-    logging.info(
-        f"Total number of configurations: train={len(collections.train)}, valid={len(collections.valid)}, "
-        f"tests=[{', '.join([name + ': ' + str(len(test_configs)) for name, test_configs in collections.tests])}]"
-    )
+    #logging.info(
+    #    f"Total number of configurations: train={len(collections.train)}, valid={len(collections.valid)}, "
+    #    f"tests=[{', '.join([name + ': ' + str(len(test_configs)) for name, test_configs in collections.tests])}]"
+    #)
 
     # Atomic number table
     # yapf: disable
@@ -185,7 +185,7 @@ def initialize( # taken from MACE @ d520aba
         for z in config.atomic_numbers
     )
     # yapf: enable
-    logging.info(z_table)
+    #logging.info(z_table)
     if mace_config.model == "AtomicDipolesMACE":
         atomic_energies = None
         dipole_only = True
@@ -207,13 +207,13 @@ def initialize( # taken from MACE @ d520aba
             compute_dipole = False
         if atomic_energies_dict is None or len(atomic_energies_dict) == 0:
             if mace_config.E0s is not None:
-                logging.info(
-                    "Atomic Energies not in training file, using command line argument E0s"
-                )
+                #logging.info(
+                #    "Atomic Energies not in training file, using command line argument E0s"
+                #)
                 if mace_config.E0s.lower() == "average":
-                    logging.info(
-                        "Computing average Atomic Energies using least squares regression"
-                    )
+                    #logging.info(
+                    #    "Computing average Atomic Energies using least squares regression"
+                    #)
                     atomic_energies_dict = data.compute_average_E0s(
                         collections.train, z_table
                     )
@@ -232,7 +232,7 @@ def initialize( # taken from MACE @ d520aba
         atomic_energies: np.ndarray = np.array(
             [atomic_energies_dict[z] for z in z_table.zs]
         )
-        logging.info(f"Atomic energies: {atomic_energies.tolist()}")
+        #logging.info(f"Atomic energies: {atomic_energies.tolist()}")
 
     train_loader = torch_geometric.dataloader.DataLoader(
         dataset=[
@@ -290,11 +290,11 @@ def initialize( # taken from MACE @ d520aba
         loss_fn = modules.EnergyForcesLoss(
             energy_weight=mace_config.energy_weight, forces_weight=mace_config.forces_weight
         )
-    logging.info(loss_fn)
+    #logging.info(loss_fn)
 
     if mace_config.compute_avg_num_neighbors:
         mace_config.avg_num_neighbors = modules.compute_avg_num_neighbors(train_loader)
-    logging.info(f"Average number of neighbors: {mace_config.avg_num_neighbors:.3f}")
+    #logging.info(f"Average number of neighbors: {mace_config.avg_num_neighbors:.3f}")
 
     # Selecting outputs
     compute_virials = False
@@ -310,10 +310,10 @@ def initialize( # taken from MACE @ d520aba
         "stress": mace_config.compute_stress,
         "dipoles": compute_dipole,
     }
-    logging.info(f"Selected the following outputs: {output_args}")
+    #logging.info(f"Selected the following outputs: {output_args}")
 
     # Build model
-    logging.info("Building model")
+    #logging.info("Building model")
     model_config = dict(
         r_max=mace_config.r_max,
         num_bessel=mace_config.num_radial_basis,
@@ -333,7 +333,7 @@ def initialize( # taken from MACE @ d520aba
     if mace_config.model == "MACE":
         if mace_config.scaling == "no_scaling":
             std = 1.0
-            logging.info("No scaling selected")
+            #logging.info("No scaling selected")
         else:
             mean, std = modules.scaling_classes[mace_config.scaling](
                 train_loader, atomic_energies
@@ -488,20 +488,6 @@ class MACEModel(BaseModel):
         config['device'] = 'cpu' # guarantee consistent initialization
         super().__init__(config)
 
-    def initialize(self, dataset: Dataset) -> None:
-        assert self.config_future is None
-        assert self.model_future is None
-        self.deploy_future = {}
-        logger.info('initializing {} using dataset of {} states'.format(
-            self.__class__.__name__, dataset.length().result()))
-        context = psiflow.context()
-        self.config_future = context.apps(self.__class__, 'initialize')(
-                self.config_raw,
-                inputs=[dataset.data_future],
-                outputs=[context.new_file('model_', '.pth')],
-                )
-        self.model_future = self.config_future.outputs[0] # to undeployed model
-
     def deploy(self) -> None:
         assert self.config_future is not None
         assert self.model_future is not None
@@ -600,3 +586,14 @@ class MACEModel(BaseModel):
                 device=device,
                 default_dtype=dtype,
                 )
+
+    @property
+    def use_formation_energy(self) -> bool:
+        return self.config_raw['energy_key'] == 'formation_energy'
+
+    @use_formation_energy.setter
+    def use_formation_energy(self, arg) -> None:
+        if arg: # use formation_energy
+            self.config_raw['energy_key'] = 'formation_energy'
+        else: # switch to total energy
+            self.config_raw['energy_key'] = 'energy'

@@ -48,7 +48,7 @@ cluster = 'doduo'
 worker_init = ''
 worker_init += 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
-worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
+worker_init += 'ml psiflow/0.2.0-CPU\n'
 provider = SlurmProviderVSC(
         cluster=cluster,
         partition=cluster,      # redundant specification of partition is necessary!
@@ -70,7 +70,7 @@ providers['default'] = provider
 cluster = 'doduo'
 worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
 worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
-worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
+worker_init += 'ml psiflow/0.2.0-CPU\n'
 worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_evaluate.ncores)
 provider = SlurmProviderVSC(
         cluster=cluster,
@@ -93,7 +93,7 @@ providers['model'] = provider
 # define provider for executing model training
 cluster = 'accelgor'
 worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
-worker_init += 'ml psiflow-develop/10Jan2023-CUDA-11.3.1\n'
+worker_init += 'ml psiflow/0.2.0-CUDA-11.3.1\n'
 worker_init += 'unset SLURM_CPUS_PER_TASK\n'
 worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(model_training.ncores)
 worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(model_training.ncores)
@@ -127,7 +127,7 @@ providers['training'] = provider
 # using Python 3.6, which does not go well with psiflow and/or CP2K
 cluster = 'doduo'
 worker_init = 'ml CP2K/8.2-foss-2021a\n'
-worker_init += 'ml psiflow-develop/10Jan2023-CPU\n'
+worker_init += 'ml psiflow/0.2.0-CPU\n'
 worker_init += 'unset SLURM_CPUS_PER_TASK\n'
 worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(reference_evaluate.ncores)
 worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(reference_evaluate.ncores)
@@ -158,7 +158,6 @@ def get_config(path_parsl_internal):
             providers,
             use_work_queue=True,
             wq_timeout=120,         # timeout for WQ workers before they shut down
-            wq_port=9223,           # start of port range used by WQ executors
             parsl_app_cache=False,  # parsl app caching; disabled for safety
             parsl_retries=1,        # HTEX may fail when block hits walltime
             parsl_max_idletime=30,  # idletime before parsl tries to scale-in resources

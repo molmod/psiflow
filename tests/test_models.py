@@ -1,5 +1,6 @@
 import pytest
 import os
+import copy
 import ast
 import numpy as np
 import torch
@@ -12,9 +13,11 @@ from ase.data import chemical_symbols
 from ase.io.extxyz import read_extxyz
 
 import psiflow
+from psiflow.reference import EMTReference
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.data import Dataset
-from psiflow.models import MACEModel, NequIPModel, AllegroModel, load_model
+from psiflow.models import MACEModel, NequIPModel, AllegroModel, load_model, \
+        MACEConfig, NequIPConfig
 
 
 def test_nequip_init(context, nequip_config, dataset):
@@ -115,8 +118,29 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
     assert np.allclose(e0, e1, atol=1e-4) # up to single precision
 
 
+def test_nequip_formation(context, nequip_config, dataset):
+    config = NequIPConfig(**nequip_config)
+    config.dataset_key_mapping.pop('energy')
+    config.dataset_key_mapping['formation_energy'] = 'total_energy'
+    model = NequIPModel(config)
+    assert model.use_formation_energy
+    model.use_formation_energy = False
+    assert not model.use_formation_energy
+    model.use_formation_energy = True
+    with pytest.raises(AssertionError):
+        model.initialize(dataset[:2])
+
+    reference = EMTReference()
+    dataset = dataset.set_formation_energy(
+            H=reference.compute_atomic_energy('H'),
+            Cu=reference.compute_atomic_energy('Cu'),
+            )
+    assert 'formation_energy' in dataset.energy_labels().result()
+    model.initialize(dataset[:2])
+
+
 @pytest.mark.skipif(torch.__version__.split('+')[0] != '1.11.0', reason='allegro only compatible with torch 1.11')
-def test_allegro_init(allegro_config, dataset):
+def test_allegro_init(context, allegro_config, dataset):
     model = AllegroModel(allegro_config)
     model.set_seed(1)
     model.initialize(dataset[:3])
@@ -331,3 +355,26 @@ def test_mace_save_load(context, mace_config, dataset, tmp_path):
     model_.deploy()
     e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info['energy']
     assert np.allclose(e0, e1, atol=1e-4) # up to single precision
+
+
+def test_mace_formation(context, mace_config, dataset):
+    config = MACEConfig(**mace_config)
+    model = MACEModel(config)
+    model.initialize(dataset[:2])
+    model.use_formation_energy = True
+    with pytest.raises(AssertionError):
+        model.initialize(dataset[:2])
+
+    reference = EMTReference()
+    dataset = dataset.set_formation_energy(
+            H=reference.compute_atomic_energy('H'),
+            Cu=reference.compute_atomic_energy('Cu'),
+            )
+    assert 'formation_energy' in dataset.energy_labels().result()
+    model.reset()
+    model.initialize(dataset[:2])
+
+    config = MACEConfig(**mace_config)
+    config.energy_key = 'formation_energy'
+    model = MACEModel(config)
+    assert model.use_formation_energy

@@ -30,6 +30,11 @@ def test_flow_atoms(context, dataset, tmp_path):
             np.arange(dataset.length().result()),
             )
     assert len(dataset.failed.result()) == 0
+    assert atoms.reference_status == True
+    atoms.reset()
+    assert not 'energy' in atoms.info
+    assert atoms.reference_status == False
+    assert tuple(sorted(atoms.elements)) == ('Cu', 'H')
 
 
 def test_dataset_empty(context, tmp_path):
@@ -175,3 +180,10 @@ def test_data_elements(context, dataset):
     assert 'H' in dataset.elements().result()
     assert 'Cu' in dataset.elements().result()
     assert len(dataset.elements().result()) == 2
+
+
+def test_data_reset(context, dataset):
+    assert tuple(dataset.energy_labels().result()) == ('energy',)
+    dataset = dataset.reset()
+    assert tuple(dataset.energy_labels().result()) == tuple()
+    assert not 'energy' in dataset[0].result().info

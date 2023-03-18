@@ -16,7 +16,7 @@ import psiflow
 from psiflow.models import BaseModel
 from psiflow.utils import copy_app_future, unpack_i, copy_data_future, \
         save_yaml
-from psiflow.data import save_atoms, FlowAtoms, Dataset
+from psiflow.data import save_atoms, FlowAtoms, Dataset, app_reset_atoms
 
 
 @typeguard.typechecked
@@ -75,8 +75,8 @@ class BaseWalker:
         # futures
         if type(atoms) == Atoms:
             atoms = FlowAtoms.from_atoms(atoms)
-        self.start_future   = copy_app_future(atoms) # necessary!
-        self.state_future   = copy_app_future(atoms)
+        self.start_future   = app_reset_atoms(atoms)
+        self.state_future   = app_reset_atoms(atoms)
         self.tag_future     = copy_app_future('safe')
         self.counter_future = copy_app_future(0) # counts nsteps
 
@@ -93,7 +93,6 @@ class BaseWalker:
             safe_return: bool = False,
             keep_trajectory: bool = False,
             model: Optional[BaseModel] = None,
-            **kwargs,
             ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
         app = self.get_propagate_app(model)
         if keep_trajectory:
@@ -103,10 +102,9 @@ class BaseWalker:
         result = app(
                 self.state_future,
                 deepcopy(self.parameters),
+                model=model,
                 keep_trajectory=keep_trajectory,
                 file=file,
-                model=model,
-                **kwargs, # Model or Bias instance
                 )
         self.state_future   = unpack_i(result, 0)
         self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
@@ -157,6 +155,12 @@ class BaseWalker:
     def is_reset(self):
         return is_reset(self.counter_future)
 
+    def set_state(self, atoms):
+        self.state_future = copy_app_future(atoms)
+
+    def set_start(self, atoms):
+        self.start_future = copy_app_future(atoms)
+
     def copy(self) -> BaseWalker:
         walker = self.__class__(self.state_future)
         walker.start_future = copy_app_future(self.start_future)
@@ -183,8 +187,10 @@ class BaseWalker:
                 self.state_future,
                 outputs=[File(str(path_state))],
                 ).outputs[0]
+        pars = asdict(self.parameters)
+        pars['counter'] = self.counter_future.result()
         future_pars = save_yaml(
-                asdict(self.parameters),
+                pars,
                 outputs=[File(str(path_pars))],
                 ).outputs[0]
         if require_done:
@@ -192,6 +198,19 @@ class BaseWalker:
             future_state.result()
             future_pars.result()
         return future_start, future_state, future_pars
+
+    @classmethod
+    def multiply(cls,
+            nwalkers: int,
+            data_start: Dataset,
+            **kwargs) -> list[BaseWalker]:
+        walkers = [cls(data_start[0], **kwargs) for i in range(nwalkers)]
+        length = data_start.length().result()
+        for i, walker in enumerate(walkers):
+            walker.parameters.seed = i
+            walker.set_start(data_start[i % length])
+            walker.set_state(data_start[i % length])
+        return walkers
 
     @classmethod
     def create_apps(cls) -> None:

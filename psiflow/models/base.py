@@ -106,7 +106,22 @@ class BaseModel:
 
     def initialize(self, dataset: Dataset) -> None:
         """Initializes the model based on a dataset"""
-        raise NotImplementedError
+        assert self.config_future is None
+        assert self.model_future is None
+        self.deploy_future = {}
+        available_labels = dataset.energy_labels().result()
+        if self.use_formation_energy:
+            assert 'formation_energy' in available_labels, ('key "{}" is not available in '
+                    'dataset with keys {}'.format('formation_energy', available_labels))
+        logger.info('initializing {} using dataset of {} states'.format(
+            self.__class__.__name__, dataset.length().result()))
+        context = psiflow.context()
+        self.config_future = context.apps(self.__class__, 'initialize')( # to initialized config
+                self.config_raw,
+                inputs=[dataset.data_future],
+                outputs=[context.new_file('model_', '.pth')],
+                )
+        self.model_future = self.config_future.outputs[0] # to undeployed model
 
     def evaluate(self, dataset: Dataset) -> Dataset:
         """Evaluates a dataset using a model"""
@@ -182,3 +197,11 @@ class BaseModel:
                         outputs=[context.new_file('model_', '.pth')],
                         ).outputs[0]
         return model
+
+    @property
+    def use_formation_energy(self) -> bool:
+        raise NotImplementedError
+
+    @use_formation_energy.setter
+    def use_formation_energy(self, arg) -> None:
+        raise NotImplementedError

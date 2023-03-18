@@ -387,33 +387,39 @@ def test_cp2k_timeout(context, cp2k_reference):
 def test_emt_atomic_energies(context, dataset):
     reference = EMTReference()
     for element in ['H', 'Cu']:
-        energy  = reference.get_atomic_energy(element, box_size=5)
-        energy_ = reference.get_atomic_energy(element, box_size=7)
+        energy  = reference.compute_atomic_energy(element, box_size=5)
+        energy_ = reference.compute_atomic_energy(element, box_size=7)
         assert energy.result() < energy_.result()
 
 
 def test_cp2k_atomic_energies(cp2k_reference, dataset):
     element = 'H'
-    energy  = cp2k_reference.get_atomic_energy(element, box_size=8)
+    energy  = cp2k_reference.compute_atomic_energy(element, box_size=8)
     assert abs(energy.result() - (-13.6)) < 1e-1
     # testing of additional atoms is possible but not really critical
 
 
-def test_data_compute_formation_energy(context, dataset):
+def test_data_set_formation_energy(context, dataset):
     reference = EMTReference()
     nstates = dataset.length().result()
     energies = [dataset[i].result().info['energy'] for i in range(nstates)]
-    dataset_ = dataset.compute_formation_energy(
-            H=reference.get_atomic_energy('H', box_size=8),
-            Cu=reference.get_atomic_energy('Cu', box_size=8),
+    dataset_ = dataset.set_formation_energy(
+            H=reference.compute_atomic_energy('H', box_size=8),
+            Cu=reference.compute_atomic_energy('Cu', box_size=8),
             )
-    energies_ = [dataset_[i].result().info['energy'] for i in range(nstates)]
+    assert 'atomic_energy_H' in dataset_[0].result().info
+    assert 'atomic_energy_Cu' in dataset_[0].result().info
+    assert 'formation_energy' in dataset_.energy_labels().result()
+    formation = [dataset_[i].result().info['formation_energy'] for i in range(nstates)]
 
-    energy_Cu = reference.get_atomic_energy('Cu', box_size=8).result()
-    energy_H = reference.get_atomic_energy('H', box_size=8).result()
+    energy_Cu = reference.compute_atomic_energy('Cu', box_size=8).result()
+    assert dataset_[0].result().info['atomic_energy_Cu'] == energy_Cu
+    energy_H = reference.compute_atomic_energy('H', box_size=8).result()
     assert energy_Cu != 0
     assert energy_H  != 0
     assert np.allclose(
-            energies_[0],
+            formation[0],
             energies[0] - 3 * energy_Cu - energy_H,
             )
+    data = dataset_.get(indices=[0, 1, 2])
+    assert 'formation_energy' in data[0].result().info

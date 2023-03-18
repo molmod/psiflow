@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from psiflow.models import NequIPModel
-from psiflow.generator import Generator
 from psiflow.sampling import RandomWalker, DynamicWalker
 from psiflow.checks import SafetyCheck, DiscrepancyCheck
 from psiflow.state import save_state, load_state
@@ -11,10 +10,7 @@ def test_save_load(context, dataset, nequip_config, tmp_path):
     model = NequIPModel(nequip_config)
     path_output = Path(tmp_path) / 'output'
     path_output.mkdir()
-    generators = (
-            Generator('random', RandomWalker(dataset[0])).multiply(2) +
-            Generator('dynamic', DynamicWalker(dataset[1])).multiply(2)
-            )
+    walkers = RandomWalker.multiply(2, dataset) + DynamicWalker.multiply(2, dataset)
     checks = [
             SafetyCheck(),
             DiscrepancyCheck(
@@ -30,22 +26,21 @@ def test_save_load(context, dataset, nequip_config, tmp_path):
             path_output=path_output,
             name=name,
             model=model,
-            generators=generators,
+            walkers=walkers,
             checks=checks,
             data_failed=dataset,
             )
-    assert (path_output / name / 'generators').is_dir()
-    assert (path_output / name / 'generators' / 'random0').is_dir()
-    assert (path_output / name / 'generators' / 'random1').is_dir()
-    assert (path_output / name / 'generators' / 'dynamic0').is_dir()
-    assert (path_output / name / 'generators' / 'dynamic1').is_dir()
-    assert not (path_output / name / 'generators' / '0').is_dir()
+    assert (path_output / name / 'walkers').is_dir()
+    assert (path_output / name / 'walkers' / '0').is_dir()
+    assert (path_output / name / 'walkers' / '1').is_dir()
+    assert (path_output / name / 'walkers' / '2').is_dir()
+    assert (path_output / name / 'walkers' / '3').is_dir()
     assert (path_output / name / 'checks').is_dir() # directory for saved checks
     assert (path_output / name / 'failed.xyz').is_file()
 
-    model_, generators_, data_train, data_valid, checks = load_state(path_output, 'test')
+    model_, walkers_, data_train, data_valid, checks = load_state(path_output, 'test')
     assert model_.config_future is None # model was not initialized
-    assert len(generators_) == 4
+    assert len(walkers_) == 4
     assert data_train.length().result() == 0
     assert data_valid.length().result() == 0
     assert len(checks) == 2
@@ -62,8 +57,8 @@ def test_save_load(context, dataset, nequip_config, tmp_path):
                 ),
             ]
     name = 'test_'
-    save_state(path_output, name, model=model, generators=generators, checks=checks)
-    model_, generators_, data_train, data_valid, checks = load_state(path_output, 'test_')
+    save_state(path_output, name, model=model, walkers=walkers, checks=checks)
+    model_, walkers_, data_train, data_valid, checks = load_state(path_output, 'test_')
     assert model_.config_future is not None # model was initialized
     for check in checks: # order is arbitrary
         if type(check) == DiscrepancyCheck:

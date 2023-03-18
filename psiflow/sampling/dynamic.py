@@ -1,20 +1,28 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List, Callable, Tuple, Type
+from typing import Optional, Union, List, Callable, Tuple, Type, Any
 import typeguard
+from copy import deepcopy
+import numpy as np
+from pathlib import Path
 from dataclasses import dataclass, asdict
 
 import parsl
 from parsl.app.app import python_app, bash_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
 from parsl.executors import WorkQueueExecutor
 
+from ase import Atoms
+
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.execution import ModelEvaluationExecution
-from psiflow.utils import copy_data_future, unpack_i, get_active_executor
+from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
+        copy_app_future
 from psiflow.sampling import BaseWalker, PlumedBias
+from psiflow.sampling.base import sum_counters, update_tag, conditional_reset
 from psiflow.models import BaseModel
 
 
@@ -197,12 +205,6 @@ class DynamicParameters: # container dataclass for simulation parameters
     seed               : int = 0 # seed for randomized initializations
 
 
-@id_for_memo.register(DynamicParameters)
-def id_for_memo_cp2k_parameters(parameters: DynamicParameters, output_ref=False):
-    assert not output_ref
-    return id_for_memo(asdict(parameters), output_ref=output_ref)
-
-
 @typeguard.typechecked
 class DynamicWalker(BaseWalker):
     parameters_cls = DynamicParameters
@@ -211,11 +213,11 @@ class DynamicWalker(BaseWalker):
         name = model.__class__.__name__
         context = psiflow.context()
         try:
-            app = context.apps(DynamicWalker, 'propagate_' + name)
+            app = context.apps(self.__class__, 'propagate_' + name)
         except (KeyError, AssertionError):
             assert model.__class__ in context.definitions.keys()
             self.create_apps(model_cls=model.__class__)
-            app = context.apps(DynamicWalker, 'propagate_' + name)
+            app = context.apps(self.__class__, 'propagate_' + name)
         return app
 
     @classmethod
@@ -258,10 +260,8 @@ class DynamicWalker(BaseWalker):
                 state: AppFuture,
                 parameters: DynamicParameters,
                 model: BaseModel = None,
-                bias: Optional[PlumedBias] = None,
                 keep_trajectory: bool = False,
                 file: Optional[File] = None,
-                **kwargs,
                 ) -> AppFuture:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
@@ -270,12 +270,176 @@ class DynamicWalker(BaseWalker):
             if keep_trajectory:
                 assert file is not None
                 outputs.append(file)
-            if bias is not None:
-                plumed_input = bias.prepare_input()
-                inputs += bias.futures
-                outputs += [File(f.filepath) for f in bias.futures]
-            else:
-                plumed_input = ''
+            result = app_propagate(
+                    device,
+                    ncores,
+                    dtype,
+                    state,
+                    parameters,
+                    model.load_calculator, # load function
+                    keep_trajectory=keep_trajectory,
+                    plumed_input='',
+                    inputs=inputs,
+                    outputs=outputs,
+                    walltime=(walltime * 60 - 20), # 20s slack
+                    stdout=parsl.AUTO_LOGNAME, # output redirected to this file
+                    stderr=parsl.AUTO_LOGNAME, # error redirected to this file
+                    parsl_resource_specification=resource_spec,
+                    )
+            return result
+        name = model_cls.__name__
+        context.register_app(cls, 'propagate_' + name, propagate_wrapped)
+
+
+@typeguard.typechecked
+class BiasedDynamicWalker(DynamicWalker):
+
+    def __init__(
+            self,
+            atoms: Union[Atoms, FlowAtoms, AppFuture],
+            bias: Optional[PlumedBias] = None,
+            **kwargs) -> None:
+        assert bias is not None
+        self.bias = bias.copy()
+        super().__init__(atoms, **kwargs)
+
+    def copy(self):
+        walker = self.__class__(self.state_future, self.bias.copy())
+        walker.start_future = copy_app_future(self.start_future)
+        walker.tag_future   = copy_app_future(self.tag_future)
+        walker.parameters   = deepcopy(self.parameters)
+        return walker
+
+    def save(
+            self,
+            path: Union[Path, str],
+            require_done: bool = True,
+            ) -> tuple[DataFuture, ...]:
+        self.bias.save(path, require_done)
+        return super().save(path, require_done)
+
+    def propagate(
+            self,
+            safe_return: bool = False,
+            keep_trajectory: bool = False,
+            model: Optional[BaseModel] = None,
+            ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
+        app = self.get_propagate_app(model)
+        if keep_trajectory:
+            file = psiflow.context().new_file('data_', '.xyz')
+        else:
+            file = None
+        result = app(
+                self.state_future,
+                deepcopy(self.parameters),
+                self.bias,
+                model=model,
+                keep_trajectory=keep_trajectory,
+                file=file,
+                )
+        self.state_future   = unpack_i(result, 0)
+        self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
+        self.counter_future = sum_counters(self.counter_future, unpack_i(result, 2))
+        if safe_return: # only return state if safe, else return start
+            # this does NOT reset the walker!
+            _ = conditional_reset(
+                    self.state_future,
+                    self.start_future,
+                    self.tag_future,
+                    self.counter_future,
+                    conditional=True
+                    )
+            future = unpack_i(_, 0)
+        else:
+            future = self.state_future
+        future = copy_app_future(future) # necessary
+        if keep_trajectory:
+            return future, Dataset(None, data_future=result.outputs[0])
+        else:
+            return future
+
+    @classmethod
+    def distribute(cls,
+            nwalkers: int,
+            data_start: Dataset,
+            bias: PlumedBias,
+            variable: str,
+            min_value: float,
+            max_value: float,
+            **kwargs,
+            ) -> list[BiasedDynamicWalker]:
+        targets = np.linspace(min_value, max_value, num=nwalkers, endpoint=True)
+        data_start = bias.extract_grid(
+                data_start,
+                variable,
+                targets=targets,
+                )
+        assert data_start.length().result() == nwalkers, ('could not find '
+                'states for all of the CV values: {} '.format(targets))
+        walkers = super(BiasedDynamicWalker, cls).multiply(
+                nwalkers,
+                data_start,
+                bias=bias,
+                **kwargs)
+        bias = walkers[0].bias
+        assert variable in bias.variables
+        if nwalkers > 1:
+            step_value = (max_value - min_value) / (nwalkers - 1)
+        else:
+            step_value = 0
+        for i, walker in enumerate(walkers):
+            center = min_value + i * step_value
+            try: # do not change kappa
+                walker.bias.adjust_restraint(variable, None, center)
+            except AssertionError: # no restraint present on variable
+                pass
+        return walkers
+
+    @classmethod
+    def create_apps(
+            cls,
+            model_cls: Type[BaseModel],
+            ) -> None:
+        context = psiflow.context()
+        for execution in context[model_cls]:
+            if type(execution) == ModelEvaluationExecution:
+                label    = execution.executor
+                device   = execution.device
+                dtype    = execution.dtype
+                ncores   = execution.ncores
+                walltime = execution.walltime
+                if isinstance(get_active_executor(label), WorkQueueExecutor):
+                    resource_spec = execution.generate_parsl_resource_specification()
+                else:
+                    resource_spec = {}
+        if walltime is None:
+            walltime = 1e10 # infinite
+
+        app_propagate = python_app(
+                simulate_model,
+                executors=[label],
+                cache=False,
+                )
+
+        @typeguard.typechecked
+        def propagate_wrapped(
+                state: AppFuture,
+                parameters: Any,
+                bias: PlumedBias,
+                model: BaseModel = None,
+                keep_trajectory: bool = False,
+                file: Optional[File] = None,
+                ) -> AppFuture:
+            assert model is not None # model is required
+            assert model.deploy_future[dtype] is not None # has to be deployed
+            inputs = [model.deploy_future[dtype]]
+            outputs = []
+            if keep_trajectory:
+                assert file is not None
+                outputs.append(file)
+            plumed_input = bias.prepare_input()
+            inputs += bias.futures
+            outputs += [File(f.filepath) for f in bias.futures]
             result = app_propagate(
                     device,
                     ncores,
@@ -292,15 +456,111 @@ class DynamicWalker(BaseWalker):
                     stderr=parsl.AUTO_LOGNAME, # error redirected to this file
                     parsl_resource_specification=resource_spec,
                     )
-            if bias is not None: # ensure dependency on new hills is set
-                if 'METAD' in bias.keys:
-                    if keep_trajectory:
-                        index = 1
-                    else:
-                        index = 0
-                    bias.data_futures['METAD'] = result.outputs[index]
+            if 'METAD' in bias.keys:
+                if keep_trajectory:
+                    index = 1
+                else:
+                    index = 0
+                bias.data_futures['METAD'] = result.outputs[index]
             return result
-        # register using model_cls, not cls!
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
-        super(DynamicWalker, cls).create_apps()
+
+
+@typeguard.typechecked
+@dataclass
+class MovingRestraintDynamicParameters:
+    variable           : str    # mandatory args
+    min_value          : float
+    max_value          : float
+    increment          : float
+    index              : int = 0
+    timestep           : float = 0.5
+    steps              : int = 100
+    step               : int = 10
+    start              : int = 0
+    temperature        : float = 300
+    pressure           : Optional[float] = None
+    force_threshold    : float = 1e6 # no threshold by default
+    initial_temperature: float = 600 # to mimick parallel tempering
+    seed               : int = 0 # seed for randomized initializations
+
+
+class MovingRestraintDynamicWalker(BiasedDynamicWalker):
+    parameters_cls = MovingRestraintDynamicParameters
+
+    def __init__(
+            self,
+            atoms: Union[Atoms, FlowAtoms, AppFuture],
+            **kwargs) -> None:
+        super().__init__(atoms, **kwargs)
+        assert self.parameters.variable in self.bias.variables
+        self.targets  = np.linspace(
+                self.parameters.min_value,
+                self.parameters.max_value,
+                int((self.parameters.max_value - self.parameters.min_value) / self.parameters.increment + 1),
+                endpoint=True,
+                )
+
+    def propagate(
+            self,
+            safe_return: bool = False,
+            keep_trajectory: bool = False,
+            model: Optional[BaseModel] = None,
+            ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
+        app = self.get_propagate_app(model)
+        if keep_trajectory:
+            file = psiflow.context().new_file('data_', '.xyz')
+        else:
+            file = None
+
+        # if targets are [a, b, c]; then i will select according to
+        # index 0: a
+        # index 1: b
+        # index 2: c
+        # index 3: b
+        # index 4: a
+        # index 5: b etc
+        i = self.parameters.index % (2 * len(self.targets))
+        if i >= len(self.targets):
+            i = len(self.targets) - i % len(self.targets) - 1
+        assert i >= 0
+        assert i < len(self.targets)
+        self.bias.adjust_restraint(
+                self.parameters.variable,
+                kappa=None,
+                center=self.targets[i],
+                )
+        self.parameters.index += 1
+        result = app(
+                self.state_future,
+                deepcopy(self.parameters),
+                self.bias,
+                model=model,
+                keep_trajectory=keep_trajectory,
+                file=file,
+                )
+        self.state_future   = unpack_i(result, 0)
+        self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
+        self.counter_future = sum_counters(self.counter_future, unpack_i(result, 2))
+        if safe_return: # only return state if safe, else return start
+            # this does NOT reset the walker!
+            _ = conditional_reset(
+                    self.state_future,
+                    self.start_future,
+                    self.tag_future,
+                    self.counter_future,
+                    conditional=True
+                    )
+            future = unpack_i(_, 0)
+        else:
+            future = self.state_future
+        future = copy_app_future(future) # necessary
+        if keep_trajectory:
+            return future, Dataset(None, data_future=result.outputs[0])
+        else:
+            return future
+
+    @classmethod
+    def distribute(cls, *args, **kwargs):
+        raise NotImplementedError
