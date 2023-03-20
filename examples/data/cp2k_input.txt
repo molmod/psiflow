@@ -7,7 +7,7 @@
       BASIS_SET_FILE_NAME  dummy
       POTENTIAL_FILE_NAME  dummy
       &SCF
-         MAX_SCF  10
+         MAX_SCF  50
          MAX_DIIS  8
          EPS_SCF  1.0E-06
          SCF_GUESS  RESTART
@@ -16,7 +16,7 @@
             PRECONDITIONER  FULL_SINGLE_INVERSE
          &END OT
          &OUTER_SCF T
-            MAX_SCF  10
+            MAX_SCF  50
             EPS_SCF  1.0E-06
          &END OUTER_SCF
       &END SCF
@@ -28,7 +28,7 @@
       &MGRID
          REL_CUTOFF [Ry]  60.0
          NGRIDS  5
-         CUTOFF [Ry] 500
+         CUTOFF [Ry] 1000
       &END MGRID
       &XC
          DENSITY_CUTOFF   1.0E-10

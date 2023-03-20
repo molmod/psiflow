@@ -10,7 +10,7 @@ from psiflow.learning import ConcurrentLearning, load_learning
 from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.sampling import DynamicWalker, PlumedBias
+from psiflow.sampling import BiasedDynamicWalker, PlumedBias
 from psiflow.state import load_state
 from psiflow.wandb_utils import WandBLogger
 
@@ -89,8 +89,8 @@ def main(path_output):
             )
 
     # construct generators; biased MD in this case
-    walker = BiasedDynamicWalker.distribute(
-            20
+    walkers = BiasedDynamicWalker.distribute(
+            20,
             data,
             bias=bias,
             variable='CV',

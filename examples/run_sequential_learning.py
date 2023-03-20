@@ -10,7 +10,7 @@ from psiflow.learning import SequentialLearning, load_learning
 from psiflow.models import NequIPModel, NequIPConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.sampling import DynamicWalker, PlumedBias
+from psiflow.sampling import BiasedDynamicWalker, PlumedBias
 from psiflow.state import load_state        # necessary for restarting a run
 from psiflow.wandb_utils import WandBLogger # takes care of W&B logging
 
@@ -91,7 +91,7 @@ def main(path_output):
             )
 
     # construct generators; biased MTD MD in this case
-    walker = BiasedDynamicWalker.multiply(
+    walkers = BiasedDynamicWalker.multiply(
             30,
             data_start=Dataset([atoms]),
             bias=bias,
