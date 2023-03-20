@@ -14,12 +14,12 @@ the output and error logs of QM evaluation calculations.
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List
 import typeguard
-import copy
 import os
 import tempfile
 import logging
 import numpy as np
 from pathlib import Path
+from copy import deepcopy
 
 from ase.data import chemical_symbols
 from ase import Atoms
@@ -138,7 +138,7 @@ class FlowAtoms(Atoms):
         flow_atoms.arrays = {}
         for name, a in atoms.arrays.items():
             flow_atoms.arrays[name] = a.copy()
-        flow_atoms.constraints = copy.deepcopy(atoms.constraints)
+        flow_atoms.constraints = deepcopy(atoms.constraints)
         return flow_atoms
 
 

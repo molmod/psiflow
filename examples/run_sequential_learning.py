@@ -11,7 +11,6 @@ from psiflow.models import NequIPModel, NequIPConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import DynamicWalker, PlumedBias
-from psiflow.generator import Generator
 from psiflow.state import load_state        # necessary for restarting a run
 from psiflow.wandb_utils import WandBLogger # takes care of W&B logging
 
@@ -90,15 +89,12 @@ def main(path_output):
             use_formation_energy=True,
             wandb_logger=wandb_logger,
             )
-    data_train, data_valid = learning.run_pretraining(
-            model=model,
-            reference=reference,
-            initial_data=Dataset([atoms]), # only one initial state
-            )
 
     # construct generators; biased MTD MD in this case
-    walker = DynamicWalker(
-            atoms,
+    walker = BiasedDynamicWalker.multiply(
+            30,
+            data_start=Dataset([atoms]),
+            bias=bias,
             timestep=0.5,
             steps=400,
             step=50,
@@ -108,27 +104,23 @@ def main(path_output):
             force_threshold=30,
             initial_temperature=600,
             )
-    generators = Generator('mtd', walker, bias).multiply(30)
     data_train, data_valid = learning.run(
             model=model,
             reference=reference,
-            generators=generators,
-            data_train=data_train,
-            data_valid=data_valid,
+            walkers=walkers,
             )
 
 
 def restart(path_output):
     reference = get_reference()
     learning  = load_learning(path_output)
-    model, generators, data_train, data_valid, checks = load_state(path_output, '5')
+    model, walkers, data_train, data_valid, checks = load_state(path_output, '5')
+    learning.checks = checks
     data_train, data_valid = learning.run(
             model=model,
             reference=reference,
-            generators=generators,
-            data_train=data_train,
-            data_valid=data_valid,
-            checks=checks,
+            walkers=walkers,
+            initial_data=data_train + data_valid,
             )
 
 

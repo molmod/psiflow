@@ -36,8 +36,8 @@ definitions = {
         AllegroModel: [model_evaluate, model_training],
         CP2KReference: [reference_evaluate],
         MP2CP2KReference: [reference_evaluate],
-        HybridReference: [reference_evaluate],
-        DoubleHybridReference: [reference_evaluate],
+        HybridCP2KReference: [reference_evaluate],
+        DoubleHybridCP2KReference: [reference_evaluate],
         }
 
 

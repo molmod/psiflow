@@ -99,5 +99,5 @@ def test_concurrent_learning(context, tmp_path, mace_config, dataset):
             amplitude_box=0,
             )
     data_train, data_valid = learning.run(model, reference, walkers, dataset)
-    assert data_train.length().result() == 16 + 2 * 32 # 8 + 
-    assert data_valid.length().result() == 4  + 2 * 8  # 4  + 20
+    assert data_train.length().result() == 16 + 2 * 32
+    assert data_valid.length().result() == 4  + 2 * 8

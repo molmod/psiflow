@@ -14,7 +14,7 @@ dependencies = [
     "pymatgen>=2023.1.30",
     "wandb>=0.13.6",
     "plumed>=2.7.2",
-    "parsl>=2023.1.23",
+    "parsl>=2023.3.13",
     "nequip @ git+https://github.com/mir-group/nequip.git@v0.5.6",
     "mir-allegro @ git+https://github.com/mir-group/allegro.git@c56bc809b689e60486ea30ef6eba5267430a147b",
     "mace @ git+https://github.com/ACEsuit/mace.git@d520abac437648dafbec0f6e203ec720afa16cf7",
