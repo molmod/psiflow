@@ -11,7 +11,6 @@ from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.sampling import DynamicWalker, PlumedBias
-from psiflow.generator import Generator
 from psiflow.state import load_state
 from psiflow.wandb_utils import WandBLogger
 
@@ -19,8 +18,13 @@ from psiflow.wandb_utils import WandBLogger
 def get_bias():
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-METAD ARG=CV SIGMA=200 HEIGHT=5 PACE=100 LABEL=metad FILE=test_hills
+
+coord1: COORDINATION GROUPA=109 GROUPB=88 R_0=1.4
+coord2: COORDINATION GROUPA=109 GROUPB=53 R_0=1.4
+CV: MATHEVAL ARG=coord1,coord2 FUNC=x-y PERIODIC=NO
+cv2: MATHEVAL ARG=coord1,coord2 FUNC=x+y PERIODIC=NO
+lwall: LOWER_WALLS ARG=cv2 AT=0.65 KAPPA=5000.0
+RESTRAINT ARG=CV AT=0.0 KAPPA=1500.0
 """
     return PlumedBias(plumed_input)
 
@@ -61,7 +65,7 @@ def main(path_output):
     reference = get_reference() # CP2K; PBE-D3(BJ); TZVP
     model = get_mace_model()    # MACE; small model
     bias  = get_bias()          # simple MTD bias on unit cell volume
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # load single atoms
+    data  = Dataset.load(Path.cwd() / 'data' / 'zeolite_proton.xyz')
 
     # set up wandb logging
     wandb_logger = WandBLogger(
@@ -74,52 +78,50 @@ def main(path_output):
     learning = ConcurrentLearning(
             path_output=path_output,
             niterations=10,
-            retrain_model_per_iteration=True,
+            train_from_scratch=True,
             pretraining_amplitude_pos=0.1,
             pretraining_amplitude_box=0.05,
             pretraining_nstates=50,
             train_valid_split=0.9,
             wandb_logger=wandb_logger,
-            )
-    data_train, data_valid = learning.run_pretraining(
-            model=model,
-            reference=reference,
-            initial_data=Dataset([atoms]), # only one initial state
+            min_states_per_iteration=15,
+            max_states_per_iteration=60,
             )
 
     # construct generators; biased MD in this case
-    walker = DynamicWalker(
-            atoms,
+    walker = BiasedDynamicWalker.distribute(
+            20
+            data,
+            bias=bias,
+            variable='CV',
+            min_value=-0.975,
+            max_value=0.975,
             timestep=0.5,
             steps=400,
             step=50,
             start=0,
-            temperature=600,
+            temperature=1000,
             pressure=0, # NPT
             force_threshold=30,
-            initial_temperature=600,
+            initial_temperature=1000,
             )
-    generators = Generator('mtd', walker, bias).multiply(30, initialize_using=None)
     data_train, data_valid = learning.run(
             model=model,
             reference=reference,
-            generators=generators,
-            data_train=data_train,
-            data_valid=data_valid,
+            walkers=walkers,
             )
 
 
 def restart(path_output):
     reference = get_reference()
     learning  = load_learning(path_output)
-    model, generators, data_train, data_valid, checks = load_state(path_output, '5')
+    model, walkers, data_train, data_valid, checks = load_state(path_output, '5')
+    learning.checks = checks
     data_train, data_valid = learning.run(
             model=model,
             reference=reference,
-            generators=generators,
-            data_train=data_train,
-            data_valid=data_valid,
-            checks=checks,
+            walkers=walkers,
+            initial_data=data_train + data_valid,
             )
 
 

@@ -81,11 +81,11 @@ def main(path_output):
     learning = SequentialLearning(
             path_output=path_output,
             niterations=10,
-            retrain_model_per_iteration=True,
+            train_valid_split=0.9,
+            train_from_scratch=True,
+            pretraining_nstates=50,
             pretraining_amplitude_pos=0.1,
             pretraining_amplitude_box=0.05,
-            pretraining_nstates=50,
-            train_valid_split=0.9,
             use_formation_energy=True,
             wandb_logger=wandb_logger,
             )
