@@ -91,16 +91,6 @@ class FlowAtoms(Atoms):
         numbers = set([n for n in self.numbers])
         return [chemical_symbols[n] for n in numbers]
 
-    def copy(self) -> FlowAtoms:
-        """Performs a deepcopy of `self`"""
-        flow_atoms = FlowAtoms.from_atoms(self)
-        flow_atoms.reference_stdout = self.reference_stdout
-        flow_atoms.reference_stderr = self.reference_stderr
-        flow_atoms.reference_status = self.reference_status
-        if 'stress' in flow_atoms.info.keys(): # bug in ASE constructor!
-            flow_atoms.info['stress'] = flow_atoms.info['stress'].copy()
-        return flow_atoms
-
     def reset(self) -> None:
         info = {}
         retain_keys = [
@@ -114,6 +104,7 @@ class FlowAtoms(Atoms):
         info['reference_stdout'] = False
         info['reference_stderr'] = False
         info['reference_status'] = False
+        self.calc = None # necessary
         self.info = info
         self.arrays.pop('forces', None)
 
@@ -129,25 +120,26 @@ class FlowAtoms(Atoms):
                 contains atomic configuration to be stored as `FlowAtoms`
 
         """
-        flow_atoms = FlowAtoms( # follows Atoms.copy method
-                cell=atoms.cell,
-                pbc=atoms.pbc,
-                info=atoms.info,
-                celldisp=atoms._celldisp.copy(),
-                )
-        flow_atoms.arrays = {}
-        for name, a in atoms.arrays.items():
-            flow_atoms.arrays[name] = a.copy()
-        flow_atoms.constraints = deepcopy(atoms.constraints)
+        from copy import deepcopy
+        flow_atoms = deepcopy(atoms)
+        flow_atoms.__class__ = FlowAtoms
+        if 'reference_stdout' not in flow_atoms.info.keys(): # only set if not present
+            flow_atoms.info['reference_stdout'] = False # default None not supported
+        if 'reference_stderr' not in flow_atoms.info.keys(): # only set if not present
+            flow_atoms.info['reference_stderr'] = False
+        if 'reference_status' not in flow_atoms.info.keys(): # only set if not present
+            flow_atoms.info['reference_status'] = False
         return flow_atoms
 
 
 @typeguard.typechecked
 def reset_atoms(atoms: Union[Atoms, FlowAtoms]): # modify FlowAtoms Future before returning
-    if not type(atoms) == FlowAtoms:
-        atoms = FlowAtoms.from_atoms(atoms)
-    atoms.reset()
-    return atoms.copy()
+    from copy import deepcopy
+    _atoms = deepcopy(atoms)
+    if not type(_atoms) == FlowAtoms:
+        _atoms = FlowAtoms.from_atoms(_atoms)
+    _atoms.reset()
+    return _atoms
 app_reset_atoms = python_app(reset_atoms, executors=['default'])
 
 
@@ -266,13 +258,14 @@ def compute_metrics(
         inputs: List[File] = [],
         ) -> np.ndarray:
     import numpy as np
+    from copy import deepcopy
     from ase.units import Pascal
     from psiflow.data import read_dataset
     from psiflow.utils import get_index_element_mask
     data_0 = read_dataset(slice(None), inputs=[inputs[0]])
     if len(inputs) == 1:
         assert intrinsic
-        data_1 = [a.copy() for a in data_0]
+        data_1 = [deepcopy(a) for a in data_0]
         for atoms_1 in data_1:
             if 'energy' in atoms_1.info.keys():
                 atoms_1.info['energy'] = 0.0

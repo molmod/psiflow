@@ -3,6 +3,7 @@ from typing import Optional, Union, List, Tuple
 import typeguard
 from dataclasses import dataclass, asdict
 from copy import deepcopy
+import numpy as np
 from pathlib import Path
 
 from ase import Atoms

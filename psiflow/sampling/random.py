@@ -59,8 +59,8 @@ def propagate_wrapped(
 @typeguard.typechecked
 @dataclass
 class RandomParameters:
-    amplitude_pos: float = 0.05
-    amplitude_box: float = 0.05
+    amplitude_pos: float = 0.8
+    amplitude_box: float = 0.0
     seed         : int = 0
 
 

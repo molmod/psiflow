@@ -11,6 +11,28 @@ from psiflow.models import NequIPModel, MACEModel
 from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker, \
         MovingRestraintDynamicWalker
+from psiflow.generate import generate_all
+
+
+def test_random_walker_multiply(context, dataset, tmp_path):
+    amplitude_pos = 0.1
+    amplitude_box = 0.0
+    nwalkers = 400
+    walkers = RandomWalker.multiply(
+            nwalkers,
+            dataset[:1],
+            amplitude_pos=amplitude_pos,
+            amplitude_box=amplitude_box,
+            )
+    for i, walker in enumerate(walkers):
+        delta = np.abs(dataset[0].result().positions - walker.state_future.result().positions)
+        assert np.allclose(delta, 0)
+        delta = np.abs(dataset[0].result().positions - walker.start_future.result().positions)
+        assert np.allclose(delta, 0)
+    data = generate_all(walkers, None, None, 1, 1)
+    for i, walker in enumerate(walkers):
+        delta = np.abs(walker.start_future.result().positions - walker.state_future.result().positions)
+        assert np.all(delta < amplitude_pos)
 
 
 def test_save_load(context, dataset, tmp_path):

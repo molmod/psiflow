@@ -14,7 +14,7 @@ from parsl.app.app import join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.utils import get_train_valid_indices, save_yaml
+from psiflow.utils import get_train_valid_indices, save_yaml, copy_app_future
 from psiflow.data import Dataset
 from psiflow.wandb_utils import WandBLogger
 from psiflow.models import BaseModel
@@ -106,8 +106,12 @@ class BaseLearning:
             logger.info('atomic energies:')
             for element, energy in zip(elements, energies):
                 logger.info('\t{}: {} eV'.format(element, energy))
-                logger.critical('\tatomic energy for element {} is {} but '
-                        'should be negative'.format(element, energy))
+                if energy > 0:
+                    logger.critical('\tatomic energy for element {} is {} but '
+                            'should be negative'.format(element, energy))
+                if energy == 1e10: # magic number to indicate SCF failed
+                    raise ValueError('atomic energy calculation for element {}'
+                            ' failed.'.format(element))
             with open(path_learning, 'r') as f:
                 config = yaml.load(f, Loader=yaml.FullLoader)
             config['atomic_energies'] = {el: float(en) for el, en in zip(elements, energies)}
@@ -187,7 +191,7 @@ class BaseLearning:
             else:
                 self.compute_atomic_energies(
                         reference,
-                        Dataset([walker.state_future for walker in walkers]),
+                        Dataset([w.state_future for w in walkers]),
                         )
         else:
             logger.warning('model is trained on *total* energy!')
@@ -196,7 +200,7 @@ class BaseLearning:
                 data_train, data_valid = self.run_pretraining(
                         model,
                         reference,
-                        Dataset([walker.state_future for walker in walkers]),
+                        Dataset([w.state_future for w in walkers]),
                         )
             else: # pretrain on initial data
                 model.initialize(data_train)

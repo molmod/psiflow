@@ -11,6 +11,7 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 
 from ase import Atoms
 from ase.io.extxyz import write_extxyz
+from ase.units import Pascal
 
 import psiflow
 from psiflow.data import FlowAtoms
@@ -243,13 +244,12 @@ def test_cp2k_success(context, cp2k_reference):
     assert 'stress' in evaluated.result().info.keys()
     assert 'forces' in evaluated.result().arrays.keys()
     assert np.allclose(
-            -1.165271084838365 / molmod.units.electronvolt,
+            -1.165271567241256 / molmod.units.electronvolt,
             evaluated.result().info['energy'],
             )
     forces_reference = np.array([
-            [-0.01215503, 0.00001282, 0.00001282],
-            [0.01218794, 0.00001251, 0.00001251],
-            ])
+            [-0.01215748,    0.00001210,    0.00001210],
+            [ 0.01217855,    0.00001150,    0.00001150]])
     forces_reference /= molmod.units.electronvolt
     forces_reference *= molmod.units.angstrom
     assert np.allclose(
@@ -257,10 +257,11 @@ def test_cp2k_success(context, cp2k_reference):
             evaluated.result().arrays['forces'],
             atol=1e-5,
             )
-    stress_reference = -1 * np.array([
-        [ 3.00710159e-03,  4.80921129e-07,  4.80921129e-07],
-        [ 4.80921129e-07, -5.92990320e-05,  1.00902101e-06],
-        [ 4.80921129e-07,  1.00902101e-06, -5.92990320e-05]])
+    stress_reference = -1.0 * np.array([
+            [4.81505171868E-01,  4.49529611310E-06,  4.49529611348E-06],
+            [4.49529611310E-06, -9.53484935396E-03,  1.47299106211E-04],
+            [4.49529611348E-06,  1.47299106211E-04, -9.53484935396E-03]])
+    stress_reference *= (1e9 * Pascal)
     assert np.allclose(
             stress_reference,
             evaluated.result().info['stress'],

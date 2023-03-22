@@ -156,6 +156,8 @@ def set_global_section(cp2k_input: str) -> str:
     from pymatgen.io.cp2k.inputs import Cp2kInput, Global
     inp = Cp2kInput.from_string(cp2k_input)
     inp.subsections['GLOBAL'] = Global(project_name='cp2k_project')
+    # remove useless keyword from pymatgen's default GLOBAL section
+    inp.subsections['GLOBAL'].keywords.pop('EXTENDED_FFT_LENGTHS')
     return str(inp)
 
 
@@ -289,6 +291,7 @@ class CP2KReference(BaseReference):
             inp.update({'FORCE_EVAL': {'DFT': {'UKS': config['UKS']}}})
             inp.update({'FORCE_EVAL': {'DFT': {'MULTIPLICITY': config['MULTIPLICITY']}}})
             inp.update({'FORCE_EVAL': {'DFT': {'XC': {'VDW_POTENTIAL': {}}}}}) # disable d3
+            inp.update({'FORCE_EVAL': {'DFT': {'SCF': {'OT': {'MINIMIZER': 'CG'}}}}}) # use more robust CG
             reference = self.__class__(str(inp))
             reference.files = copy.deepcopy(self.files)
             references.append((config, reference))

@@ -156,6 +156,7 @@ def simulate_model(
             except UnboundLocalError: # if it happened during verlet init
                 pass
         except parsl.app.errors.AppTimeout as e:
+            counter = verlet.counter
             print(e)
         yaff.log.set_level(yaff.log.silent)
         fdo.close()

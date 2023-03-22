@@ -165,7 +165,7 @@ def _gather(
 def generate_all(
         walkers: list[BaseWalker],
         model: Optional[BaseModel],
-        reference: BaseReference,
+        reference: Optional[BaseReference],
         num_tries_sampling: int = 10,
         num_tries_reference: int = 1,
         checks: Optional[list[Check]] = None,
