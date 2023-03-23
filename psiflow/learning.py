@@ -126,15 +126,11 @@ class BaseLearning:
                         self.atomic_energies_box_size,
                         )
                 self.atomic_energies[element] = energy
-            log_and_save_energies(
-                    self.path_output / (self.__class__.__name__ + '.yaml'),
-                    list(self.atomic_energies.keys()),
-                    *list(self.atomic_energies.values()),
-                    )
-        else:
-            logger.info('using the following atomic energies:')
-            for element, energy in self.atomic_energies.items():
-                logger.info('\t{}: {} eV'.format(element, energy.result()))
+        log_and_save_energies(
+                self.path_output / (self.__class__.__name__ + '.yaml'),
+                list(self.atomic_energies.keys()),
+                *list(self.atomic_energies.values()),
+                )
 
     def split_successful(self, data):
         data_success = data.get(indices=data.success)
@@ -217,7 +213,6 @@ class BaseLearning:
 @typeguard.typechecked
 @dataclass
 class SequentialLearning(BaseLearning):
-    train_frequency: int = 1
 
     def run(
             self,
@@ -232,10 +227,10 @@ class SequentialLearning(BaseLearning):
                 walkers,
                 initial_data,
                 )
+        model.deploy()
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
-            model.deploy()
             data = generate_all(
                     walkers,
                     model,
@@ -249,12 +244,12 @@ class SequentialLearning(BaseLearning):
             data_valid.append(_data_valid)
             data_train.log('data_train')
             data_valid.log('data_valid')
-            if i % self.train_frequency == 0:
-                if self.train_from_scratch:
-                    logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
-                    model.reset()
-                    model.initialize(data_train)
-                model.train(data_train, data_valid)
+            if self.train_from_scratch:
+                logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
+                model.reset()
+                model.initialize(data_train)
+            model.train(data_train, data_valid)
+            model.deploy()
             self.finish_iteration(
                     name=str(i),
                     model=model,

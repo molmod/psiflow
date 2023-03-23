@@ -313,7 +313,9 @@ restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
             min_value=100,
             max_value=200,
             increment=50,
+            num_propagations=1,
             steps=11,
+            step=1,
             )
     assert walkers[0].parameters.steps == 11
     assert np.allclose(
@@ -338,3 +340,11 @@ restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
     walker.propagate(model=model) # 150
     walker.propagate(model=model) # 100
     assert walker.bias.plumed_input.split('\n')[-1] == walkers[1].bias.plumed_input.split('\n')[-1]
+
+    walker.parameters.num_propagations = 3
+    walker.propagate(model=model)
+    assert walker.parameters.index == 7
+
+    _, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    assert walker.parameters.index == 10
+    assert trajectory.length().result() == 3 * 12

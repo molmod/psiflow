@@ -17,7 +17,7 @@ from parsl.executors import WorkQueueExecutor
 from ase import Atoms
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms
+from psiflow.data import Dataset, FlowAtoms, app_join_dataset
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future
@@ -475,6 +475,7 @@ class MovingRestraintDynamicParameters:
     min_value          : float
     max_value          : float
     increment          : float
+    num_propagations   : int
     index              : int = 0
     timestep           : float = 0.5
     steps              : int = 100
@@ -510,10 +511,6 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
             model: Optional[BaseModel] = None,
             ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
         app = self.get_propagate_app(model)
-        if keep_trajectory:
-            file = psiflow.context().new_file('data_', '.xyz')
-        else:
-            file = None
 
         # if targets are [a, b, c]; then i will select according to
         # index 0: a
@@ -522,25 +519,33 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
         # index 3: b
         # index 4: a
         # index 5: b etc
-        i = self.parameters.index % (2 * len(self.targets))
-        if i >= len(self.targets):
-            i = len(self.targets) - i % len(self.targets) - 1
-        assert i >= 0
-        assert i < len(self.targets)
-        self.bias.adjust_restraint(
-                self.parameters.variable,
-                kappa=None,
-                center=self.targets[i],
-                )
-        self.parameters.index += 1
-        result = app(
-                self.state_future,
-                deepcopy(self.parameters),
-                self.bias,
-                model=model,
-                keep_trajectory=keep_trajectory,
-                file=file,
-                )
+        files = []
+        for j in range(self.parameters.num_propagations):
+            if keep_trajectory:
+                file = psiflow.context().new_file('data_', '.xyz')
+            else:
+                file = None
+            i = self.parameters.index % (2 * len(self.targets))
+            if i >= len(self.targets):
+                i = len(self.targets) - i % len(self.targets) - 1
+            assert i >= 0
+            assert i < len(self.targets)
+            self.bias.adjust_restraint(
+                    self.parameters.variable,
+                    kappa=None,
+                    center=self.targets[i],
+                    )
+            self.parameters.index += 1
+            result = app(
+                    self.state_future,
+                    deepcopy(self.parameters),
+                    self.bias,
+                    model=model,
+                    keep_trajectory=keep_trajectory,
+                    file=file,
+                    )
+            if keep_trajectory:
+                files.append(result.outputs[0])
         self.state_future   = unpack_i(result, 0)
         self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
         self.counter_future = sum_counters(self.counter_future, unpack_i(result, 2))
@@ -558,7 +563,8 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
             future = self.state_future
         future = copy_app_future(future) # necessary
         if keep_trajectory:
-            return future, Dataset(None, data_future=result.outputs[0])
+            join_future = app_join_dataset(inputs=files, outputs=[psiflow.context().new_file('data_', '.xyz')])
+            return future, Dataset(None, data_future=join_future.outputs[0])
         else:
             return future
 
