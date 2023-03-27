@@ -546,9 +546,9 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
                     )
             if keep_trajectory:
                 files.append(result.outputs[0])
-        self.state_future   = unpack_i(result, 0)
-        self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
-        self.counter_future = sum_counters(self.counter_future, unpack_i(result, 2))
+            self.state_future   = unpack_i(result, 0)
+            self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
+            self.counter_future = sum_counters(self.counter_future, unpack_i(result, 2))
         if safe_return: # only return state if safe, else return start
             # this does NOT reset the walker!
             _ = conditional_reset(
