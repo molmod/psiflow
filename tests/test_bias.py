@@ -103,6 +103,9 @@ METAD ARG=CV1 SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
         volume = np.linalg.det(dataset[i].result().cell)
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(np.zeros(values[:, 1].shape), values[:, 1])
+    dataset_ = bias.evaluate(dataset, as_dataset=True)
+    for i, atoms in enumerate(dataset_.as_list()):
+        assert np.allclose(atoms.get_volume(), atoms.info['CV1'])
 
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs

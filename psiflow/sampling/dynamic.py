@@ -22,6 +22,7 @@ from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future
 from psiflow.sampling import BaseWalker, PlumedBias
+from psiflow.sampling.bias import app_insert_cv_values
 from psiflow.sampling.base import sum_counters, update_tag, conditional_reset
 from psiflow.models import BaseModel
 
@@ -353,7 +354,11 @@ class BiasedDynamicWalker(DynamicWalker):
             future = unpack_i(_, 0)
         else:
             future = self.state_future
-        future = copy_app_future(future) # necessary
+        future = app_insert_cv_values(
+                self.bias.variables,
+                copy_app_future(future), # necessary
+                self.bias.evaluate(Dataset([future])),
+                )
         if keep_trajectory:
             return future, Dataset(None, data_future=result.outputs[0])
         else:
@@ -561,7 +566,11 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
             future = unpack_i(_, 0)
         else:
             future = self.state_future
-        future = copy_app_future(future) # necessary
+        future = app_insert_cv_values(
+                self.bias.variables,
+                copy_app_future(future), # necessary
+                self.bias.evaluate(Dataset([future])),
+                )
         if keep_trajectory:
             join_future = app_join_dataset(inputs=files, outputs=[psiflow.context().new_file('data_', '.xyz')])
             return future, Dataset(None, data_future=join_future.outputs[0])

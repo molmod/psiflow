@@ -157,10 +157,10 @@ class BaseWalker:
         return is_reset(self.counter_future)
 
     def set_state(self, atoms):
-        self.state_future = copy_app_future(atoms)
+        self.state_future = app_reset_atoms(atoms)
 
     def set_start(self, atoms):
-        self.start_future = copy_app_future(atoms)
+        self.start_future = app_reset_atoms(atoms)
 
     def copy(self) -> BaseWalker:
         walker = self.__class__(self.state_future)

@@ -173,6 +173,11 @@ restraint: RESTRAINT ARG=CV,CV1 AT=150,450 KAPPA=1,10
     walker = BiasedDynamicWalker(dataset[0], bias=bias, **parameters)
     assert bias.components[0] == ('RESTRAINT', ('CV','CV1'))
     _, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    state = _.result()
+    assert 'CV' in state.info
+    assert 'CV1' in state.info
+    state.reset()
+    assert not 'CV' in state.info
     values = bias.evaluate(trajectory).result()
     assert np.allclose(
             3 * values[:, 0],

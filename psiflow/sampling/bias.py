@@ -18,7 +18,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.utils import copy_data_future, save_txt, create_if_empty
-from psiflow.data import read_dataset, Dataset
+from psiflow.data import read_dataset, save_dataset, Dataset
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -226,6 +226,27 @@ app_extract_column = python_app(extract_column, executors=['default'])
 
 
 @typeguard.typechecked
+def insert_cv_values(variables, state, values):
+    assert len(values.shape) == 2
+    assert values.shape[0] == 1
+    assert values.shape[1] == len(variables) + 1
+    for i, variable in enumerate(variables):
+        state.info[variable] = values[0, i]
+    return state
+app_insert_cv_values = python_app(insert_cv_values, executors=['default'])
+
+
+@typeguard.typechecked
+def insert_cv_values_data(variables, values, inputs=[], outputs=[]):
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    assert len(data) == values.shape[0]
+    for i, atoms in enumerate(data):
+        insert_cv_values(variables, atoms, values[i, :].reshape(1, -1))
+    save_dataset(data, outputs=[outputs[0]])
+app_insert_cv_values_data = python_app(insert_cv_values_data, executors=['default'])
+
+
+@typeguard.typechecked
 class PlumedBias:
     """Represents a PLUMED bias potential"""
     keys_with_future = ['EXTERNAL', 'METAD']
@@ -282,7 +303,11 @@ class PlumedBias:
         if 'METAD' in self.keys:
             self.data_futures.move_to_end('METAD', last=False) # put it first
 
-    def evaluate(self, dataset: Dataset, variable: Optional[str] = None) -> AppFuture:
+    def evaluate(
+            self,
+            dataset: Dataset,
+            variable: Optional[str] = None,
+            as_dataset: bool = False) -> Union[AppFuture, Dataset]:
         plumed_input = self.prepare_input()
         lines = plumed_input.split('\n')
         for i, line in enumerate(lines):
@@ -298,12 +323,21 @@ class PlumedBias:
                 self.variables,
                 inputs=[dataset.data_future] + self.futures,
                 )
-        if variable is not None:
-            assert variable in self.variables
-            index = self.variables.index(variable)
-            return app_extract_column(values, index)
+        if not as_dataset:
+            if variable is not None:
+                assert variable in self.variables
+                index = self.variables.index(variable)
+                return app_extract_column(values, index)
+            else:
+                return values
         else:
-            return values
+            future = app_insert_cv_values_data(
+                    self.variables,
+                    values,
+                    inputs=[dataset.data_future],
+                    outputs=[psiflow.context().new_file('data_', '.xyz')],
+                    )
+            return Dataset(None, future.outputs[0])
 
     def prepare_input(self) -> str:
         plumed_input = str(self.plumed_input)

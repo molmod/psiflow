@@ -390,15 +390,15 @@ app_get_elements = python_app(get_elements, executors=['default'])
 
 
 @typeguard.typechecked
-def get_energy_labels(inputs=[]) -> list[str]:
+def get_info_keys(inputs=[]) -> list[str]:
     data = read_dataset(slice(None), inputs=[inputs[0]])
-    labels = ['total_energy', 'energy', 'formation_energy']
+    labels = list(data[0].info.keys())
     for atoms in data:
         for label in list(labels):
             if not label in atoms.info:
                 labels.remove(label)
     return labels
-app_get_energy_labels = python_app(get_energy_labels, executors=['default'])
+app_get_info_keys = python_app(get_info_keys, executors=['default'])
 
 
 @typeguard.typechecked
@@ -444,8 +444,15 @@ class Dataset:
                     outputs=[context.new_file('data_', '.xyz')],
                     ).outputs[0] # ensure type(data_future) == DataFuture
 
-    def energy_labels(self) -> AppFuture:
-        return app_get_energy_labels(inputs=[self.data_future])
+    def info_keys(self) -> AppFuture:
+        return app_get_info_keys(inputs=[self.data_future])
+
+    def energy_labels(self) -> list[str]:
+        energy_labels = []
+        for key in self.info_keys().result():
+            if 'energy' in key:
+                energy_labels.append(key)
+        return energy_labels
 
     def length(self) -> AppFuture:
         return app_length_dataset(inputs=[self.data_future])
@@ -527,7 +534,7 @@ class Dataset:
         context = psiflow.context()
         elements = list(atomic_energies.keys())
         energies = [atomic_energies[e] for e in elements]
-        assert not 'formation_energy' in self.energy_labels().result()
+        assert not 'formation_energy' in self.info_keys().result()
         data_future = app_insert_formation_energy(
                 elements,
                 inputs=[self.data_future] + energies,
