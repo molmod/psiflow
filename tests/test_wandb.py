@@ -12,8 +12,6 @@ from psiflow.wandb_utils import WandBLogger, log_data, to_wandb
 from psiflow.reference import EMTReference
 from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias, \
         BiasedDynamicWalker
-from psiflow.checks import SafetyCheck, DiscrepancyCheck, \
-        InteratomicDistanceCheck
 
 
 @pytest.fixture
@@ -47,7 +45,7 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
             'run_name',
             'test_log_dataset_walkers',
             'pytest',
-            ['training'],
+            ['training_all'],
             inputs=[future],
             )
     log0.result()

@@ -56,8 +56,7 @@ def generate(
                 float32, float64))
     else:
         assert type(walker) == RandomWalker
-    state = walker.propagate(
-            safe_return=False,
+    state = walker.propagate( # will reset if unsafe!
             model=model,
             keep_trajectory=False,
             )

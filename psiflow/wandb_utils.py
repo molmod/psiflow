@@ -4,6 +4,7 @@ import typeguard
 import os
 import logging
 from pathlib import Path
+from dataclasses import dataclass
 import numpy as np
 
 import parsl
@@ -82,38 +83,14 @@ def log_data(
 
 
 @typeguard.typechecked
+@dataclass
 class WandBLogger:
-
-    def __init__(
-            self,
-            wandb_project: str,
-            wandb_group: str,
-            error_x_axis: Optional[str] = 'index',
-            metric: str = 'mae',
-            elements: Optional[list[str]] = None,
-            indices: Optional[list[int]] = None,
-            ) -> None:
-        self.wandb_project = wandb_project
-        self.wandb_group   = wandb_group
-        self.error_x_axis = error_x_axis
-        self.error_kwargs = {'all': {
-                    'metric': metric,
-                    'properties': ['energy', 'forces', 'stress']}
-                }
-        if elements is not None:
-            for element in elements:
-                self.error_kwargs[element] = {
-                        'metric': metric,
-                        'properties': ['forces'],
-                        'elements': [element],
-                        }
-        if indices is not None:
-            for index in indices:
-                self.error_kwargs['index' + str(index)] = {
-                        'metric': metric,
-                        'properties': ['forces'],
-                        'atom_indices': [index],
-                        }
+    wandb_project: str
+    wandb_group: str
+    error_x_axis: str = 'index'
+    metric: str = 'mae'
+    elements: Optional[list[str]] = None
+    indices: Optional[list[int]] = None
 
     def __call__(
             self,
@@ -122,7 +99,6 @@ class WandBLogger:
             data_train: Optional[Dataset] = None,
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
-            checks: Optional[list[Check]] = None,
             ) -> AppFuture:
         log_futures = {}
         logger.info('logging data to wandb')
@@ -140,8 +116,29 @@ class WandBLogger:
                     '; fall back to using state index during logging'.format(
                         self.error_x_axis))
             error_x_axis = self.error_x_axis
+
+        # build error_kwargs
+        error_kwargs = {'all': {
+                    'metric': self.metric,
+                    'properties': ['energy', 'forces', 'stress']}
+                }
+        if self.elements is not None:
+            for element in self.elements:
+                error_kwargs[element] = {
+                        'metric': self.metric,
+                        'properties': ['forces'],
+                        'elements': [element],
+                        }
+        if self.indices is not None:
+            for index in self.indices:
+                error_kwargs['index' + str(index)] = {
+                        'metric': self.metric,
+                        'properties': ['forces'],
+                        'atom_indices': [index],
+                        }
+
         if data_train is not None:
-            for suffix, error_kwargs in self.error_kwargs.items():
+            for suffix, error_kwargs in error_kwargs.items():
                 log_futures['training_' + suffix] = log_data( # log training and validation data as tables
                         dataset=data_train,
                         model=model,
@@ -149,7 +146,7 @@ class WandBLogger:
                         error_kwargs=error_kwargs,
                         )
         if data_valid is not None:
-            for suffix, error_kwargs in self.error_kwargs.items():
+            for suffix, error_kwargs in error_kwargs.items():
                 log_futures['validation_' + suffix] = log_data( # log training and validation data as tables
                         dataset=data_valid,
                         model=model,
@@ -157,7 +154,7 @@ class WandBLogger:
                         error_kwargs=error_kwargs,
                         )
         if data_failed is not None:
-            for suffix, error_kwargs in self.error_kwargs.items():
+            for suffix, error_kwargs in error_kwargs.items():
                 log_futures['failed_' + suffix] = log_data( # log training and validation data as tables
                         dataset=data_failed,
                         model=model,
@@ -183,14 +180,6 @@ class WandBLogger:
             model.config_raw['wandb_group'] = self.wandb_group
         else:
             logger.warning('cannot set wandb name for model {}'.format(model.__class__))
-
-    def parameters(self):
-        return {
-                'wandb_project': self.wandb_project,
-                'wandb_group': self.wandb_group,
-                'error_kwargs': self.error_kwargs,
-                'error_x_axis': self.error_x_axis,
-                }
 
 
 @typeguard.typechecked

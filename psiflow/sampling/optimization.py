@@ -1,7 +1,9 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Tuple, List, Callable, Type
+from typing import Optional, Callable, Type, Any, Union
 import typeguard
 from dataclasses import dataclass
+
+from ase import Atoms
 
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
@@ -19,13 +21,13 @@ def optimize_geometry(
         device: str,
         ncores: int,
         state: FlowAtoms,
-        parameters: OptimizationParameters,
+        pars: dict[str, Any],
         load_calculator: Callable,
         keep_trajectory: bool = False,
         plumed_input: str = '',
-        inputs: List[File] = [],
-        outputs: List[File] = [],
-        ) -> Tuple[FlowAtoms, str, int]:
+        inputs: list[File] = [],
+        outputs: list[File] = [],
+        ) -> tuple[FlowAtoms, str, int]:
     import os
     import tempfile
     import torch
@@ -39,13 +41,12 @@ def optimize_geometry(
     if device == 'cpu':
         torch.set_num_threads(ncores)
 
-    pars = parameters
-    np.random.seed(pars.seed)
-    torch.manual_seed(pars.seed)
+    np.random.seed(pars['seed'])
+    torch.manual_seed(pars['seed'])
     atoms = state.copy()
     atoms.calc = load_calculator(inputs[0].filepath, device, dtype='float64')
     preconditioner = Exp(A=3) # from ASE docs
-    if parameters.optimize_cell: # include cell DOFs in optimization 
+    if pars['optimize_cell']: # include cell DOFs in optimization 
         try: # some models do not have stress support; prevent full cell opt!
             stress = atoms.get_stress()
         except Exception as e:
@@ -69,7 +70,7 @@ def optimize_geometry(
 
     tag = 'safe'
     try:
-        optimizer.run(fmax=parameters.fmax)
+        optimizer.run(fmax=pars['fmax'])
     except:
         tag = 'unsafe'
         pass
@@ -84,18 +85,19 @@ def optimize_geometry(
 
 
 @typeguard.typechecked
-@dataclass
-class OptimizationParameters:
-    optimize_cell: bool = True # include cell DOFs in optimization
-    fmax         : float = 1e-2 # max residual norm of forces before termination
-    seed         : int = 0 # seed for randomized initializations
-
-
-@typeguard.typechecked
 class OptimizationWalker(BaseWalker):
-    parameters_cls = OptimizationParameters
 
-    def get_propagate_app(self, model):
+    def __init__(
+            self,
+            atoms: Union[Atoms, FlowAtoms, AppFuture],
+            optimize_cell: bool = True,
+            fmax: float = 1e-2,
+            **kwargs) -> None:
+        super().__init__(atoms, **kwargs)
+        self.optimize_cell = optimize_cell
+        self.fmax = fmax
+
+    def _propagate(self, model, keep_trajectory, file):
         name = model.__class__.__name__
         context = psiflow.context()
         try:
@@ -104,7 +106,19 @@ class OptimizationWalker(BaseWalker):
             assert model.__class__ in context.definitions.keys()
             self.create_apps(model_cls=model.__class__)
             app = context.apps(OptimizationWalker, 'propagate_' + name)
-        return app
+        return app(
+                self.state_future,
+                self.parameters,
+                model,
+                keep_trajectory,
+                file,
+                )
+    @property
+    def parameters(self) -> dict[str, Any]:
+        parameters = super().parameters
+        parameters['optimize_cell'] = self.optimize_cell
+        parameters['fmax'] = self.fmax
+        return parameters
 
     @classmethod
     def create_apps(cls, model_cls: Type[BaseModel]) -> None:
@@ -122,7 +136,7 @@ class OptimizationWalker(BaseWalker):
         @typeguard.typechecked
         def optimize_wrapped(
                 state: AppFuture,
-                parameters: OptimizationParameters,
+                parameters: dict[str, Any],
                 model: BaseModel = None,
                 keep_trajectory: bool = False,
                 file: Optional[File] = None,

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from psiflow.models import NequIPModel
 from psiflow.sampling import RandomWalker, DynamicWalker
-from psiflow.checks import SafetyCheck, DiscrepancyCheck
+from psiflow.checks import DiscrepancyCheck
 from psiflow.state import save_state, load_state
 
 
@@ -12,7 +12,6 @@ def test_save_load(context, dataset, nequip_config, tmp_path):
     path_output.mkdir()
     walkers = RandomWalker.multiply(2, dataset) + DynamicWalker.multiply(2, dataset)
     checks = [
-            SafetyCheck(),
             DiscrepancyCheck(
                 metric='mae',
                 properties=['energy'],
@@ -43,11 +42,10 @@ def test_save_load(context, dataset, nequip_config, tmp_path):
     assert len(walkers_) == 4
     assert data_train.length().result() == 0
     assert data_valid.length().result() == 0
-    assert len(checks) == 2
+    assert len(checks) == 1
     model.initialize(dataset[:2])
     model.deploy()
     checks = [
-            SafetyCheck(),
             DiscrepancyCheck(
                 metric='mae',
                 properties=['energy'],

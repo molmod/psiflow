@@ -54,8 +54,8 @@ def test_save_load(context, dataset, tmp_path):
             walker.state_future.result().positions,
             walker_.state_future.result().positions,
             )
-    for key, value in asdict(walker.parameters).items():
-        assert value == asdict(walker_.parameters)[key]
+    for key, value in walker.parameters.items():
+        assert value == walker_.parameters[key]
 
 
 def test_base_walker(context, dataset):
@@ -78,13 +78,6 @@ def test_random_walker(context, dataset):
     assert isinstance(walker.is_reset(), AppFuture)
     assert not walker.is_reset().result()
     assert not walker.counter_future.result() == 0
-
-    walker = RandomWalker(dataset[0], seed=0)
-    safe_state = walker.propagate(safe_return=True)
-    assert np.allclose(
-            state.result().get_positions(),
-            safe_state.result().get_positions(),
-            )
 
     walker.reset(conditional=True) # random walker is never unsafe
     assert not walker.is_reset().result()
@@ -121,10 +114,13 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     assert not trajectory.length().result() < 1001 # timeout
     assert trajectory.length().result() > 1
     assert walker.counter_future.result() == trajectory.length().result() - 1
-    walker.parameters.force_threshold = 0.001
-    walker.parameters.steps           = 1
-    walker.parameters.step            = 1
-    state = walker.propagate(model=model)
+    walker.force_threshold = 0.001
+    walker.steps           = 1
+    walker.step            = 1
+    state = walker.propagate(model=model, reset_if_unsafe=True)
+    assert walker.is_reset().result()
+
+    state = walker.propagate(model=model, reset_if_unsafe=False)
     assert walker.tag_future.result() == 'unsafe' # raised ForceExceededException
 
 
@@ -142,7 +138,7 @@ def test_optimization_walker(context, dataset, mace_config):
     assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved
     counter = walker.counter_future.result()
     assert counter > 0
-    walker.parameters.fmax = 1e-3
+    walker.fmax = 1e-3
     final_ = walker.propagate(model=model)
     assert not np.all(np.abs(final_.result().positions - dataset[0].result().positions) < 0.001) # moved again
     assert walker.counter_future.result() > counter # more steps in total
@@ -282,7 +278,7 @@ restraint: RESTRAINT ARG=CV AT=15 KAPPA=100
     walkers = BiasedDynamicWalker.multiply(3, dataset, bias=bias, steps=123)
     assert len(walkers) == 3
     assert type(walkers[0]) == BiasedDynamicWalker
-    assert walkers[0].parameters.steps == 123
+    assert walkers[0].steps == 123
     check(walkers)
 
     walkers = BiasedDynamicWalker.distribute(
@@ -322,7 +318,7 @@ restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
             steps=11,
             step=1,
             )
-    assert walkers[0].parameters.steps == 11
+    assert walkers[0].steps == 11
     assert np.allclose(
             walkers[0].targets,
             100 + np.arange(3) * 50,
@@ -331,12 +327,12 @@ restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
     model.initialize(dataset[:2])
     model.deploy()
     walkers[0].propagate(model=model)
-    assert walkers[0].parameters.index == 1
+    assert walkers[0].index == 1
 
     walkers[0].save(tmp_path)
     walker = load_walker(tmp_path)
     assert type(walker) == MovingRestraintDynamicWalker
-    assert walker.parameters.index == 1
+    assert walker.index == 1
 
     assert walkers[1].bias.plumed_input == walkers[2].bias.plumed_input
     assert not (walkers[0].bias.plumed_input == walkers[1].bias.plumed_input)
@@ -346,10 +342,10 @@ restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
     walker.propagate(model=model) # 100
     assert walker.bias.plumed_input.split('\n')[-1] == walkers[1].bias.plumed_input.split('\n')[-1]
 
-    walker.parameters.num_propagations = 3
+    walker.num_propagations = 3
     walker.propagate(model=model)
-    assert walker.parameters.index == 7
+    assert walker.index == 7
 
     _, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    assert walker.parameters.index == 10
+    assert walker.index == 10
     assert trajectory.length().result() == 3 * 12

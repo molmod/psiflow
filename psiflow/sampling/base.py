@@ -1,5 +1,5 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List, Tuple
+from typing import Optional, Union, Any
 import typeguard
 from dataclasses import dataclass, asdict
 from copy import deepcopy
@@ -27,7 +27,7 @@ def _conditional_reset(
         tag: str,
         counter: int,
         conditional: bool,
-        ) -> Tuple[FlowAtoms, str, int]:
+        ) -> tuple[FlowAtoms, str, int]:
     from copy import deepcopy # copy necessary!
     if (not conditional): # reset anyway
         return deepcopy(start), 'safe', 0
@@ -62,47 +62,36 @@ update_tag = python_app(_update_tag, executors=['default'])
 
 
 @typeguard.typechecked
-@dataclass
-class EmptyParameters:
-    pass
-
-
-@typeguard.typechecked
 class BaseWalker:
-    parameters_cls = EmptyParameters
 
-    def __init__(self, atoms: Union[Atoms, FlowAtoms, AppFuture], **kwargs) -> None:
-
-        # futures
+    def __init__(self,
+            atoms: Union[Atoms, FlowAtoms, AppFuture],
+            seed: int = 0,
+            ) -> None:
         if type(atoms) == Atoms:
             atoms = FlowAtoms.from_atoms(atoms)
         self.start_future   = app_reset_atoms(atoms)
         self.state_future   = app_reset_atoms(atoms)
         self.tag_future     = copy_app_future('safe')
         self.counter_future = copy_app_future(0) # counts nsteps
-
-        # parameters
-        self.parameters = self.parameters_cls(**deepcopy(kwargs))
+        self.seed = seed
         # apps for walkers are only created at the time when they are invoked,
         # as the execution definition of the model needs to be available.
 
-    def get_propagate_app(self, model):
+    def _propagate(self, model):
         raise NotImplementedError
 
     def propagate(
             self,
-            safe_return: bool = False,
             keep_trajectory: bool = False,
+            reset_if_unsafe: bool = True,
             model: Optional[BaseModel] = None,
-            ) -> Union[AppFuture, Tuple[AppFuture, Dataset]]:
-        app = self.get_propagate_app(model)
+            ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
         if keep_trajectory:
             file = psiflow.context().new_file('data_', '.xyz')
         else:
             file = None
-        result = app(
-                self.state_future,
-                deepcopy(self.parameters),
+        result = self._propagate(
                 model=model,
                 keep_trajectory=keep_trajectory,
                 file=file,
@@ -110,19 +99,14 @@ class BaseWalker:
         self.state_future   = unpack_i(result, 0)
         self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
         self.counter_future = sum_counters(self.counter_future, unpack_i(result, 2))
-        if safe_return: # only return state if safe, else return start
-            # this does NOT reset the walker!
-            _ = conditional_reset(
-                    self.state_future,
-                    self.start_future,
-                    self.tag_future,
-                    self.counter_future,
-                    conditional=True
-                    )
-            future = unpack_i(_, 0)
+        if hasattr(self, 'bias'):
+            future = self.bias.evaluate(
+                    Dataset([self.state_future]),
+                    as_dataset=True)[0]
         else:
-            future = self.state_future
-        future = copy_app_future(future) # necessary
+            future = copy_app_future(self.state_future) # necessary
+        if reset_if_unsafe:
+            self.reset(conditional=True)
         if keep_trajectory:
             return future, Dataset(None, data_future=result.outputs[0])
         else:
@@ -163,17 +147,16 @@ class BaseWalker:
         self.start_future = app_reset_atoms(atoms)
 
     def copy(self) -> BaseWalker:
-        walker = self.__class__(self.state_future)
+        walker = self.__class__(self.state_future, **self.parameters)
         walker.start_future = copy_app_future(self.start_future)
         walker.tag_future   = copy_app_future(self.tag_future)
-        walker.parameters   = deepcopy(self.parameters)
         return walker
 
     def save(
             self,
             path: Union[Path, str],
             require_done: bool = True,
-            ) -> Tuple[DataFuture, DataFuture, DataFuture]:
+            ) -> tuple[DataFuture, DataFuture, DataFuture]:
         path = Path(path)
         assert path.is_dir()
         name = self.__class__.__name__
@@ -188,7 +171,7 @@ class BaseWalker:
                 self.state_future,
                 outputs=[File(str(path_state))],
                 ).outputs[0]
-        pars = asdict(self.parameters)
+        pars = self.parameters
         pars['counter'] = self.counter_future.result()
         future_pars = save_yaml(
                 pars,
@@ -200,6 +183,11 @@ class BaseWalker:
             future_pars.result()
         return future_start, future_state, future_pars
 
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """Returns dict of parameters to be passed into propagate"""
+        return {'seed': self.seed}
+
     @classmethod
     def multiply(cls,
             nwalkers: int,
@@ -208,7 +196,7 @@ class BaseWalker:
         walkers = [cls(data_start[0], **kwargs) for i in range(nwalkers)]
         length = data_start.length().result()
         for i, walker in enumerate(walkers):
-            walker.parameters.seed = i
+            walker.seed = i
             walker.set_start(data_start[i % length])
             walker.set_state(data_start[i % length])
         return walkers

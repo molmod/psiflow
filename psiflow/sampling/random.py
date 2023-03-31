@@ -1,7 +1,9 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List, Tuple
+from typing import Optional, Union, Any
 import typeguard
 from dataclasses import dataclass
+
+from ase import Atoms
 
 from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
@@ -14,17 +16,17 @@ from psiflow.models import BaseModel
 @typeguard.typechecked
 def random_perturbation(
         state: FlowAtoms,
-        parameters: RandomParameters,
-        ) -> Tuple[FlowAtoms, str, int]:
+        parameters: dict[str, Any],
+        ) -> tuple[FlowAtoms, str, int]:
     import numpy as np
     import copy
     from psiflow.sampling.utils import apply_strain
     state = copy.deepcopy(state)
-    np.random.seed(parameters.seed)
+    np.random.seed(parameters['seed'])
     frac = state.positions @ np.linalg.inv(state.cell)
     strain = np.random.uniform(
-            -parameters.amplitude_box,
-            parameters.amplitude_box,
+            -parameters['amplitude_box'],
+            parameters['amplitude_box'],
             size=(3, 3),
             )
     strain[0, 1] = strain[1, 0] # strain is symmetric
@@ -33,43 +35,41 @@ def random_perturbation(
     box = apply_strain(strain, state.cell)
     positions = frac @ box
     positions += np.random.uniform(
-            -parameters.amplitude_pos,
-            parameters.amplitude_pos,
+            -parameters['amplitude_pos'],
+            parameters['amplitude_pos'],
             size=state.positions.shape,
             )
     state.set_positions(positions)
     state.set_cell(box)
     return state, 'safe', 1
-app_propagate = python_app(random_perturbation, executors=['default'])
-
-
-@typeguard.typechecked
-def propagate_wrapped(
-        state: AppFuture,
-        parameters: RandomParameters,
-        keep_trajectory: bool = False,
-        **kwargs,
-        ) -> AppFuture:
-    # ignore additional kwargs; return None as dataset
-    assert not keep_trajectory
-    future = app_propagate(state, parameters)
-    return future
-
-
-@typeguard.typechecked
-@dataclass
-class RandomParameters:
-    amplitude_pos: float = 0.8
-    amplitude_box: float = 0.0
-    seed         : int = 0
+app_random_perturbation = python_app(random_perturbation, executors=['default'])
 
 
 @typeguard.typechecked
 class RandomWalker(BaseWalker):
-    parameters_cls = RandomParameters
 
-    def get_propagate_app(self, model):
-        return propagate_wrapped
+    def __init__(self,
+            atoms: Union[Atoms, FlowAtoms, AppFuture],
+            amplitude_pos=0.1,
+            amplitude_box=0.0,
+            **kwargs,
+            ) -> None:
+        super().__init__(atoms, **kwargs)
+        self.amplitude_pos = amplitude_pos
+        self.amplitude_box = amplitude_box
+
+    def _propagate(self, **kwargs):
+        return app_random_perturbation( # no additional kwargs needed
+                self.state_future,
+                self.parameters,
+                )
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        parameters = super().parameters
+        parameters['amplitude_pos'] = self.amplitude_pos
+        parameters['amplitude_box'] = self.amplitude_box
+        return parameters
 
     @classmethod
     def create_apps(cls) -> None:

@@ -44,7 +44,6 @@ class BaseLearning:
     niterations: int = 10
     num_tries_sampling: int = 5
     num_tries_reference: int = 1
-    #check_interatomic_distance: 0.5
 
     def __post_init__(self) -> None: # save self in output folder
         self.path_output = Path(self.path_output)
@@ -54,7 +53,7 @@ class BaseLearning:
         config['path_output'] = str(self.path_output) # yaml requires str
         config.pop('wandb_logger')
         if self.wandb_logger is not None:
-            config['WandBLogger'] = self.wandb_logger.parameters()
+            config['WandBLogger'] = asdict(self.wandb_logger)
         path_config = self.path_output / (self.__class__.__name__ + '.yaml')
         if path_config.is_file():
             logger.warning('overriding learning config file {}'.format(path_config))
@@ -93,7 +92,6 @@ class BaseLearning:
             log = self.wandb_logger( # log training
                     run_name=name,
                     model=model,
-                    walkers=walkers,
                     data_train=data_train,
                     data_valid=data_valid,
                     )

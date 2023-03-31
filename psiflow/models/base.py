@@ -109,7 +109,7 @@ class BaseModel:
         assert self.config_future is None
         assert self.model_future is None
         self.deploy_future = {}
-        available_labels = dataset.energy_labels()
+        available_labels = dataset.energy_labels().result()
         if self.use_formation_energy:
             assert 'formation_energy' in available_labels, ('key "{}" is not available in '
                     'dataset with keys {}'.format('formation_energy', available_labels))

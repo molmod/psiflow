@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from psiflow.checks import InteratomicDistanceCheck, DiscrepancyCheck, \
-        SafetyCheck, load_checks
+        load_checks
 from psiflow.models import NequIPModel
 from psiflow.sampling import RandomWalker
 
@@ -63,18 +63,18 @@ def test_discrepancy_check(context, dataset, nequip_config, tmp_path):
     assert check(dataset[7]).result() is not None
 
 
-def test_safety_check(context, dataset, tmp_path):
-    walker = RandomWalker(dataset[0])
-    state = walker.propagate()
-    check = SafetyCheck()
-    assert check(state, walker.tag_future).result() is not None
-    assert check.nchecks == 1
-    assert check.npasses == 1
-    walker.tag_unsafe()
-    assert check(state, walker.tag_future).result() is None
-    assert check.nchecks == 2
-    assert check.npasses == 1
-    path = Path(tmp_path)
-    check.save(path)
-    check_ = load_checks(path)[0]
-    assert type(check_) == SafetyCheck
+#def test_safety_check(context, dataset, tmp_path):
+#    walker = RandomWalker(dataset[0])
+#    state = walker.propagate()
+#    check = SafetyCheck()
+#    assert check(state, walker.tag_future).result() is not None
+#    assert check.nchecks == 1
+#    assert check.npasses == 1
+#    walker.tag_unsafe()
+#    assert check(state, walker.tag_future).result() is None
+#    assert check.nchecks == 2
+#    assert check.npasses == 1
+#    path = Path(tmp_path)
+#    check.save(path)
+#    check_ = load_checks(path)[0]
+#    assert type(check_) == SafetyCheck

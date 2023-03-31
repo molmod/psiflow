@@ -402,6 +402,16 @@ app_get_info_keys = python_app(get_info_keys, executors=['default'])
 
 
 @typeguard.typechecked
+def get_energy_labels(info_keys) -> list[str]:
+    labels = []
+    for key in info_keys:
+        if 'energy' in key:
+            labels.append(key)
+    return labels
+app_get_energy_labels = python_app(get_energy_labels, executors=['default'])
+
+
+@typeguard.typechecked
 class Dataset:
     """Container to represent a dataset of atomic structures
 
@@ -447,12 +457,8 @@ class Dataset:
     def info_keys(self) -> AppFuture:
         return app_get_info_keys(inputs=[self.data_future])
 
-    def energy_labels(self) -> list[str]:
-        energy_labels = []
-        for key in self.info_keys().result():
-            if 'energy' in key:
-                energy_labels.append(key)
-        return energy_labels
+    def energy_labels(self) -> AppFuture:
+        return app_get_energy_labels(self.info_keys())
 
     def length(self) -> AppFuture:
         return app_length_dataset(inputs=[self.data_future])

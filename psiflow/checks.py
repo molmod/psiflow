@@ -234,28 +234,6 @@ class DiscrepancyCheck(Check):
 
 
 @typeguard.typechecked
-def _check_safety(state: Optional[FlowAtoms], tag: str):
-    if state is None:
-        return None
-    if tag == 'unsafe':
-        return None
-    else:
-        return state
-check_safety = python_app(_check_safety, executors=['default'])
-
-
-@typeguard.typechecked
-class SafetyCheck(Check):
-
-    def _apply_check(
-            self,
-            state: AppFuture,
-            tag: AppFuture,
-            ) -> AppFuture:
-        return check_safety(state, tag)
-
-
-@typeguard.typechecked
 def load_checks(path: Union[Path, str]) -> Optional[List[Check]]:
     path = Path(path)
     assert path.is_dir()
@@ -263,7 +241,6 @@ def load_checks(path: Union[Path, str]) -> Optional[List[Check]]:
     classes = [
             InteratomicDistanceCheck,
             DiscrepancyCheck,
-            SafetyCheck,
             None,
             ]
     for filename in glob.glob(str(path) + '/*.yaml'):
