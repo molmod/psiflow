@@ -12,8 +12,9 @@ Below, we will showcase the functionality of psiflow using a number of examples.
 The input files required to execute these examples can be found on the GitHub
 repository, in the
 [data](https://github.com/svandenhaute/psiflow/tree/main/examples/data) folder.
-It is recommended to read the [Overview](overview.md) page before trying out
-the examples below.
+If you have not already, be sure to check out the
+psiflow [Overview](overview.md) first!
+
 
 ## Simple training and validation
 The following example demonstrates how to use an existing dataset to train an
@@ -155,16 +156,15 @@ for the full example.
     from psiflow.models import NequIPModel, NequIPConfig
     from psiflow.reference import CP2KReference
     from psiflow.data import FlowAtoms, Dataset
-    from psiflow.sampling import DynamicWalker, PlumedBias
-    from psiflow.generator import Generator
-    from psiflow.state import load_state            # necessary for restart
-    from psiflow.wandb_utils import WandBLogger     # takes care of W&B logging
+    from psiflow.sampling import BiasedDynamicWalker, PlumedBias
+    from psiflow.state import load_state        # necessary for restarting a run
+    from psiflow.wandb_utils import WandBLogger # takes care of W&B logging
     ```
     Helper functions that were defined in previous examples are not repeated
     here -- see the Python file on Github for a complete script.
 
     The `get_bias()` helper function defines the metadynamics bias settings
-    that are used during the phase space exploration by the walkers/generators.
+    that are used during the phase space exploration by the walkers.
     ```py
     def get_bias():
         plumed_input = """
@@ -188,11 +188,11 @@ for the full example.
 def main(path_output):
     assert not path_output.is_dir()
     reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
-    model = get_nequip_model()      # MACE; small model
+    model = get_nequip_model()      # NequIP; default model
     bias  = get_bias()              # simple MTD bias on unit cell volume
     atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # single structure
 
-    # set up wandb logging; optional but recommended
+    # set up wandb logging
     wandb_logger = WandBLogger(
             wandb_project='psiflow',
             wandb_group='run_sequential',
@@ -203,23 +203,20 @@ def main(path_output):
     learning = SequentialLearning(
             path_output=path_output,
             niterations=10,
-            retrain_model_per_iteration=True,
+            train_valid_split=0.9,
+            train_from_scratch=True,
+            pretraining_nstates=50,
             pretraining_amplitude_pos=0.1,
             pretraining_amplitude_box=0.05,
-            pretraining_nstates=50,
-            train_valid_split=0.9,
             use_formation_energy=True,
             wandb_logger=wandb_logger,
             )
-    data_train, data_valid = learning.run_pretraining(
-            model=model,
-            reference=reference,
-            initial_data=Dataset([atoms]), # only one initial state
-            )
 
-    # construct generators; biased MTD MD in this case
-    walker = DynamicWalker(
-            atoms,
+    # construct walkers; biased MTD MD in this case
+    walkers = BiasedDynamicWalker.multiply(
+            30,
+            data_start=Dataset([atoms]),
+            bias=bias,
             timestep=0.5,
             steps=400,
             step=50,
@@ -229,13 +226,10 @@ def main(path_output):
             force_threshold=30,
             initial_temperature=600,
             )
-    generators = Generator('mtd', walker, bias).multiply(30)
     data_train, data_valid = learning.run(
             model=model,
             reference=reference,
-            generators=generators,
-            data_train=data_train,
-            data_valid=data_valid,
+            walkers=walkers,
             )
 
 
@@ -270,30 +264,23 @@ of (parallel) molecular dynamics simulations to perform, the train/validation
 split, whether to train to absolute or formation energies etc.
 In addition, it takes care of saving models,
 datasets, and the state of the walkers and/or bias potentials for each iteration.
-- Initial training and validation sets are generated using the
-`learning.run_pretraining()` function. It will use the provided initial data
--- in this case, a `Dataset` with a single atomic configuration -- 
-and apply small random perturbations to the atomic positions and strain components;
-this can serve as a sufficient initial dataset based on which the NequIP model
-may be briefly trained as a first (and inexpensive) step.
-When multiple initial structures are available,
-e.g. a reactant and a product state of a chemical reaction,
-it is recommended to gather all of them in a `Dataset` and pass them into the 
-pretraining step, as this guarantees that the pretraining does not overfit
-on either reactant or product.
 - After the pretraining, the sampling parameters of the molecular dynamics
-simulation are defined using a `DynamicWalker` instance.
-A template generator is defined using the walker and the created `PlumedBias`,
-which is then _multiplied_ in order to parallelize the data generation across
-multiple walkers (in this case: 30). All walkers share the same parameters but
-will receive different initial velocities and will **not** share any metadynamics
+simulation are defined using the `multiply` class method from 
+`BiasedDynamicWalker`.
+All walkers share the same parameters but
+will receive different initial velocities,
+different initial configurations, and will **not** share any metadynamics
 hills files; i.e. each metadynamics run is independent from the others.
-The returned object is simply a Python `list` of `Generator` instances.
+The returned object is simply a Python `list` of walkers.
 - The actual iterative algorithm is executed by calling `learning.run()`.
 The state of walker `i` and its bias potential at the end of iteration `j` are
 used as starting point for walker `i` in iteration `j+1`.
 In this way, the walkers explore a new region in each iteration, and due to
 the bias will increasingly explore higher-energy regions.
+Initial training and validation sets are generated by applying
+small random perturbations to the initial states of each of the walkers;
+this can serve as a sufficient initial dataset based on which the NequIP model
+may be briefly trained as a first (and inexpensive) step.
 This approach to online learning is extensively discussed in the original
 [psiflow paper](https://www.nature.com/articles/s41524-023-00969-x).
 At the end of each iteration, the state of all walkers, the trained model,
@@ -311,7 +298,118 @@ output folder, and if enabled, logged to W&B.
 
 After completing the requested number of learning iterations (as specified with
 the `niterations` keyword argument), psiflow will exit and the output folder will
-contain the state of the entire system after each step:
+contain the state of the entire system (datasets, walker and bias states, models) after each step.
 
 ## Online learning 2: concurrent learning with umbrella sampling
+Sometimes, it is more efficient to allow
+data generation and model training to proceed *simultaneously* instead of sequentially.
+In that case, walkers are propagated through phase space with whatever best model
+is currently available; and models are trained with however many states are
+currently present in train and validation datasets.
+This is especially useful when dealing with large networks that need to be fitted
+to complex datasets, as the time required for model training will become nontrivial, even with
+state of the art GPUs (a few hours or more on a single Nvidia A100).
 
+In psiflow, this approach is implemented by the `ConcurrentLearning` class;
+see below for an example with MACE and umbrella sampling.
+
+??? note "import statements and helper functions"
+    ```py
+    import requests
+    import logging
+    from pathlib import Path
+    import numpy as np
+
+    from ase.io import read
+
+    import psiflow
+    from psiflow.learning import ConcurrentLearning, load_learning
+    from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig
+    from psiflow.reference import CP2KReference
+    from psiflow.data import FlowAtoms, Dataset
+    from psiflow.sampling import BiasedDynamicWalker, PlumedBias
+    from psiflow.state import load_state
+    from psiflow.wandb_utils import WandBLogger
+    ```
+    Helper functions that were defined in previous examples are not repeated
+    here -- see the Python file on Github for a complete script.
+
+    The `get_bias()` helper function defines the harmonic bias potential
+    that is used by the walkers during phase space exploration.
+    ```py
+    def get_bias():
+        plumed_input = """
+    UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+
+    coord1: COORDINATION GROUPA=109 GROUPB=88 R_0=1.4
+    coord2: COORDINATION GROUPA=109 GROUPB=53 R_0=1.4
+    CV: MATHEVAL ARG=coord1,coord2 FUNC=x-y PERIODIC=NO
+    cv2: MATHEVAL ARG=coord1,coord2 FUNC=x+y PERIODIC=NO
+    lwall: LOWER_WALLS ARG=cv2 AT=0.65 KAPPA=5000.0
+    RESTRAINT ARG=CV AT=0.0 KAPPA=1500.0
+    """
+        return PlumedBias(plumed_input)
+    ```
+    ```py
+    def get_mace_model():
+        config = MACEConfig()
+        config.max_num_epochs = 1000
+        config.r_max = 6.0
+        return MACEModel(config)
+    ```
+
+```py
+def main(path_output):
+    assert not path_output.is_dir()
+    reference = get_reference() # CP2K; PBE-D3(BJ); TZVP
+    model = get_mace_model()    # MACE; small model
+    bias  = get_bias()          # simple MTD bias on unit cell volume
+    data  = Dataset.load(Path.cwd() / 'data' / 'zeolite_proton.xyz')
+
+    # set up wandb logging
+    wandb_logger = WandBLogger(
+            wandb_project='psiflow',
+            wandb_group='run_concurrent',
+            error_x_axis='CV',  # plot errors against PLUMED 'ARG=CV'
+            )
+
+    # set learning parameters
+    learning = ConcurrentLearning(
+            path_output=path_output,
+            niterations=10,
+            train_from_scratch=True,
+            pretraining_amplitude_pos=0.1,
+            pretraining_amplitude_box=0.05,
+            pretraining_nstates=50,
+            train_valid_split=0.9,
+            wandb_logger=wandb_logger,
+            min_states_per_iteration=15,
+            max_states_per_iteration=60,
+            )
+
+    # construct walkers; biased MD across the collective variable range of interest
+    walkers = BiasedDynamicWalker.distribute(
+            20,
+            data,
+            bias=bias,
+            variable='CV',
+            min_value=-0.975,
+            max_value=0.975,
+            timestep=0.5,
+            steps=400,
+            step=50,
+            start=0,
+            temperature=1000,
+            pressure=0, # NPT
+            force_threshold=30,
+            initial_temperature=1000,
+            )
+    data_train, data_valid = learning.run(
+            model=model,
+            reference=reference,
+            walkers=walkers,
+            )
+```
+Naturally, the body of the `main` function is similar to the previous example;
+the main difference being the use of a `ConcurrentLearning` instance
+instead of a `SequentialLearning` instance.

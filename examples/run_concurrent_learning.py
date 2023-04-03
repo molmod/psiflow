@@ -48,15 +48,10 @@ def get_reference():
     return reference
 
 
-def get_nequip_model():
-    config = NequIPConfig()
-    config.loss_coeffs['total_energy'][0] = 10
-    return NequIPModel(config)
-
-
 def get_mace_model():
     config = MACEConfig()
     config.max_num_epochs = 1000
+    config.r_max = 6.0
     return MACEModel(config)
 
 
@@ -88,7 +83,7 @@ def main(path_output):
             max_states_per_iteration=60,
             )
 
-    # construct generators; biased MD in this case
+    # construct walkers; biased MD across the collective variable range of interest
     walkers = BiasedDynamicWalker.distribute(
             20,
             data,

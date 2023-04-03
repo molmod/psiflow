@@ -512,11 +512,11 @@ class Dataset:
             future.result()
         return future
 
-    def as_list(self) -> List[FlowAtoms]:
+    def as_list(self) -> AppFuture:
         return app_read_dataset(
                 index_or_indices=slice(None),
                 inputs=[self.data_future],
-                ).result()
+                )
 
     def append(self, dataset: Dataset) -> None:
         context = psiflow.context()

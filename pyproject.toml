@@ -11,14 +11,19 @@ readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "ase>=3.22.1",
-    "pymatgen>=2023.1.30",
-    "wandb>=0.13.6",
-    "plumed>=2.7.2",
-    "parsl>=2023.3.13",
-    "cython>=0.29.32",
-    "h5py>=3.7.0",
-    "molmod @ git+https://github.com/molmod/molmod.git@f59506594b49f7a8545aef0ae6fb378e361eda80",
-    "yaff @ git+https://github.com/molmod/yaff.git@2bf7db0b87d6d6a2a93a7f46ec38fe60a4f070c7",
+    "pyyaml>=6.0",
+    "numpy>=1.22.3",
+    "wandb>=0.14.0",
+    "pymatgen>=2023.3.23",
+    "parsl==2023.3.27",
+    #"pymatgen>=2023.1.30",
+    #"wandb>=0.13.6",
+    #"plumed>=2.7.2",
+    #"parsl>=2023.3.13",
+    #"cython>=0.29.32",
+    #"h5py>=3.7.0",
+    #"molmod @ git+https://github.com/molmod/molmod.git@f59506594b49f7a8545aef0ae6fb378e361eda80",
+    #"yaff @ git+https://github.com/molmod/yaff.git@2bf7db0b87d6d6a2a93a7f46ec38fe60a4f070c7",
     ]
 
 [project.optional-dependencies]

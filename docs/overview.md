@@ -23,23 +23,11 @@ for anything that takes an initial atomic configuration as input and generates n
 atomic configurations as output. This includes classical molecular dynamics 
 at different external conditions (NVT, NPT), but also geometry optimizations and
 even simple random perturbations/random walks.
-- __bias potentials and enhanced sampling__ the `PlumedBias` class interfaces
-the popular PLUMED library with specific walkers. This allows the user to
-define bias potentials (e.g. harmonic restraints or metadynamics) that should
-be used when a walker is propagating through phase space.
-- __generators__: the `Generator` class wraps the generation of a single
-atomic configuration using a walker and, optionally, a bias potential.
-It implements additional features related to error handling during either the
-sampling or the reference evaluation, and allows to user to include additional
-checks to filter out unwanted data.
-For example, newly initialized models may induce walkers to explore unphysical
-regions in phase space when sampling at high temperature and/or for long
-timescales.
-When this happens, users might want to impose an `InteratomicDistanceCheck`
-in order to filter out sampled configurations in which some of the
-interatomic distances are unphysically close (e.g closer than 0.5 A).
-Checks can also be employed to implement uncertainty-based data selection such
-as query-by-committee.
+- __bias potentials and enhanced sampling__ the `PlumedBias` class exposes
+the popular PLUMED library during phase space sampling.
+This allows the user to introduce bias potentials
+(e.g. harmonic restraints or metadynamics) into the system
+in order to increase the sampling efficiency of the walkers.
 - __level of theory__: the `BaseReference` class is used to define the _target_
 QM reference which the model should reproduce after training. Its main functionality
 is to perform massively parallel singlepoint evaluation of a dataset of 
@@ -111,8 +99,8 @@ Actually getting the data would require the user to make a `.result()` call simi
 to the trivial Parsl example above.
 Let's go back to the first example and try and get the actual list of `Atoms` instances:
 ```py
-data_train  = Dataset.load('train.xyz')
-atoms_list  = data_train.as_list()                  # returns AppFuture
+data_train = Dataset.load('train.xyz')
+atoms_list = data_train.as_list()                   # returns AppFuture
 
 isinstance(atoms_list, list)                        # returns False! 
 
@@ -181,7 +169,7 @@ model.deploy()          # prepare for inference, e.g. test error evaluation or m
 
 # evaluate test error
 data_test       = Dataset.load('test.xyz')      # test data; contains QM reference energy/forces/stress
-data_test_model = model.evaluate(data_test)     # same test data, but with predicted energ/forces/stress
+data_test_model = model.evaluate(data_test)     # same test data, but with predicted energy/forces/stress
 
 errors = Dataset.get_errors(        # static method of Dataset to compute the error between two datasets
         data_test,                  
@@ -287,15 +275,46 @@ the model is simply lacking knowledge on certain important low-energy regions
 in phase space, then the simulation might explode. In practice, this means
 that atoms are going to experience enormous forces, fly away, and incentivize
 others to do the same.
-Catching such events is nontrivial, and a few mechanisms
-are in place in psiflow.
-Each `BaseWalker` instance is given a tag that can only assume the values
-_safe_ or _unsafe_. Dynamic walkers will be tagged as unsafe if one of the forces
-in the system exceeds a certain threshold (40 eV/A by default), as this typically
-indicates an upcoming explosion.
-If walkers are tagged as _unsafe_, the `state` that is returned after propagation
-may not be physically relevant, and it may be advised to not include those in
-training or validation sets. 
+In an online learning context, there is no point in further propagating walkers
+after such unphysical events have occurred because the sampled states
+are either impossible to evaluate with the given reference (e.g. due to SCF
+convergence issues) or do not contain any relevant information on the atomic
+interactions.
+To catch such events, psiflow checks the maximum force that each atom experiences
+in every timestep, and if it exceeds a certain threshold value (40 eV/A by default),
+propagation is halted and the last known state before the threshold was exceeded
+is returned.
+By default, the walker will reset its internal state to the starting configuration
+in order to make sure that subsequent propagations again start from a physically
+sensible structure.
+
+In practical scenarios, phase space exploration is often performed in a massively
+parallel manner, i.e. with multiple walkers.
+The `multiply()` class method provides a convenient way of initializing a `list` of
+`BaseWalker` instances which differ only in the initial starting
+configuration and their random number seed.
+Let us try and generate 10 walkers which are initialized with different
+snapshots from the trajectory obtained before:
+
+```py
+
+walkers = DynamicWalker.multiply(
+        10,
+        data_start=trajectory,              # walker i initialized to trajectory[i]
+        temperature=300,
+        steps=100,
+        )
+for i, walker in enumerate(walkers):
+    assert walker.seed == i                 # unique seed for each walker
+
+states = []                                 # keep track of 'Future' states
+for walker in walkers:
+    state = walker.propagate(model=model)   # proceeds in parallel!
+    states.append(state)
+data = Dataset(states)                      # put them in a Dataset
+
+```
+
 
 ## Bias potentials and enhanced sampling
 In the vast majority of molecular dynamics simulations of realistic systems,
@@ -309,14 +328,14 @@ dynamics.
 
 In the following example, we define the PLUMED input as a multi-line string in
 Python. We consider the particular case of applying a metadynamics bias to
-a collective variable, in this case the unit cell volume.
+a collective variable - in this case the unit cell volume.
 Because metadynamics represents a time-dependent bias,
 it relies on an additional _hills_ file which keeps track of the location of
 Gaussian hills that were installed in the system at various steps throughout
 the simulation. Psiflow automatically takes care of such external files, and
 their file path in the input string is essentially irrelevant.
 ```py
-from psiflow.sampling import DynamicWalker, PlumedBias
+from psiflow.sampling import BiasedDynamicWalker, PlumedBias
 
 
 plumed_input = """
@@ -326,42 +345,47 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=10 LABEL=metad FILE=dummy
 """
 bias = PlumedBias(plumed_input)        # a new hills file is generated
 
-walker = DynamicWalker()
-state = walker.propagate(model, bias=bias)      # this state is obtained through biased MD
+walker = BiasedDynamicWalker(data_train[0], bias=bias, timestep=0.5)    # initialize dynamic walker with bias
+state  = walker.propagate(model)                                        # performs biased MD
 
 ```
-Note that the bias instance will retain the hills it generated during walker
+Note that the bias instance will retain the hills that were generated during walker
 propagation.
-Let's say we wanted to investigate what our training data from before looks like
-in terms of collective variable distribution and bias energy.
+Often, we want to investigate what the final bias energy looks like as a
+function of the collective variable.
 To facilitate this, psiflow provides the ability to evaluate `PlumedBias` objects
 on `Dataset` instances using the `bias.evaluate()` method.
+The returned object is a Parsl `Future` of an `ndarray` of shape `(nstates, 2)`.
+The first column represents the value of the collective variable for each state,
+and the second column contains the bias energy.
 
 ```py
 values = bias.evaluate(data_train, variable='CV')       # evaluate all PLUMED actions with ARG=CV on data_train
 
 assert values.result().shape[0] == data_train.length().result()  # each snapshot is evaluated separately
 assert values.result().shape[1] == 2                             # CV and bias per snapshot, in PLUMED units!
-assert not np.allclose(values.result()[:, 1], 0)                 # nonzero bias energy
+assert not np.allclose(values.result()[:, 1], 0)                 # bias energy from added hills
 ```
 As another example, let's consider the same collective variable but now with
 a harmonic bias potential applied to it.
 Because sampling with and manipulation of harmonic bias potentials is ubiquitous
-in free energy calculations, psiflow provides specific support for this.
+in free energy calculations, psiflow provides specific functionalities for this
+particular case.
 ```py
 plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 """
-bias  = PlumedBias(plumed_input)
-state0 = walker.propagate(model, bias=bias)                 # propagation with bias centered at CV=150
+walker = BiasedDynamicWalker(data_train[0], bias=PlumedBias(plumed_input))  # walker with harmonic bias
+state = walker.propagate(model=model)                                           
 
-bias.adjust_restraint(variable='CV', kappa=2, center=200)   # decrease width and shift center to higher volume
-state1 = walker.propagate(model, bias=bias)     
+# change bias center and width
+walker.bias.adjust_restraint(variable='CV', kappa=2, center=200)
+state_ = walker.propagate(model)     
 
 # if the system had enough time to equilibrate with the bias, then the following should hold
-assert state0.result().get_volume() < state1.result().get_volume()
+assert state.result().get_volume() < state_.result().get_volume()
 
 ```
 Finally, psiflow also explicitly supports the use of numerical bias potentials
@@ -388,12 +412,13 @@ violate their strict independence.
 !!! note 
     PLUMED interfacing is not supported for the `OptimizationWalker` because
     (i) it is rarely ever useful to add a bias during optimization, and (ii)
+    the optimization is performed in ASE, and
     ASE's PLUMED interface is shaky at best.
 
 
 ## Level of theory
 Atomic configurations should be labeled with the correct QM energy,
-force, and virial stress before it can be used during model training.
+force, and virial stress before they can be used during model training.
 The `BaseReference` class implements the singlepoint evaluations using specific
 QM software packages and levels of theory.
 At the moment, psiflow only supports CP2K as the reference level of theory,
@@ -452,6 +477,7 @@ reference.add_file('potential', 'POTENTIAL_UZH')
 reference.add_file('dftd3', 'dftd3.dat')
 ```
 
+<!---
 ## Generators
 In online learning, data generation proceeds by taking an intermediate model
 (and optionally, a bias potential)
@@ -481,7 +507,7 @@ tend to produce unphysical states when they are not yet sufficiently trained.
 For example, it is sometimes possible that two atoms essentially collide
 onto each other during molecular dynamics; i.e. that the interatomic distance
 becomes far smaller than what is physically reasonable.
-It is not desireable to waste computational
+It is not desirable to waste computational
 time on evaluating those states at the DFT level or including them during training,
 and psiflow gives the user the ability to define __checks__ which are applied to
 the sampled data in order to include or exclude samples according to some set of rules.
@@ -539,6 +565,7 @@ assert type(generators) == list
 initial_states = Dataset.load('initial_states.xyz')         # different initial configuration, different seed
 generators = Generator('simple', walker, bias).multiply(10, initialize_using=initial_states)
 ```
+--->
 
 ## Learning algorithms
 The endgame of psiflow is to allow for seamless development and scalable
@@ -548,10 +575,10 @@ The `BaseLearning` class provides an example interface based on which such
 algorithms may be implemented.
 Within the space of online learning, the most trivial approach is represented
 using the `SequentialLearning` class.
-In sequential learning, the data generation (as performed by a set of generators)
+In sequential learning, the data generation (as performed by a set of walkers)
 is interleaved with short model training steps as to update
-the knowledge in the model with the states that were sampled and evaluated
-by the generators.
+the knowledge in the model with the states that were sampled by the walkers
+and evaluated with the chosen reference level of theory.
 Take a look at the following example:
 ```py
 from psiflow.learning import SequentialLearning
@@ -560,8 +587,9 @@ from psiflow.learning import SequentialLearning
 data_train = Dataset.load('initial_train.xyz')
 data_valid = Dataset.load('initial_valid.xyz')
 
-walker = DynamicWalker(     # template walker based on which generators will be built
-        data_train[0],      # initial state
+walkers = DynamicWalker.multiply(     # initializes 30 walkers, with different initial configuration and seed
+        30,
+        data_train,                   # Dataset which provides initial configurations
         timestep=0.5,
         steps=400,
         step=50,
@@ -571,23 +599,18 @@ walker = DynamicWalker(     # template walker based on which generators will be 
         force_threshold=30,
         initial_temperature=600,
         )
-generators = Generator('mtd', walker, bias).multiply(30, initialize_using=None)
-print(len(generators))                      # 30 generators, same initial state but different seed
 
 learning = SequentialLearning(              # implements sequential learning
         path_output=path_output,            # folder in which consecutive models and data should be saved
         niterations=10,                     # number of (generate, train) iterations
-        retrain_model_per_iteration=True,   # whether to train with reinitialized weights in each iteration
+        train_from_scratch=True,            # whether to train with reinitialized weights in each iteration
         train_valid_split=0.9,              # partitioning of generated states into training and validation
         )
 
 data_train, data_valid = learning.run(
         model=model,                                # initial model
         reference=reference,                        # reference level of theory
-        generators=generators,                      # list of generators
-        data_train=data_train,                      # initial training data
-        data_valid=data_valid,                      # initial validation data
-        checks=[InteratomicDistanceCheck(0.5)],     # require all distances > 0.5 A
+        walkers=walkers,                            # list of walkers
         )
 
 model.save(path_output)                 # save new model separately
@@ -601,17 +624,15 @@ In this case, it will repeat the following
 of operations `niterations = 10` times:
 
 1. deploy the model;
-2. call each generator using the most recently deployed model, the provided reference, and
-any checks that were provided -- this may involve a certain number of retries depending on whether the
-sampling and/or reference evaluation fails;
-3. gather the data, and add it to the existing training and validation datasets;
-4. reinitialize the model, and train it.
+2. propagate each walker using the most recently deployed model, and use the
+provided reference to perform the QM singlepoint evaluation of the obtained
+configuration;
+3. gather the configurations for which the singlepoint evaluation was successful,
+and add them to any existing data;
+4. reinitialize the model, and train it on the new data
 
 After this script has executed, the `path_output` directory will contain 10
 folders (named `0`, `1`, ... `9`) in which the model and datasets are logged as well
-as the entire state of the generators (i.e. start and stop configuration,
-and state of the bias potentials).
-Additional features relate to Weights & Biases logging and optional
-pretraining based on a quick-and-dirty dataset with random perturbations applied
-to both atomic positions and strain components; see the [Examples](examples.md)
-for more information.
+as the entire state of the walkers (i.e. start and stop configuration,
+and state of the bias potentials if present).
+Additional features are demonstrated in the [Examples](examples.md).

@@ -138,28 +138,28 @@ class WandBLogger:
                         }
 
         if data_train is not None:
-            for suffix, error_kwargs in error_kwargs.items():
+            for suffix, kwargs_dict in error_kwargs.items():
                 log_futures['training_' + suffix] = log_data( # log training and validation data as tables
                         dataset=data_train,
                         model=model,
                         error_x_axis=error_x_axis,
-                        error_kwargs=error_kwargs,
+                        error_kwargs=kwargs_dict,
                         )
         if data_valid is not None:
-            for suffix, error_kwargs in error_kwargs.items():
+            for suffix, kwargs_dict in error_kwargs.items():
                 log_futures['validation_' + suffix] = log_data( # log training and validation data as tables
                         dataset=data_valid,
                         model=model,
                         error_x_axis=error_x_axis,
-                        error_kwargs=error_kwargs,
+                        error_kwargs=kwargs_dict,
                         )
         if data_failed is not None:
-            for suffix, error_kwargs in error_kwargs.items():
+            for suffix, kwargs_dict in error_kwargs.items():
                 log_futures['failed_' + suffix] = log_data( # log training and validation data as tables
                         dataset=data_failed,
                         model=model,
                         error_x_axis=error_x_axis,
-                        error_kwargs=error_kwargs,
+                        error_kwargs=kwargs_dict,
                         )
         logger.info('\twandb project: {}'.format(self.wandb_project))
         logger.info('\twandb group  : {}'.format(self.wandb_group))

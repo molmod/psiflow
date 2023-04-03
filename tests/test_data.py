@@ -48,7 +48,7 @@ def test_dataset_empty(context, tmp_path):
 
 def test_dataset_append(dataset):
     assert 20 == dataset.length().result()
-    atoms_list = dataset.as_list()
+    atoms_list = dataset.as_list().result()
     assert len(atoms_list) == 20
     assert type(atoms_list) == list
     assert type(atoms_list[0]) == FlowAtoms

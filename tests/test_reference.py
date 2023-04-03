@@ -169,8 +169,8 @@ def cp2k_reference(context, cp2k_input, cp2k_data, tmp_path):
 def test_reference_emt(context, dataset, tmp_path):
     reference = EMTReference()
     # modify dataset to include states for which EMT fails:
-    _ = reference.evaluate(dataset).as_list()
-    atoms_list = dataset.as_list()
+    _ = reference.evaluate(dataset).as_list().result()
+    atoms_list = dataset.as_list().result()
     atoms_list[6].numbers[1] = 90
     atoms_list[9].numbers[1] = 3
     dataset_ = Dataset(atoms_list)

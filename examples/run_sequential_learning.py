@@ -90,7 +90,7 @@ def main(path_output):
             wandb_logger=wandb_logger,
             )
 
-    # construct generators; biased MTD MD in this case
+    # construct walkers; biased MTD MD in this case
     walkers = BiasedDynamicWalker.multiply(
             30,
             data_start=Dataset([atoms]),
