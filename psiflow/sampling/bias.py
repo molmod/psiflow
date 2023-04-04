@@ -42,7 +42,7 @@ def remove_comments_printflush(plumed_input: str) -> str:
 
 
 @typeguard.typechecked
-def try_manual_plumed_linking() -> None:
+def try_manual_plumed_linking() -> str:
     if 'PLUMED_KERNEL' not in os.environ.keys():
         # try linking manually
         if 'CONDA_PREFIX' in os.environ.keys(): # for conda environments
@@ -55,6 +55,7 @@ def try_manual_plumed_linking() -> None:
         if os.path.exists(path):
             os.environ['PLUMED_KERNEL'] = path
             print('plumed kernel manually set at at : {}'.format(path))
+    return os.environ['PLUMED_KERNEL']
 
 
 @typeguard.typechecked

@@ -19,7 +19,8 @@ from psiflow.data import Dataset
 from psiflow.wandb_utils import WandBLogger
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
-from psiflow.sampling import BaseWalker, RandomWalker, PlumedBias
+from psiflow.sampling import BaseWalker, RandomWalker, PlumedBias, \
+        BiasedDynamicWalker
 from psiflow.generate import generate, generate_all
 from psiflow.checks import Check, DiscrepancyCheck
 from psiflow.state import save_state, load_state
@@ -147,25 +148,46 @@ class BaseLearning:
             self,
             model: BaseModel,
             reference: BaseReference,
-            initial_data: Dataset,
+            walkers: list[BaseWalker],
             ):
         nstates = self.pretraining_nstates
         amplitude_pos = self.pretraining_amplitude_pos
         amplitude_box = self.pretraining_amplitude_box
-        assert initial_data.length().result() > 0
         logger.info('performing random pretraining')
-        walkers = RandomWalker.multiply(
+        walkers_ = RandomWalker.multiply(
                 nstates,
-                data_start=initial_data,
+                data_start=Dataset([w.state_future for w in walkers]),
                 amplitude_pos=amplitude_pos,
                 amplitude_box=amplitude_box,
                 )
-        data = generate_all(walkers, None, reference, 1, 1)
+        data = generate_all(walkers_, None, reference, 1, 1)
+        states = []
+        for i in range(nstates):
+            index = i % len(walkers)
+            walker = walkers[index]
+            if isinstance(walker, BiasedDynamicWalker): # evaluate CVs!
+                with_cv_inserted = walker.bias.evaluate(
+                        data.get(indices=[i]),
+                        as_dataset=True,
+                        )
+                states.append(with_cv_inserted[0])
+            else:
+                states.append(data[i])
+        data = Dataset(states)
         data_train, data_valid = self.split_successful(data)
         data_train.log('data_train')
         data_valid.log('data_valid')
         model.initialize(data_train)
         model.train(data_train, data_valid)
+        self.finish_iteration(
+                'random_pretraining',
+                model,
+                walkers,
+                data_train,
+                data_valid,
+                data_failed=None,
+                require_done=True,
+                )
         return data_train, data_valid
 
     def initialize_run(
@@ -194,7 +216,7 @@ class BaseLearning:
                 data_train, data_valid = self.run_pretraining(
                         model,
                         reference,
-                        Dataset([w.state_future for w in walkers]),
+                        walkers,
                         )
             else: # pretrain on initial data
                 model.initialize(data_train)

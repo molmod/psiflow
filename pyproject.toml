@@ -49,7 +49,8 @@ docs = [
 
 [project.scripts]
 psiflow-train-nequip = 'psiflow.models.train_nequip:main'
-psiflow-train-mace = 'psiflow.models.train_mace:main'
+psiflow-train-mace   = 'psiflow.models.train_mace:main'
+psiflow-test         = 'psiflow.test:main'
 #psiflow-simulate-model = 'psiflow.sampling.simulate_model:main'
 
 

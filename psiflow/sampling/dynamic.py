@@ -109,29 +109,32 @@ def simulate_model(
             forcefield.add_part(part_plumed)
             hooks.append(part_plumed) # NECESSARY!!
 
-        thermo = yaff.LangevinThermostat(
-                pars['temperature'],
-                timecon=100 * molmod.units.femtosecond,
-                )
-        if pars['pressure'] is None:
-            print('sampling NVT ensemble ...')
-            hooks.append(thermo)
-        else:
-            print('sampling NPT ensemble ...')
-            try: # some models do not have stress support; prevent NPT!
-                stress = atoms.get_stress()
-            except Exception as e:
-                raise ValueError('NPT requires stress support in model')
-            baro = yaff.LangevinBarostat(
-                    forcefield,
+        if pars['temperature'] is not None:
+            thermo = yaff.LangevinThermostat(
                     pars['temperature'],
-                    pars['pressure'] * 1e6 * molmod.units.pascal, # in MPa
-                    timecon=molmod.units.picosecond,
-                    anisotropic=True,
-                    vol_constraint=False,
+                    timecon=100 * molmod.units.femtosecond,
                     )
-            tbc = yaff.TBCombination(thermo, baro)
-            hooks.append(tbc)
+            if pars['pressure'] is None:
+                print('sampling NVT ensemble ...')
+                hooks.append(thermo)
+            else:
+                print('sampling NPT ensemble ...')
+                try: # some models do not have stress support; prevent NPT!
+                    stress = atoms.get_stress()
+                except Exception as e:
+                    raise ValueError('NPT requires stress support in model')
+                baro = yaff.LangevinBarostat(
+                        forcefield,
+                        pars['temperature'],
+                        pars['pressure'] * 1e6 * molmod.units.pascal, # in MPa
+                        timecon=molmod.units.picosecond,
+                        anisotropic=True,
+                        vol_constraint=False,
+                        )
+                tbc = yaff.TBCombination(thermo, baro)
+                hooks.append(tbc)
+        else:
+            print('sampling NVE ensemble')
 
         tag = 'safe'
         counter = 0
@@ -199,7 +202,7 @@ class DynamicWalker(BaseWalker):
             steps: int = 100,
             step: int = 10,
             start: int = 0,
-            temperature: float = 300,
+            temperature: Optional[float] = 300,
             pressure: Optional[float] = None,
             force_threshold: float = 1e6, # no threshold by default
             initial_temperature: float = 600, # to mimick parallel tempering

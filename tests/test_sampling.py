@@ -123,6 +123,10 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     state = walker.propagate(model=model, reset_if_unsafe=False)
     assert walker.tag_future.result() == 'unsafe' # raised ForceExceededException
 
+    walker.reset()
+    walker.temperature = None # NVE
+    state = walker.propagate(model=model)
+
 
 def test_optimization_walker(context, dataset, mace_config):
     training = dataset[:15]
@@ -133,7 +137,8 @@ def test_optimization_walker(context, dataset, mace_config):
     model.deploy()
 
     walker = OptimizationWalker(dataset[0], optimize_cell=False, fmax=1e-2)
-    final = walker.propagate(model=model)
+    final, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    assert trajectory.length().result() > 1
     assert np.all(np.abs(final.result().positions - dataset[0].result().positions) < 1.0)
     assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved
     counter = walker.counter_future.result()

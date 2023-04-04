@@ -78,7 +78,7 @@ def optimize_geometry(
     if keep_trajectory:
         assert str(outputs[0].filepath).endswith('.xyz')
         with open(outputs[0], 'w') as f:
-            trajectory = read(path_traj)
+            trajectory = read(path_traj, index=':')
             write_extxyz(f, trajectory)
     os.unlink(path_traj)
     return FlowAtoms.from_atoms(atoms), tag, optimizer.nsteps

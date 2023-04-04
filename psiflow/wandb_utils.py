@@ -115,7 +115,7 @@ class WandBLogger:
             logger.critical('could not find variable "{}" in XYZ header of data'
                     '; fall back to using state index during logging'.format(
                         self.error_x_axis))
-            error_x_axis = self.error_x_axis
+            error_x_axis = 'index'
 
         # build error_kwargs
         error_kwargs = {'all': {
