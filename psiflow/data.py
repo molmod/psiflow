@@ -269,6 +269,8 @@ def compute_metrics(
         for atoms_1 in data_1:
             if 'energy' in atoms_1.info.keys():
                 atoms_1.info['energy'] = 0.0
+            if 'formation_energy' in atoms_1.info.keys():
+                atoms_1.info['formation_energy'] = 0.0
             if 'stress' in atoms_1.info.keys(): # ASE copy fails for info attrs!
                 atoms_1.info['stress'] = np.zeros((3, 3))
             if 'forces' in atoms_1.arrays.keys():
@@ -298,8 +300,13 @@ def compute_metrics(
             outer_mask[i] = False
             continue
         if 'energy' in properties:
-            assert 'energy' in atoms_0.info.keys()
-            assert 'energy' in atoms_1.info.keys()
+            formation = all(['formation_energy' in a.info.keys() for a in [atoms_0, atoms_1]])
+            if formation:
+                energy_key = 'formation_energy'
+            else:
+                energy_key = 'energy'
+            assert energy_key in atoms_0.info.keys()
+            assert energy_key in atoms_1.info.keys()
         if 'forces' in properties:
             assert 'forces' in atoms_0.arrays.keys()
             assert 'forces' in atoms_1.arrays.keys()
@@ -308,8 +315,8 @@ def compute_metrics(
             assert 'stress' in atoms_1.info.keys()
         for j, property_ in enumerate(properties):
             if property_ == 'energy':
-                array_0 = np.array([atoms_0.info['energy']]).reshape((1, 1))
-                array_1 = np.array([atoms_1.info['energy']]).reshape((1, 1))
+                array_0 = np.array([atoms_0.info[energy_key]]).reshape((1, 1))
+                array_1 = np.array([atoms_1.info[energy_key]]).reshape((1, 1))
                 array_0 /= len(atoms_0) # per atom energy error
                 array_1 /= len(atoms_1)
                 array_0 *= 1000 # in meV/atom

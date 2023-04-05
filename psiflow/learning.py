@@ -200,7 +200,12 @@ class BaseLearning:
         if self.wandb_logger is not None:
             self.wandb_logger.insert_name(model)
         if self.use_formation_energy:
-            model.use_formation_energy = True
+            if not model.use_formation_energy and (model.model_future is not None):
+                raise ValueError('model was initialized to train on absolute energies'
+                                 ' but learning config is set to train on formation '
+                                 'energy. ')
+            if model.model_future is None:
+                model.use_formation_energy = True
             logger.warning('model is trained on *formation* energy!')
             if initial_data is not None:
                 self.compute_atomic_energies(reference, initial_data)
@@ -219,6 +224,7 @@ class BaseLearning:
                         walkers,
                         )
             else: # pretrain on initial data
+                data_train, data_valid = self.split_successful(initial_data)
                 model.initialize(data_train)
                 model.train(data_train, data_valid)
         else:

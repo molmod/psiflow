@@ -156,7 +156,7 @@ class AllegroConfig(NequIPConfig):
     env_embed_mlp_latent_dimensions: Optional[list] = field(default_factory=lambda: [])
     env_embed_mlp_nonlinearity: Optional[bool] = None
     env_embed_mlp_initialization: str = 'uniform'
-    wandb: False
+    wandb: bool = False
     r_max: float = 5.0
 
 
@@ -487,13 +487,15 @@ class NequIPModel(BaseModel):
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(deploy_future, inputs=[], outputs=[]):
-            assert model_dtype in deploy_future.keys()
+        def evaluate_wrapped(deploy_future, use_formation_energy, inputs=[], outputs=[]):
+            assert model_dtype in deploy_future.keys(), ('model is not '
+                    'deployed; use model.deploy() before using model.evaluate()')
             inputs.append(deploy_future[model_dtype])
             return evaluate_unwrapped(
                     model_device,
                     model_dtype,
                     model_ncores,
+                    use_formation_energy,
                     cls.load_calculator,
                     inputs=inputs,
                     outputs=outputs,
@@ -527,6 +529,7 @@ class NequIPModel(BaseModel):
 
     @use_formation_energy.setter
     def use_formation_energy(self, arg) -> None:
+        assert self.model_future is None
         for key in list(self.config_raw['dataset_key_mapping'].keys()):
             if 'energy' in key:
                 self.config_raw['dataset_key_mapping'].pop(key)

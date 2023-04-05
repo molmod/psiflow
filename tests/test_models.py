@@ -78,6 +78,8 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     validation = dataset[-5:]
     model = NequIPModel(nequip_config)
     model.initialize(training)
+    with pytest.raises(AssertionError):
+        model.use_formation_energy = True # cannot change this after initialization
     model.deploy()
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
     model.train(training, validation)
@@ -127,8 +129,6 @@ def test_nequip_formation(context, nequip_config, dataset):
     model.use_formation_energy = False
     assert not model.use_formation_energy
     model.use_formation_energy = True
-    with pytest.raises(AssertionError):
-        model.initialize(dataset[:2])
 
     reference = EMTReference()
     dataset = dataset.set_formation_energy(
@@ -137,6 +137,8 @@ def test_nequip_formation(context, nequip_config, dataset):
             )
     assert 'formation_energy' in dataset.energy_labels().result()
     model.initialize(dataset[:2])
+    model.deploy()
+    assert 'formation_energy' in model.evaluate(dataset[:2].reset()).energy_labels().result()
 
 
 @pytest.mark.skipif(torch.__version__.split('+')[0] != '1.11.0', reason='allegro only compatible with torch 1.11')
@@ -361,9 +363,8 @@ def test_mace_formation(context, mace_config, dataset):
     config = MACEConfig(**mace_config)
     model = MACEModel(config)
     model.initialize(dataset[:2])
-    model.use_formation_energy = True
     with pytest.raises(AssertionError):
-        model.initialize(dataset[:2])
+        model.use_formation_energy = True
 
     reference = EMTReference()
     dataset = dataset.set_formation_energy(
@@ -372,7 +373,10 @@ def test_mace_formation(context, mace_config, dataset):
             )
     assert 'formation_energy' in dataset.energy_labels().result()
     model.reset()
+    model.use_formation_energy = True
     model.initialize(dataset[:2])
+    model.deploy()
+    assert 'formation_energy' in model.evaluate(dataset[:2].reset()).energy_labels().result()
 
     config = MACEConfig(**mace_config)
     config.energy_key = 'formation_energy'

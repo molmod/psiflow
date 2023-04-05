@@ -93,6 +93,7 @@ def generate_emt_cu_data(nstates, amplitude):
 def dataset(context, tmp_path):
     data = generate_emt_cu_data(20, 0.2)
     data_ = [FlowAtoms.from_atoms(atoms) for atoms in data]
+    reference = EMTReference()
     for atoms in data_:
         atoms.reference_status = True
     return Dataset(data_)

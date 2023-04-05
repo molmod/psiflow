@@ -42,8 +42,8 @@ def test_sequential_learning(context, tmp_path, mace_config, dataset):
     reference = EMTReference()
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV1: VOLUME
-METAD ARG=CV1 SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
+CV: VOLUME
+METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
 """
     bias = PlumedBias(plumed_input)
 
@@ -54,12 +54,13 @@ METAD ARG=CV1 SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             wandb_logger=wandb_logger,
             pretraining_nstates=50,
             train_from_scratch=True,
-            use_formation_energy=True,
+            use_formation_energy=False,
             train_valid_split=0.8,
             niterations=1,
             )
     model = MACEModel(mace_config)
     model.config_raw['max_num_epochs'] = 1
+    #model.use_formation_energy = False
     model.initialize(dataset[:2])
 
     walkers = RandomWalker.multiply(
@@ -127,6 +128,12 @@ def test_concurrent_learning(context, tmp_path, mace_config, dataset):
             amplitude_pos=0.05,
             amplitude_box=0,
             )
+    with pytest.raises(ValueError): # model initialized on absolute energies
+        data_train, data_valid = learning.run(model, reference, walkers, dataset)
+    model.reset()
+    assert not model.use_formation_energy
     data_train, data_valid = learning.run(model, reference, walkers, dataset)
+    assert model.use_formation_energy
+
     assert data_train.length().result() == 16 + 2 * 32
     assert data_valid.length().result() == 4  + 2 * 8

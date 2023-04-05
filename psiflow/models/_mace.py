@@ -87,7 +87,7 @@ class MACEConfig:
     weight_decay: float = 1e-7
     amsgrad: bool = True
     scheduler: str = 'ReduceLROnPlateau'
-    lr_factor: str = 0.8
+    lr_factor: float = 0.8
     scheduler_patience: int = 100
     lr_scheduler_gamma: float = 0.9993
     swa: bool = False
@@ -558,7 +558,7 @@ class MACEModel(BaseModel):
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(deploy_future, inputs=[], outputs=[]):
+        def evaluate_wrapped(deploy_future, use_formation_energy, inputs=[], outputs=[]):
             assert model_dtype in deploy_future.keys(), ('model is not '
                     'deployed; use model.deploy() before using model.evaluate()')
             inputs.append(deploy_future[model_dtype])
@@ -566,6 +566,7 @@ class MACEModel(BaseModel):
                     model_device,
                     model_dtype,
                     model_ncores,
+                    use_formation_energy,
                     cls.load_calculator,
                     inputs=inputs,
                     outputs=outputs,
@@ -593,6 +594,7 @@ class MACEModel(BaseModel):
 
     @use_formation_energy.setter
     def use_formation_energy(self, arg) -> None:
+        assert self.model_future is None
         if arg: # use formation_energy
             self.config_raw['energy_key'] = 'formation_energy'
         else: # switch to total energy

@@ -27,6 +27,7 @@ def evaluate_dataset(
         device: str,
         dtype: str,
         ncores: int,
+        use_formation_energy: bool,
         load_calculator: Callable,
         inputs: List[File] = [],
         outputs: List[File] = [],
@@ -53,7 +54,10 @@ def evaluate_dataset(
             except Exception as e:
                 print(e)
                 stress = np.zeros((3, 3))
-            atoms.info['energy'] = energy
+            if use_formation_energy:
+                atoms.info['formation_energy'] = energy
+            else:
+                atoms.info['energy'] = energy
             atoms.info['stress'] = stress
             atoms.arrays['forces'] = forces
             atoms.calc = None
@@ -128,6 +132,7 @@ class BaseModel:
         context = psiflow.context()
         data_future = context.apps(self.__class__, 'evaluate')(
                 self.deploy_future,
+                self.use_formation_energy,
                 inputs=[dataset.data_future],
                 outputs=[context.new_file('data_', '.xyz')],
                 ).outputs[0]

@@ -113,7 +113,7 @@ def _evaluate(
         logger.info('\tstate from walker {} not OK'.format(name, reference.__class__))
         logger.info('\tresetting state and increment seed')
         walker.reset(conditional=False)
-        walker.parameters.seed += 1
+        walker.seed += 1
         return generate(
                 name,
                 walker,
@@ -144,11 +144,11 @@ def _gather(
         return copy_app_future(state) # join_app must return future??
     else:
         walker.reset(conditional=False)
-        walker.parameters.seed += 1
+        walker.seed += 1
         logger.info('\tstate from walker {} failed during evaluation; '
                 'retrying with seed {}'.format(
                     name,
-                    walker.parameters.seed,
+                    walker.seed,
                     ))
         return generate(
                 name,
