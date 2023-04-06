@@ -1,20 +1,35 @@
 # Execution
 
-Psiflow provides a high-level interface that allows the user to build a
-computational graph of operations.
-The computationally nontrivial components in such graphs are typically
-threefold: the QM evaluations, model training, and model inference.
-On average, a single QM evaluation may require multiple tens of cores for
-up to one hour of walltime, model training requires multiple hours of training on state of the art
-GPUs; and even model inference (e.g. molecular dynamics) can become
-expensive when long simulation times are necessary.
-Because a single computer cannot provide the computing resources that are necessary to execute
-such workflows, psiflow is built on top of Parsl to allow for distributed execution
-across a large variety of computing resources
+Psiflow provides a convenient interface to build a
+complex computational graph that consists of
+QM evaluations, model training, and phase space sampling, among others.
+Importantly, the execution of such graphs requires different resources
+depending on the specific task at hand.
+For example, QM calculations typically require nodes with a large core count (64 or even 128)
+and with sufficient memory, whereas model training and evaluation require a powerful
+GPU.
+Because a single computer can never provide the computing power that is required to
+execute such workflows, psiflow is intrinsically built to support distributed
+and asynchronous execution across a large variety of resources (including most HPC and cloud infrastructure).
+This means that while the entire online learning workflow is defined in a single Python script,
+its execution is automatically performed on tens, hundreds, or even thousands of nodes.
+The configuration of psiflow's execution is defined in a single Python file; `config.py`.
+It gives the user full flexibility to customize all execution-side details, such as:
 
-All execution-level configuration options are expected to be bundled
-in a single `config.py` file, which is read by psiflow during workflow
-initialization.
+- the number of cores to use for each CP2K singlepoint evaluation, as well as the specific OpenMP/MPI parallellization settings;
+- the project ID from Google Compute Engine, if applicable;
+- the computational resources per SLURM job, if applicable.
+This includes walltime, core count, and memory, as well as e.g. the maximum number of molecular dynamics
+simulations that can be executed in parallel in a single job;
+- the execution of specific `module load` or `source env/bin/activate` commands to ensure all the necessary environment variables are set.
+
+Execution parameters such as these are defined in the configuration script;
+they are strictly and deliberately kept separate
+from the main Python script that defines the workflow, in line with Parsl's philosophy: _write once, run anywhere_.
+
+This section introduces the main components of the configuration script; additional
+Examples can be found on the GitHub repository, in the
+[configs](https://github.com/svandenhaute/psiflow/tree/main/configs) directory.
 
 !!! note "Parsl 103: Execution"
     It may be worthwhile to take a quick look at the

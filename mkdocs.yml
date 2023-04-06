@@ -20,7 +20,7 @@ theme:
 nav:
   - Introduction: index.md
   - Overview: overview.md
-  - Execution: config.md
+  - Execution: execution.md
   - Examples: examples.md
   - Installation: installation.md
     #- Workflow execution: workflow_execution.md

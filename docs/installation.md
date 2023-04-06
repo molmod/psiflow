@@ -1,4 +1,1 @@
 # Installation
-
-[COMING SOON]
-
