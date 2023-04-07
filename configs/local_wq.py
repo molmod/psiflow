@@ -1,11 +1,12 @@
 from parsl.providers import LocalProvider
+from parsl.launchers import SimpleLauncher
 
 from psiflow.models import MACEModel, NequIPModel, AllegroModel
 from psiflow.reference import CP2KReference, HybridCP2KReference, \
         MP2CP2KReference, DoubleHybridCP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
-from psiflow.execution import generate_parsl_config
+from psiflow.execution import generate_parsl_config, generate_launcher
 
 
 model_evaluate = ModelEvaluationExecution(
@@ -23,11 +24,11 @@ model_training = ModelTrainingExecution( # forced cuda/float32
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',
         device='cpu',
-        ncores=4,
+        ncores=2,
         omp_num_threads=2,
         mpi_command=lambda x: f'mpirun -np {x}',
         cp2k_exec='cp2k.psmp',
-        walltime=1, # in minutes
+        walltime=3, # in minutes
         )
 
 definitions = {
@@ -39,11 +40,18 @@ definitions = {
         DoubleHybridCP2KReference: [reference_evaluate],
         MP2CP2KReference: [reference_evaluate],
         }
+
+containerize = True
+if containerize:
+    launcher = generate_launcher(container_tag='latest', enable_gpu=True)
+else:
+    launcher = SimpleLauncher()
+
 providers = {
-        'default': LocalProvider(),
-        'model': LocalProvider(),
-        'training': LocalProvider(),
-        'reference': LocalProvider(),
+        'default': LocalProvider(launcher=launcher),
+        'model': LocalProvider(launcher=launcher),
+        'training': LocalProvider(launcher=launcher),
+        'reference': LocalProvider(launcher=launcher),
         }
 
 

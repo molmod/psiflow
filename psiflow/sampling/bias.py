@@ -4,8 +4,6 @@ import typeguard
 import re
 import os
 import tempfile
-import yaff
-import molmod
 import logging
 import numpy as np
 from pathlib import Path

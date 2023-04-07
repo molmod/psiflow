@@ -84,10 +84,7 @@ def main(path_output):
 
 
 if __name__ == '__main__':              # entry point
-    psiflow.load(
-            '../configs/local_wq.py',   # path to psiflow config file
-            './psiflow_internal',       # internal psiflow cache dir
-            )
-
+    psiflow.load()
     path_output = Path.cwd() / 'output' # stores final model
+    path_output.mkdir()
     main(path_output)

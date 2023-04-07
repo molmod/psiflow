@@ -5,10 +5,12 @@ import typeguard
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from copy import deepcopy
+import argparse
 import logging
 import os
 import sys
 import importlib
+import atexit
 
 import parsl
 from parsl.executors import HighThroughputExecutor, WorkQueueExecutor
@@ -21,6 +23,12 @@ from psiflow.utils import set_file_logger
 
 
 logger = logging.getLogger(__name__) # logging per module
+
+
+class MyWorkQueueExecutor(WorkQueueExecutor):
+    
+    def _get_launch_command(self, block_id):
+        return self.worker_command
 
 
 @typeguard.typechecked
@@ -161,7 +169,7 @@ def generate_parsl_config(
                     worker_options.append('--wall-time={}'.format(walltime))
                     worker_options.append('--timeout={}'.format(wq_timeout))
                     worker_options.append('--parent-death')
-                executor = WorkQueueExecutor(
+                executor = MyWorkQueueExecutor(
                     label=label,
                     working_dir=str(Path(path_internal) / label),
                     provider=provider,
@@ -203,8 +211,8 @@ class ExecutionContext:
             path: Union[Path, str],
             ) -> None:
         self.config = config
-        Path.mkdir(Path(path), parents=True, exist_ok=True)
-        self.path = Path(path)
+        self.path = Path(path).resolve()
+        self.path.mkdir(parents=True, exist_ok=True)
         self.definitions = definitions
         self._apps = {}
         self.file_index = {}
@@ -246,6 +254,9 @@ class ExecutionContext:
         self.file_index[key] += 1
         return File(str(self.path / (prefix + identifier + suffix)))
 
+    def atexit_cleanup(self) -> None:
+        parsl.wait_for_current_tasks()
+
     @property
     def executor_labels(self):
         return list(self.executors.keys())
@@ -257,15 +268,26 @@ class ExecutionContextLoader:
     @classmethod
     def load(
             cls,
-            path_config: Union[Path, str],
-            path_internal: Union[Path, str],
-            psiflow_log_level: int = logging.DEBUG,
-            parsl_log_level: int = logging.DEBUG,
+            path_config: Optional[Union[Path, str]] = None,
+            path_internal: Optional[Union[Path, str]] = None,
+            psiflow_log_level: Union[int, str] = 'INFO',
+            parsl_log_level: Union[int, str] = 'INFO',
             ) -> ExecutionContext:
         if cls._context is not None:
             raise RuntimeError('ExecutionContext has already been loaded')
         # convert all paths into absolute paths as this is necssary when using
         # WQ executor with shared_fs=True
+        if path_config is None:
+            parser = argparse.ArgumentParser()
+            parser.add_argument('--psiflow-config', default='', type=str)
+            parser.add_argument('--path-internal', default='psiflow_internal', type=str)
+            parser.add_argument('--psiflow-log-level', default='INFO', type=str)
+            parser.add_argument('--parsl-log-level', default='INFO', type=str)
+            args = parser.parse_args()
+            path_config = args.psiflow_config
+            path_internal = args.path_internal
+            psiflow_log_level = args.psiflow_log_level
+            parsl_log_level = args.parsl_log_level
         path_internal = Path(path_internal).resolve()
         config, definitions = get_psiflow_config_from_file(
                 path_config,
@@ -273,11 +295,16 @@ class ExecutionContextLoader:
                 )
         if not path_internal.is_dir():
             path_internal.mkdir()
-        assert not any(path_internal.iterdir()), '{} should be empty'.format(str(path_internal))
-        set_file_logger(path_internal / 'psiflow.log', psiflow_log_level)
-        parsl.set_file_logger(str(path_internal / 'parsl.log'), level=parsl_log_level)
+        else:
+            assert not any(path_internal.iterdir()), '{} should be empty'.format(str(path_internal))
+        path_psiflow_log = Path.cwd().resolve() / 'psiflow.log'
+        if path_psiflow_log.is_file():
+            path_psiflow_log.unlink()
+        set_file_logger(path_psiflow_log, psiflow_log_level)
+        parsl.set_file_logger(str(path_internal / 'parsl.log'), parsl_log_level)
         path_context = path_internal / 'context_dir'
         cls._context = ExecutionContext(config, definitions, path_context)
+        atexit.register(cls._context.atexit_cleanup)
         return cls._context
 
     @classmethod
@@ -285,3 +312,42 @@ class ExecutionContextLoader:
         if cls._context is None:
             raise RuntimeError('No ExecutionContext is currently loaded')
         return cls._context
+
+
+@typeguard.typechecked
+def generate_launcher(
+        apptainer_or_singularity: str = 'apptainer',
+        container_tag: Optional[str] = None,
+        enable_gpu: Optional[bool] = False,
+        cuda_or_rocm: str = 'cuda',
+    ) -> Callable:
+    launch_command = ''
+    launch_command += apptainer_or_singularity
+    launch_command += ' exec'
+    launch_command += ' -e --no-mount $HOME/.local' # avoid unwanted python imports from host
+    launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
+    launch_command += ' -W /tmp' # fix problem with WQ in which workers do not have enough disk space
+    launch_command += ' --writable-tmpfs' # necessary for wandb
+    if 'WANDB_API_KEY' in os.environ.keys():
+        launch_command += ' --env "WANDB_API_KEY={}"'.format(os.environ['WANDB_API_KEY'])
+    else:
+        logger.critical('wandb API key not set; please go to wandb.ai/authorize and '
+            'set that key in the current environment: export WANDB_API_KEY=<key-from-wandb.ai/authorize>')
+    if enable_gpu:
+        if cuda_or_rocm == 'cuda':
+            launch_command += ' --nv'
+        else:
+            launch_command += ' --rocm'
+    launch_command += ' oras://ghcr.io/svandenhaute/psiflow:'
+    if container_tag is None:
+        psiflow_version = importlib.metadata.version('psiflow') 
+        pass
+    else:
+        launch_command += container_tag
+    launch_command += ' /usr/local/bin/_entrypoint.sh '
+
+    def launcher(command: str, tasks_per_node: int, nodes_per_block: int):
+        all = launch_command + "{}".format(command)
+        print(all)
+        return all
+    return launcher

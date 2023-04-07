@@ -1,9 +1,7 @@
 import pytest
-import logging
 import parsl
 import requests
 import yaml
-import torch
 import numpy as np
 import tempfile
 from pathlib import Path
@@ -38,12 +36,12 @@ def context(request, tmp_path_factory):
         context = psiflow.load(
                 path_config,
                 tmp_path_factory.mktemp('psiflow_internal'),
-                psiflow_log_level=logging.DEBUG,
-                parsl_log_level=logging.INFO,
+                psiflow_log_level='DEBUG',
+                parsl_log_level='INFO',
                 )
-    def cleanup():
-        parsl.dfk().wait_for_current_tasks()
-    request.addfinalizer(cleanup)
+    #def cleanup():
+    #    parsl.dfk().wait_for_current_tasks()
+    #request.addfinalizer(cleanup)
     return context
 
 

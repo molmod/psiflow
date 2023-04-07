@@ -43,6 +43,15 @@ def check_models():
     except ModuleNotFoundError:
         report += 'module not found'
     report += '\n'
+
+    report += '\twandb:\t'
+    try:
+        import wandb
+        report += wandb.__version__
+        wandb.cli.cli.login()
+    except ModuleNotFoundError:
+        report += 'module not found'
+    report += '\n'
     return report
 
 
@@ -103,6 +112,7 @@ def check_reference(mpi_command, cp2k_command):
     report += '\n'
     report += '\tCP2K executable:\t'
     report += subprocess.run(['which', cp2k_command], capture_output=True, text=True).stdout
+    report += '\n'
     report += '\tMPI  executable:\t'
     report += subprocess.run(['which', mpi_command], capture_output=True, text=True).stdout
     report += '\n'

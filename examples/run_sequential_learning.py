@@ -125,13 +125,7 @@ def restart(path_output):
 
 
 if __name__ == '__main__':
-    psiflow.load(
-            'local_htex.py',    # path to psiflow config file
-            'psiflow_internal', # internal psiflow cache dir
-            logging.DEBUG,      # psiflow log level
-            logging.INFO,       # parsl log level
-            )
-
+    psiflow.load()
     path_output = Path.cwd() / 'output' # stores learning results
     main(path_output)
     #restart(path_output)

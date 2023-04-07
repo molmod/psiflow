@@ -26,8 +26,9 @@ def get_mace_model():
     return MACEModel(config)
 
 
-def main(path_output):
+def main():
     train = Dataset.load('data/Al_mil53_train.xyz')
+    train.data_future.result()
     valid = Dataset.load('data/Al_mil53_valid.xyz')
     bias  = get_bias()
     model = get_mace_model()
@@ -39,17 +40,10 @@ def main(path_output):
             wandb_group='run_log_wandb',
             error_x_axis='CV',
             )
-    log = wandb_logger('untrained', model, data_valid=valid, bias=bias)
+    log = wandb_logger('untrained', model, data_valid=bias.evaluate(valid, as_dataset=True))
     log.result()
 
 
 if __name__ == '__main__':
-    psiflow.load(
-            'local_wq.py',   # path to psiflow config file
-            'psiflow_internal',         # internal psiflow cache dir
-            logging.DEBUG,              # psiflow log level
-            logging.INFO,               # parsl log level
-            )
-
-    path_output = Path.cwd() / 'output' # stores final model
-    main(path_output)
+    psiflow.load()
+    main()
