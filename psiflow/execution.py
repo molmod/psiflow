@@ -348,6 +348,5 @@ def generate_launcher(
 
     def launcher(command: str, tasks_per_node: int, nodes_per_block: int):
         all = launch_command + "{}".format(command)
-        print(all)
         return all
     return launcher
