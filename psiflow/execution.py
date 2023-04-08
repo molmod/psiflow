@@ -315,38 +315,40 @@ class ExecutionContextLoader:
 
 
 @typeguard.typechecked
-def generate_launcher(
+class ApptainerLauncher:
+
+    def __init__(
+        self,
+        debug: bool = True,
         apptainer_or_singularity: str = 'apptainer',
         container_tag: Optional[str] = None,
         enable_gpu: Optional[bool] = False,
         cuda_or_rocm: str = 'cuda',
-    ) -> Callable:
-    launch_command = ''
-    launch_command += apptainer_or_singularity
-    launch_command += ' exec'
-    launch_command += ' -e --no-mount $HOME/.local' # avoid unwanted python imports from host
-    launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
-    launch_command += ' -W /tmp' # fix problem with WQ in which workers do not have enough disk space
-    launch_command += ' --writable-tmpfs' # necessary for wandb
-    if 'WANDB_API_KEY' in os.environ.keys():
-        launch_command += ' --env "WANDB_API_KEY={}"'.format(os.environ['WANDB_API_KEY'])
-    else:
-        logger.critical('wandb API key not set; please go to wandb.ai/authorize and '
-            'set that key in the current environment: export WANDB_API_KEY=<key-from-wandb.ai/authorize>')
-    if enable_gpu:
-        if cuda_or_rocm == 'cuda':
-            launch_command += ' --nv'
+    ) -> None:
+        self.launch_command = ''
+        self.launch_command += apptainer_or_singularity
+        self.launch_command += ' exec'
+        self.launch_command += ' -e --no-mount $HOME/.local' # avoid unwanted python imports from host
+        self.launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
+        self.launch_command += ' -W /tmp' # fix problem with WQ in which workers do not have enough disk space
+        self.launch_command += ' --writable-tmpfs' # necessary for wandb
+        if 'WANDB_API_KEY' in os.environ.keys():
+            self.launch_command += ' --env "WANDB_API_KEY={}"'.format(os.environ['WANDB_API_KEY'])
         else:
-            launch_command += ' --rocm'
-    launch_command += ' oras://ghcr.io/svandenhaute/psiflow:'
-    if container_tag is None:
-        psiflow_version = importlib.metadata.version('psiflow') 
-        pass
-    else:
-        launch_command += container_tag
-    launch_command += ' /usr/local/bin/_entrypoint.sh '
+            logger.critical('wandb API key not set; please go to wandb.ai/authorize and '
+                'set that key in the current environment: export WANDB_API_KEY=<key-from-wandb.ai/authorize>')
+        if enable_gpu:
+            if cuda_or_rocm == 'cuda':
+                self.launch_command += ' --nv'
+            else:
+                self.launch_command += ' --rocm'
+        self.launch_command += ' oras://ghcr.io/svandenhaute/psiflow:'
+        if container_tag is None:
+            psiflow_version = importlib.metadata.version('psiflow') 
+            pass
+        else:
+            self.launch_command += container_tag
+        self.launch_command += ' /usr/local/bin/_entrypoint.sh '
 
-    def launcher(command: str, tasks_per_node: int, nodes_per_block: int):
-        all = launch_command + "{}".format(command)
-        return all
-    return launcher
+    def __call__(self, command: str, tasks_per_node: int, nodes_per_block: int) -> str:
+        return self.launch_command + "{}".format(command)

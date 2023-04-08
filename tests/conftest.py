@@ -39,9 +39,9 @@ def context(request, tmp_path_factory):
                 psiflow_log_level='DEBUG',
                 parsl_log_level='INFO',
                 )
-    #def cleanup():
-    #    parsl.dfk().wait_for_current_tasks()
-    #request.addfinalizer(cleanup)
+    def cleanup():
+        parsl.dfk().wait_for_current_tasks()
+    request.addfinalizer(cleanup)
     return context
 
 

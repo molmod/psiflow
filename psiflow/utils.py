@@ -117,6 +117,17 @@ unpack_i = python_app(_unpack_i, executors=['default'])
 @typeguard.typechecked
 def _save_yaml(input_dict: Dict, outputs: List[File] = []) -> None:
     import yaml
+    def _make_dict_safe(arg):
+        # walks through dict and converts numpy types to python natives
+        for key in list(arg.keys()):
+            if hasattr(arg[key], 'item'):
+                arg[key] = arg[key].item()
+            elif type(arg[key]) == dict:
+                arg[key] = _make_dict_safe(arg[key])
+            else:
+                pass
+        return arg
+    input_dict = _make_dict_safe(input_dict)
     with open(outputs[0], 'w') as f:
         yaml.dump(input_dict, f, default_flow_style=False)
 save_yaml = python_app(_save_yaml, executors=['default'])

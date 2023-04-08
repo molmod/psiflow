@@ -35,7 +35,7 @@ def test_random_walker_multiply(context, dataset, tmp_path):
         assert np.all(delta < amplitude_pos)
 
 
-def test_save_load(context, dataset, tmp_path):
+def test_save_load(context, dataset, mace_config, tmp_path):
     walker = DynamicWalker(dataset[0], steps=10, step=1)
     path_start = tmp_path / 'start.xyz'
     path_state = tmp_path / 'state.xyz'
@@ -56,7 +56,13 @@ def test_save_load(context, dataset, tmp_path):
             )
     for key, value in walker.parameters.items():
         assert value == walker_.parameters[key]
-
+    model = MACEModel(mace_config)
+    model.initialize(dataset[:3])
+    model.deploy()
+    walker.propagate(model=model)
+    walker.save(tmp_path)
+    walker = load_walker(tmp_path)
+    assert walker.counter_future.result() == 10
 
 def test_base_walker(context, dataset):
     walker = BaseWalker(dataset[0])
@@ -346,6 +352,10 @@ restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
     walker.propagate(model=model) # 150
     walker.propagate(model=model) # 100
     assert walker.bias.plumed_input.split('\n')[-1] == walkers[1].bias.plumed_input.split('\n')[-1]
+
+    walker.temperature = np.exp(np.log(400)) # test conversion to python native types before saving yaml
+    walker.save(tmp_path)
+    walker = load_walker(tmp_path)
 
     walker.num_propagations = 3
     walker.propagate(model=model)

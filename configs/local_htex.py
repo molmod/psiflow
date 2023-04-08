@@ -6,7 +6,7 @@ from psiflow.reference import CP2KReference, HybridCP2KReference, \
         MP2CP2KReference, DoubleHybridCP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
-from psiflow.execution import generate_parsl_config, generate_launcher
+from psiflow.execution import generate_parsl_config, ApptainerLauncher
 
 
 model_evaluate = ModelEvaluationExecution(
@@ -42,7 +42,7 @@ definitions = {
 
 containerize = True
 if containerize:
-    launcher = generate_launcher(container_tag='latest', enable_gpu=True)
+    launcher = ApptainerLauncher(container_tag='latest', enable_gpu=True)
 else:
     launcher = SimpleLauncher()
 
