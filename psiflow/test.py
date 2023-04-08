@@ -123,7 +123,8 @@ def main():
     path_config = Path(sys.argv[1])
     assert path_config.is_file()
     path_tmp = Path.cwd().resolve() / '.psiflow_internal'
-    shutil.rmtree(path_tmp)
+    if path_tmp.is_dir():
+        shutil.rmtree(path_tmp)
     Path(path_tmp).mkdir()
     context = psiflow.load(
             path_config,
