@@ -122,7 +122,7 @@ def check_reference(mpi_command, cp2k_command):
 def main():
     path_config = Path(sys.argv[1])
     assert path_config.is_file()
-    path_tmp = tempfile.mkdtemp()
+    path_tmp = Path.cwd().resolve() / '.psiflow_internal'
     shutil.rmtree(path_tmp)
     Path(path_tmp).mkdir()
     context = psiflow.load(
