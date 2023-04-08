@@ -335,6 +335,7 @@ class ApptainerLauncher(Launcher):
         self.launch_command = ''
         self.launch_command += apptainer_or_singularity
         self.launch_command += ' exec'
+        self.launch_command += ' --no-eval'
         self.launch_command += ' -e --no-mount $HOME/.local' # avoid unwanted python imports from host
         self.launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
         self.launch_command += ' -W /tmp' # fix problem with WQ in which workers do not have enough disk space
