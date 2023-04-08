@@ -13,6 +13,7 @@ import importlib
 import atexit
 
 import parsl
+from parsl.launchers.launchers import Launcher
 from parsl.executors import HighThroughputExecutor, WorkQueueExecutor
 from parsl.providers.base import ExecutionProvider
 from parsl.dataflow.memoization import id_for_memo
@@ -315,7 +316,7 @@ class ExecutionContextLoader:
 
 
 @typeguard.typechecked
-class ApptainerLauncher:
+class ApptainerLauncher(Launcher):
 
     def __init__(
         self,
@@ -325,6 +326,12 @@ class ApptainerLauncher:
         enable_gpu: Optional[bool] = False,
         cuda_or_rocm: str = 'cuda',
     ) -> None:
+        super().__init__(debug=debug)
+        self.apptainer_or_singularity = apptainer_or_singularity
+        self.container_tag = container_tag
+        self.enable_gpu = enable_gpu
+        self.cuda_or_rocm = cuda_or_rocm
+
         self.launch_command = ''
         self.launch_command += apptainer_or_singularity
         self.launch_command += ' exec'
