@@ -340,13 +340,14 @@ class ApptainerLauncher(Launcher):
         self.launch_command += ' -W /tmp' # fix problem with WQ in which workers do not have enough disk space
         self.launch_command += ' --writable-tmpfs' # necessary for wandb
         env  = {}
-        keys = ['WANDB_API_KEY', 'PARSL_CORES']
+        keys = ['WANDB_API_KEY']
         for key in keys:
             if key in os.environ.keys():
                 env[key] = os.environ[key]
         if 'WANDB_API_KEY' not in env.keys():
             logger.critical('wandb API key not set; please go to wandb.ai/authorize and '
                 'set that key in the current environment: export WANDB_API_KEY=<key-from-wandb.ai/authorize>')
+        env['PARSL_CORES'] = '${PARSL_CORES}'
         if len(env) > 0:
             self.launch_command += ' --env '
             self.launch_command += ','.join([f'{k}={v}' for k, v in env.items()])
