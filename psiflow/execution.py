@@ -339,11 +339,17 @@ class ApptainerLauncher(Launcher):
         self.launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
         self.launch_command += ' -W /tmp' # fix problem with WQ in which workers do not have enough disk space
         self.launch_command += ' --writable-tmpfs' # necessary for wandb
-        if 'WANDB_API_KEY' in os.environ.keys():
-            self.launch_command += ' --env "WANDB_API_KEY={}"'.format(os.environ['WANDB_API_KEY'])
-        else:
+        env  = {}
+        keys = ['WANDB_API_KEY', 'PARSL_CORES']
+        for key in keys:
+            if key in os.environ.keys():
+                env[key] = os.environ[key]
+        if 'WANDB_API_KEY' not in env.keys():
             logger.critical('wandb API key not set; please go to wandb.ai/authorize and '
                 'set that key in the current environment: export WANDB_API_KEY=<key-from-wandb.ai/authorize>')
+        if len(env) > 0:
+            self.launch_command += ' --env '
+            self.launch_command += ','.join([f'{k}={v}' for k, v in env.items()])
         if enable_gpu:
             if cuda_or_rocm == 'cuda':
                 self.launch_command += ' --nv'
