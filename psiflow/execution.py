@@ -149,6 +149,7 @@ def generate_parsl_config(
                 worker_options = [
                         '--gpus={}'.format(1 if execution.device == 'cuda' else 0),
                         '--cores={}'.format(execution.ncores),
+                        #'--workdir={}'.format(path_internal),
                         ]
                 if hasattr(provider, 'walltime'):
                     walltime_hhmmss = provider.walltime.split(':')

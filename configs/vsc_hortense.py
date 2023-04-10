@@ -5,7 +5,7 @@ from psiflow.reference import CP2KReference, HybridCP2KReference, \
         MP2CP2KReference, DoubleHybridCP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
-from psiflow.execution import generate_parsl_config
+from psiflow.execution import generate_parsl_config, ApptainerLauncher
 
 
 # psiflow definitions
@@ -26,7 +26,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=32,          # number of cores per singlepoint
         omp_num_threads=1,  # only use MPI for parallelization
-        mpi_command=lambda x: f'mympirun', # use vsc wrapper
+        mpi_command=lambda x: f'mpirun -np {x} --map-by ppr:{x}:node:PE=1:SPAN:NOOVERSUBSCRIBE',
         cp2k_exec='cp2k.psmp',  # on some platforms, this is cp2k.popt
         walltime=30,            # minimum walltime per singlepoint
         )
@@ -48,9 +48,6 @@ cluster = 'dodrio' # all partitions reside on a single cluster
 # define provider for default executor (HTEX)
 # each of the workers in this executor is single-core;
 # they do basic processing stuff (reading/writing data/models, ... )
-worker_init =  'ml PLUMED/2.7.2-foss-2021a\n'
-worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
-worker_init += 'ml psiflow/0.2.0-CPU\n'
 provider = SlurmProviderVSC(       # one block == one slurm job to submit
         cluster=cluster,
         partition='cpu_rome',
@@ -61,17 +58,13 @@ provider = SlurmProviderVSC(       # one block == one slurm job to submit
         min_blocks=1,           # always keep at least one block open
         max_blocks=1,           # do not use more than one block
         walltime='24:00:00',    # walltime per block
-        worker_init=worker_init,
         exclusive=False,
+        launcher=ApptainerLauncher(container_tag='latest', enable_gpu=False),
         )
 providers['default'] = provider
 
 
 # define provider for executing model evaluations (e.g. MD)
-worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
-worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
-worker_init += 'ml psiflow/0.2.0-CPU\n'
-worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_evaluate.ncores)
 provider = SlurmProviderVSC(
         cluster=cluster,
         partition='cpu_rome',
@@ -83,22 +76,13 @@ provider = SlurmProviderVSC(
         max_blocks=512,
         parallelism=1,
         walltime='02:00:00',
-        worker_init=worker_init,
         exclusive=False,
+        launcher=ApptainerLauncher(container_tag='latest', enable_gpu=False),
         )
 providers['model'] = provider
 
 
 # define provider for executing model training
-worker_init = 'ml PLUMED/2.7.2-foss-2021a\n'
-worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
-worker_init += 'ml psiflow/0.2.0-CUDA-11.3.1\n'
-worker_init += 'unset SLURM_CPUS_PER_TASK\n'
-worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(model_training.ncores)
-worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(model_training.ncores)
-worker_init += 'export SLURM_NTASKS={}\n'.format(model_training.ncores)
-worker_init += 'export SLURM_NPROCS={}\n'.format(model_training.ncores)
-worker_init += 'export OMP_NUM_THREADS={}\n'.format(model_training.ncores)
 provider = SlurmProviderVSC(
         cluster=cluster,
         partition='gpu_rome_a100',
@@ -110,27 +94,14 @@ provider = SlurmProviderVSC(
         max_blocks=4,
         parallelism=1.0,
         walltime='01:05:00',
-        worker_init=worker_init,
+        worker_init='ml CUDA/11.7\n',
         exclusive=False,
         scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n', # request gpu
+        launcher=ApptainerLauncher(container_tag='latest', enable_gpu=True),
         )
 providers['training'] = provider
 
 
-# to get MPI to recognize the available slots correctly, it's necessary
-# to override the slurm variables as set by the jobscript, as these are
-# based on the number of parsl tasks, NOT on the number of MPI tasks for
-# cp2k. Essentially, this means we have to reproduce the environment as
-# if we launched a job using 'qsub -l nodes=1:ppn=cores_per_singlepoint'
-worker_init = 'ml vsc-mympirun\n'
-worker_init += 'ml CP2K/8.2-foss-2021a\n'
-worker_init += 'ml unload SciPy-bundle/2021.05-foss-2021a\n'
-worker_init += 'ml psiflow/0.2.0-CPU\n'
-worker_init += 'unset SLURM_CPUS_PER_TASK\n'
-worker_init += 'export SLURM_NTASKS_PER_NODE={}\n'.format(reference_evaluate.ncores)
-worker_init += 'export SLURM_TASKS_PER_NODE={}\n'.format(reference_evaluate.ncores)
-worker_init += 'export SLURM_NTASKS={}\n'.format(reference_evaluate.ncores)
-worker_init += 'export SLURM_NPROCS={}\n'.format(reference_evaluate.ncores)
 provider = SlurmProviderVSC(
         cluster=cluster,
         partition='cpu_rome',
@@ -142,8 +113,8 @@ provider = SlurmProviderVSC(
         max_blocks=10,
         parallelism=1,
         walltime='00:59:59',
-        worker_init=worker_init,
         exclusive=False,
+        launcher=ApptainerLauncher(container_tag='latest', enable_gpu=False),
         )
 providers['reference'] = provider
 

@@ -26,7 +26,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=4,
         omp_num_threads=1,
-        mpi_command=lambda x: f'mpirun -np {x}',
+        mpi_command=lambda x: f'mpirun -np {x} --map-by ppr:{x}:node:PE=1:SPAN:NOOVERSUBSCRIBE',
         cp2k_exec='cp2k.psmp',
         walltime=3, # in minutes
         )

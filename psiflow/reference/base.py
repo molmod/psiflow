@@ -81,6 +81,8 @@ class BaseReference:
             # otherwise, FileNotFoundErrors will occur when using HTEX.
             retval = Dataset(None, data_future=data.outputs[0])
         else: # Atoms, FlowAtoms, AppFuture
+            if type(arg) == Atoms:
+                arg = FlowAtoms.from_atoms(arg)
             data = context.apps(self.__class__, 'evaluate_single')(
                     arg, # converts to FlowAtoms if necessary
                     deepcopy(self.parameters),
