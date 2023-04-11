@@ -44,11 +44,15 @@ def check_models():
         report += 'module not found'
     report += '\n'
 
-    report += '\twandb:\t'
+    report += '\twandb:\t\t'
     try:
+        import os
         import wandb
         report += wandb.__version__
-        wandb.cli.cli.login()
+        if 'WANDB_API_KEY' in os.environ.keys():
+            report += ' (using WANDB_API_KEY={})'.format(os.environ['WANDB_API_KEY'])
+        else:
+            report += ' (env variable WANDB_API_KEY not found)'
     except ModuleNotFoundError:
         report += 'module not found'
     report += '\n'
