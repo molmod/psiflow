@@ -56,8 +56,10 @@ def evaluate_dataset(
                 stress = np.zeros((3, 3))
             if use_formation_energy:
                 atoms.info['formation_energy'] = energy
+                atoms.info.pop('energy', None)
             else:
                 atoms.info['energy'] = energy
+                atoms.info.pop('formation_energy', None)
             atoms.info['stress'] = stress
             atoms.arrays['forces'] = forces
             atoms.calc = None

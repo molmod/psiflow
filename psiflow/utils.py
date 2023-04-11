@@ -128,8 +128,6 @@ def _save_yaml(input_dict: Dict, outputs: List[File] = []) -> None:
                 pass
         return arg
     input_dict = _make_dict_safe(input_dict)
-    for key, value in input_dict.items():
-        assert type(value) in [int, str, float, bool]
     with open(outputs[0], 'w') as f:
         yaml.dump(input_dict, f, default_flow_style=False)
 save_yaml = python_app(_save_yaml, executors=['default'])

@@ -93,6 +93,7 @@ def _evaluate(
     counter = args[1]
     logger.info('\twalker {} has a (total) counter value of {} steps'.format(name, counter))
     if state is not None:
+        state.reset()
         logger.info('\tstate from walker {} OK!'.format(name))
         if reference is not None:
             logger.info('\tevaluating state using {}'.format(reference.__class__.__name__))

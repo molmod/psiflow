@@ -133,7 +133,7 @@ class BaseLearning:
 
     def split_successful(self, data):
         data_success = data.get(indices=data.success)
-        if self.use_formation_energy: # replace absolute with relative energies
+        if self.use_formation_energy: # compute formation energies and add them as label
             data_success = data_success.set_formation_energy(**self.atomic_energies)
         assert data_success.length().result() > 0
         train, valid = get_train_valid_indices(

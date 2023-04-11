@@ -360,9 +360,6 @@ def insert_formation_energy(
     data = read_dataset(slice(None), inputs=[inputs[0]])
     numbers = [atomic_numbers[e] for e in elements]
     for atoms in data:
-        assert 'formation_energy' not in atoms.info.keys(), ('formation_energy'
-                ' label already present in data, please remove it first using '
-                'dataset.reset()')
         reference = 0
         indices = []
         natoms = len(atoms)
@@ -547,7 +544,6 @@ class Dataset:
         context = psiflow.context()
         elements = list(atomic_energies.keys())
         energies = [atomic_energies[e] for e in elements]
-        assert not 'formation_energy' in self.info_keys().result()
         data_future = app_insert_formation_energy(
                 elements,
                 inputs=[self.data_future] + energies,

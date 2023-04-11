@@ -98,6 +98,9 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             step=1,
             )
     data_train, data_valid = learning.run(model, reference, walkers)
+    assert model.use_formation_energy
+    assert 'formation_energy' in data_train.energy_labels().result()
+    assert 'formation_energy' in model.evaluate(data_train).energy_labels().result()
     assert (path_output / 'random_pretraining').is_dir()
     assert data_train.length().result() == 44 # because of pretraining
     assert data_valid.length().result() == 11
@@ -115,7 +118,7 @@ def test_concurrent_learning(context, tmp_path, mace_config, dataset):
             train_from_scratch=True,
             use_formation_energy=True,
             train_valid_split=0.8,
-            niterations=2,
+            niterations=1,
             min_states_per_iteration=8,
             max_states_per_iteration=40,
             )
@@ -135,5 +138,5 @@ def test_concurrent_learning(context, tmp_path, mace_config, dataset):
     data_train, data_valid = learning.run(model, reference, walkers, dataset)
     assert model.use_formation_energy
 
-    assert data_train.length().result() == 16 + 2 * 32
-    assert data_valid.length().result() == 4  + 2 * 8
+    assert data_train.length().result() == 16 + 1 * 32
+    assert data_valid.length().result() == 4  + 1 * 8

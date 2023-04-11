@@ -424,3 +424,24 @@ def test_data_set_formation_energy(context, dataset):
             )
     data = dataset_.get(indices=[0, 1, 2])
     assert 'formation_energy' in data[0].result().info
+
+    dataset__ = dataset.set_formation_energy(
+            H=29,
+            Cu=reference.compute_atomic_energy('Cu', box_size=8),
+            )
+    assert np.allclose( # will check absolute energies
+            Dataset.get_errors(dataset__, dataset, properties=['energy']).result()[:, 0],
+            np.zeros(dataset.length().result()),
+            )
+    assert not np.allclose( # will check formation energies
+            Dataset.get_errors(dataset__, dataset_, properties=['energy']).result()[:, 0],
+            np.zeros(dataset.length().result()),
+            )
+    dataset__ = dataset.set_formation_energy(
+            H=reference.compute_atomic_energy('H', box_size=8),
+            Cu=reference.compute_atomic_energy('Cu', box_size=8),
+            )
+    assert np.allclose( # will check formation energies; now OK
+            Dataset.get_errors(dataset__, dataset_, properties=['energy']).result()[:, 0],
+            np.zeros(dataset.length().result()),
+            )
