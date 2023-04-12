@@ -370,6 +370,15 @@ def insert_formation_energy(
             element = elements[i]
             energy = inputs[1 + i]
             label = 'atomic_energy_{}'.format(element)
+            if label in atoms.info.keys():
+                assert np.allclose(energy, atoms.info[label]), (
+                        'attempting to insert atomic energy {} for '
+                        'element {} into dataset but another value '
+                        'was already present: {}'.format(
+                            energy,
+                            element,
+                            atoms.info[label],
+                            ))
             assert label not in atoms.info.keys()
             atoms.info[label] = energy
             reference += natoms_per_number * energy
