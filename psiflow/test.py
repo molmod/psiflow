@@ -96,7 +96,6 @@ def check_sampling():
     report += '\tplumed:\t'
     try:
         import plumed
-        #report += plumed.__version__
         from psiflow.sampling.bias import try_manual_plumed_linking
         report += 'libplumedKernel.so at {}'.format(try_manual_plumed_linking())
     except ModuleNotFoundError:

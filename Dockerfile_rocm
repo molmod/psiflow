@@ -1,4 +1,4 @@
-FROM mambaorg/micromamba:1.4.1
+FROM mambaorg/micromamba:1.4.2
 
 USER root
 RUN apt update && apt install git gcc g++ -y # necessary for pip installs
@@ -22,4 +22,5 @@ RUN pip cache purge
 USER root
 RUN apt remove git gcc g++ -y && apt autoremove -y
 USER mambauser
-ENV LD_LIBRARY_PATH /opt/conda/lib
+ENV OMPI_MCA_plm_rsh_agent=
+#ENV LD_LIBRARY_PATH /opt/conda/lib

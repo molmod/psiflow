@@ -5,14 +5,13 @@ more advanced uncertainty-based high-throughput learning.
 In all cases, the main driver of the workflow is a single Python script that
 starts with a `psiflow.load()` command which loads the execution parameters from
 a configuration file and initializes the internal cache directory in which
-to store log files of various kinds
-(assumed to be located at `./psiflow_internal/`).
+to store intermediate and log files of various kinds.
 
 Below, we will showcase the functionality of psiflow using a number of examples.
 The input files required to execute these examples can be found on the GitHub
 repository, in the
 [data](https://github.com/svandenhaute/psiflow/tree/main/examples/data) folder.
-If you have not already, be sure to check out the
+If you haven't already, be sure to check out the
 psiflow [Overview](overview.md) first!
 
 

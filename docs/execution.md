@@ -13,7 +13,7 @@ execute such workflows, psiflow is intrinsically built to support distributed
 and asynchronous execution across a large variety of resources (including most HPC and cloud infrastructure).
 This means that while the entire online learning workflow is defined in a single Python script,
 its execution is automatically performed on tens, hundreds, or even thousands of nodes.
-The configuration of psiflow's execution is defined in a single Python file; `config.py`.
+Configuration of the execution resources is done using a single Python script; `config.py`.
 It gives the user full flexibility to customize all execution-side details, such as:
 
 - the number of cores to use for each CP2K singlepoint evaluation, as well as the specific OpenMP/MPI parallellization settings;
@@ -23,30 +23,31 @@ This includes walltime, core count, and memory, as well as e.g. the maximum numb
 simulations that can be executed in parallel in a single job;
 - the execution of specific `module load` or `source env/bin/activate` commands to ensure all the necessary environment variables are set.
 
-Execution parameters such as these are defined in the configuration script;
-they are strictly and deliberately kept separate
-from the main Python script that defines the workflow, in line with Parsl's philosophy: _write once, run anywhere_.
-
-This section introduces the main components of the configuration script; additional
-Examples can be found on the GitHub repository, in the
-[configs](https://github.com/svandenhaute/psiflow/tree/main/configs) directory.
+The execution parameters in the configuration script are strictly and deliberately kept separate
+from the main Python script that defines the workflow, in line with Parsl's philosophy: _write once, run anywhere_:
+```
+  python my_workflow.py --psiflow-config local_execution.py   # executes workflow locally
+  python my_workflow.py --psiflow-config frontier.py          # executes exact same workflow on Frontier (OLCF)
+```
 
 !!! note "Parsl 103: Execution"
-    It may be worthwhile to take a quick look at the
-    [Parsl documentation on execution](https://parsl.readthedocs.io/en/stable/userguide/execution.html).
-
+    This section will introduce the main components of the configuration script.
+    We suggest to read through the 
+    [Parsl documentation on execution](https://parsl.readthedocs.io/en/stable/userguide/execution.html)
+    first in order to get acquainted with the `executor`, `provider`, and `launcher`
+    concepts.
 
 ## 1. Configure __how__ everything gets executed
 The first part of `config.py` will determine _how_ all calculations will be performed.
 This includes the number of cores to use when executing a singlepoint calculation
 and the MPI/OpenMP configuration, whether to perform model inference on CPU or GPU,
-the amount of walltime to reserve for training, etc.
+the maximum amount of compute time to allow for model training and/or inference, etc.
 These parameters may be set in psiflow using the `Execution` dataclasses:
 `ModelEvaluationExecution`, `ModelTrainingExecution`, and `ReferenceEvaluationExecution`.
 Each dataclass defines a particular aspect of the execution of a workflow (
 respectively, the model inference, model training, and QM evaluation).
 Aside from the execution parameters, each `Execution` also defines the
-Parsl [executor](https://parsl.readthedocs.io/en/stable/userguide/execution.html#executors).
+Parsl [executor](https://parsl.readthedocs.io/en/stable/userguide/execution.html#executors)
 that will be set up by psiflow for executing that particular operation.
 We highly recommend to ensure that each definition has its own executor
 (i.e. that no two labels are the same).
@@ -165,6 +166,7 @@ configuration file before they commence their workflow.
 The following is a trivial example in which a dataset is loaded, a simple MACE
 model is trained, and the result is saved for future usage.
 
+<!---
 ```py title='my_script.py'
 import psiflow
 from psiflow.data import Dataset
@@ -188,4 +190,4 @@ if __name__ == '__main__':
             )
     my_scientific_breakthrough()
 
-```
+``` --->

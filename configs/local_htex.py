@@ -42,7 +42,7 @@ definitions = {
 
 containerize = True
 if containerize:
-    launcher = ApptainerLauncher(container_tag='latest', enable_gpu=True)
+    launcher = ApptainerLauncher(container_tag='latest-cuda11.3', enable_gpu=True)
 else:
     launcher = SimpleLauncher()
 
