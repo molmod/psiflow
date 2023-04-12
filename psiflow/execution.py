@@ -358,7 +358,7 @@ class ApptainerLauncher(Launcher):
                 self.launch_command += ' --nv'
             else:
                 self.launch_command += ' --rocm'
-        self.launch_command += ' oras://ghcr.io/svandenhaute/psiflow:'
+        self.launch_command += ' docker://ghcr.io/svandenhaute/psiflow:'
         if container_tag is None:
             psiflow_version = importlib.metadata.version('psiflow') 
             pass
