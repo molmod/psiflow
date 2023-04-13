@@ -15,7 +15,8 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.execution import ModelTrainingExecution, ModelEvaluationExecution
 from psiflow.data import Dataset
-from psiflow.utils import copy_app_future, save_yaml, copy_data_future
+from psiflow.utils import copy_app_future, save_yaml, copy_data_future, \
+        resolve_and_check
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -150,6 +151,7 @@ class BaseModel:
             path_deployed: Union[Path, str],
             dtype: str = 'float32',
             ) -> DataFuture:
+        path_deployed = resolve_and_check(Path(path_deployed))
         return copy_data_future(
                 inputs=[self.deploy_future[dtype]],
                 outputs=[File(str(path_deployed))],
@@ -160,7 +162,7 @@ class BaseModel:
             path: Union[Path, str],
             require_done: bool = True,
             ) -> Tuple[DataFuture, Optional[DataFuture], Optional[DataFuture]]:
-        path = Path(path)
+        path = resolve_and_check(Path(path))
         assert path.is_dir()
         path_config_raw = path / (self.__class__.__name__ + '.yaml')
         future_raw = save_yaml(

@@ -3,6 +3,7 @@ import typeguard
 from pathlib import Path
 
 import psiflow
+from psiflow.utils import resolve_and_check
 
 from .base import BaseModel
 from ._nequip import NequIPModel, NequIPConfig, AllegroModel, AllegroConfig
@@ -15,7 +16,7 @@ def load_model(path: Union[Path, str]) -> BaseModel:
     import yaml
     from parsl.data_provider.files import File
     from psiflow.utils import copy_app_future, copy_data_future
-    path = Path(path)
+    path = resolve_and_check(Path(path))
     assert path.is_dir()
     classes = [
             NequIPModel,

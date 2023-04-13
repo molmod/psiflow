@@ -20,7 +20,7 @@ from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 from parsl.config import Config
 
-from psiflow.utils import set_file_logger
+from psiflow.utils import set_logger
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -196,7 +196,7 @@ def generate_parsl_config(
             usage_tracking=True,
             app_cache=parsl_app_cache,
             retries=parsl_retries,
-            initialize_logging=parsl_initialize_logging,
+            initialize_logging=False,
             strategy=parsl_strategy,
             max_idletime=parsl_max_idletime,
             )
@@ -299,11 +299,15 @@ class ExecutionContextLoader:
             path_internal.mkdir()
         else:
             assert not any(path_internal.iterdir()), '{} should be empty'.format(str(path_internal))
-        path_psiflow_log = Path.cwd().resolve() / 'psiflow.log'
-        if path_psiflow_log.is_file():
-            path_psiflow_log.unlink()
-        set_file_logger(path_psiflow_log, psiflow_log_level)
-        parsl.set_file_logger(str(path_internal / 'parsl.log'), parsl_log_level)
+        set_logger(psiflow_log_level)
+        if isinstance(parsl_log_level, str):
+            parsl_log_level = getattr(logging, parsl_log_level)
+        parsl.set_file_logger(
+                str(path_internal / 'parsl.log'),
+                'parsl',
+                parsl_log_level,
+                format_string='%(levelname)s - %(name)s - %(message)s',
+                )
         path_context = path_internal / 'context_dir'
         cls._context = ExecutionContext(config, definitions, path_context)
         atexit.register(cls._context.atexit_cleanup)

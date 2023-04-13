@@ -15,7 +15,7 @@ from parsl.dataflow.futures import AppFuture
 
 from psiflow.models import BaseModel
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.utils import save_yaml, copy_app_future
+from psiflow.utils import save_yaml, copy_app_future, resolve_and_check
 from psiflow.models import load_model
 
 
@@ -58,7 +58,7 @@ class Check:
         self.npasses = 0
 
     def save(self, path: Union[Path, str], require_done: bool = True) -> DataFuture:
-        path = Path(path)
+        path = resolve_and_check(Path(path))
         assert path.is_dir()
         future = save_yaml(
                 self.parameters, # property which returns dict of parameters
@@ -73,7 +73,7 @@ class Check:
 
     @classmethod
     def load(cls, path: Union[Path, str], *args: Any):
-        path = Path(path)
+        path = resolve_and_check(Path(path))
         assert path.is_dir()
         path_pars = path / (cls.__name__ + '.yaml')
         assert path_pars.is_file()
@@ -198,7 +198,6 @@ class DiscrepancyCheck(Check):
         self.model_new = model.copy()
 
     def save(self, path: Union[Path, str], require_done: bool = True) -> None:
-        path = Path(path)
         super().save(path, require_done)
         if self.model_old is not None:
             path_old = path / 'model_old'
@@ -235,7 +234,7 @@ class DiscrepancyCheck(Check):
 
 @typeguard.typechecked
 def load_checks(path: Union[Path, str]) -> Optional[List[Check]]:
-    path = Path(path)
+    path = resolve_and_check(Path(path))
     assert path.is_dir()
     checks = []
     classes = [

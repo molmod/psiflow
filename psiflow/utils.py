@@ -21,12 +21,11 @@ logger = logging.getLogger(__name__) # logging per module
 
 
 @typeguard.typechecked
-def set_file_logger( # hacky
-        path_log: Union[Path, str],
+def set_logger( # hacky
         level: Union[str, int], # 'DEBUG' or logging.DEBUG
         ):
     formatter = logging.Formatter(fmt='%(levelname)s - %(name)s - %(message)s')
-    handler = logging.FileHandler(path_log)
+    handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
     names = [
             'psiflow.checks',
@@ -176,3 +175,16 @@ def get_active_executor(label: str) -> ParslExecutor:
         if executor.label == label:
             return executor
     raise ValueError('executor with label {} not found!'.format(label))
+
+
+@typeguard.typechecked
+def resolve_and_check(path: Path) -> Path:
+    path = path.resolve()
+    if not Path.cwd() in path.parents:
+        raise ValueError('requested file and/or path at location: {}'
+                '\nwhich is not in the present working directory: {}'
+                '\npsiflow can only load and/or save in its present '
+                'working directory because this is the only directory'
+                'that will get bound into the container.'.format(
+                    path, Path.cwd()))
+    return path

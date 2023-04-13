@@ -24,6 +24,7 @@ from psiflow.sampling import BaseWalker, RandomWalker, PlumedBias, \
 from psiflow.generate import generate, generate_all
 from psiflow.checks import Check, DiscrepancyCheck
 from psiflow.state import save_state, load_state
+from psiflow.utils import resolve_and_check
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -47,7 +48,7 @@ class BaseLearning:
     num_tries_reference: int = 1
 
     def __post_init__(self) -> None: # save self in output folder
-        self.path_output = Path(self.path_output)
+        self.path_output = resolve_and_check(Path(self.path_output))
         if not self.path_output.is_dir():
             self.path_output.mkdir()
         config = asdict(self)
@@ -383,7 +384,7 @@ class ConcurrentLearning(BaseLearning):
 
 @typeguard.typechecked
 def load_learning(path_output: Union[Path, str]):
-    path_output = Path(path_output)
+    path_output = resolve_and_check(Path(path_output))
     assert path_output.is_dir()
     classes = [
             SequentialLearning,
@@ -402,4 +403,5 @@ def load_learning(path_output: Union[Path, str]):
     else:
         wandb_logger = None
     learning = learning_cls(wandb_logger=wandb_logger, **config)
+    learning.path_output = path_output
     return learning

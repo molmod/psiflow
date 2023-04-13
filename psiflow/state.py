@@ -7,6 +7,7 @@ from psiflow.models import BaseModel, load_model
 from psiflow.data import Dataset
 from psiflow.sampling import BaseWalker, save_walkers, load_walkers
 from psiflow.checks import Check, load_checks
+from psiflow.utils import resolve_and_check
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -24,6 +25,7 @@ def save_state(
         checks: Optional[list[Check]] = None,
         require_done=True,
         ) -> None:
+    path_output = resolve_and_check(path_output)
     path = path_output / name
     path.mkdir(parents=True, exist_ok=False)
 
@@ -59,6 +61,7 @@ def load_state(path_output: Union[Path, str], name: str) -> tuple[
                 Optional[Dataset],
                 Optional[list[Check]],
                 ]:
+    path_output = resolve_and_check(path_output)
     path = path_output / name
     assert path.is_dir() # needs to exist
 

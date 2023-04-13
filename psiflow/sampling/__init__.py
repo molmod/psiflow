@@ -6,7 +6,7 @@ from pathlib import Path
 
 import psiflow
 from psiflow.data import FlowAtoms
-from psiflow.utils import copy_app_future
+from psiflow.utils import copy_app_future, resolve_and_check
 
 from .base import BaseWalker # import base and bias before walkers
 from .bias import PlumedBias
@@ -24,7 +24,7 @@ def load_walker(path: Union[Path, str]) -> BaseWalker:
     from ase.io import read
     import yaml
     from psiflow.utils import copy_app_future
-    path = Path(path)
+    path = resolve_and_check(Path(path))
     assert path.is_dir()
     path_start = path / 'start.xyz'
     path_state = path / 'state.xyz'
@@ -63,7 +63,7 @@ def load_walker(path: Union[Path, str]) -> BaseWalker:
 def load_walkers(
         path: Union[Path, str],
         ) -> list[BaseWalker]:
-    path = Path(path)
+    path = resolve_and_check(Path(path))
     assert path.is_dir()
     walkers = []
     for name in os.listdir(path):
@@ -80,7 +80,7 @@ def save_walkers(
         path: Union[Path, str],
         require_done: bool = True,
         ):
-    path = Path(path)
+    path = resolve_and_check(Path(path))
     assert path.is_dir()
     for i, walker in enumerate(walkers):
         path_walker = path / str(i)

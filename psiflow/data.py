@@ -31,7 +31,8 @@ from parsl.dataflow.futures import AppFuture
 from parsl.dataflow.memoization import id_for_memo
 
 import psiflow
-from psiflow.utils import copy_data_future, copy_app_future
+from psiflow.utils import copy_data_future, copy_app_future, \
+        resolve_and_check
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -517,6 +518,7 @@ class Dataset:
             path_dataset: Union[Path, str],
             require_done: bool = True,
             ) -> AppFuture:
+        path_dataset = resolve_and_check(Path(path_dataset))
         future = copy_data_future(
                 inputs=[self.data_future],
                 outputs=[File(str(path_dataset))],
@@ -614,6 +616,7 @@ class Dataset:
             cls,
             path_xyz: Union[Path, str],
             ) -> Dataset:
+        path_xyz = resolve_and_check(Path(path_xyz))
         assert os.path.isfile(path_xyz) # needs to be locally accessible
         context = psiflow.context()
         return cls(None, data_future=File(str(path_xyz)))

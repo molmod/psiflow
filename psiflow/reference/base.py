@@ -18,7 +18,8 @@ from ase.data import atomic_numbers
 import psiflow
 from psiflow.data import FlowAtoms, Dataset, read_dataset, app_save_dataset, \
         get_length_dataset
-from psiflow.utils import copy_app_future, unpack_i, combine_futures
+from psiflow.utils import copy_app_future, unpack_i, combine_futures, \
+        resolve_and_check
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -57,7 +58,8 @@ class BaseReference:
     def add_file(self, name: str, file: Union[Path, str, File]):
         assert name in self.required_files
         if not isinstance(file, File):
-            file = File(str(file))
+            filepath = resolve_and_check(Path(file))
+            file = File(str(filepath))
         self.files[name] = file
 
     def evaluate(

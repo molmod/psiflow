@@ -44,6 +44,8 @@ def test_dataset_empty(context, tmp_path):
     path_xyz = tmp_path / 'test.xyz'
     dataset.save(path_xyz).result() # ensure the copy is executed before assert
     assert os.path.isfile(path_xyz)
+    with pytest.raises(ValueError): # cannot save outside cwd
+        dataset.save(path_xyz.parents[3] / 'test.xyz')
 
 
 def test_dataset_append(dataset):
