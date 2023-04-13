@@ -50,6 +50,12 @@ def nequip_config(tmp_path):
     nequip_config = NequIPConfig()
     nequip_config.root = str(tmp_path)
     nequip_config.wandb_group = 'pytest_group'
+    nequip_config.num_layers = 2
+    nequip_config.num_features = 4
+    nequip_config.num_basis = 2
+    nequip_config.invariant_layers = 1
+    nequip_config.invariant_neurons = 4
+    nequip_config.r_max = 5
     return asdict(nequip_config)
 
 
@@ -63,6 +69,13 @@ def allegro_config(tmp_path):
 @pytest.fixture
 def mace_config(tmp_path):
     mace_config = MACEConfig()
+    mace_config.num_radial_basis = 3
+    mace_config.num_cutoff_basis = 2
+    mace_config.max_ell = 1
+    mace_config.correlation = 1
+    mace_config.MLP_irreps = '2x0e'
+    mace_config.hidden_irreps = '4x0e'
+    mace_config.r_max = 5
     return asdict(mace_config)
 
 

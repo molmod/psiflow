@@ -1,8 +1,7 @@
 FROM mambaorg/micromamba:1.4.2
 
-RUN micromamba install -n base --yes -c conda-forge python=3.10 pip ndcctools plumed cp2k && \
+RUN micromamba install -n base --yes -c conda-forge python=3.10 pip ndcctools=7.4.2 plumed cp2k && \
     micromamba clean -af --yes
-
 ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
 
 USER root
@@ -17,11 +16,10 @@ RUN pip install cython matscipy prettytable plumed && \
     pip install git+https://github.com/mir-group/nequip.git@v0.5.6 && \
     pip install git+https://github.com/mir-group/allegro.git --no-deps && \
     pip install --force git+https://git@github.com/ACEsuit/MACE.git@d520abac437648dafbec0f6e203ec720afa16cf7 --no-deps
-RUN pip install git+https://github.com/svandenhaute/psiflow@8f407c8
+RUN pip install git+https://github.com/svandenhaute/psiflow@16fcfd1
 RUN pip cache purge
 
 USER root
 RUN apt remove git gcc g++ -y && apt autoremove -y
 USER mambauser
 ENV OMPI_MCA_plm_rsh_agent=
-#ENV LD_LIBRARY_PATH /opt/conda/lib

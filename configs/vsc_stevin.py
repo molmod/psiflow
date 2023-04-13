@@ -4,7 +4,7 @@ from psiflow.models import MACEModel, NequIPModel, AllegroModel
 from psiflow.reference import CP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
-from psiflow.execution import generate_parsl_config, ApptainerLauncher
+from psiflow.execution import generate_parsl_config, ContainerizedLauncher
 
 
 # psiflow definitions
@@ -25,7 +25,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=32,          # number of cores per singlepoint
         omp_num_threads=1,  # only use MPI for parallelization
-        mpi_command=lambda x: f'mpirun -np {x} --map-by ppr:{x}:node:PE=1:SPAN:NOOVERSUBSCRIBE',
+        mpi_command=lambda x: f'mpirun -np {x} --map-by node:PE=1',
         cp2k_exec='cp2k.psmp',  # on some platforms, this is cp2k.popt
         walltime=30,            # minimum walltime per singlepoint
         )
@@ -56,7 +56,7 @@ provider = SlurmProviderVSC(
         scheduler_options='#SBATCH --export=NONE\n',
         cmd_timeout=20,
         exclusive=False,
-        launcher=ApptainerLauncher(container_tag='latest')
+        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
         )
 providers['default'] = provider
 
@@ -76,7 +76,7 @@ provider = SlurmProviderVSC(
         scheduler_options='#SBATCH --export=NONE\n',
         cmd_timeout=20,
         exclusive=False,
-        launcher=ApptainerLauncher(container_tag='latest')
+        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
         )
 providers['model'] = provider
 
@@ -97,7 +97,7 @@ provider = SlurmProviderVSC(
         cmd_timeout=20,
         scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n#SBATCH --export=NONE\n', # request gpu
         exclusive=False,
-        launcher=ApptainerLauncher(container_tag='latest', enable_gpu=True)
+        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=True),
         )
 providers['training'] = provider
 
@@ -116,7 +116,7 @@ provider = SlurmProviderVSC(
         scheduler_options='#SBATCH --export=NONE\n',
         cmd_timeout=20,
         exclusive=False,
-        launcher=ApptainerLauncher(container_tag='latest')
+        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
         )
 providers['reference'] = provider
 

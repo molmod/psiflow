@@ -335,7 +335,7 @@ class CP2KReference(BaseReference):
                 )
         singlepoint_post = python_app(
                 cp2k_singlepoint_post,
-                executors=[label],
+                executors=['default'],
                 cache=False,
                 )
         def singlepoint_wrapped(

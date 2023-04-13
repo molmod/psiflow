@@ -398,10 +398,10 @@ def load_learning(path_output: Union[Path, str]):
             break
     with open(path_learning, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
+    config['path_output'] = str(path_output)
     if 'WandBLogger' in config.keys():
         wandb_logger = WandBLogger(**config.pop('WandBLogger'))
     else:
         wandb_logger = None
     learning = learning_cls(wandb_logger=wandb_logger, **config)
-    learning.path_output = path_output
     return learning

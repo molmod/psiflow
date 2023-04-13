@@ -320,31 +320,36 @@ class ExecutionContextLoader:
         return cls._context
 
 
+VERSION = importlib.metadata.version('psiflow')
+
+
 @typeguard.typechecked
-class ApptainerLauncher(Launcher):
+class ContainerizedLauncher(Launcher):
 
     def __init__(
         self,
         debug: bool = True,
         apptainer_or_singularity: str = 'apptainer',
-        container_tag: Optional[str] = None,
         enable_gpu: Optional[bool] = False,
-        cuda_or_rocm: str = 'cuda',
+        tag: str = VERSION + '-cuda11.3',
+        uri: Optional[str] = None,
     ) -> None:
         super().__init__(debug=debug)
         self.apptainer_or_singularity = apptainer_or_singularity
-        self.container_tag = container_tag
+        self.tag = tag
+        if uri is None:
+            uri = 'docker://github.com/svandenhaute/psiflow:' + tag
+        self.uri = uri
         self.enable_gpu = enable_gpu
-        self.cuda_or_rocm = cuda_or_rocm
 
         self.launch_command = ''
         self.launch_command += apptainer_or_singularity
         self.launch_command += ' exec'
-        self.launch_command += ' --no-eval --contain'
+        self.launch_command += ' --no-eval'
         self.launch_command += ' -e --no-mount $HOME/.local' # avoid unwanted python imports from host
-        self.launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
         self.launch_command += ' -W /tmp' # fix problem with WQ in which workers do not have enough disk space
         self.launch_command += ' --writable-tmpfs' # necessary for wandb
+        self.launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
         env  = {}
         keys = ['WANDB_API_KEY']
         for key in keys:
@@ -358,16 +363,11 @@ class ApptainerLauncher(Launcher):
             self.launch_command += ' --env '
             self.launch_command += ','.join([f'{k}={v}' for k, v in env.items()])
         if enable_gpu:
-            if cuda_or_rocm == 'cuda':
+            if 'cuda' in self.uri:
                 self.launch_command += ' --nv'
             else:
                 self.launch_command += ' --rocm'
-        self.launch_command += ' docker://ghcr.io/svandenhaute/psiflow:'
-        if container_tag is None:
-            psiflow_version = importlib.metadata.version('psiflow') 
-            pass
-        else:
-            self.launch_command += container_tag
+        self.launch_command += ' ' + self.uri
         self.launch_command += ' /usr/local/bin/_entrypoint.sh '
 
     def __call__(self, command: str, tasks_per_node: int, nodes_per_block: int) -> str:

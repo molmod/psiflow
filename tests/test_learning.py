@@ -60,7 +60,6 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             )
     model = MACEModel(mace_config)
     model.config_raw['max_num_epochs'] = 1
-    #model.use_formation_energy = False
     model.initialize(dataset[:2])
 
     walkers = RandomWalker.multiply(
@@ -123,6 +122,7 @@ def test_concurrent_learning(context, tmp_path, mace_config, dataset):
             max_states_per_iteration=40,
             )
     model = MACEModel(mace_config)
+    model.config_raw['max_num_epochs'] = 1
     model.initialize(dataset[:2])
 
     walkers = RandomWalker.multiply(

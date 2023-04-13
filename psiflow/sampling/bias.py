@@ -9,6 +9,8 @@ import numpy as np
 from pathlib import Path
 from collections import OrderedDict
 
+from ase import Atoms
+
 from parsl.app.app import python_app, join_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -16,7 +18,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.utils import copy_data_future, save_txt, create_if_empty
-from psiflow.data import read_dataset, save_dataset, Dataset
+from psiflow.data import read_dataset, save_dataset, Dataset, FlowAtoms
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -218,14 +220,18 @@ app_extract_between = python_app(extract_between, executors=['default'])
 
 
 @typeguard.typechecked
-def extract_column(array, index):
+def extract_column(array: np.ndarray, index: int) -> np.ndarray:
     assert index < array.shape[1]
-    return array[:, int(index)].reshape(-1, 1) # maintain shape
+    return array[:, index].reshape(-1, 1) # maintain shape
 app_extract_column = python_app(extract_column, executors=['default'])
 
 
 @typeguard.typechecked
-def insert_cv_values(variables, state, values):
+def insert_cv_values(
+        variables: tuple[str, ...],
+        state: Union[FlowAtoms, Atoms],
+        values: np.ndarray,
+        ) -> Union[FlowAtoms, Atoms]:
     assert len(values.shape) == 2
     assert values.shape[0] == 1
     assert values.shape[1] == len(variables) + 1
@@ -236,7 +242,12 @@ app_insert_cv_values = python_app(insert_cv_values, executors=['default'])
 
 
 @typeguard.typechecked
-def insert_cv_values_data(variables, values, inputs=[], outputs=[]):
+def insert_cv_values_data(
+        variables: tuple[str, ...],
+        values: np.ndarray,
+        inputs: list[File] = [],
+        outputs: list[File] = [],
+        ) -> None:
     data = read_dataset(slice(None), inputs=[inputs[0]])
     assert len(data) == values.shape[0]
     for i, atoms in enumerate(data):

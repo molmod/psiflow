@@ -17,8 +17,11 @@ def test_generate_mace(context, dataset, mace_config):
 
     model = MACEModel(mace_config)
     model.initialize(dataset[:3])
-    model.deploy()
 
+    with pytest.raises(ValueError):
+        state = generate('0', walker, model, reference, 1, 1)
+        state.result() # otherwise ValueError not captured by pytest
+    model.deploy()
     state = generate('0', walker, model, reference, 1, 1)
     assert state.result().reference_status
 
@@ -52,23 +55,22 @@ def test_generate_mace(context, dataset, mace_config):
 
     # test wait_for_it
     walker.reset()
-    state0 = generate('0', walker, model.copy(), None, 1, 1)
-    state1 = generate('0', walker, model, None, 1, 1)
+    model_ = model.copy()
+    model_.reset()
+    model_.initialize(dataset[:2])
+    model_.deploy()
+    state0 = generate('0', walker, model_, None, 1, 1)
+    state1 = generate('0', walker, model , None, 1, 1, state0)
+    state0.result()
+    assert not state1.done()
+    assert walker.counter_future.result() == 10
     state1.result()
-    assert walker.counter_future.result() == 10 # may occasionally fail?
-    walker.reset()
-    state0 = generate('0', walker, model, None, 1, 1)
-    state1 = generate('0', walker, model, None, 1, 1, state0)
-    state1.result()
-    assert walker.counter_future.result() == 20 # should never fail!
+    assert walker.counter_future.result() == 20
 
     # train model and generate afterwards
     old = model.deploy_future['float32'].filepath
     model.train(dataset[:5], dataset[5:7]) # keep_deployed == False
     assert len(model.deploy_future) == 0
-    with pytest.raises(KeyError): # model not deployed
-        state = generate('0', walker, model, reference, 1, 1)
-        state.result() # force KeyError
     model.deploy()
     new = model.deploy_future['float32'].filepath
     assert old != new

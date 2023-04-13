@@ -50,6 +50,9 @@ def generate(
     logger.info('propagating walker {}\t ntries_sampling: {}\tntries_reference'
             ': {}'.format(name, num_tries_sampling, num_tries_reference))
     if model is not None: # can be none for random walker
+        if 'float32' not in model.deploy_future.keys():
+            print(model.deploy_future)
+            raise ValueError('model most be deployed before calling generate')
         float32 = Path(model.deploy_future['float32'].filepath).stem
         float64 = Path(model.deploy_future['float64'].filepath).stem
         logger.info('\tusing models: {} (float32) and {} (float64)'.format(

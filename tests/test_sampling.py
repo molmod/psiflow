@@ -11,6 +11,7 @@ from psiflow.models import NequIPModel, MACEModel
 from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker, \
         MovingRestraintDynamicWalker
+from psiflow.data import Dataset
 from psiflow.generate import generate_all
 
 
@@ -120,7 +121,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     assert not trajectory.length().result() < 1001 # timeout
     assert trajectory.length().result() > 1
     assert walker.counter_future.result() == trajectory.length().result() - 1
-    walker.force_threshold = 0.001
+    walker.force_threshold = 1e-7 # always exceeded
     walker.steps           = 1
     walker.step            = 1
     state = walker.propagate(model=model, reset_if_unsafe=True)

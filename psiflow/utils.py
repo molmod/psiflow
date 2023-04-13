@@ -185,6 +185,6 @@ def resolve_and_check(path: Path) -> Path:
                 '\nwhich is not in the present working directory: {}'
                 '\npsiflow can only load and/or save in its present '
                 'working directory because this is the only directory'
-                'that will get bound into the container.'.format(
+                ' that will get bound into the container.'.format(
                     path, Path.cwd()))
     return path

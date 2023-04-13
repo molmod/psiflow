@@ -6,7 +6,7 @@ from psiflow.reference import CP2KReference, HybridCP2KReference, \
         MP2CP2KReference, DoubleHybridCP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
-from psiflow.execution import generate_parsl_config, ApptainerLauncher
+from psiflow.execution import generate_parsl_config, ContainerizedLauncher
 
 
 model_evaluate = ModelEvaluationExecution(
@@ -25,7 +25,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=4,
         omp_num_threads=1,
-        mpi_command=lambda x: f'mpirun -np {x} --map-by ppr:{x}:node:PE=1:SPAN:NOOVERSUBSCRIBE',
+        mpi_command=lambda x: f'mpirun -np {x} --map-by node:PE=1',
         cp2k_exec='cp2k.psmp',
         walltime=3, # in minutes
         )
@@ -42,7 +42,7 @@ definitions = {
 
 containerize = True
 if containerize:
-    launcher = ApptainerLauncher(container_tag='latest-cuda11.3', enable_gpu=True)
+    launcher = ContainerizedLauncher(container_tag='1.0.0rc0-cuda11.3', enable_gpu=True)
 else:
     launcher = SimpleLauncher()
 
