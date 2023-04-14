@@ -95,10 +95,7 @@ def main(path_output):
 
 
 if __name__ == '__main__':              # entry point
-    psiflow.load(
-            '../configs/local_wq.py',   # path to psiflow config file
-            './psiflow_internal',       # internal psiflow cache dir
-            )
+    psiflow.load()
 
     path_output = Path.cwd() / 'output' # stores final model
     main(path_output)
@@ -233,10 +230,7 @@ def main(path_output):
 
 
 if __name__ == '__main__':              # entry point
-    psiflow.load(
-            '../configs/local_wq.py',   # path to psiflow config file
-            './psiflow_internal',       # internal psiflow cache dir
-            )
+    psiflow.load()
 
     path_output = Path.cwd() / 'output' # stores output from each iteration
     main(path_output)
@@ -408,6 +402,13 @@ def main(path_output):
             reference=reference,
             walkers=walkers,
             )
+
+
+if __name__ == '__main__':              # entry point
+    psiflow.load()
+
+    path_output = Path.cwd() / 'output' # stores output from each iteration
+    main(path_output)
 ```
 Naturally, the body of the `main` function is similar to the previous example;
 the main difference being the use of a `ConcurrentLearning` instance

@@ -20,29 +20,8 @@ theme:
 nav:
   - Introduction: index.md
   - Overview: overview.md
-  - Execution: execution.md
+  - Execution & Setup: execution.md
   - Examples: examples.md
-  - Installation: installation.md
-    #- Workflow execution: workflow_execution.md
-    #- API:
-    #  - Models:
-    #    - NequIP: models/nequip.md
-    #    - MACE: models/mace.md
-    #  - Sampling:
-    #    - Random: sampling/random.md
-    #    - Optimization: sampling/optimization.md
-    #    - Dynamic: sampling/dynamic.md
-    #    - PLUMED: sampling/plumed_bias.md
-    #  - Reference:
-    #    - EMT: reference/EMT.md
-    #    - CP2K: reference/CP2K.md
-    #    - VASP: reference/VASP.md
-    #  - Data: data.md
-    #  - Ensemble: ensemble.md
-    #  - Checks: checks.md
-    #  - Learning: learning.md
-    #  - Execution: execution.md
-    #  - Experiment: experiment.md
 hide:
   - toc
 

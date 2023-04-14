@@ -1,5 +1,3 @@
-# Execution
-
 Psiflow provides a convenient interface to build a
 complex computational graph that consists of
 QM evaluations, model training, and phase space sampling, among others.
@@ -37,7 +35,8 @@ from the main Python script that defines the workflow, in line with Parsl's phil
     first in order to get acquainted with the `executor`, `provider`, and `launcher`
     concepts.
 
-## 1. Configure __how__ everything gets executed
+
+### 1. Configure __how__ everything gets executed
 The first part of `config.py` will determine _how_ all calculations will be performed.
 This includes the number of cores to use when executing a singlepoint calculation
 and the MPI/OpenMP configuration, whether to perform model inference on CPU or GPU,
@@ -49,8 +48,8 @@ respectively, the model inference, model training, and QM evaluation).
 Aside from the execution parameters, each `Execution` also defines the
 Parsl [executor](https://parsl.readthedocs.io/en/stable/userguide/execution.html#executors)
 that will be set up by psiflow for executing that particular operation.
-We highly recommend to ensure that each definition has its own executor
-(i.e. that no two labels are the same).
+In most cases, it is recommended to create a separate Parsl executor for each
+definition.
 
 ```py
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
@@ -97,14 +96,41 @@ definitions = {
     This would allow to set execution of NequIP inference on a GPU but MACE 
     inference on a CPU, for example.
 
+Until here, we have completely specified *how* all operations within psiflow
+should be executed. This part of the configuration file is therefore relatively
+transferable between different configurations (at least if the hardware is
+similar).
 
-## 2. Configure __where__ everything gets executed
-The next thing to configure is _where_ all the execution resources are coming
+### 2. Configure __where__ everything gets executed
+The second part of the configuration file specifies _where_ all the execution resources are coming
 from. Psiflow (and Parsl) need to know whether they're supposed to request
 a GPU in Google Cloud or submit a SLURM jobscript to a GPU cluster, for example.
-Execution resources are provided using the Parsl `ExecutionProvider` class.
+In particular, this means that the executor labels (stored as attributes in the
+execution definitions from the first part) need to be associated with
+particular **resource providers**. Resource providers can be anything, from
+your local workstation, the cluster at your university, to an array of VM instances in
+Google Cloud.
+These resources can be defined in the configuration file using any of the
+following Parsl `ExecutionProvider` subclasses:
+
+- `AWSProvider`
+- `CobaltProvider`
+- `CondorProvider`
+- `GoogleCloudProvider`
+- `GridEngineProvider`
+- `LocalProvider`
+- `LSFProvider`
+- `GridEngineProvider`
+- `SlurmProvider`
+- `TorqueProvider`
+- `KubernetesProvider`
+- `PBSProProvider`
+
+For each of the executor labels used in the first part, we need to define which
+provider that executor should use.
 The easiest option is to set psiflow to only use resources on the local
-computer (i.e. your own CPU, GPU, memory, and disk space).
+computer (i.e. your own CPU, GPU, memory, and disk space) using the
+`LocalProvider`:
 ```py
 from parsl.providers import LocalProvider
 
@@ -116,11 +142,16 @@ providers = {
         'reference': LocalProvider(),   # resources for the 'reference' executor (i.e. for QM singlepoints)
         }
 ```
-The final component in the `config.py` file is a function `get_config` which
-accepts a single filepath as argument and which returns the full Parsl Configuration
-and the execution definitions dictionary. It offers some additional customisability
+Note that in addition to `model`, `training`, and `reference`, it is also
+necessary to define a (simple) provider for the `default` executor,
+which takes care of all administrative tasks (copying data, reading and writing XYZ files, ... ).
+
+Once each executor label is assigned to a particular provider of your choice,
+the `get_config` function can be used to combine the definitions and providers
+into a [fully-fledged Parsl `Config`](https://parsl.readthedocs.io/en/stable/userguide/configuring.html).
+It offers some additional customizability
 in terms of how calculations are scheduled, whether caching is enabled, and how
-deal with errors during the workflow.
+to deal with errors during the workflow.
 
 ```py
 from psiflow.execution import generate_parsl_config
@@ -151,7 +182,7 @@ See the [Hortense](https://github.com/svandenhaute/psiflow/blob/main/configs/vsc
 and [Stevin](https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_stevin.py)
 example configurations for more details.
 
-## 3. Putting it all together: `psiflow.load`
+### 3. Putting it all together: `psiflow.load`
 The execution configuration as determined by a `config.py` is to be loaded
 into psiflow in order to start workflow execution.
 The first step in any psiflow script is therefore to call `psiflow.load`:
@@ -161,33 +192,28 @@ The `BaseModel`, `BaseReference`, and `BaseWalker` subclasses
 will use the information in the execution context to create and store
 Parsl apps with the desired execution configuration.
 End users do not need to worry about the internal organization of psiflow;
-all they need to make sure is that they call `psiflow.load()` on a valid
-configuration file before they commence their workflow.
-The following is a trivial example in which a dataset is loaded, a simple MACE
-model is trained, and the result is saved for future usage.
+all they need to make sure is that they provide a valid configuration
+file when calling the main script and begin with a `psiflow.load()` call.
+Internally, `psiflow.load()` will parse the command line arguments, read
+the configuration script, and load the Parsl `Config` instance such that
+the workflow can begin.
 
-<!---
-```py title='my_script.py'
+```
+    python my_workflow.py --psiflow-config lumi.py
+```
+
+
+
+```py title='my_workflow.py'
 import psiflow
-from psiflow.data import Dataset
-from psiflow.models import MACEModel, MACEConfig
 
 
 def my_scientific_breakthrough():
-    data  = Dataset.load('chemical_accuracy.xyz')   # the best dataset in the world
-    data_train = data[:-10]                 # first n - 10 states are training
-    data_valid = data[-10:]                 # last 10 states are validation
-    model = MACEModel(MACEConfig(r_max=7))  # use default MACE parameters, but increase the cutoff to 7 A
-    model.initialize(data_train)            # initialize weights, and scaling/normalization factors in layers
-    model.train(data_train, data_valid)     # training magic
-    model.save('./')                        # done!
+    ...
 
 
 if __name__ == '__main__':
-    psiflow.load(
-            './config.py',        # will load config.py as module and execute its get_config() method
-            './psiflow_internal', # directory in which to store logs; this path should not already exist
-            )
+    psiflow.load()
     my_scientific_breakthrough()
+```
 
-``` --->

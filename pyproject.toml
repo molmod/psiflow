@@ -16,14 +16,6 @@ dependencies = [
     "wandb>=0.14.0",
     "pymatgen>=2023.3.23",
     "parsl==2023.3.27",
-    #"pymatgen>=2023.1.30",
-    #"wandb>=0.13.6",
-    #"plumed>=2.7.2",
-    #"parsl>=2023.3.13",
-    #"cython>=0.29.32",
-    #"h5py>=3.7.0",
-    #"molmod @ git+https://github.com/molmod/molmod.git@f59506594b49f7a8545aef0ae6fb378e361eda80",
-    #"yaff @ git+https://github.com/molmod/yaff.git@2bf7db0b87d6d6a2a93a7f46ec38fe60a4f070c7",
     ]
 
 [project.optional-dependencies]
@@ -51,7 +43,6 @@ docs = [
 psiflow-train-nequip = 'psiflow.models.train_nequip:main'
 psiflow-train-mace   = 'psiflow.models.train_mace:main'
 psiflow-test         = 'psiflow.test:main'
-#psiflow-simulate-model = 'psiflow.sampling.simulate_model:main'
 
 
 [tool.setuptools.packages.find]

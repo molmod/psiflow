@@ -338,7 +338,7 @@ class ContainerizedLauncher(Launcher):
         self.apptainer_or_singularity = apptainer_or_singularity
         self.tag = tag
         if uri is None:
-            uri = 'docker://github.com/svandenhaute/psiflow:' + tag
+            uri = 'oras://ghcr.io/svandenhaute/psiflow:' + tag
         self.uri = uri
         self.enable_gpu = enable_gpu
 

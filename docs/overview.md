@@ -322,9 +322,12 @@ it is beneficial to modify the equilibrium Boltzmann distribution with bias pote
 or advanced sampling schemes as to increase the sampling efficiency and reduce
 redundancy within the trajectory.
 The [PLUMED](https://plumed.org) library provides the user with various choices of enhanced sampling
-techniques, and psiflow provides a specific `PlumedBias` class to implement
-these techniques in the existing `DynamicWalker` implementation of molecular
-dynamics.
+techniques; the user specifies the input parameters in a PLUMED input file
+and passes it into a molecular dynamics engine (e.g. OpenMM, GROMACS, or LAMMPS).
+Similarly, in psiflow, the contents of the PLUMED input file can be directly
+converted into a `PlumedBias` instance in order to apply PLUMED's enhanced
+sampling magic to dynamic simulations or evaluate collective variables (and
+bias energy) across a dataset of atomic configurations.
 
 In the following example, we define the PLUMED input as a multi-line string in
 Python. We consider the particular case of applying a metadynamics bias to
@@ -334,6 +337,9 @@ it relies on an additional _hills_ file which keeps track of the location of
 Gaussian hills that were installed in the system at various steps throughout
 the simulation. Psiflow automatically takes care of such external files, and
 their file path in the input string is essentially irrelevant.
+To apply this bias in a simulation, we employ the `BiasedDynamicWalker`; it is
+almost identical to the `DynamicWalker` except that it accepts an additional
+(mandatory) `bias` keyword argument during initialization:
 ```py
 from psiflow.sampling import BiasedDynamicWalker, PlumedBias
 
@@ -355,12 +361,12 @@ Often, we want to investigate what the final bias energy looks like as a
 function of the collective variable.
 To facilitate this, psiflow provides the ability to evaluate `PlumedBias` objects
 on `Dataset` instances using the `bias.evaluate()` method.
-The returned object is a Parsl `Future` of an `ndarray` of shape `(nstates, 2)`.
+The returned object is a Parsl `Future` that represents an `ndarray` of shape `(nstates, 2)`.
 The first column represents the value of the collective variable for each state,
 and the second column contains the bias energy.
 
 ```py
-values = bias.evaluate(data_train, variable='CV')       # evaluate all PLUMED actions with ARG=CV on data_train
+values = bias.evaluate(data_train, variable='CV')       # compute the collective variable 'CV' and bias energy
 
 assert values.result().shape[0] == data_train.length().result()  # each snapshot is evaluated separately
 assert values.result().shape[1] == 2                             # CV and bias per snapshot, in PLUMED units!
