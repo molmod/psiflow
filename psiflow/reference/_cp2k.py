@@ -205,7 +205,7 @@ def cp2k_singlepoint_pre(
             command_cd,
             command_write,
             'export OMP_NUM_THREADS={};'.format(omp_num_threads),
-            'timeout {}s'.format(max(walltime - 10, 0)), # some time is spent on copying
+            'timeout -k 5 {}s'.format(max(walltime - 100, 0)), # some time is spent on copying
             cp2k_command,
             '-i cp2k.inp',
             ' || true',
