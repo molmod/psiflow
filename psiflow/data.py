@@ -380,16 +380,15 @@ def insert_formation_energy(
                             element,
                             atoms.info[label],
                             ))
-            assert label not in atoms.info.keys()
-            atoms.info[label] = energy
+            else:
+                atoms.info[label] = energy
             reference += natoms_per_number * energy
             natoms -= natoms_per_number
         assert natoms == 0 # all atoms accounted for
-        atoms.info['formation_energy'] = atoms.info['energy'] - reference
-        #assert atoms.info['formation_energy'] < 0, ('The formation'
-        #        ' energy is nonnegative, meaning that the system is unstable; '
-        #        'total energy: {}\t computed reference energy: {}'.format(
-        #            atoms.info['energy'], reference))
+        assert np.allclose(
+                atoms.info['formation_energy'],
+                atoms.info['energy'] - reference,
+                )
     with open(outputs[0], 'w') as f:
         write_extxyz(f, data)
 app_insert_formation_energy = python_app(insert_formation_energy, executors=['default'])
