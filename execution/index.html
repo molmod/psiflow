@@ -1,0 +1,619 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../overview/">
+      
+      
+        <link rel="next" href="../examples/">
+      
+      <link rel="icon" href="../icon.svg">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.5">
+    
+    
+      
+        <title>Execution & Setup - psiflow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.7a7fce14.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.a0c5b2b5.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#1-configure-how-everything-gets-executed" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="psiflow" class="md-header__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            psiflow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Execution & Setup
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/svandenhaute/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.3.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href=".." class="md-tabs__link">
+      Introduction
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../overview/" class="md-tabs__link">
+      Overview
+    </a>
+  </li>
+
+      
+        
+  
+  
+    
+  
+
+
+  <li class="md-tabs__item">
+    <a href="./" class="md-tabs__link md-tabs__link--active">
+      Execution & Setup
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../examples/" class="md-tabs__link">
+      Examples
+    </a>
+  </li>
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="psiflow" class="md-nav__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    psiflow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/svandenhaute/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.3.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Introduction
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Execution & Setup
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Execution & Setup
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-configure-how-everything-gets-executed" class="md-nav__link">
+    1. Configure how everything gets executed
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-configure-where-everything-gets-executed" class="md-nav__link">
+    2. Configure where everything gets executed
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-putting-it-all-together-psiflowload" class="md-nav__link">
+    3. Putting it all together: psiflow.load
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        Examples
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+  <h1>Execution & Setup</h1>
+
+<p>Psiflow provides a convenient interface to build a
+complex computational graph that consists of
+QM evaluations, model training, and phase space sampling, among others.
+Importantly, the execution of such graphs requires different resources
+depending on the specific task at hand.
+For example, QM calculations typically require nodes with a large core count (64 or even 128)
+and with sufficient memory, whereas model training and evaluation require a powerful
+GPU.
+Because a single computer can never provide the computing power that is required to
+execute such workflows, psiflow is intrinsically built to support distributed
+and asynchronous execution across a large variety of resources (including most HPC and cloud infrastructure).
+This means that while the entire online learning workflow is defined in a single Python script,
+its execution is automatically performed on tens, hundreds, or even thousands of nodes.
+Configuration of the execution resources is done using a single Python script; <code>config.py</code>.
+It gives the user full flexibility to customize all execution-side details, such as:</p>
+<ul>
+<li>the number of cores to use for each CP2K singlepoint evaluation, as well as the specific OpenMP/MPI parallellization settings;</li>
+<li>the project ID from Google Compute Engine, if applicable;</li>
+<li>the computational resources per SLURM job, if applicable.
+This includes walltime, core count, and memory, as well as e.g. the maximum number of molecular dynamics
+simulations that can be executed in parallel in a single job;</li>
+<li>the execution of specific <code>module load</code> or <code>source env/bin/activate</code> commands to ensure all the necessary environment variables are set.</li>
+</ul>
+<p>The execution parameters in the configuration script are strictly and deliberately kept separate
+from the main Python script that defines the workflow, in line with Parsl's philosophy: <em>write once, run anywhere</em>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>  python my_workflow.py --psiflow-config local_execution.py   # executes workflow locally
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  python my_workflow.py --psiflow-config frontier.py          # executes exact same workflow on Frontier (OLCF)
+</code></pre></div></p>
+<div class="admonition note">
+<p class="admonition-title">Parsl 103: Execution</p>
+<p>This section will introduce the main components of the configuration script.
+We suggest to read through the 
+<a href="https://parsl.readthedocs.io/en/stable/userguide/execution.html">Parsl documentation on execution</a>
+first in order to get acquainted with the <code>executor</code>, <code>provider</code>, and <code>launcher</code>
+concepts.</p>
+</div>
+<h3 id="1-configure-how-everything-gets-executed">1. Configure <strong>how</strong> everything gets executed</h3>
+<p>The first part of <code>config.py</code> will determine <em>how</em> all calculations will be performed.
+This includes the number of cores to use when executing a singlepoint calculation
+and the MPI/OpenMP configuration, whether to perform model inference on CPU or GPU,
+the maximum amount of compute time to allow for model training and/or inference, etc.
+These parameters may be set in psiflow using the <code>Execution</code> dataclasses:
+<code>ModelEvaluationExecution</code>, <code>ModelTrainingExecution</code>, and <code>ReferenceEvaluationExecution</code>.
+Each dataclass defines a particular aspect of the execution of a workflow (
+respectively, the model inference, model training, and QM evaluation).
+Aside from the execution parameters, each <code>Execution</code> also defines the
+Parsl <a href="https://parsl.readthedocs.io/en/stable/userguide/execution.html#executors">executor</a>
+that will be set up by psiflow for executing that particular operation.
+In most cases, it is recommended to create a separate Parsl executor for each
+definition.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span> <span class="nn">psiflow.execution</span> <span class="kn">import</span> <span class="n">ModelEvaluationExecution</span><span class="p">,</span> <span class="n">ModelTrainingExecution</span><span class="p">,</span> \
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>        <span class="n">ReferenceEvaluationExecution</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span> <span class="nn">psiflow.models</span> <span class="kn">import</span> <span class="n">MACEModel</span><span class="p">,</span> <span class="n">NequIPModel</span><span class="p">,</span> <span class="n">AllegroModel</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">CP2KReference</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">model_evaluate</span> <span class="o">=</span> <span class="n">ModelEvaluationExecution</span><span class="p">(</span>          <span class="c1"># defines model inference (e.g. for walker propagation)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        <span class="n">executor</span><span class="o">=</span><span class="s1">&#39;model&#39;</span><span class="p">,</span>                           <span class="c1"># a Parsl executor with label &#39;model&#39; will be created</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">,</span>                               <span class="c1"># evaluate models on the CPU (instead of a GPU)</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>        <span class="n">ncores</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>                                   <span class="c1"># use only one core per simulation</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>        <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">,</span>                            <span class="c1"># precision when evaluating the network (32/64)</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>        <span class="n">walltime</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>                                <span class="c1"># ensure a walltime of two minutes per dynamic walker </span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="p">)</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="n">model_training</span> <span class="o">=</span> <span class="n">ModelTrainingExecution</span><span class="p">(</span>            <span class="c1"># model training is forced to be executed on GPU!</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>        <span class="n">executor</span><span class="o">=</span><span class="s1">&#39;training&#39;</span><span class="p">,</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>        <span class="n">ncores</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>                                   <span class="c1"># how many CPUs to use (typically #ncores / #ngpus)</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>        <span class="n">walltime</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>                                 <span class="c1"># max walltime in minutes,</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>        <span class="p">)</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="n">reference_evaluate</span> <span class="o">=</span> <span class="n">ReferenceEvaluationExecution</span><span class="p">(</span>  <span class="c1"># defines how the reference calculations are performed</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>        <span class="n">executor</span><span class="o">=</span><span class="s1">&#39;reference&#39;</span><span class="p">,</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>        <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">,</span>                               <span class="c1"># only CPU is supported for QM at the moment</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>        <span class="n">ncores</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>                                  <span class="c1"># number of cores to use per calculation</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>        <span class="n">omp_num_threads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>                          <span class="c1"># parallelization (mpi_num_proc = ncores / omp_num_threads)</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>        <span class="n">mpi_command</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;mpirun -np </span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>    <span class="c1"># mpirun command; this is cluster-dependent sometimes</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>        <span class="n">cp2k_exec</span><span class="o">=</span><span class="s1">&#39;cp2k.psmp&#39;</span><span class="p">,</span>                      <span class="c1"># specific CP2K executable; is sometimes cp2k.popt</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>        <span class="n">walltime</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="c1"># in minutes                   # max walltime in minutes per singlepoint</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>        <span class="p">)</span>
+</code></pre></div>
+Next, we associate, for all <code>BaseModel</code> and <code>BaseReference</code> subclasses of interest,
+the necessary execution definitions.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">definitions</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>        <span class="n">MACEModel</span><span class="p">:</span> <span class="p">[</span><span class="n">model_evaluate</span><span class="p">,</span> <span class="n">model_training</span><span class="p">],</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="n">NequIPModel</span><span class="p">:</span> <span class="p">[</span><span class="n">model_evaluate</span><span class="p">,</span> <span class="n">model_training</span><span class="p">],</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="n">AllegroModel</span><span class="p">:</span> <span class="p">[</span><span class="n">model_evaluate</span><span class="p">,</span> <span class="n">model_training</span><span class="p">],</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="n">CP2KReference</span><span class="p">:</span> <span class="p">[</span><span class="n">reference_evaluate</span><span class="p">],</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="p">}</span>
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Definitions can be registered in the dictionary <strong>per model</strong> and <strong>per reference</strong> level of theory.
+This would allow to set execution of NequIP inference on a GPU but MACE 
+inference on a CPU, for example.</p>
+</div>
+<p>Until here, we have completely specified <em>how</em> all operations within psiflow
+should be executed. This part of the configuration file is therefore relatively
+transferable between different configurations (at least if the hardware is
+similar).</p>
+<h3 id="2-configure-where-everything-gets-executed">2. Configure <strong>where</strong> everything gets executed</h3>
+<p>The second part of the configuration file specifies <em>where</em> all the execution resources are coming
+from. Psiflow (and Parsl) need to know whether they're supposed to request
+a GPU in Google Cloud or submit a SLURM jobscript to a GPU cluster, for example.
+In particular, this means that the executor labels (stored as attributes in the
+execution definitions from the first part) need to be associated with
+particular <strong>resource providers</strong>. Resource providers can be anything, from
+your local workstation, the cluster at your university, to an array of VM instances in
+Google Cloud.
+These resources can be defined in the configuration file using any of the
+following Parsl <code>ExecutionProvider</code> subclasses:</p>
+<ul>
+<li><code>AWSProvider</code></li>
+<li><code>CobaltProvider</code></li>
+<li><code>CondorProvider</code></li>
+<li><code>GoogleCloudProvider</code></li>
+<li><code>GridEngineProvider</code></li>
+<li><code>LocalProvider</code></li>
+<li><code>LSFProvider</code></li>
+<li><code>GridEngineProvider</code></li>
+<li><code>SlurmProvider</code></li>
+<li><code>TorqueProvider</code></li>
+<li><code>KubernetesProvider</code></li>
+<li><code>PBSProProvider</code></li>
+</ul>
+<p>For each of the executor labels used in the first part, we need to define which
+provider that executor should use.
+The easiest option is to set psiflow to only use resources on the local
+computer (i.e. your own CPU, GPU, memory, and disk space) using the
+<code>LocalProvider</code>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span> <span class="nn">parsl.providers</span> <span class="kn">import</span> <span class="n">LocalProvider</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">providers</span> <span class="o">=</span> <span class="p">{</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">LocalProvider</span><span class="p">(),</span>     <span class="c1"># resources for all pre- and post-processing</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="s1">&#39;model&#39;</span><span class="p">:</span> <span class="n">LocalProvider</span><span class="p">(),</span>       <span class="c1"># resources for the &#39;model&#39; executor (i.e. model evaluation)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>        <span class="s1">&#39;training&#39;</span><span class="p">:</span> <span class="n">LocalProvider</span><span class="p">(),</span>    <span class="c1"># resources for the &#39;training&#39; executor (i.e. model training)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="s1">&#39;reference&#39;</span><span class="p">:</span> <span class="n">LocalProvider</span><span class="p">(),</span>   <span class="c1"># resources for the &#39;reference&#39; executor (i.e. for QM singlepoints)</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="p">}</span>
+</code></pre></div>
+Note that in addition to <code>model</code>, <code>training</code>, and <code>reference</code>, it is also
+necessary to define a (simple) provider for the <code>default</code> executor,
+which takes care of all administrative tasks (copying data, reading and writing XYZ files, ... ).</p>
+<p>Once each executor label is assigned to a particular provider of your choice,
+the <code>get_config</code> function can be used to combine the definitions and providers
+into a <a href="https://parsl.readthedocs.io/en/stable/userguide/configuring.html">fully-fledged Parsl <code>Config</code></a>.
+It offers some additional customizability
+in terms of how calculations are scheduled, whether caching is enabled, and how
+to deal with errors during the workflow.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span> <span class="nn">psiflow.execution</span> <span class="kn">import</span> <span class="n">generate_parsl_config</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">def</span> <span class="nf">get_config</span><span class="p">(</span><span class="n">path_parsl_internal</span><span class="p">):</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">generate_parsl_config</span><span class="p">(</span>     <span class="c1"># psiflow internal method to parse definitions and providers</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>            <span class="n">path_parsl_internal</span><span class="p">,</span>        <span class="c1"># directory in which psiflow and parsl may cache intermediate files</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>            <span class="n">definitions</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>            <span class="n">providers</span><span class="p">,</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>            <span class="n">use_work_queue</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>        <span class="c1"># Parsl-specific parameter which specifies the Executor class</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>            <span class="p">)</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="k">return</span> <span class="n">config</span><span class="p">,</span> <span class="n">definitions</span>
+</code></pre></div>
+Example configurations for local execution can be found on the GitHub repository.
+In the same directory, you'll find configuration files for the
+<a href="https://vlaams-supercomputing-centrum-vscdocumentation.readthedocs-hosted.com/en/latest/gent/tier1_hortense.html">Flemish supercomputers</a>
+in Belgium, which have the typical SLURM/Lmod/EasyBuild setup as found
+in many other European HPCs.
+Naturally, these configurations rely on one or more <code>SlurmProvider</code> instances
+which provide the computational resources,
+as opposed to the <code>LocalProvider</code> shown here. A <code>SlurmProvider</code> may
+be configured in terms of the minimum and maximum number of jobs it may request
+during the workflow,
+the number of cores, nodes, GPUs, and amount of walltime per job, as well as
+the cluster(s), partition(s), and account(s) to use.
+See the <a href="https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_hortense.py">Hortense</a>
+and <a href="https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_stevin.py">Stevin</a>
+example configurations for more details.</p>
+<h3 id="3-putting-it-all-together-psiflowload">3. Putting it all together: <code>psiflow.load</code></h3>
+<p>The execution configuration as determined by a <code>config.py</code> is to be loaded
+into psiflow in order to start workflow execution.
+The first step in any psiflow script is therefore to call <code>psiflow.load</code>:
+it will generate a local cache directory for output
+logs and intermediate files, and create a global <code>ExecutionContext</code> object.
+The <code>BaseModel</code>, <code>BaseReference</code>, and <code>BaseWalker</code> subclasses
+will use the information in the execution context to create and store
+Parsl apps with the desired execution configuration.
+End users do not need to worry about the internal organization of psiflow;
+all they need to make sure is that they provide a valid configuration
+file when calling the main script and begin with a <code>psiflow.load()</code> call.
+Internally, <code>psiflow.load()</code> will parse the command line arguments, read
+the configuration script, and load the Parsl <code>Config</code> instance such that
+the workflow can begin.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>    python my_workflow.py --psiflow-config lumi.py
+</code></pre></div>
+<div class="highlight"><span class="filename">my_workflow.py</span><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span> <span class="nn">psiflow</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">def</span> <span class="nf">my_scientific_breakthrough</span><span class="p">():</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="o">...</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">psiflow</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">my_scientific_breakthrough</span><span class="p">()</span>
+</code></pre></div>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.tabs.sticky", "navigation.indexes", "navigation.sections", "toc.integrate"], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.407015b8.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
