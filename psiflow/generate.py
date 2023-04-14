@@ -37,13 +37,11 @@ def generate(
         assert not isinstance(arg, list) # can occur by mistake
     if not num_tries_sampling > 0:
         logger.info('reached max sampling retries for walker {}, aborting'.format(
-            num_tries_sampling,
             name,
             ))
         return app_reset_atoms(walker.start_future)
     if not num_tries_reference > 0:
         logger.info('reached max reference retries for walker {}, aborting'.format(
-            num_tries_reference,
             name,
             ))
         return app_reset_atoms(walker.start_future)

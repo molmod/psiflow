@@ -185,7 +185,7 @@ restraint: RESTRAINT ARG=CV,CV1 AT=150,450 KAPPA=1,10
     assert 'CV' in state.info
     assert 'CV1' in state.info
     state.reset()
-    assert not 'CV' in state.info
+    assert 'CV' in state.info # stays
     values = bias.evaluate(trajectory).result()
     assert np.allclose(
             3 * values[:, 0],

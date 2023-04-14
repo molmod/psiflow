@@ -21,7 +21,7 @@ RUN pip install git+https://github.com/svandenhaute/psiflow@d1d2416
 RUN pip cache purge
 
 USER root
-RUN apt remove git gcc g++ -y && apt autoremove -y
+RUN apt remove gcc g++ -y && apt autoremove -y
 USER mambauser
 ENV OMPI_MCA_plm_rsh_agent=
 ENV LD_LIBRARY_PATH /opt/conda/lib

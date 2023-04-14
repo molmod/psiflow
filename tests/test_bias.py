@@ -106,6 +106,9 @@ METAD ARG=CV1 SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     dataset_ = bias.evaluate(dataset, as_dataset=True)
     for i, atoms in enumerate(dataset_.as_list().result()):
         assert np.allclose(atoms.get_volume(), atoms.info['CV1'])
+    state = dataset_[0].result()
+    state.reset()
+    assert 'CV1' in state.info.keys() # reset should not remove CVs!
 
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs

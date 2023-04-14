@@ -94,13 +94,12 @@ class FlowAtoms(Atoms):
 
     def reset(self) -> None:
         info = {}
-        retain_keys = [
-                'lattice',
-                'properties',
-                'pbc',
-                ]
         for key, value in self.info.items():
-            if key.lower() in retain_keys:
+            if 'energy' in key: # atomic, formation, or total energy
+                pass
+            elif 'stress' in key: # stress
+                pass
+            else:
                 info[key] = value
         info['reference_stdout'] = False
         info['reference_stderr'] = False
@@ -385,10 +384,7 @@ def insert_formation_energy(
             reference += natoms_per_number * energy
             natoms -= natoms_per_number
         assert natoms == 0 # all atoms accounted for
-        assert np.allclose(
-                atoms.info['formation_energy'],
-                atoms.info['energy'] - reference,
-                )
+        atoms.info['formation_energy'] = atoms.info['energy'] - reference
     with open(outputs[0], 'w') as f:
         write_extxyz(f, data)
 app_insert_formation_energy = python_app(insert_formation_energy, executors=['default'])

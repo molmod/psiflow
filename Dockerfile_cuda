@@ -16,10 +16,10 @@ RUN pip install cython matscipy prettytable plumed && \
     pip install git+https://github.com/mir-group/nequip.git@v0.5.6 && \
     pip install git+https://github.com/mir-group/allegro.git --no-deps && \
     pip install --force git+https://git@github.com/ACEsuit/MACE.git@d520abac437648dafbec0f6e203ec720afa16cf7 --no-deps
-RUN pip install git+https://github.com/svandenhaute/psiflow@c635727
+RUN pip install git+https://github.com/svandenhaute/psiflow@3b1308c
 RUN pip cache purge
 
 USER root
-RUN apt remove git gcc g++ -y && apt autoremove -y
+RUN apt remove gcc g++ -y && apt autoremove -y
 USER mambauser
 ENV OMPI_MCA_plm_rsh_agent=
