@@ -110,8 +110,7 @@ def main(path_output):
 def restart(path_output):
     reference = get_reference()
     learning  = load_learning(path_output)
-    model, walkers, data_train, data_valid, checks = load_state(path_output, '5')
-    learning.checks = checks
+    model, walkers, data_train, data_valid = load_state(path_output, '5')
     data_train, data_valid = learning.run(
             model=model,
             reference=reference,

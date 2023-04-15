@@ -6,7 +6,6 @@ import logging
 from psiflow.models import BaseModel, load_model
 from psiflow.data import Dataset
 from psiflow.sampling import BaseWalker, save_walkers, load_walkers
-from psiflow.checks import Check, load_checks
 from psiflow.utils import resolve_and_check
 
 
@@ -22,7 +21,6 @@ def save_state(
         data_train: Optional[Dataset] = None,
         data_valid: Optional[Dataset] = None,
         data_failed: Optional[Dataset] = None,
-        checks: Optional[list[Check]] = None,
         require_done=True,
         ) -> None:
     path_output = resolve_and_check(path_output)
@@ -45,13 +43,6 @@ def save_state(
     if data_failed is not None:
         data_failed.save(path / 'failed.xyz')
 
-    # save checks if necessary
-    if checks is not None:
-        path_checks = path / 'checks'
-        path_checks.mkdir(parents=False, exist_ok=False)
-        for check in checks: # all checks stored in same dir
-            check.save(path_checks, require_done=require_done)
-
 
 @typeguard.typechecked
 def load_state(path_output: Union[Path, str], name: str) -> tuple[
@@ -59,7 +50,6 @@ def load_state(path_output: Union[Path, str], name: str) -> tuple[
                 list[BaseWalker],
                 Optional[Dataset],
                 Optional[Dataset],
-                Optional[list[Check]],
                 ]:
     path_output = resolve_and_check(path_output)
     path = path_output / name
@@ -83,11 +73,4 @@ def load_state(path_output: Union[Path, str], name: str) -> tuple[
         data_valid = Dataset.load(path_valid)
     else:
         data_valid = Dataset([])
-
-    # checks; optional
-    path_checks = path / 'checks'
-    if path_checks.is_dir():
-        checks = load_checks(path_checks)
-    else:
-        checks = None
-    return model, walkers, data_train, data_valid, checks
+    return model, walkers, data_train, data_valid

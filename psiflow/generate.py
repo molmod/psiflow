@@ -30,7 +30,7 @@ def generate(
         num_tries_sampling: int,
         num_tries_reference: int,
         *args, # waits for these futures to complete before execution
-        checks: Optional[list[Check]] = None,
+        checks: list[Check] = [],
         ) -> AppFuture:
     for arg in args:
         assert not isinstance(arg, Check) # can occur by mistake
@@ -61,9 +61,8 @@ def generate(
             model=model,
             keep_trajectory=False,
             )
-    if checks is not None:
-        for check in checks:
-            state = check(state, walker.tag_future)
+    for check in checks:
+        state = check(state, walker.tag_future)
     return _evaluate(
             name,
             walker,
@@ -87,7 +86,7 @@ def _evaluate(
         num_tries_sampling: int,
         num_tries_reference: int,
         *args, # waits for these futures to complete before execution
-        checks: Optional[list] = None,
+        checks: list[Check] = [],
         ) -> AppFuture:
     assert len(args) == 2
     state = args[0]
@@ -137,7 +136,7 @@ def _gather(
         num_tries_sampling: int,
         num_tries_reference: int,
         *args, # waits for these futures to complete before execution
-        checks: Optional[list] = None,
+        checks: list[Check] = [],
         ) -> Union[AppFuture, FlowAtoms]:
     assert len(args) == 1
     state = args[0]
@@ -169,7 +168,7 @@ def generate_all(
         reference: Optional[BaseReference],
         num_tries_sampling: int = 10,
         num_tries_reference: int = 1,
-        checks: Optional[list[Check]] = None,
+        checks: list[Check] = [],
         ) -> Dataset:
     states = []
     for i, walker in enumerate(walkers):
