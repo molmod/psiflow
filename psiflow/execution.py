@@ -10,6 +10,7 @@ import logging
 import os
 import sys
 import importlib
+import importlib.metadata # necessary on python 3.9
 import atexit
 
 import parsl

@@ -1,6 +1,6 @@
 FROM mambaorg/micromamba:1.4.2
 
-RUN micromamba install -n base --yes -c conda-forge python=3.10 pip ndcctools=7.4.2 plumed cp2k && \
+RUN micromamba install -n base --yes -c conda-forge python=3.9 pip ndcctools=7.5.2 plumed cp2k && \
     micromamba clean -af --yes
 ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
 
