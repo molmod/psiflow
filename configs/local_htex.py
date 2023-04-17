@@ -40,9 +40,9 @@ definitions = {
         MP2CP2KReference: [reference_evaluate],
         }
 
-containerize = True
+containerize = False
 if containerize:
-    launcher = ContainerizedLauncher(tag='latest-cuda11.3', enable_gpu=True)
+    launcher = ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=True)
 else:
     launcher = SimpleLauncher()
 
