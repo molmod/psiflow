@@ -1,3 +1,4 @@
+
 Psiflow provides a convenient interface to build a
 complex computational graph that consists of
 QM evaluations, model training, and phase space sampling, among others.
@@ -22,19 +23,50 @@ simulations that can be executed in parallel in a single job;
 - the execution of specific `module load` or `source env/bin/activate` commands to ensure all the necessary environment variables are set.
 
 The execution parameters in the configuration script are strictly and deliberately kept separate
-from the main Python script that defines the workflow, in line with Parsl's philosophy: _write once, run anywhere_:
-```
-  python my_workflow.py --psiflow-config local_execution.py   # executes workflow locally
-  python my_workflow.py --psiflow-config frontier.py          # executes exact same workflow on Frontier (OLCF)
+from the main Python script that defines the workflow, in line with Parsl's philosophy *write once, run anywhere*.
+```console
+  $ python my_workflow.py --psiflow-config local_execution.py   # executes workflow locally
+  $ python my_workflow.py --psiflow-config frontier.py          # executes exact same workflow on Frontier
 ```
 
-!!! note "Parsl 103: Execution"
-    This section will introduce the main components of the configuration script.
-    We suggest to read through the 
-    [Parsl documentation on execution](https://parsl.readthedocs.io/en/stable/userguide/execution.html)
-    first in order to get acquainted with the `executor`, `provider`, and `launcher`
-    concepts.
+## Setup
+The location where the above commands are executed will be referred to as the
+**submission side**; this will typically be a local workstation or the login node of a cluster.
+Because all nontrivial calculations are forwarded to the appropriate compute
+resources as specified in the configuration script, the submission side does
+not actually do any work, and it is therefore trivial to set up. 
+All that is required is a Python environment in which Parsl and psiflow are
+available (and, optionally, the `ndcctools` for better scheduling).
+We recommend using
+[micromamba](https://mamba.readthedocs.io/en/latest/installation.html#micromamba)
+-- a blazingly fast `conda` replacement -- to set this up:
+```console
+$ micromamba create -p ./psiflow_env ndcctools=7.4.2 -c conda-forge -y python=3.10
+$ micromamba activate ./psiflow_env
+$ pip install git+https://github.com/svandenhaute/psiflow   # installs Parsl + dependencies
+```
 
+Setting up the **execution side** is technically more challenging because it
+needs to have working installations of (parallelized) CP2K, PLUMED, and GPU-enabled PyTorch.
+To alleviate users from having to go through all of the installation
+shenanigans, psiflow provides all-inclusive containers which bundle all of its
+dependencies into a portable entity --
+a container image!
+Whether you're executing your calculations on a high-memory node in a cluster
+or using a GPU in google cloud, all that is required is a working [Docker](https://www.docker.com/)
+or [Apptainer/Singularity](https://apptainer.org/) installation and you're good to go.
+During task distribution, psiflow will automatically pull the relevant
+container image from [Docker Hub](https://hub.docker.com/r/svandenhaute/psiflow/tags) or the
+[GitHub Container Registry](https://github.com/svandenhaute/psiflow/pkgs/container/psiflow)
+and execute its tasks inside the container at bare metal
+performance.
+
+## Execution
+This section will introduce the main components of the configuration script.
+We suggest to read through the 
+[Parsl documentation on execution](https://parsl.readthedocs.io/en/stable/userguide/execution.html)
+first in order to get acquainted with the `executor`, `provider`, and `launcher`
+concepts.
 
 ### 1. Configure __how__ everything gets executed
 The first part of `config.py` will determine _how_ all calculations will be performed.
@@ -198,8 +230,8 @@ Internally, `psiflow.load()` will parse the command line arguments, read
 the configuration script, and load the Parsl `Config` instance such that
 the workflow can begin.
 
-```
-    python my_workflow.py --psiflow-config lumi.py
+```console
+    $ python my_workflow.py --psiflow-config lumi.py
 ```
 
 

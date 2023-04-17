@@ -91,7 +91,7 @@ class MACEConfig:
     scheduler_patience: int = 100
     lr_scheduler_gamma: float = 0.9993
     swa: bool = False
-    start_swa: Optional[int] = None
+    start_swa: int = int(1e12) # never start swa
     ema: bool = False
     ema_decay: float = 0.99
     max_num_epochs: int = int(1e6)

@@ -16,7 +16,7 @@ RUN pip install cython matscipy prettytable plumed && \
     pip install git+https://github.com/mir-group/nequip.git@v0.5.6 && \
     pip install git+https://github.com/mir-group/allegro.git --no-deps && \
     pip install --force git+https://git@github.com/ACEsuit/MACE.git@d520abac437648dafbec0f6e203ec720afa16cf7 --no-deps
-RUN pip install git+https://github.com/svandenhaute/psiflow@1b70096
+RUN pip install git+https://github.com/svandenhaute/psiflow@e9f22fd
 RUN pip cache purge
 
 USER root

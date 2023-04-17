@@ -55,6 +55,8 @@ def try_manual_plumed_linking() -> str:
         if os.path.exists(path):
             os.environ['PLUMED_KERNEL'] = path
             print('plumed kernel manually set at at : {}'.format(path))
+        else:
+            raise ValueError('plumed kernel not found at {}'.format(path))
     return os.environ['PLUMED_KERNEL']
 
 

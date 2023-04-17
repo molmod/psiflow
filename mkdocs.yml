@@ -20,7 +20,7 @@ theme:
 nav:
   - Introduction: index.md
   - Overview: overview.md
-  - Execution & Setup: execution.md
+  - Setup & Execution: execution.md
   - Examples: examples.md
 hide:
   - toc
