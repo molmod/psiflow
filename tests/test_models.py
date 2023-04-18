@@ -382,3 +382,30 @@ def test_mace_formation(context, mace_config, dataset):
     config.energy_key = 'formation_energy'
     model = MACEModel(config)
     assert model.use_formation_energy
+
+
+def test_model_evaluate(context, mace_config, dataset):
+    model = MACEModel(mace_config)
+    model.initialize(dataset[:1])
+    model.deploy()
+
+    reference   = model.evaluate(dataset, batch_size=10000)
+    evaluated   = model.evaluate(dataset, batch_size=3)
+    evaluated_  = model.evaluate(dataset, batch_size=4)
+    evaluated__ = model.evaluate(dataset, batch_size=1)
+    assert evaluated.length().result() == dataset.length().result()
+    assert evaluated_.length().result() == dataset.length().result()
+    assert evaluated__.length().result() == dataset.length().result()
+    for i in range(dataset.length().result()):
+        assert np.allclose(
+                evaluated[i].result().info['energy'],
+                reference[i].result().info['energy'],
+                )
+        assert np.allclose(
+                evaluated[i].result().info['energy'],
+                evaluated_[i].result().info['energy'],
+                )
+        assert np.allclose(
+                evaluated[i].result().info['energy'],
+                evaluated__[i].result().info['energy'],
+                )

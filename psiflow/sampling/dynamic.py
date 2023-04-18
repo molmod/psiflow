@@ -17,7 +17,8 @@ from parsl.dataflow.memoization import id_for_memo
 from parsl.executors import WorkQueueExecutor
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, app_join_dataset
+from psiflow.data import Dataset, FlowAtoms, app_join_dataset, \
+        app_save_dataset
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future
@@ -27,170 +28,79 @@ from psiflow.models import BaseModel
 
 
 #@typeguard.typechecked
-def simulate_model(
+def molecular_dynamics_yaff(
         device: str,
         ncores: int,
         dtype: str,
-        state: FlowAtoms,
         pars: dict[str, Any],
-        load_calculator: Callable,
+        model_cls: str,
         keep_trajectory: bool = False,
         plumed_input: str = '',
         inputs: list[File] = [],
         outputs: list[File] = [],
-        walltime: float = 1e12, # infinite by default
+        walltime: float = 1e9, # infinite by default
         stdout: str = '',
         stderr: str = '',
         parsl_resource_specification: dict = None,
-        ) -> tuple[FlowAtoms, str, int]:
-    import torch
-    import os
-    import tempfile
-    import numpy as np
-    import parsl
-    import logging
-    from copy import deepcopy
+        ) -> str:
+    command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
+    command_cd  = 'cd $mytmpdir;'
+    command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
+    command_list = [
+            command_tmp,
+            command_cd,
+            command_write,
+            'timeout -k 5 {}s'.format(max(walltime - 100, 0)), # some time is spent on copying
+            'psiflow-md-yaff',
+            '--device {}'.format(device),
+            '--ncores {}'.format(ncores),
+            '--dtype {}'.format(dtype),
+            '--atoms {}'.format(inputs[0].filepath),
+            ]
+    parameters_to_pass = [
+            'seed',
+            'timestep',
+            'steps',
+            'step',
+            'start',
+            'temperature',
+            'pressure',
+            'force_threshold',
+            'initial_temperature',
+            ]
+    for key in parameters_to_pass:
+        if pars[key] is not None:
+            command_list.append('--{} {}'.format(key, pars[key]))
+    command_list.append('--model-cls {}'.format(model_cls))
+    command_list.append('--model {}'.format(inputs[1].filepath))
+    command_list.append('--keep-trajectory {}'.format(keep_trajectory))
+    command_list.append('--trajectory {}'.format(outputs[0].filepath))
+    command_list.append('--walltime {}'.format(walltime))
+    command_list.append(' || true')
+    return ' '.join(command_list)
 
-    # capture output and error
-    from parsl.utils import get_std_fname_mode # from parsl/app/bash.py
-    from contextlib import redirect_stderr
-    fname, mode = get_std_fname_mode('stderr', stderr)
-    os.makedirs(os.path.dirname(fname), exist_ok=True)
-    fde = open(fname, mode)
-    with redirect_stderr(fde): # redirect stderr
-        fname, mode = get_std_fname_mode('stdout', stdout)
-        os.makedirs(os.path.dirname(fname), exist_ok=True)
-        fdo = open(fname, mode)
-        import yaff
-        yaff.log.set_file(fdo) # redirect yaff log
-        import molmod
-        from ase.io.extxyz import write_extxyz
-        from psiflow.sampling.utils import ForcePartASE, DataHook, \
-                create_forcefield, ForceThresholdExceededException, ForcePartPlumed
-        from psiflow.sampling.bias import try_manual_plumed_linking
-        if device == 'cpu':
-            torch.set_num_threads(ncores)
-        if dtype == 'float64':
-            torch.set_default_dtype(torch.float64)
+
+def molecular_dynamics_yaff_post(
+        inputs: list[File] = [],
+        outputs: list[File] = [],
+        ):
+    from ase.io import read
+    from psiflow.data import FlowAtoms
+    with open(inputs[1], 'r') as f:
+        stdout = f.read()
+    counter = 0
+    for line in stdout.split('\n')[::-1]:
+        if ('VERLET' in line) and len(line.split()) > 3: # single VERLET log line
+            counter = int(line.split()[1])
+            break
         else:
-            torch.set_default_dtype(torch.float32)
-        np.random.seed(pars['seed'])
-        torch.manual_seed(pars['seed'])
-        atoms   = state.copy()
-        initial = state.copy()
-        atoms.calc = load_calculator(inputs[0].filepath, device, dtype)
-        forcefield = create_forcefield(atoms, pars['force_threshold'])
-
-        loghook  = yaff.VerletScreenLog(step=pars['step'], start=0)
-        datahook = DataHook() # bug in YAFF: override start/step after init
-        datahook.start = pars['start']
-        datahook.step  = pars['step']
-        hooks = []
-        hooks.append(loghook)
-        hooks.append(datahook)
-        if len(plumed_input) > 0: # add bias if present
-            try_manual_plumed_linking()
-            if len(inputs) > 1: # item 1 is hills file; only one to backup
-                with open(inputs[1], 'r') as f: # always exists
-                    backup_data = f.read() # backup data
-            with tempfile.NamedTemporaryFile(delete=False, mode='w+') as f:
-                f.write(plumed_input) # write input
-            path_plumed = f.name
-            tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
-            tmp.close()
-            path_log = tmp.name # dummy log file
-            part_plumed = ForcePartPlumed(
-                    forcefield.system,
-                    timestep=pars['timestep'] * molmod.units.femtosecond,
-                    restart=1,
-                    fn=path_plumed,
-                    fn_log=path_log,
-                    )
-            forcefield.add_part(part_plumed)
-            hooks.append(part_plumed) # NECESSARY!!
-
-        if pars['temperature'] is not None:
-            thermo = yaff.LangevinThermostat(
-                    pars['temperature'],
-                    timecon=100 * molmod.units.femtosecond,
-                    )
-            if pars['pressure'] is None:
-                print('sampling NVT ensemble ...')
-                hooks.append(thermo)
-            else:
-                print('sampling NPT ensemble ...')
-                try: # some models do not have stress support; prevent NPT!
-                    stress = atoms.get_stress()
-                except Exception as e:
-                    raise ValueError('NPT requires stress support in model')
-                baro = yaff.LangevinBarostat(
-                        forcefield,
-                        pars['temperature'],
-                        pars['pressure'] * 1e6 * molmod.units.pascal, # in MPa
-                        timecon=molmod.units.picosecond,
-                        anisotropic=True,
-                        vol_constraint=False,
-                        )
-                tbc = yaff.TBCombination(thermo, baro)
-                hooks.append(tbc)
-        else:
-            print('sampling NVE ensemble')
-
+            pass
+    if 'unsafe' in stdout:
+        tag = 'unsafe'
+    else:
         tag = 'safe'
-        counter = 0
-        try: # exception may already be raised at initialization of verlet
-            verlet = yaff.VerletIntegrator(
-                    forcefield,
-                    timestep=pars['timestep']*molmod.units.femtosecond,
-                    hooks=hooks,
-                    temp0=pars['initial_temperature'],
-                    )
-            yaff.log.set_level(yaff.log.medium)
-            verlet.run(pars['steps'])
-            counter = verlet.counter
-        except ForceThresholdExceededException as e:
-            print(e)
-            print('tagging sample as unsafe')
-            tag = 'unsafe'
-            try:
-                counter = verlet.counter
-            except UnboundLocalError: # if it happened during verlet init
-                pass
-        except parsl.app.errors.AppTimeout as e:
-            counter = verlet.counter
-            print(e)
-        yaff.log.set_level(yaff.log.silent)
-        fdo.close()
-
-        if len(plumed_input) > 0:
-            os.unlink(path_log)
-            os.unlink(path_plumed)
-
-        # update state with last stored state if data nonempty
-        if len(datahook.data) > 0:
-            state.set_positions(datahook.data[-1].get_positions())
-            state.set_cell(datahook.data[-1].get_cell())
-
-        # write data to output xyz
-        if keep_trajectory:
-            assert str(outputs[0].filepath).endswith('.xyz')
-            with open(outputs[0], 'w+') as f:
-                write_extxyz(f, datahook.data)
-
-        # check whether counter == 0 actually means state = start
-        counter_is_reset = counter == 0
-        state_is_reset   = np.allclose(
-                    initial.get_positions(),
-                    state.get_positions(),
-                    )
-        if state_is_reset:
-            if len(plumed_input) > 0:
-                if len(inputs) > 1:
-                    with open(inputs[1], 'w') as f: # reset hills
-                        f.write(backup_data)
-        if counter_is_reset: assert state_is_reset
-        if state_is_reset and (pars['step'] == 1): assert counter_is_reset
-    return FlowAtoms.from_atoms(state), tag, counter
+    atoms = FlowAtoms.from_atoms(read(str(inputs[2]))) # reads last state
+    return atoms, tag, counter
 
 
 @typeguard.typechecked
@@ -276,11 +186,16 @@ class DynamicWalker(BaseWalker):
                 else:
                     resource_spec = {}
         if walltime is None:
-            walltime = 1e10 # infinite
+            walltime = 1e4 # infinite
 
-        app_propagate = python_app(
-                simulate_model,
+        app_propagate = bash_app(
+                molecular_dynamics_yaff,
                 executors=[label],
+                cache=False,
+                )
+        app_propagate_post = python_app(
+                molecular_dynamics_yaff_post,
+                executors=['default'],
                 cache=False,
                 )
 
@@ -291,21 +206,26 @@ class DynamicWalker(BaseWalker):
                 model: BaseModel = None,
                 keep_trajectory: bool = False,
                 file: Optional[File] = None,
-                ) -> AppFuture:
+                ) -> tuple[AppFuture, Optional[DataFuture]]:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
-            inputs = [model.deploy_future[dtype]]
-            outputs = []
+            future_atoms = app_save_dataset(
+                    states=None,
+                    inputs=[state],
+                    outputs=[psiflow.context().new_file('data_', '.xyz')],
+                    ).outputs[0]
+            inputs = [future_atoms, model.deploy_future[dtype]]
             if keep_trajectory:
                 assert file is not None
-                outputs.append(file)
-            result = app_propagate(
+            else:
+                file = psiflow.context().new_file('data_', '.xyz')
+            outputs = [file]
+            future = app_propagate(
                     device,
                     ncores,
                     dtype,
-                    state,
                     parameters,
-                    model.load_calculator, # load function
+                    model.__class__.__name__, # load function
                     keep_trajectory=keep_trajectory,
                     plumed_input='',
                     inputs=inputs,
@@ -315,7 +235,10 @@ class DynamicWalker(BaseWalker):
                     stderr=parsl.AUTO_LOGNAME, # error redirected to this file
                     parsl_resource_specification=resource_spec,
                     )
-            return result
+            result = app_propagate_post(
+                    inputs=[future, future.stdout, future.outputs[0]],
+                    )
+            return result, future.outputs[0]
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
 
@@ -339,6 +262,9 @@ class BiasedDynamicWalker(DynamicWalker):
             ) -> tuple[DataFuture, ...]:
         self.bias.save(path, require_done)
         return super().save(path, require_done)
+
+    def reset(self, conditional: bool = False) -> AppFuture:
+        return super().reset(conditional)
 
     def copy(self) -> BaseWalker:
         walker = self.__class__(self.state_future, self.bias, **self.parameters)
@@ -420,42 +346,51 @@ class BiasedDynamicWalker(DynamicWalker):
                 else:
                     resource_spec = {}
         if walltime is None:
-            walltime = 1e10 # infinite
+            walltime = 1e4 # infinite
 
-        app_propagate = python_app(
-                simulate_model,
+        app_propagate = bash_app(
+                molecular_dynamics_yaff,
                 executors=[label],
+                cache=False,
+                )
+        app_propagate_post = python_app(
+                molecular_dynamics_yaff_post,
+                executors=['default'],
                 cache=False,
                 )
 
         @typeguard.typechecked
         def propagate_wrapped(
                 state: AppFuture,
-                parameters: Any,
+                parameters: dict[str, Any],
                 bias: PlumedBias,
                 model: BaseModel = None,
                 keep_trajectory: bool = False,
                 file: Optional[File] = None,
-                ) -> AppFuture:
+                ) -> tuple[AppFuture, Optional[DataFuture]]:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
-            inputs = [model.deploy_future[dtype]]
-            outputs = []
+            future_atoms = app_save_dataset(
+                    states=None,
+                    inputs=[state],
+                    outputs=[psiflow.context().new_file('data_', '.xyz')],
+                    ).outputs[0]
+            inputs = [future_atoms, model.deploy_future[dtype]]
             if keep_trajectory:
                 assert file is not None
-                outputs.append(file)
-            plumed_input = bias.prepare_input()
+            else:
+                file = psiflow.context().new_file('data_', '.xyz')
+            outputs = [file]
             inputs += bias.futures
             outputs += [File(f.filepath) for f in bias.futures]
-            result = app_propagate(
+            future = app_propagate(
                     device,
                     ncores,
                     dtype,
-                    state,
                     parameters,
-                    model.load_calculator, # load function
+                    model.__class__.__name__, # load function
                     keep_trajectory=keep_trajectory,
-                    plumed_input=plumed_input,
+                    plumed_input=bias.prepare_input(),
                     inputs=inputs,
                     outputs=outputs,
                     walltime=(walltime * 60 - 20), # 20s slack
@@ -464,14 +399,28 @@ class BiasedDynamicWalker(DynamicWalker):
                     parsl_resource_specification=resource_spec,
                     )
             if 'METAD' in bias.keys:
-                if keep_trajectory:
-                    index = 1
-                else:
-                    index = 0
-                bias.data_futures['METAD'] = result.outputs[index]
-            return result
+                bias.data_futures['METAD'] = future.outputs[1]
+            result = app_propagate_post(
+                    inputs = [future, future.stdout, future.outputs[0]],
+                    )
+            return result, future.outputs[0]
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
+
+
+@python_app(executors=['default'])
+def determine_center(
+        steps: int,
+        counter: int,
+        targets: np.ndarray,
+        ) -> float:
+    index = counter // steps
+    i = index % (2 * len(targets))
+    if i >= len(targets):
+        i = len(targets) - i % len(targets) - 1
+    assert i >= 0
+    assert i < len(targets)
+    return targets[i]
 
 
 class MovingRestraintDynamicWalker(BiasedDynamicWalker):
@@ -484,7 +433,6 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
             max_value: float = None,
             increment: float = None,
             num_propagations: int = None,
-            index: int = 0,
             **kwargs) -> None:
         super().__init__(atoms, **kwargs)
         assert variable in self.bias.variables
@@ -493,7 +441,6 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
         self.max_value = max_value
         self.increment = increment
         self.num_propagations = num_propagations
-        self.index = index
         self.targets = np.linspace(
                 min_value,
                 max_value,
@@ -501,57 +448,60 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
                 endpoint=True,
                 )
 
-    def _propagate(self, model, keep_trajectory, file):
-        assert model is not None
-        name = model.__class__.__name__
-        context = psiflow.context()
-        try:
-            app = context.apps(self.__class__, 'propagate_' + name)
-        except (KeyError, AssertionError):
-            assert model.__class__ in context.definitions.keys()
-            self.create_apps(model_cls=model.__class__)
-            app = context.apps(self.__class__, 'propagate_' + name)
+    def propagate(
+            self,
+            keep_trajectory: bool = False,
+            reset_if_unsafe: bool = True,
+            model: Optional[BaseModel] = None,
+            ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
+        if keep_trajectory:
+            file = psiflow.context().new_file('data_', '.xyz')
+        else:
+            file = None
 
         # if targets are [a, b, c]; then i will select according to
-        # index 0: a
-        # index 1: b
-        # index 2: c
-        # index 3: b
-        # index 4: a
-        # index 5: b etc
+        # counter 0         : a
+        # counter 1 * steps : b
+        # counter 2 * steps : c
+        # counter 3 * steps : b
+        # counter 4 * steps : a
+        # counter 5 * steps : b etc
         files = []
-        state = self.state_future
         for j in range(self.num_propagations):
             if keep_trajectory:
                 _file = psiflow.context().new_file('data_', '.xyz')
             else:
                 _file = None
-            i = self.index % (2 * len(self.targets))
-            if i >= len(self.targets):
-                i = len(self.targets) - i % len(self.targets) - 1
-            assert i >= 0
-            assert i < len(self.targets)
+            center = determine_center(
+                    self.steps,
+                    self.counter_future,
+                    self.targets,
+                    )
             self.bias.adjust_restraint(
                     self.variable,
                     kappa=None,
-                    center=self.targets[i],
+                    center=center.result(), # blocking necessary!
                     )
-            self.index += 1
-            future = app(
-                    state,
-                    self.parameters,
-                    self.bias,
+            future, output = self._propagate(
                     model,
                     keep_trajectory,
                     _file,
                     )
-            state = unpack_i(future, 0)
+            self.state_future = unpack_i(future, 0)
+            self.tag_future = update_tag(self.tag_future, unpack_i(future, 1))
+            self.counter_future = sum_counters(self.counter_future, unpack_i(future, 2))
+            if reset_if_unsafe:
+                self.reset(conditional=True)
             if keep_trajectory:
-                files.append(future.outputs[0])
+                files.append(output)
+        future = self.bias.evaluate(
+                Dataset([self.state_future]),
+                as_dataset=True)[0]
         if keep_trajectory:
-            join_future = app_join_dataset(inputs=files, outputs=[file])
-            future.outputs[0] = join_future.outputs[0] # hacky
-        return future
+            output_future = app_join_dataset(inputs=files, outputs=[file]).outputs[0]
+            return future, Dataset(None, data_future=output_future)
+        else:
+            return future
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -561,7 +511,6 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
         parameters['max_value'] = self.max_value
         parameters['increment'] = self.increment
         parameters['num_propagations'] = self.num_propagations
-        parameters['index'] = self.index
         return parameters
 
     @classmethod

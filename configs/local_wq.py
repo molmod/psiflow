@@ -42,7 +42,7 @@ definitions = {
         MP2CP2KReference: [reference_evaluate],
         }
 
-containerize = False
+containerize = True
 if containerize:
     launcher = ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=True)
 else:

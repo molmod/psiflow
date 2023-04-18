@@ -5,6 +5,7 @@ import logging
 import yaml
 import tempfile
 from copy import deepcopy
+from math import ceil
 from pathlib import Path
 
 import parsl
@@ -14,7 +15,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.execution import ModelTrainingExecution, ModelEvaluationExecution
-from psiflow.data import Dataset
+from psiflow.data import Dataset, app_join_dataset
 from psiflow.utils import copy_app_future, save_yaml, copy_data_future, \
         resolve_and_check
 
@@ -130,16 +131,31 @@ class BaseModel:
                 )
         self.model_future = self.config_future.outputs[0] # to undeployed model
 
-    def evaluate(self, dataset: Dataset) -> Dataset:
+    def evaluate(self, dataset: Dataset, batch_size: Optional[int] = 100) -> Dataset:
         """Evaluates a dataset using a model"""
         context = psiflow.context()
-        data_future = context.apps(self.__class__, 'evaluate')(
-                self.deploy_future,
-                self.use_formation_energy,
-                inputs=[dataset.data_future],
-                outputs=[context.new_file('data_', '.xyz')],
-                ).outputs[0]
-        return Dataset(None, data_future=data_future)
+        length = dataset.length().result()
+        if (batch_size is None) or (batch_size >= length):
+            data_future = context.apps(self.__class__, 'evaluate')(
+                    self.deploy_future,
+                    self.use_formation_energy,
+                    inputs=[dataset.data_future],
+                    outputs=[context.new_file('data_', '.xyz')],
+                    ).outputs[0]
+            return Dataset(None, data_future=data_future)
+        else:
+            nbatches = ceil(length / batch_size)
+            data_list = []
+            for i in range(nbatches - 1):
+                batch = dataset[i * batch_size : (i + 1) * batch_size]
+                data_list.append(self.evaluate(batch))
+            last = dataset[(nbatches - 1) * batch_size:]
+            data_list.append(self.evaluate(last))
+            data_future = app_join_dataset(
+                    inputs=[d.data_future for d in data_list],
+                    outputs=[context.new_file('data_', '.xyz')],
+                    ).outputs[0]
+            return Dataset(None, data_future=data_future)
 
     def reset(self) -> None:
         self.config_future = None

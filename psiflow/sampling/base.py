@@ -91,7 +91,7 @@ class BaseWalker:
             file = psiflow.context().new_file('data_', '.xyz')
         else:
             file = None
-        result = self._propagate(
+        result, output_future = self._propagate(
                 model=model,
                 keep_trajectory=keep_trajectory,
                 file=file,
@@ -108,7 +108,8 @@ class BaseWalker:
         if reset_if_unsafe:
             self.reset(conditional=True)
         if keep_trajectory:
-            return future, Dataset(None, data_future=result.outputs[0])
+            assert output_future is not None
+            return future, Dataset(None, data_future=output_future)
         else:
             return future
 

@@ -315,8 +315,8 @@ def test_moving_restraint_walker(context, dataset, mace_config, tmp_path):
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
-restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
-"""
+restraint: RESTRAINT ARG=CV AT=100.0 KAPPA=100
+""" # AT=100.0 because floats are written with decimal
     bias = PlumedBias(plumed_input)
     walkers = MovingRestraintDynamicWalker.multiply(
             3,
@@ -339,14 +339,16 @@ restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
     model.initialize(dataset[:2])
     model.deploy()
     walkers[0].propagate(model=model)
-    assert walkers[0].index == 1
+    assert walkers[0].counter_future.result() == 11 * 1
 
     walkers[0].save(tmp_path)
     walker = load_walker(tmp_path)
     assert type(walker) == MovingRestraintDynamicWalker
-    assert walker.index == 1
+    assert walker.counter_future.result() == 11
+    assert walker.bias.plumed_input == walkers[0].bias.plumed_input
 
     assert walkers[1].bias.plumed_input == walkers[2].bias.plumed_input
+    walkers[0].propagate(model=model)
     assert not (walkers[0].bias.plumed_input == walkers[1].bias.plumed_input)
 
     walker.propagate(model=model) # 200
@@ -360,8 +362,19 @@ restraint: RESTRAINT ARG=CV AT=100 KAPPA=100
 
     walker.num_propagations = 3
     walker.propagate(model=model)
-    assert walker.index == 7
+    assert walker.counter_future.result() == 7 * walker.steps
+
+    walker.reset()
+    assert walker.counter_future.result() == 0
 
     _, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    assert walker.index == 10
+    assert walker.counter_future.result() == 33
     assert trajectory.length().result() == 3 * 12
+
+    walker.force_threshold = 1e-7
+    walker.propagate(model=model)
+    assert walker.counter_future.result() == 0 # is reset
+    assert walker.tag_future.result() == 'safe'
+    print(walker.bias.plumed_input)
+    print(walkers[1].bias.plumed_input)
+    assert walker.bias.plumed_input == walkers[1].bias.plumed_input

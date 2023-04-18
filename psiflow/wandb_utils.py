@@ -63,23 +63,26 @@ def log_data(
         dataset: Dataset,
         model: BaseModel,
         error_x_axis: str,
-        error_kwargs: Optional[dict[str, Any]],
-        ) -> AppFuture:
-    assert error_kwargs is not None
+        error_kwargs: dict[str, dict],
+        ) -> dict[str, AppFuture]:
     if len(model.deploy_future) == 0:
         model.deploy()
-    errors = Dataset.get_errors(
-            dataset,
-            model.evaluate(dataset),
-            **error_kwargs,
-            )
-    error_labels = [error_kwargs['metric'] + '_' + p for p in error_kwargs['properties']]
-    return app_log_data(
-            error_x_axis,
-            errors=errors,
-            error_labels=error_labels,
-            inputs=[dataset.data_future],
-            )
+    evaluated = model.evaluate(dataset)
+    log = {}
+    for suffix, kwargs_dict in error_kwargs.items():
+        errors = Dataset.get_errors(
+                dataset,
+                evaluated,
+                **kwargs_dict,
+                )
+        error_labels = [kwargs_dict['metric'] + '_' + p for p in kwargs_dict['properties']]
+        log[suffix] = app_log_data(
+                error_x_axis,
+                errors=errors,
+                error_labels=error_labels,
+                inputs=[dataset.data_future],
+                )
+    return log
 
 
 @typeguard.typechecked
@@ -100,7 +103,6 @@ class WandBLogger:
             data_valid: Optional[Dataset] = None,
             data_failed: Optional[Dataset] = None,
             ) -> AppFuture:
-        log_futures = {}
         logger.info('logging data to wandb')
         x_axis_present = True
         if data_train is not None:
@@ -113,7 +115,7 @@ class WandBLogger:
             error_x_axis = self.error_x_axis
         else:
             logger.critical('could not find variable "{}" in XYZ header of data'
-                    '; fall back to using state index during logging'.format(
+                    '; falling back to using state index during logging'.format(
                         self.error_x_axis))
             error_x_axis = 'index'
 
@@ -137,30 +139,19 @@ class WandBLogger:
                         'atom_indices': [index],
                         }
 
+        log_futures = {}
         if data_train is not None:
-            for suffix, kwargs_dict in error_kwargs.items():
-                log_futures['training_' + suffix] = log_data( # log training and validation data as tables
-                        dataset=data_train,
-                        model=model,
-                        error_x_axis=error_x_axis,
-                        error_kwargs=kwargs_dict,
-                        )
+            log = log_data(data_train, model, error_x_axis, error_kwargs)
+            for suffix, value in log.items():
+                log_futures['training_' + suffix] = value
         if data_valid is not None:
-            for suffix, kwargs_dict in error_kwargs.items():
-                log_futures['validation_' + suffix] = log_data( # log training and validation data as tables
-                        dataset=data_valid,
-                        model=model,
-                        error_x_axis=error_x_axis,
-                        error_kwargs=kwargs_dict,
-                        )
+            log = log_data(data_valid, model, error_x_axis, error_kwargs)
+            for suffix, value in log.items():
+                log_futures['validation_' + suffix] = value
         if data_failed is not None:
-            for suffix, kwargs_dict in error_kwargs.items():
-                log_futures['failed_' + suffix] = log_data( # log training and validation data as tables
-                        dataset=data_failed,
-                        model=model,
-                        error_x_axis=error_x_axis,
-                        error_kwargs=kwargs_dict,
-                        )
+            log = log_data(data_failed, model, error_x_axis, error_kwargs)
+            for suffix, value in log.items():
+                log_futures['failed_' + suffix] = value
         logger.info('\twandb project: {}'.format(self.wandb_project))
         logger.info('\twandb group  : {}'.format(self.wandb_group))
         logger.info('\twandb name   : {}'.format(run_name))

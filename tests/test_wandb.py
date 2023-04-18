@@ -5,6 +5,8 @@ import wandb
 from pathlib import Path
 import numpy as np
 
+from parsl.dataflow.futures import AppFuture
+
 from psiflow.data import Dataset
 from psiflow.generate import generate_all
 from psiflow.models import NequIPModel, MACEModel
@@ -20,10 +22,10 @@ def reference(context):
 
 
 def test_log_dataset_walkers(context, dataset, nequip_config, tmp_path, reference):
-    error_kwargs = {
+    error_kwargs = {'all': {
             'metric': 'mae',
             'properties': ['energy', 'forces', 'stress'],
-            }
+            }}
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -35,18 +37,20 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
     model = NequIPModel(nequip_config)
     model.initialize(dataset[:2])
     model.deploy()
-    future = log_data(
+    log = log_data(
             bias.evaluate(dataset, as_dataset=True),
             model=model,
             error_x_axis='CV1',
             error_kwargs=error_kwargs,
             )
+    assert 'all' in log.keys()
+    assert isinstance(log['all'], AppFuture)
     log0 = to_wandb(
             'run_name',
             'test_log_dataset_walkers',
             'pytest',
             ['training_all'],
-            inputs=[future],
+            inputs=[log['all']],
             )
     log0.result()
 

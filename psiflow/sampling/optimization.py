@@ -8,6 +8,7 @@ from ase import Atoms
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
+from parsl.app.futures import DataFuture
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
@@ -141,7 +142,7 @@ class OptimizationWalker(BaseWalker):
                 keep_trajectory: bool = False,
                 file: Optional[File] = None,
                 **kwargs,
-                ) -> AppFuture:
+                ) -> tuple[AppFuture, Optional[DataFuture]]:
             assert model is not None # model is required
             assert 'float64' in model.deploy_future.keys() # has to be deployed
             inputs = [model.deploy_future['float64']]
@@ -159,7 +160,11 @@ class OptimizationWalker(BaseWalker):
                     inputs=inputs,
                     outputs=outputs,
                     )
-            return result
+            if keep_trajectory:
+                output_future = result.outputs[0]
+            else:
+                output_future = None
+            return result, output_future
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, optimize_wrapped)
         super(OptimizationWalker, cls).create_apps()

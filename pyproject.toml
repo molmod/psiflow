@@ -42,6 +42,7 @@ docs = [
 [project.scripts]
 psiflow-train-nequip = 'psiflow.models.train_nequip:main'
 psiflow-train-mace   = 'psiflow.models.train_mace:main'
+psiflow-md-yaff      = 'psiflow.sampling.molecular_dynamics_yaff:main'
 psiflow-test         = 'psiflow.test:main'
 
 

@@ -59,10 +59,11 @@ class RandomWalker(BaseWalker):
         self.amplitude_box = amplitude_box
 
     def _propagate(self, **kwargs):
-        return app_random_perturbation( # no additional kwargs needed
+        future = app_random_perturbation(
                 self.state_future,
                 self.parameters,
                 )
+        return future, None # no output trajectory
 
     @property
     def parameters(self) -> dict[str, Any]:
