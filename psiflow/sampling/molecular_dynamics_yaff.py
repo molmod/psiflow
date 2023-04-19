@@ -62,8 +62,9 @@ def main():
     signal.signal(signal.SIGALRM, timeout_handler)
     signal.alarm(int(args.walltime))
 
-    if args.device == 'cpu':
-        torch.set_num_threads(args.ncores)
+    print('torch: initial num threads: ', torch.get_num_threads())
+    torch.set_num_threads(args.ncores)
+    print('torch: num threads set to ', torch.get_num_threads())
     if args.dtype == 'float64':
         torch.set_default_dtype(torch.float64)
     else:

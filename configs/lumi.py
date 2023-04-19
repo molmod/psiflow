@@ -57,7 +57,7 @@ provider = SlurmProviderVSC(       # one block == one slurm job to submit
         max_blocks=1,           # do not use more than one block
         walltime='24:00:00',    # walltime per block
         exclusive=False,
-        launcher=ContainerizedLauncher(apptainer_or_singularity='singularity', tag='1.0.0rc0-rocm4.5.2', enable_gpu=False),
+        launcher=ContainerizedLauncher(apptainer_or_singularity='singularity', tag='1.0.0rc0-rocm5.2', enable_gpu=False),
         )
 providers['default'] = provider
 
@@ -75,7 +75,7 @@ provider = SlurmProviderVSC(
         parallelism=1,
         walltime='02:00:00',
         exclusive=False,
-        launcher=ContainerizedLauncher(apptainer_or_singularity='singularity', tag='1.0.0rc0-rocm4.5.2', enable_gpu=False),
+        launcher=ContainerizedLauncher(apptainer_or_singularity='singularity', tag='1.0.0rc0-rocm5.2', enable_gpu=False),
         )
 providers['model'] = provider
 
@@ -100,7 +100,7 @@ provider = SlurmProviderVSC(
         worker_init=worker_init,
         exclusive=False,
         scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=8\n', # request gpu
-        launcher=ContainerizedLauncher(apptainer_or_singularity='singularity', tag='1.0.0rc0-rocm4.5.2', enable_gpu=True),
+        launcher=ContainerizedLauncher(apptainer_or_singularity='singularity', tag='1.0.0rc0-rocm5.2', enable_gpu=True),
         )
 providers['training'] = provider
 
@@ -117,7 +117,7 @@ provider = SlurmProviderVSC(
         parallelism=1,
         walltime='00:59:59',
         exclusive=False,
-        launcher=ContainerizedLauncher(apptainer_or_singularity='singularity', tag='1.0.0rc0-rocm4.5.2', enable_gpu=False),
+        launcher=ContainerizedLauncher(apptainer_or_singularity='singularity', tag='1.0.0rc0-rocm5.2', enable_gpu=False),
         )
 providers['reference'] = provider
 

@@ -12,7 +12,7 @@ from psiflow.execution import generate_parsl_config, ContainerizedLauncher
 model_evaluate = ModelEvaluationExecution(
         executor='model',
         device='cpu',
-        ncores=1,
+        ncores=4,
         dtype='float32',
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
@@ -42,7 +42,7 @@ definitions = {
 
 containerize = False
 if containerize:
-    launcher = ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=True)
+    launcher = ContainerizedLauncher(uri='psiflow_1.0.0rc0-cuda11.3.sif', tag='', enable_gpu=True)
 else:
     launcher = SimpleLauncher()
 
