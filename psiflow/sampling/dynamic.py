@@ -23,6 +23,7 @@ from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future, pack
 from psiflow.sampling import BaseWalker, PlumedBias
+from psiflow.sampling.utils import parse_yaff_output
 from psiflow.sampling.base import sum_counters, update_tag, conditional_reset
 from psiflow.models import BaseModel
 
@@ -45,10 +46,12 @@ def molecular_dynamics_yaff(
         ) -> str:
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd  = 'cd $mytmpdir;'
+    command_unbuffer = 'export PYTHONUNBUFFERED=TRUE;'
     command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
     command_list = [
             command_tmp,
             command_cd,
+            command_unbuffer,
             command_write,
             'timeout -k 5 {}s'.format(max(walltime - 100, 0)), # some time is spent on copying
             'psiflow-md-yaff',
@@ -88,17 +91,7 @@ def molecular_dynamics_yaff_post(
     from psiflow.data import FlowAtoms
     with open(inputs[1], 'r') as f:
         stdout = f.read()
-    counter = 0
-    for line in stdout.split('\n')[::-1]:
-        if ('VERLET' in line) and len(line.split()) > 3: # single VERLET log line
-            counter = int(line.split()[1])
-            break
-        else:
-            pass
-    if 'unsafe' in stdout:
-        tag = 'unsafe'
-    else:
-        tag = 'safe'
+    tag, counter = parse_yaff_output(stdout)
     atoms = FlowAtoms.from_atoms(read(str(inputs[2]))) # reads last state
     return atoms, tag, counter
 

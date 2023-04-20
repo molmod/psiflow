@@ -11,6 +11,7 @@ from psiflow.models import NequIPModel, MACEModel
 from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker, \
         MovingRestraintDynamicWalker
+from psiflow.sampling.utils import parse_yaff_output
 from psiflow.data import Dataset
 from psiflow.generate import generate_all
 
@@ -95,6 +96,33 @@ def test_random_walker(context, dataset):
     assert walker.tag_future.result() == 'safe'
 
     state = walker.propagate(model=None) # irrelevant kwargs are ignored
+
+
+def test_parse_yaff(context, dataset, tmp_path):
+    stdout = """
+    sampling NVT ensemble ...
+
+  ENSEM Temperature coupling achieved through Langevin thermostat
+
+ VERLET ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ VERLET Cons.Err. = the root of the ratio of the variance on the conserved
+ VERLET             quantity and the variance on the kinetic energy.
+ VERLET d-rmsd    = the root-mean-square displacement of the atoms.
+ VERLET g-rmsd    = the root-mean-square gradient of the energy.
+ VERLET counter  Cons.Err.       Temp     d-RMSD     g-RMSD   Walltime
+ VERLET ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ VERLET       0    0.00000      353.7     0.0000      166.3        0.0
+ VERLET       1    0.00000      353.7     0.0000      166.3        0.0
+ VERLET WARNING!! You are using PLUMED as a hook for your integrator. If PLUMED
+ VERLET           adds time-dependent forces (for instance when performing
+ VERLET           metadynamics) there is no energy conservation. The conserved
+ VERLET           quantity reported by YAFF is irrelevant in this case.
+Max force exceeded: 32.15052795410156 eV/A by atom index 289
+tagging sample as unsafe
+    """
+    tag, counter = parse_yaff_output(stdout)
+    assert tag == 'unsafe'
+    assert counter == 1
 
 
 def test_dynamic_walker_plain(context, dataset, mace_config):

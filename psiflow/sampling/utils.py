@@ -209,3 +209,22 @@ def compute_strain(box, box0):
     """
     box0inv = np.linalg.inv(box0)
     return 0.5 * (box0inv @ box @ box.T @ box0inv.T - np.eye(3))
+
+
+def parse_yaff_output(stdout):
+    counter = 0
+    for line in stdout.split('\n')[::-1]:
+        if ('VERLET' in line):
+            try:
+                a = [float(s) for s in line.split()[1:]]
+            except ValueError:
+                continue
+            counter = int(line.split()[1])
+            break
+        else:
+            pass
+    if 'unsafe' in stdout:
+        tag = 'unsafe'
+    else:
+        tag = 'safe'
+    return tag, counter
