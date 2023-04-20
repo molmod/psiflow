@@ -401,7 +401,7 @@ class BiasedDynamicWalker(DynamicWalker):
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
 
 
-@python_app
+@python_app(executors=['default'])
 def determine_center(
         steps: int,
         counter: int,
