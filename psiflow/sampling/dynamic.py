@@ -23,7 +23,6 @@ from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future, pack
 from psiflow.sampling import BaseWalker, PlumedBias
-from psiflow.sampling.utils import parse_yaff_output
 from psiflow.sampling.base import sum_counters, update_tag, conditional_reset
 from psiflow.models import BaseModel
 
@@ -89,6 +88,7 @@ def molecular_dynamics_yaff_post(
         ):
     from ase.io import read
     from psiflow.data import FlowAtoms
+    from psiflow.sampling.utils import parse_yaff_output
     with open(inputs[1], 'r') as f:
         stdout = f.read()
     tag, counter = parse_yaff_output(stdout)

@@ -1,7 +1,7 @@
 FROM mambaorg/micromamba:1.4.2
 
 
-RUN micromamba install -n base --yes -c conda-forge python=3.10 pip ndcctools=7.4.2 plumed cp2k && \
+RUN micromamba install -n base --yes -c conda-forge python=3.9 pip ndcctools=7.5.2 plumed cp2k && \
     micromamba clean -af --yes
 ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
 
@@ -18,9 +18,7 @@ RUN pip install cython matscipy prettytable plumed && \
     pip install git+https://github.com/mir-group/allegro.git --no-deps && \
     pip install --force git+https://git@github.com/ACEsuit/MACE.git@d520abac437648dafbec0f6e203ec720afa16cf7 --no-deps && \
     pip uninstall torch -y && pip install --force torch==1.13.1 --index-url https://download.pytorch.org/whl/rocm5.2
-RUN pip install git+https://github.com/svandenhaute/psiflow@e9f22fd
-RUN pip uninstall protobuf -y && pip install protobuf==3.20 # weird wandb bug
-RUN pip install git+https://github.com/svandenhaute/psiflow@e9f22fd
+RUN pip install git+https://github.com/svandenhaute/psiflow@63c021e
 RUN pip cache purge
 
 USER root
@@ -30,3 +28,4 @@ RUN chmod 755 /home/mambauser
 USER mambauser
 ENV OMPI_MCA_plm_rsh_agent=
 ENV LD_LIBRARY_PATH /opt/conda/lib
+ENV OMP_PROC_BIND=TRUE
