@@ -364,6 +364,7 @@ restraint: RESTRAINT ARG=CV AT=100.0 KAPPA=100
     walker.save(tmp_path)
     walker = load_walker(tmp_path)
 
+    print('3 propagations')
     walker.num_propagations = 3
     walker.propagate(model=model)
     assert walker.counter_future.result() == 7 * walker.steps

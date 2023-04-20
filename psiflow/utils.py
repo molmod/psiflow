@@ -108,6 +108,12 @@ copy_app_future = python_app(_copy_app_future, executors=['default'])
 
 
 @typeguard.typechecked
+def _pack(*args):
+    return args
+pack = python_app(_pack, executors=['default'])
+
+
+@typeguard.typechecked
 def _unpack_i(result: Union[List, Tuple], i: int) -> Any:
     return result[i]
 unpack_i = python_app(_unpack_i, executors=['default'])

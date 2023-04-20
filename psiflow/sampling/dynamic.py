@@ -9,7 +9,7 @@ from dataclasses import dataclass, asdict
 from ase import Atoms
 
 import parsl
-from parsl.app.app import python_app, bash_app
+from parsl.app.app import python_app, bash_app, join_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
@@ -21,7 +21,7 @@ from psiflow.data import Dataset, FlowAtoms, app_join_dataset, \
         app_save_dataset
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
-        copy_app_future
+        copy_app_future, pack
 from psiflow.sampling import BaseWalker, PlumedBias
 from psiflow.sampling.base import sum_counters, update_tag, conditional_reset
 from psiflow.models import BaseModel
@@ -361,7 +361,7 @@ class BiasedDynamicWalker(DynamicWalker):
 
         @typeguard.typechecked
         def propagate_wrapped(
-                state: AppFuture,
+                state: Union[AppFuture, FlowAtoms],
                 parameters: dict[str, Any],
                 bias: PlumedBias,
                 model: BaseModel = None,
@@ -408,7 +408,7 @@ class BiasedDynamicWalker(DynamicWalker):
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
 
 
-@python_app(executors=['default'])
+@python_app
 def determine_center(
         steps: int,
         counter: int,
@@ -421,6 +421,46 @@ def determine_center(
     assert i >= 0
     assert i < len(targets)
     return targets[i]
+
+
+@join_app
+def propagate_single(
+        state: FlowAtoms,
+        walker: MovingRestraintDynamicWalker,
+        model: BaseModel,
+        center: float,
+        keep_trajectory: bool,
+        file,
+        ) -> Any:
+    walker.bias.adjust_restraint(
+            walker.variable,
+            kappa=None,
+            center=center,
+            )
+    assert model is not None
+    name = model.__class__.__name__
+    context = psiflow.context()
+    try:
+        app = context.apps(walker.__class__, 'propagate_' + name)
+    except (KeyError, AssertionError):
+        assert model.__class__ in context.definitions.keys()
+        walker.create_apps(model_cls=model.__class__)
+        app = context.apps(walker.__class__, 'propagate_' + name)
+    result, output = app(
+            state,
+            walker.parameters,
+            walker.bias,
+            model,
+            keep_trajectory,
+            file,
+            )
+    #result.outputs.append(output)
+    return pack(result, output)
+
+
+@join_app
+def combine_output(files, file, *args):
+    return 
 
 
 class MovingRestraintDynamicWalker(BiasedDynamicWalker):
@@ -448,17 +488,7 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
                 endpoint=True,
                 )
 
-    def propagate(
-            self,
-            keep_trajectory: bool = False,
-            reset_if_unsafe: bool = True,
-            model: Optional[BaseModel] = None,
-            ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
-        if keep_trajectory:
-            file = psiflow.context().new_file('data_', '.xyz')
-        else:
-            file = None
-
+    def _propagate(self, model, keep_trajectory, file):
         # if targets are [a, b, c]; then i will select according to
         # counter 0         : a
         # counter 1 * steps : b
@@ -477,31 +507,28 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
                     self.counter_future,
                     self.targets,
                     )
-            self.bias.adjust_restraint(
-                    self.variable,
-                    kappa=None,
-                    center=center.result(), # blocking necessary!
-                    )
-            future, output = self._propagate(
+            join_result = propagate_single(
+                    self.state_future, # pass starting state explicitly!
+                    self,
                     model,
+                    center,
                     keep_trajectory,
                     _file,
                     )
-            self.state_future = unpack_i(future, 0)
-            self.tag_future = update_tag(self.tag_future, unpack_i(future, 1))
+            future = unpack_i(join_result, 0)
+            output = unpack_i(join_result, 1)
+            self.state_future   = unpack_i(future, 0)
+            self.tag_future     = update_tag(self.tag_future, unpack_i(future, 1))
             self.counter_future = sum_counters(self.counter_future, unpack_i(future, 2))
-            if reset_if_unsafe:
-                self.reset(conditional=True)
-            if keep_trajectory:
-                files.append(output)
-        future = self.bias.evaluate(
-                Dataset([self.state_future]),
-                as_dataset=True)[0]
-        if keep_trajectory:
-            output_future = app_join_dataset(inputs=files, outputs=[file]).outputs[0]
-            return future, Dataset(None, data_future=output_future)
+            self.reset(conditional=True)
+            files.append(output)
+        result = pack(self.state_future, self.tag_future, self.counter_future)
+        self.counter_future = 0 # hack to avoid double counting in propagate()!!
+        if file is not None:
+            output = app_join_dataset(inputs=files, outputs=[file]).outputs[0]
         else:
-            return future
+            output = None
+        return result, output
 
     @property
     def parameters(self) -> dict[str, Any]:
