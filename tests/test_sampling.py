@@ -292,6 +292,30 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             )
 
 
+def test_bias_force_threshold(context, mace_config, dataset):
+    model = MACEModel(mace_config)
+    model.initialize(dataset[:2])
+    model.deploy()
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: DISTANCE ATOMS=1,2
+restraint: RESTRAINT ARG=CV AT=2 KAPPA=0.1
+"""
+    bias = PlumedBias(plumed_input)
+    walker = BiasedDynamicWalker(
+            dataset[0],
+            bias=bias,
+            force_threshold=20,
+            steps=3,
+            step=1,
+            )
+    state = walker.propagate(model=model)
+    assert not walker.is_reset().result()
+    bias.adjust_restraint(variable='CV', center=2, kappa=10000)
+    state = walker.propagate(model=model)
+    assert walker.is_reset() # force threshold exceeded!
+
+
 def test_walker_multiply_distribute(context, dataset, mace_config):
     def check(walkers):
         for i, walker in enumerate(walkers):

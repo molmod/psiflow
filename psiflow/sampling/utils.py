@@ -52,7 +52,7 @@ class ForceThresholdExceededException(Exception):
 class ForcePartASE(yaff.pes.ForcePart):
     """YAFF Wrapper around an ASE calculator"""
 
-    def __init__(self, system, atoms, force_threshold):
+    def __init__(self, system, atoms):
         """Constructor
 
         Parameters
@@ -70,7 +70,6 @@ class ForcePartASE(yaff.pes.ForcePart):
         yaff.pes.ForcePart.__init__(self, 'ase', system)
         self.system = system # store system to obtain current pos and box
         self.atoms  = atoms
-        self.force_threshold = force_threshold
 
     def _internal_compute(self, gpos=None, vtens=None):
         self.atoms.set_positions(self.system.pos / molmod.units.angstrom)
@@ -78,13 +77,29 @@ class ForcePartASE(yaff.pes.ForcePart):
         energy = self.atoms.get_potential_energy() * molmod.units.electronvolt
         if gpos is not None:
             forces = self.atoms.get_forces()
-            self.check_threshold(forces)
             gpos[:] = -forces * molmod.units.electronvolt / molmod.units.angstrom
         if vtens is not None:
             stress = self.atoms.get_stress(voigt=False)
             volume = np.linalg.det(self.atoms.get_cell())
             vtens[:] = volume * stress * molmod.units.electronvolt
         return energy
+
+
+class ForceField(yaff.pes.ForceField):
+    """Implements force threshold check"""
+
+    def __init__(self, *args, force_threshold=20, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.force_threshold = force_threshold
+
+    def _internal_compute(self, gpos, vtens):
+        if self.needs_nlist_update: # never necessary?
+            self.nlist.update()
+            self.needs_nlist_update = False
+        result = sum([part.compute(gpos, vtens) for part in self.parts])
+        forces = (-1.0) / molmod.units.electronvolt * molmod.units.angstrom * gpos
+        self.check_threshold(forces)
+        return result
 
     def check_threshold(self, forces):
         max_force = np.max(np.linalg.norm(forces, axis=1))
@@ -103,8 +118,8 @@ def create_forcefield(atoms, force_threshold):
             rvecs=atoms.get_cell() * molmod.units.angstrom,
             )
     system.set_standard_masses()
-    part_ase = ForcePartASE(system, atoms, force_threshold)
-    return yaff.pes.ForceField(system, [part_ase])
+    part_ase = ForcePartASE(system, atoms)
+    return ForceField(system, [part_ase], force_threshold=force_threshold)
 
 
 class DataHook(yaff.VerletHook):
