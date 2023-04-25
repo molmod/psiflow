@@ -467,7 +467,7 @@ class MovingRestraintDynamicWalker(BiasedDynamicWalker):
             min_value: float = None,
             max_value: float = None,
             increment: float = None,
-            num_propagations: int = None,
+            num_propagations: int = 1,
             **kwargs) -> None:
         super().__init__(atoms, **kwargs)
         assert variable in self.bias.variables
