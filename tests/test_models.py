@@ -122,7 +122,6 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
 
 def test_nequip_formation(context, nequip_config, dataset):
     config = NequIPConfig(**nequip_config)
-    config.dataset_key_mapping.pop('energy')
     config.dataset_key_mapping['formation_energy'] = 'total_energy'
     model = NequIPModel(config)
     assert model.use_formation_energy
@@ -138,6 +137,7 @@ def test_nequip_formation(context, nequip_config, dataset):
     assert 'formation_energy' in dataset.energy_labels().result()
     model.initialize(dataset[:2])
     model.deploy()
+    dataset = dataset.reset()
     assert 'formation_energy' in model.evaluate(dataset[:2].reset()).energy_labels().result()
 
 

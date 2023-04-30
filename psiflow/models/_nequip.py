@@ -230,6 +230,11 @@ def to_nequip_dataset(data: List[FlowAtoms], nequip_config: Any):
             prefix='dataset',
             optional_args=_config,
             )
+    if 'formation_energy' in _config['dataset_key_mapping'].keys():
+        logger.critical('training NequIP on formation energy -- experimental!')
+        for atoms in data: # remove 'energy' key manually; otherwise it's still used
+            atoms.info['energy'] = atoms.info['formation_energy']
+            atoms.calc = None
     ase_dataset = ASEDataset.from_atoms_list(
             data,
             extra_fixed_fields={'r_max': _config['r_max']},

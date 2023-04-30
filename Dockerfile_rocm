@@ -18,7 +18,7 @@ RUN pip install cython matscipy prettytable plumed && \
     pip install git+https://github.com/mir-group/allegro.git --no-deps && \
     pip install --force git+https://git@github.com/ACEsuit/MACE.git@d520abac437648dafbec0f6e203ec720afa16cf7 --no-deps && \
     pip uninstall torch -y && pip install --force torch==1.13.1 --index-url https://download.pytorch.org/whl/rocm5.2
-RUN pip install git+https://github.com/svandenhaute/psiflow@3209efe
+RUN pip install git+https://github.com/svandenhaute/psiflow@3aafe74
 RUN pip cache purge
 
 USER root
