@@ -10,7 +10,7 @@ import logging
 import os
 import sys
 import importlib
-import importlib.metadata # necessary on python 3.9
+from importlib import metadata # necessary on python 3.9
 import atexit
 
 import parsl
@@ -321,7 +321,7 @@ class ExecutionContextLoader:
         return cls._context
 
 
-VERSION = importlib.metadata.version('psiflow')
+VERSION = metadata.version('psiflow')
 
 
 @typeguard.typechecked
