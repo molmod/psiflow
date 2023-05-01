@@ -86,7 +86,25 @@ def main():
     parser.add_argument('--nvalid', help='number of configurations in validation set', default=0, type=int)
     args = parser.parse_args()
 
+    # hacky! if remove 'energy' label when training on 'formation_energy'
     config = Config.from_file(args.config, defaults=default_config)
+    if 'formation_energy' in config['dataset_key_mapping'].keys():
+        from ase.io.extxyz import read_extxyz, write_extxyz
+        with open(config['dataset_file_name'], 'r') as f:
+            data = list(read_extxyz(f, index=slice(None)))
+            for atoms in data:
+                atoms.info['energy'] = atoms.info['formation_energy']
+                atoms.calc = None
+        with open(config['dataset_file_name'], 'w') as f:
+            write_extxyz(f, data)
+        with open(config['validation_dataset_file_name'], 'r') as f:
+            data = list(read_extxyz(f, index=slice(None)))
+            for atoms in data:
+                atoms.info['energy'] = atoms.info['formation_energy']
+                atoms.calc = None
+        with open(config['validation_dataset_file_name'], 'w') as f:
+            write_extxyz(f, data)
+
     import os
     config['root'] = os.getcwd()
     trainer = fresh_start(config, args.model)

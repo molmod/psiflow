@@ -136,6 +136,7 @@ def test_nequip_formation(context, nequip_config, dataset):
             )
     assert 'formation_energy' in dataset.energy_labels().result()
     model.initialize(dataset[:2])
+    model.train(dataset[:2], dataset[2:4]) # test shitty hack in train script
     model.deploy()
     dataset = dataset.reset()
     assert 'formation_energy' in model.evaluate(dataset[:2].reset()).energy_labels().result()
