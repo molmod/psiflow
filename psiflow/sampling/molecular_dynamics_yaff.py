@@ -48,7 +48,7 @@ def main():
     assert args.device in ['cpu', 'cuda']
     assert args.dtype in ['float32', 'float64']
     assert Path(args.atoms).is_file()
-    assert args.model_cls in ['MACEModel', 'NequIPModel']
+    assert args.model_cls in ['MACEModel', 'NequIPModel', 'AllegroModel']
     assert Path(args.model).is_file()
     assert args.trajectory is not None
 
@@ -79,6 +79,9 @@ def main():
     elif args.model_cls == 'NequIPModel':
         from psiflow.models import NequIPModel
         load_calculator = NequIPModel.load_calculator
+    elif args.model_cls == 'AllegroModel':
+        from psiflow.models import AllegroModel
+        load_calculator = AllegroModel.load_calculator
     else:
         raise ValueError
     atoms.calc = load_calculator(args.model, args.device, args.dtype)
