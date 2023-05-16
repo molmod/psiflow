@@ -220,10 +220,10 @@ def cp2k_singlepoint_post(
     import numpy as np
     from ase.units import Hartree, Bohr, Pascal
     from pymatgen.io.cp2k.outputs import Cp2kOutput
-    with open(inputs[0], 'r', encoding='utf8') as f:
-        stdout = f.read()
-    with open(inputs[1], 'r', encoding='utf8') as f:
-        stderr = f.read()
+    #with open(inputs[0], 'r', encoding='utf8') as f:
+    #    stdout = f.read()
+    #with open(inputs[1], 'r', encoding='utf8') as f:
+    #    stderr = f.read()
     atoms.reference_stdout = inputs[0]
     atoms.reference_stderr = inputs[1]
     try:
