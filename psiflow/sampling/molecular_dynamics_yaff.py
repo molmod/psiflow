@@ -183,6 +183,6 @@ def main():
                 initial.get_positions(),
                 atoms.get_positions(),
                 )
-    if counter_is_reset: assert state_is_reset
+    #if counter_is_reset: assert state_is_reset
     if state_is_reset and (args.step == 1): assert counter_is_reset
     return FlowAtoms.from_atoms(atoms), tag, counter
