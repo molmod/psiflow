@@ -148,9 +148,8 @@ def generate_parsl_config(
             assert execution is not None
             if use_work_queue:
                 worker_options = [
-                        '--gpus={}'.format(1 if execution.device == 'cuda' else 0),
-                        '--cores={}'.format(execution.ncores),
-                        #'--workdir={}'.format(path_internal),
+                        '--gpus={}'.format(16 if execution.device == 'cuda' else 0),
+                        '--cores={}'.format(provider.cores_per_node),
                         ]
                 if hasattr(provider, 'walltime'):
                     walltime_hhmmss = provider.walltime.split(':')
