@@ -32,4 +32,4 @@ including clouds (e.g. Amazon Web Services, Google Cloud),
 clusters (e.g. SLURM, Torque/PBS, HTCondor)
 and even container orchestration systems (e.g. Kubernetes).
 
-Visit the [psiflow documentation](https://svandenhaute.github.io/psiflow) for more details.
+Visit the [psiflow documentation](https://molmod.github.io/psiflow) for more details.
