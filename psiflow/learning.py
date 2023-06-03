@@ -313,7 +313,8 @@ class IncrementalLearning(BaseLearning):
         # determine max number of iterations
         self.niterations = 0
         for walker in walkers:
-            niterations = int((walker.max_value - walker.min_value) / walker.increment) + 1
+            niterations = (walker.max_value - walker.min_value) / walker.increment + 1
+            niterations = int(niterations / self.num_propagations)
             self.niterations = max(self.niterations, niterations)
 
         for i in range(self.niterations):
