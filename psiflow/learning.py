@@ -289,6 +289,70 @@ class SequentialLearning(BaseLearning):
         return data_train, data_valid
 
 
+@typeguard.typechecked
+@dataclass
+class IncrementalLearning(BaseLearning):
+    num_propagations:   int = 1      # number of additional propagations per iteration
+    niterations: int = 0             # is overrided based on walker settings 
+
+    def run(
+            self,
+            model: BaseModel,
+            reference: BaseReference,
+            walkers: list[BaseWalker],
+            initial_data: Optional[Dataset] = None,
+            ) -> tuple[Dataset, Dataset]:
+        data_train, data_valid = self.initialize_run(
+                model,
+                reference,
+                walkers,
+                initial_data,
+                )
+        model.deploy()
+
+        # determine max number of iterations
+        self.niterations = 0
+        for walker in walkers:
+            niterations = int((walker.max_value - walker.min_value) / walker.increment) + 1
+            self.niterations = max(self.niterations, niterations)
+
+        for i in range(self.niterations):
+            if self.output_exists(str(i)):
+                continue # skip iterations in case of restarted run
+            for walker in walkers:
+                walker.reset()
+                walker.num_propagations = (i + 1) * self.num_propagations
+            data = generate_all(
+                    walkers,
+                    model,
+                    reference,
+                    self.num_tries_sampling,
+                    self.num_tries_reference,
+                    checks=self.checks,
+                    )
+            _data_train, _data_valid = self.split_successful(data)
+            data_train.append(_data_train)
+            data_valid.append(_data_valid)
+            data_train.log('data_train')
+            data_valid.log('data_valid')
+            if self.train_from_scratch:
+                logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
+                model.reset()
+                model.initialize(data_train)
+            model.train(data_train, data_valid)
+            model.deploy()
+            self.finish_iteration(
+                    name=str(i),
+                    model=model,
+                    walkers=walkers,
+                    data_train=data_train,
+                    data_valid=data_valid,
+                    data_failed=data.get(indices=data.failed),
+                    require_done=True,
+                    )
+        return data_train, data_valid
+
+
 @join_app
 def delayed_deploy(model, wait_for_it):
     model.deploy()
