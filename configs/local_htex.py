@@ -25,7 +25,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=4,
         omp_num_threads=1,
-        mpi_command=lambda x: f'mpirun -np {x} --map-by node:PE=1',
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to core',
         cp2k_exec='cp2k.psmp',
         walltime=3, # in minutes
         )
@@ -42,7 +42,7 @@ definitions = {
 
 containerize = True
 if containerize:
-    launcher = ContainerizedLauncher(uri='psiflow_1.0.0rc0-cuda11.3.sif', tag='', enable_gpu=True)
+    launcher = ContainerizedLauncher(uri='oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2', enable_gpu=False)
 else:
     launcher = SimpleLauncher()
 

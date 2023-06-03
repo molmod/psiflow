@@ -320,7 +320,9 @@ class ExecutionContextLoader:
         return cls._context
 
 
-VERSION = metadata.version('psiflow')
+VERSION    = metadata.version('psiflow')
+ADDOPTS    = ' --no-eval -e --no-mount home -W /tmp --writable-tmpfs'
+ENTRYPOINT = '/usr/local/bin/entry.sh'
 
 
 @typeguard.typechecked
@@ -328,27 +330,23 @@ class ContainerizedLauncher(Launcher):
 
     def __init__(
         self,
-        debug: bool = True,
+        uri: str,
         apptainer_or_singularity: str = 'apptainer',
+        addopts: str = ADDOPTS,
+        entrypoint: str = ENTRYPOINT,
         enable_gpu: Optional[bool] = False,
-        tag: str = VERSION + '-cuda11.3',
-        uri: Optional[str] = None,
     ) -> None:
-        super().__init__(debug=debug)
+        super().__init__(debug=True)
+        self.uri = uri # required by Parsl parent class to assign attributes
         self.apptainer_or_singularity = apptainer_or_singularity
-        self.tag = tag
-        if uri is None:
-            uri = 'oras://ghcr.io/svandenhaute/psiflow:' + tag
-        self.uri = uri
+        self.addopts = addopts
+        self.entrypoint = entrypoint
         self.enable_gpu = enable_gpu
 
         self.launch_command = ''
         self.launch_command += apptainer_or_singularity
-        self.launch_command += ' exec'
-        self.launch_command += ' --no-eval'
-        self.launch_command += ' -e --no-mount $HOME/.local' # avoid unwanted python imports from host
-        self.launch_command += ' -W /tmp' # fix problem with WQ in which workers do not have enough disk space
-        self.launch_command += ' --writable-tmpfs' # necessary for wandb
+        self.launch_command += ' exec '
+        self.launch_command += addopts
         self.launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
         env  = {}
         keys = ['WANDB_API_KEY']
@@ -363,12 +361,11 @@ class ContainerizedLauncher(Launcher):
             self.launch_command += ' --env '
             self.launch_command += ','.join([f'{k}={v}' for k, v in env.items()])
         if enable_gpu:
-            if 'cuda' in self.uri:
+            if 'cuda' in self.launch_command:
                 self.launch_command += ' --nv'
             else:
                 self.launch_command += ' --rocm'
-        self.launch_command += ' ' + self.uri
-        self.launch_command += ' /usr/local/bin/_entrypoint.sh '
+        self.launch_command += ' ' + uri + ' ' + entrypoint + ' '
 
     def __call__(self, command: str, tasks_per_node: int, nodes_per_block: int) -> str:
         return self.launch_command + "{}".format(command)

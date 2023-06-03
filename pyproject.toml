@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psiflow"
-version = "1.0.0rc.0"
+version = "1.0.0"
 description = "Library for developing interatomic potentials"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -15,7 +15,7 @@ dependencies = [
     "numpy>=1.22.3",
     "wandb>=0.14.0",
     "pymatgen>=2023.3.23",
-    "parsl==2023.4.10",
+    "parsl==2023.5.29",
     ]
 
 [project.optional-dependencies]

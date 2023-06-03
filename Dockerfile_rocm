@@ -1,31 +1,66 @@
-FROM mambaorg/micromamba:1.4.2
+# bring in the micromamba image so we can copy files from it
+FROM mambaorg/micromamba:1.4.2 as micromamba
 
-
-RUN micromamba install -n base --yes -c conda-forge python=3.9 pip ndcctools=7.5.2 plumed cp2k && \
-    micromamba clean -af --yes
-ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
+# This is the image we are going add micromaba to:
+FROM svandenhaute/cp2k:2023.1
 
 USER root
-RUN apt update && apt install git gcc g++ -y # necessary for pip installs
-USER mambauser
+
+# if your image defaults to a non-root user, then you may want to make the
+# next 3 ARG commands match the values in your image. You can get the values
+# by running: docker run --rm -it my/image id -a
+ARG MAMBA_USER=mamba
+ARG MAMBA_USER_ID=1000
+ARG MAMBA_USER_GID=1000
+ENV MAMBA_USER=$MAMBA_USER
+ENV MAMBA_ROOT_PREFIX="/opt/conda"
+ENV MAMBA_EXE="/bin/micromamba"
+
+COPY --from=micromamba "$MAMBA_EXE" "$MAMBA_EXE"
+COPY --from=micromamba /usr/local/bin/_activate_current_env.sh /usr/local/bin/_activate_current_env.sh
+COPY --from=micromamba /usr/local/bin/_dockerfile_shell.sh /usr/local/bin/_dockerfile_shell.sh
+COPY --from=micromamba /usr/local/bin/_entrypoint.sh /usr/local/bin/_entrypoint.sh
+COPY --from=micromamba /usr/local/bin/_activate_current_env.sh /usr/local/bin/_activate_current_env.sh
+COPY --from=micromamba /usr/local/bin/_dockerfile_initialize_user_accounts.sh /usr/local/bin/_dockerfile_initialize_user_accounts.sh
+COPY --from=micromamba /usr/local/bin/_dockerfile_setup_root_prefix.sh /usr/local/bin/_dockerfile_setup_root_prefix.sh
+
+RUN /usr/local/bin/_dockerfile_initialize_user_accounts.sh && \
+    /usr/local/bin/_dockerfile_setup_root_prefix.sh
+
+# modify entrypoint to also activate cp2k 
+RUN head -n -1 /usr/local/bin/_entrypoint.sh > /usr/local/bin/entry.sh
+RUN echo "source /opt/cp2k-toolchain/install/setup\n" >> /usr/local/bin/entry.sh
+RUN echo "export PATH=\"/opt/cp2k/exe/local:\${PATH}\"\n" >> /usr/local/bin/entry.sh
+RUN echo "export PATH=\"/opt/cp2k-toolchain/install/mpich-4.0.3/bin:\${PATH}\"\n" >> /usr/local/bin/entry.sh
+RUN echo "exec \"\$@\"" >> /usr/local/bin/entry.sh
+RUN chmod +x /usr/local/bin/entry.sh
+
+USER $MAMBA_USER
+
+SHELL ["/usr/local/bin/_dockerfile_shell.sh"]
+
+RUN micromamba install --yes --name base --channel conda-forge \
+      jq && \
+    micromamba clean --all --yes
+
+RUN micromamba install -n base --yes -c conda-forge python=3.9 pip ndcctools=7.5.2 plumed && \
+    micromamba clean -af --yes
+ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
 
 RUN pip install cython matscipy prettytable plumed && \
     pip install git+https://github.com/molmod/molmod.git@f59506594b49f7a8545aef0ae6fb378e361eda80 && \
     pip install git+https://github.com/molmod/yaff.git@422570c89e3c44b29db3714a3b8a205279f7b713 && \
-    pip install torch==1.13.1 --index-url https://download.pytorch.org/whl/rocm5.2 && \
+    pip install torch==1.13.0 --extra-index-url https://download.pytorch.org/whl/rocm5.2 && \
     pip install e3nn==0.4.4 && \
     pip install git+https://github.com/mir-group/nequip.git@v0.5.6 && \
     pip install git+https://github.com/mir-group/allegro.git --no-deps && \
     pip install --force git+https://git@github.com/ACEsuit/MACE.git@d520abac437648dafbec0f6e203ec720afa16cf7 --no-deps && \
     pip uninstall torch -y && pip install --force torch==1.13.1 --index-url https://download.pytorch.org/whl/rocm5.2
-RUN pip install git+https://github.com/svandenhaute/psiflow@3aafe74
+ARG GIT_COMMIT_SHA
+RUN pip install git+https://github.com/molmod/psiflow
 RUN pip cache purge
 
-USER root
-RUN apt remove gcc g++ -y && apt autoremove -y
-RUN chown -R mambauser:mambauser /home/mambauser
-RUN chmod 755 /home/mambauser
-USER mambauser
 ENV OMPI_MCA_plm_rsh_agent=
-ENV LD_LIBRARY_PATH /opt/conda/lib
 ENV OMP_PROC_BIND=TRUE
+
+ENTRYPOINT ["/usr/local/bin/entry.sh"]

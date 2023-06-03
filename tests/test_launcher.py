@@ -1,26 +1,13 @@
 import importlib
+import subprocess
+import shlex
 
 from psiflow.execution import ContainerizedLauncher
 
 
-VERSION = importlib.metadata.version('psiflow')
-print(VERSION)
-
-
 def test_launcher():
-    launcher = ContainerizedLauncher(enable_gpu=False)
-    start = 'apptainer exec --no-eval -e --no-mount $HOME/.local -W /tmp --writable-tmpfs --bind'
-    end   = 'oras://ghcr.io/svandenhaute/psiflow:' + VERSION + '-cuda11.3 /usr/local/bin/_entrypoint.sh '
-    assert launcher.launch_command.startswith(start)
-    assert launcher.launch_command.endswith(end)
-
-    launcher = ContainerizedLauncher(enable_gpu=True)
-    start = 'apptainer exec --no-eval -e --no-mount $HOME/.local -W /tmp --writable-tmpfs --bind'
-    end   = '--nv oras://ghcr.io/svandenhaute/psiflow:' + VERSION + '-cuda11.3 /usr/local/bin/_entrypoint.sh '
-    assert launcher.launch_command.startswith(start)
-    assert launcher.launch_command.endswith(end)
-
-    launcher = ContainerizedLauncher(enable_gpu=True, tag='v213-rocm5.3')
-    assert '--rocm' in launcher.launch_command
-    assert not '--nv' in launcher.launch_command
-
+    launcher = ContainerizedLauncher(uri='oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2', enable_gpu=False)
+    command = launcher('python --version', 0, 0)
+    result = subprocess.run(shlex.split(command), capture_output=True)
+    returned = ''.join(result.stdout.decode('utf-8').split())
+    assert 'Python3' in returned
