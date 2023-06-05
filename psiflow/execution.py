@@ -361,7 +361,7 @@ class ContainerizedLauncher(Launcher):
             self.launch_command += ' --env '
             self.launch_command += ','.join([f'{k}={v}' for k, v in env.items()])
         if enable_gpu:
-            if 'cuda' in self.launch_command:
+            if 'cuda' in self.uri:
                 self.launch_command += ' --nv'
             else:
                 self.launch_command += ' --rocm'

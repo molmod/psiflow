@@ -26,7 +26,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=32,              # number of cores per singlepoint
         omp_num_threads=1,      # only use MPI for parallelization
-        mpi_command=lambda x: f'mpirun -np {x} --map-by node:PE=1',
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to core',
         cp2k_exec='cp2k.psmp',
         walltime=25,            # minimum walltime per singlepoint
         )
@@ -42,6 +42,17 @@ definitions = {
 
 
 providers = {}
+
+launcher_cpu = ContainerizedLauncher(
+        'oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3',
+        apptainer_or_singularity='singularity',
+        enable_gpu=False,
+        )
+launcher_gpu = ContainerizedLauncher(
+        'oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3',
+        apptainer_or_singularity='singularity',
+        enable_gpu=True,
+        )
 
 cluster = 'dodrio' # all partitions reside on a single cluster
 
@@ -59,7 +70,7 @@ provider = SlurmProviderVSC(       # one block == one slurm job to submit
         max_blocks=1,           # do not use more than one block
         walltime='24:00:00',    # walltime per block
         exclusive=False,
-        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
+        launcher=launcher_cpu,
         )
 providers['default'] = provider
 
@@ -77,7 +88,7 @@ provider = SlurmProviderVSC(
         parallelism=1,
         walltime='02:00:00',
         exclusive=False,
-        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
+        launcher=launcher_cpu,
         )
 providers['model'] = provider
 
@@ -97,7 +108,7 @@ provider = SlurmProviderVSC(
         worker_init='ml CUDA/11.7\n',
         exclusive=False,
         scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n', # request gpu
-        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=True),
+        launcher=launcher_gpu,
         )
 providers['training'] = provider
 
@@ -114,7 +125,7 @@ provider = SlurmProviderVSC(
         parallelism=1,
         walltime='00:59:59',
         exclusive=False,
-        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
+        launcher=launcher_cpu,
         )
 providers['reference'] = provider
 
