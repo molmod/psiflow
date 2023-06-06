@@ -5,6 +5,7 @@ import numpy as np
 
 from ase.geometry import Cell
 from ase import Atoms
+from ase.io import write
 
 
 class ForcePartPlumed(yaff.external.ForcePartPlumed):
@@ -153,7 +154,6 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
 
     def __init__(self, path_xyz, start=0, step=1):
         super().__init__(start, step)
-        Path(path_xyz).unlink(missing_ok=True) # remove if exists
         self.path_xyz = path_xyz
         self.atoms = None
 
@@ -172,9 +172,10 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
         pass
 
     def __call__(self, iterative):
-        self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
-        self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
-        write(self.path_xyz, self.atoms, append=True)
+        if iterative.counter > 0: # first write is manual
+            self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
+            self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
+            write(self.path_xyz, self.atoms, append=True)
 
 
 def apply_strain(strain, box0):

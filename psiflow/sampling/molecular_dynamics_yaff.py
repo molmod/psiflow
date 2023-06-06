@@ -13,7 +13,8 @@ from ase.io.extxyz import write_extxyz
 
 from psiflow.data import FlowAtoms
 from psiflow.sampling.utils import ForcePartASE, DataHook, \
-        create_forcefield, ForceThresholdExceededException, ForcePartPlumed
+        create_forcefield, ForceThresholdExceededException, ForcePartPlumed, \
+        ExtXYZHook
 from psiflow.sampling.bias import try_manual_plumed_linking
 
 
@@ -94,6 +95,17 @@ def main():
     hooks = []
     hooks.append(loghook)
     hooks.append(datahook)
+    if args.keep_trajectory:
+        xyz = ExtXYZHook(args.trajectory) # assign start/step manually
+        xyz.start = args.start
+        xyz.step  = args.step
+        print('XYZ write start: {}'.format(xyz.start))
+        print('XYZ write step: {}'.format(xyz.step))
+        hooks.append(xyz)
+
+    # first write is manual
+    write(args.trajectory, read(args.atoms))
+
     if Path('plumed.dat').is_file():
         try_manual_plumed_linking()
         part_plumed = ForcePartPlumed(
@@ -145,6 +157,7 @@ def main():
         yaff.log.set_level(yaff.log.medium)
         verlet.run(args.steps)
         counter = verlet.counter
+        assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
     except ForceThresholdExceededException as e:
         print(e)
         print('tagging sample as unsafe')
@@ -152,9 +165,12 @@ def main():
         try:
             counter = verlet.counter
         except UnboundLocalError: # if it happened during verlet init
+            assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
             pass
+        assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
     except TimeoutException as e:
         counter = verlet.counter
+        assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
         print(e)
     yaff.log.set_level(yaff.log.silent)
 
@@ -170,11 +186,8 @@ def main():
         datahook.data.append(initial)
 
     # write data to output xyz
-    if args.keep_trajectory:
-        with open(args.trajectory, 'w+') as f:
-            write_extxyz(f, datahook.data)
-    else:
-        write(args.trajectory, datahook.data[-1])
+    if not args.keep_trajectory:
+        write(args.trajectory, atoms)
     assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
 
     # check whether counter == 0 actually means state = start
