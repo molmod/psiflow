@@ -156,6 +156,7 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
         super().__init__(start, step)
         self.path_xyz = path_xyz
         self.atoms = None
+        self.nwrites = 0
 
     def init(self, iterative):
         self.atoms = Atoms(
@@ -176,6 +177,7 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
             self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
             self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
             write(self.path_xyz, self.atoms, append=True)
+            self.nwrites += 1
 
 
 def apply_strain(strain, box0):
