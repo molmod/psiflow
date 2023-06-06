@@ -144,9 +144,9 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
             )
 
     # test timeout
-    walker = DynamicWalker(dataset[0], steps=1000, step=1)
+    walker = DynamicWalker(dataset[0], steps=10000, step=1)
     state, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    assert not trajectory.length().result() < 1001 # timeout
+    assert trajectory.length().result() < 10001 # timeout
     assert trajectory.length().result() > 1
     assert walker.counter_future.result() == trajectory.length().result() - 1
     walker.force_threshold = 1e-7 # always exceeded

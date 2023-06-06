@@ -148,7 +148,7 @@ def get_config(path_parsl_internal):
             path_parsl_internal,
             definitions,
             providers,
-            use_work_queue=False,
+            use_work_queue=True,
             wq_timeout=30,          # timeout for WQ workers before they shut down
             parsl_app_cache=False,  # parsl app caching; disabled for safety
             parsl_retries=0,

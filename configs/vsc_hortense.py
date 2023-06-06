@@ -57,8 +57,6 @@ launcher_gpu = ContainerizedLauncher(
 cluster = 'dodrio' # all partitions reside on a single cluster
 
 # define provider for default executor (HTEX)
-# each of the workers in this executor is single-core;
-# they do basic processing stuff (reading/writing data/models, ... )
 provider = SlurmProviderVSC(       # one block == one slurm job to submit
         cluster=cluster,
         partition='cpu_rome',
@@ -135,7 +133,7 @@ def get_config(path_parsl_internal):
             path_parsl_internal,
             definitions,
             providers,
-            use_work_queue=False,
+            use_work_queue=True,
             wq_timeout=120,         # timeout for WQ workers before they shut down
             parsl_app_cache=False,  # parsl app caching; disabled for safety
             parsl_retries=1,        # HTEX may fail when block hits walltime

@@ -14,6 +14,7 @@ model_evaluate = ModelEvaluationExecution(
         device='cpu',
         ncores=4,
         dtype='float32',
+        walltime=2,
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
@@ -40,7 +41,7 @@ definitions = {
         MP2CP2KReference: [reference_evaluate],
         }
 
-containerize = True
+containerize = False
 if containerize:
     launcher = ContainerizedLauncher(uri='oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2', enable_gpu=False)
 else:

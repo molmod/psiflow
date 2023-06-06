@@ -54,7 +54,7 @@ def molecular_dynamics_yaff(
             command_unbuffer,
             command_omp,
             command_write,
-            'timeout -k 5 {}s'.format(max(walltime - 100, 0)), # some time is spent on copying
+            'timeout -k 5 {}s'.format(max(walltime - 10, 0)), # some time is spent on copying
             'psiflow-md-yaff',
             '--device {}'.format(device),
             '--ncores {}'.format(ncores),
