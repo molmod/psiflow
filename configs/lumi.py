@@ -89,7 +89,7 @@ provider = SlurmProviderVSC(
         min_blocks=0,
         max_blocks=5,
         parallelism=1.0,
-        walltime='01:05:00',
+        walltime='02:05:00',
         worker_init=worker_init,
         exclusive=False,
         scheduler_options='#SBATCH --gpus=4\n#SBATCH --cpus-per-gpu=8\n', # request gpu

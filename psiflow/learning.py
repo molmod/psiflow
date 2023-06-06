@@ -292,8 +292,8 @@ class SequentialLearning(BaseLearning):
 @typeguard.typechecked
 @dataclass
 class IncrementalLearning(BaseLearning):
+    # niterations is overrided based on walker settings
     num_propagations:   int = 1      # number of additional propagations per iteration
-    niterations: int = 0             # is overrided based on walker settings 
 
     def run(
             self,
