@@ -13,21 +13,21 @@ model_evaluate = ModelEvaluationExecution(
         device='cpu',
         ncores=4,
         dtype='float32',
-        walltime=30,
+        walltime=60,
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
-        ncores=12, # number of cores per GPU on gpu_rome_a100 partition
-        walltime=30, # in minutes; includes 100s slack
+        ncores=12,   # number of cores per GPU
+        walltime=60, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',
         device='cpu',
-        ncores=32,          # number of cores per singlepoint
+        ncores=64,          # number of cores per singlepoint
         omp_num_threads=1,  # only use MPI for parallelization
-        mpi_command=lambda x: f'mpirun -np {x} --map-by node:PE=1',
-        cp2k_exec='cp2k.psmp',  # on some platforms, this is cp2k.popt
-        walltime=30,            # minimum walltime per singlepoint
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to core',
+        cp2k_exec='cp2k.psmp',
+        walltime=30,         # minimum walltime per singlepoint
         )
 definitions = {
         MACEModel: [model_evaluate, model_training],
@@ -39,6 +39,16 @@ definitions = {
 
 providers = {}
 
+launcher_cpu = ContainerizedLauncher(
+        'oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3',
+        apptainer_or_singularity='apptainer',
+        enable_gpu=False,
+        )
+launcher_gpu = ContainerizedLauncher(
+        'oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3',
+        apptainer_or_singularity='apptainer',
+        enable_gpu=True,
+        )
 
 # define provider for default executor (HTEX)
 # each of the workers in this executor is single-core;
@@ -52,11 +62,10 @@ provider = SlurmProviderVSC(
         init_blocks=1,          # initialize a block at the start of the workflow
         min_blocks=1,           # always keep at least one block open
         max_blocks=1,           # do not use more than one block
-        walltime='00:15:00',    # walltime per block
-        scheduler_options='#SBATCH --export=NONE\n',
+        walltime='02:00:00',    # walltime per block
         cmd_timeout=20,
         exclusive=False,
-        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
+        launcher=launcher_cpu,
         )
 providers['default'] = provider
 
@@ -73,10 +82,9 @@ provider = SlurmProviderVSC(
         max_blocks=512,
         parallelism=1,
         walltime='02:00:00',
-        scheduler_options='#SBATCH --export=NONE\n',
         cmd_timeout=20,
         exclusive=False,
-        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
+        launcher=launcher_cpu,
         )
 providers['model'] = provider
 
@@ -95,9 +103,9 @@ provider = SlurmProviderVSC(
         walltime='01:05:00',
         worker_init='ml CUDA/11.7.0',
         cmd_timeout=20,
-        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n#SBATCH --export=NONE\n', # request gpu
+        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=12\n', # request gpu
         exclusive=False,
-        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=True),
+        launcher=launcher_gpu,
         )
 providers['training'] = provider
 
@@ -113,10 +121,9 @@ provider = SlurmProviderVSC(
         max_blocks=10,
         parallelism=1,
         walltime='01:00:00',
-        scheduler_options='#SBATCH --export=NONE\n',
         cmd_timeout=20,
         exclusive=False,
-        launcher=ContainerizedLauncher(tag='1.0.0rc0-cuda11.3', enable_gpu=False),
+        launcher=launcher_cpu,
         )
 providers['reference'] = provider
 

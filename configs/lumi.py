@@ -11,15 +11,15 @@ from psiflow.execution import generate_parsl_config, ContainerizedLauncher
 # psiflow definitions
 model_evaluate = ModelEvaluationExecution(
         executor='model',
-        device='cpu',
-        ncores=4,
+        device='cuda',      # run MD on GPU
+        ncores=8,
         dtype='float32',
-        walltime=3, # max 40 minutes of sampling
+        walltime=30, # in minutes
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
-        ncores=8, # number of cores per GPU on gpu_rome_a100 partition
-        walltime=3, # in minutes; includes 100s slack
+        ncores=8, # number of cores per GPU
+        walltime=120, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',
@@ -27,17 +27,14 @@ reference_evaluate = ReferenceEvaluationExecution(
         ncores=64,          # number of cores per singlepoint
         omp_num_threads=1,  # only use MPI for parallelization
         mpi_command=lambda x: f'mpirun -np {x} -bind-to rr',
-        cp2k_exec='cp2k.psmp',  # on some platforms, this is cp2k.popt
-        walltime=2,            # minimum walltime per singlepoint
+        cp2k_exec='cp2k.psmp',
+        walltime=15,         # maximum walltime per singlepoint
         )
 definitions = {
         MACEModel: [model_evaluate, model_training],
         NequIPModel: [model_evaluate, model_training],
         AllegroModel: [model_evaluate, model_training],
         CP2KReference: [reference_evaluate],
-        MP2CP2KReference: [reference_evaluate],
-        HybridCP2KReference: [reference_evaluate],
-        DoubleHybridCP2KReference: [reference_evaluate],
         }
 
 
@@ -75,32 +72,7 @@ provider = SlurmProviderVSC(       # one block == one slurm job to submit
 providers['default'] = provider
 
 
-# define provider for executing model evaluations (e.g. MD)
-#worker_init = 'ml LUMI/22.08\n'
-#worker_init += 'ml rocm/5.2.3\n'
-#worker_init += 'export SINGULARITY_BIND="/opt/rocm"\n' # --rocm flag doesn't bind everything
-#worker_init += 'export SINGULARITYENV_ROCM_PATH="/opt/rocm\n"'
-#worker_init += 'export SINGULARITYENV_ROCBLAS_TENSILE_PATH="/opt/rocm/lib/rocblas/library\n"'
-#worker_init += 'export SINGULARITYENV_XTPE_LINK_TYPE="dynamic\n"'
-provider = SlurmProviderVSC(
-        cluster='lumi',
-        partition='small',
-        account='project_465000315',
-        nodes_per_block=1,
-        cores_per_node=4,
-        init_blocks=0,
-        min_blocks=0,
-        max_blocks=512,
-        parallelism=1,
-        walltime='02:00:00',
-        exclusive=False,
-        #worker_init=worker_init,
-        launcher=launcher_cpu,
-        )
-providers['model'] = provider
-
-
-# define provider for executing model training
+# define provider for executing model training and inference (both GPU)
 worker_init = 'ml LUMI/22.08\n'
 worker_init += 'ml rocm/5.2.3\n'
 worker_init += 'export SINGULARITY_BIND="/opt/rocm"\n' # --rocm flag doesn't bind everything
@@ -112,7 +84,24 @@ provider = SlurmProviderVSC(
         partition='eap',
         account='project_465000315',
         nodes_per_block=1,
-        cores_per_node=8,
+        cores_per_node=32, # 4 GPUs per block; 4 workers per job
+        init_blocks=0,
+        min_blocks=0,
+        max_blocks=5,
+        parallelism=1.0,
+        walltime='01:05:00',
+        worker_init=worker_init,
+        exclusive=False,
+        scheduler_options='#SBATCH --gpus=4\n#SBATCH --cpus-per-gpu=8\n', # request gpu
+        launcher=launcher_gpu,
+        )
+providers['training'] = provider
+provider = SlurmProviderVSC(
+        cluster='lumi',
+        partition='eap',
+        account='project_465000315',
+        nodes_per_block=1,
+        cores_per_node=32, # 4 GPUs per SLURM job; 4 workers per job
         init_blocks=0,
         min_blocks=0,
         max_blocks=4,
@@ -120,10 +109,10 @@ provider = SlurmProviderVSC(
         walltime='01:05:00',
         worker_init=worker_init,
         exclusive=False,
-        scheduler_options='#SBATCH --gpus=1\n#SBATCH --cpus-per-gpu=8\n', # request gpu
+        scheduler_options='#SBATCH --gpus=4\n#SBATCH --cpus-per-gpu=8\n', # request gpu
         launcher=launcher_gpu,
         )
-providers['training'] = provider
+providers['model'] = provider
 
 
 provider = SlurmProviderVSC(
@@ -131,7 +120,7 @@ provider = SlurmProviderVSC(
         partition='small',
         account='project_465000315',
         nodes_per_block=1,
-        cores_per_node=reference_evaluate.ncores, # 1 worker per block; leave this
+        cores_per_node=reference_evaluate.ncores, # 1 worker per block; leave this!
         init_blocks=0,
         min_blocks=0,
         max_blocks=20,
@@ -151,7 +140,7 @@ def get_config(path_parsl_internal):
             use_work_queue=True,
             wq_timeout=30,          # timeout for WQ workers before they shut down
             parsl_app_cache=False,  # parsl app caching; disabled for safety
-            parsl_retries=0,
+            parsl_retries=1,        # single retry
             parsl_max_idletime=20,  # idletime before parsl tries to scale-in resources
             )
     return config, definitions

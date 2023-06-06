@@ -14,21 +14,21 @@ model_evaluate = ModelEvaluationExecution(
         device='cpu',
         ncores=4,
         dtype='float32',
-        walltime=3, # max 40 minutes of sampling
+        walltime=60,
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
-        ncores=12, # number of cores per GPU on gpu_rome_a100 partition
-        walltime=3, # in minutes; includes 100s slack
+        ncores=12,  # number of cores per GPU on gpu_rome_a100 partition
+        walltime=60, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',
         device='cpu',
         ncores=64,              # number of cores per singlepoint
         omp_num_threads=1,      # only use MPI for parallelization
-        mpi_command=lambda x: f'mpirun -np {x} -bind-to core',
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to rr',
         cp2k_exec='cp2k.psmp',
-        walltime=2,            # minimum walltime per singlepoint
+        walltime=20,            # minimum walltime per singlepoint
         )
 definitions = {
         MACEModel: [model_evaluate, model_training],
