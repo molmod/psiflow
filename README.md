@@ -33,3 +33,33 @@ clusters (e.g. SLURM, Torque/PBS, HTCondor)
 and even container orchestration systems (e.g. Kubernetes).
 
 Visit the [psiflow documentation](https://molmod.github.io/psiflow) for more details.
+
+## quick setup
+
+The easiest way to get started is via the provided
+[Apptainer](https://apptainer.org/)/[Singularity](https://sylabs.io/singularity/) containers.
+These package all the necessary Python and non-Python dependencies (including e.g. Numpy,
+GPU-enabled PyTorch, but also CP2K and PLUMED) into a single container, removing much of the
+installation shenanigans that is usually associated with these packages.
+In a containerized setup, all that is needed is a simple Python environment with
+Parsl (including the [cctools](https://github.com/cooperative-computing-lab/cctools) module) and psiflow:
+
+```
+micromamba create -n psiflow_env ndcctools=7.5.2 -c conda-forge -y python=3.9
+micromamba activate psiflow_env
+pip install git+https://github.com/molmod/psiflow
+```
+in which we use [Micromamba](https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html) as an incredibly fast
+and robust drop-in replacement for the better-known `conda` package manager.
+The Python environment is used to start the lightweight 'master' process which orchestrates all computations but does not do any of the heavy-lifting itself.
+When individual tasks are sent to worker resources (e.g. a SLURM compute node), processes are started inside a container
+and as such, all of the required software and libraries are automatically accessible.
+
+Psiflow provides two nearly identical containers; one for AMD GPUs and one for Nvidia GPUs. They differ only in the specific version of `torch`
+that was included:
+
+- for NVIDIA GPUs and CUDA >=11.3 : `oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3`; includes `torch 1.11.0+cu113`
+- for AMD GPUs and ROCm 5.2       : `oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2`; includes `torch 1.130+rocm5.2`
+
+Apart from that, these containers come with CP2K 2023.1, PLUMED 2.7.2, NequIP 0.5.4, and MACE 0.1.0, in addition to a bunch
+of other psiflow dependencies such as e.g. Numpy, ASE, and Pymatgen; check out the psiflow Dockerfiles for more information.
