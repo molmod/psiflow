@@ -14,21 +14,21 @@ model_evaluate = ModelEvaluationExecution(
         device='cpu',
         ncores=4,
         dtype='float32',
-        walltime=30, # max 40 minutes of sampling
+        walltime=3, # max 40 minutes of sampling
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
         ncores=12, # number of cores per GPU on gpu_rome_a100 partition
-        walltime=30, # in minutes; includes 100s slack
+        walltime=3, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',
         device='cpu',
-        ncores=32,              # number of cores per singlepoint
+        ncores=64,              # number of cores per singlepoint
         omp_num_threads=1,      # only use MPI for parallelization
         mpi_command=lambda x: f'mpirun -np {x} -bind-to core',
         cp2k_exec='cp2k.psmp',
-        walltime=25,            # minimum walltime per singlepoint
+        walltime=2,            # minimum walltime per singlepoint
         )
 definitions = {
         MACEModel: [model_evaluate, model_training],
@@ -45,12 +45,12 @@ providers = {}
 
 launcher_cpu = ContainerizedLauncher(
         'oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3',
-        apptainer_or_singularity='singularity',
+        apptainer_or_singularity='apptainer',
         enable_gpu=False,
         )
 launcher_gpu = ContainerizedLauncher(
         'oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3',
-        apptainer_or_singularity='singularity',
+        apptainer_or_singularity='apptainer',
         enable_gpu=True,
         )
 
@@ -62,7 +62,7 @@ cluster = 'dodrio' # all partitions reside on a single cluster
 provider = SlurmProviderVSC(       # one block == one slurm job to submit
         cluster=cluster,
         partition='cpu_rome',
-        account='2022_050',
+        account='2022_069',
         nodes_per_block=1,      # each block fits on (less than) one node
         cores_per_node=1,       # number of cores per slurm job, 1 is OK
         init_blocks=1,          # initialize a block at the start of the workflow
@@ -79,7 +79,7 @@ providers['default'] = provider
 provider = SlurmProviderVSC(
         cluster=cluster,
         partition='cpu_rome',
-        account='2022_050',
+        account='2022_069',
         nodes_per_block=1,
         cores_per_node=4,
         init_blocks=0,
@@ -97,7 +97,7 @@ providers['model'] = provider
 provider = SlurmProviderVSC(
         cluster=cluster,
         partition='gpu_rome_a100',
-        account='2022_050',
+        account='2022_069',
         nodes_per_block=1,
         cores_per_node=12,
         init_blocks=0,
@@ -116,7 +116,7 @@ providers['training'] = provider
 provider = SlurmProviderVSC(
         cluster=cluster,
         partition='cpu_rome',
-        account='2022_050',
+        account='2022_069',
         nodes_per_block=1,
         cores_per_node=reference_evaluate.ncores, # 1 worker per block; leave this
         init_blocks=0,
@@ -135,7 +135,7 @@ def get_config(path_parsl_internal):
             path_parsl_internal,
             definitions,
             providers,
-            use_work_queue=True,
+            use_work_queue=False,
             wq_timeout=120,         # timeout for WQ workers before they shut down
             parsl_app_cache=False,  # parsl app caching; disabled for safety
             parsl_retries=1,        # HTEX may fail when block hits walltime

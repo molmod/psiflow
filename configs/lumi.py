@@ -18,7 +18,7 @@ model_evaluate = ModelEvaluationExecution(
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
-        ncores=12, # number of cores per GPU on gpu_rome_a100 partition
+        ncores=8, # number of cores per GPU on gpu_rome_a100 partition
         walltime=3, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
@@ -26,9 +26,9 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=64,          # number of cores per singlepoint
         omp_num_threads=1,  # only use MPI for parallelization
-        mpi_command=lambda x: f'mpirun -np {x} -bind-to core',
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to rr',
         cp2k_exec='cp2k.psmp',  # on some platforms, this is cp2k.popt
-        walltime=3,            # minimum walltime per singlepoint
+        walltime=2,            # minimum walltime per singlepoint
         )
 definitions = {
         MACEModel: [model_evaluate, model_training],
@@ -148,10 +148,10 @@ def get_config(path_parsl_internal):
             path_parsl_internal,
             definitions,
             providers,
-            use_work_queue=True,
-            wq_timeout=10,          # timeout for WQ workers before they shut down
+            use_work_queue=False,
+            wq_timeout=30,          # timeout for WQ workers before they shut down
             parsl_app_cache=False,  # parsl app caching; disabled for safety
             parsl_retries=0,
-            parsl_max_idletime=10,  # idletime before parsl tries to scale-in resources
+            parsl_max_idletime=20,  # idletime before parsl tries to scale-in resources
             )
     return config, definitions
