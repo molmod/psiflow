@@ -63,3 +63,12 @@ that was included:
 
 Apart from that, these containers come with CP2K 2023.1, PLUMED 2.7.2, NequIP 0.5.4, and MACE 0.1.0, in addition to a bunch
 of other psiflow dependencies such as e.g. Numpy, ASE, and Pymatgen; check out the psiflow Dockerfiles for more information.
+
+
+__NOTE:__ container files are several GBs in size. On most clusters, the default cache location is somwehere in your `$HOME` directory, which might not be desirable. To change this
+to some other location, add the following lines to your `.bashrc`:
+```
+export APPTAINER_CACHEDIR=/dodrio/scratch/users/vsc42527/2022_050/apptainer_cache
+export APPTAINER_TMPDIR=/dodrio/scratch/users/vsc42527/2022_050/apptainer_cache
+```
+If your compute resources use SingularityCE instead of Apptainer, replace 'APPTAINER' with 'SINGULARITY' in the environment variable names. Lastly, to ensure psiflow can communicate its data to W&B, add `export WANDB_API_KEY=<your key from wandb.ai/authorize>` to your `.bashrc` as well.
