@@ -377,10 +377,12 @@ def train(
     config_str = yaml.dump(dict(nequip_config))
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd  = 'cd $mytmpdir;'
+    command_env = 'export WANDB_CACHE_DIR=$(pwd);'
     command_write = 'echo "{}" > config.yaml;'.format(config_str)
     command_list = [
             command_tmp,
             command_cd,
+            command_env,
             command_write,
             'timeout -k 5 {}s'.format(max(walltime - 100, 0)), # 100 s Slack
             'psiflow-train-nequip',
