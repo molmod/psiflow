@@ -454,6 +454,7 @@ def load_learning(path_output: Union[Path, str]):
     classes = [
             SequentialLearning,
             ConcurrentLearning,
+            IncrementalLearning,
             None,
             ]
     for learning_cls in classes:
