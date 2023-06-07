@@ -2,7 +2,7 @@
 ![psiflow](./docs/logo_dark.png#gh-dark-mode-only)
 
 [![Coverage Status](https://coveralls.io/repos/github/svandenhaute/psiflow/badge.svg?branch=main&service=github)](https://coveralls.io/github/svandenhaute/psiflow?branch=main)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/molmod/psiflow)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/molmod/psiflow)](https://github.com/molmod/psiflow/releases)
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
 [![Citation Badge](https://api.juleskreuer.eu/citation-badge.php?doi=10.1038/s41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
