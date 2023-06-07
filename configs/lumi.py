@@ -55,7 +55,8 @@ launcher_gpu = ContainerizedLauncher(
 # define provider for default executor (HTEX)
 # each of the workers in this executor is single-core;
 # they do basic processing stuff (reading/writing data/models, ... )
-worker_init = 'export SINGULARITYENV_WANDB_CACHE_DIR="$(pwd)"\n'
+worker_init  = 'export SINGULARITYENV_WANDB_CACHE_DIR="$(pwd)"\n'
+worker_init += 'export SINGULARITYENV_WANDB_DATA_DIR="$(pwd)"\n'
 provider = SlurmProviderVSC(       # one block == one slurm job to submit
         cluster='lumi',
         partition='small',
@@ -80,6 +81,8 @@ worker_init += 'export SINGULARITY_BIND="/opt/rocm"\n' # --rocm flag doesn't bin
 worker_init += 'export SINGULARITYENV_ROCM_PATH="/opt/rocm"\n'
 worker_init += 'export SINGULARITYENV_ROCBLAS_TENSILE_LIBPATH="/opt/rocm/lib/rocblas/library/"\n'
 worker_init += 'export SINGULARITYENV_XTPE_LINK_TYPE="dynamic\n"'
+worker_init += 'export SINGULARITYENV_WANDB_CACHE_DIR="$(pwd)"\n'
+worker_init += 'export SINGULARITYENV_WANDB_DATA_DIR="$(pwd)"\n'
 provider = SlurmProviderVSC(
         cluster='lumi',
         partition='eap',
