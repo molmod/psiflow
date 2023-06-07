@@ -59,7 +59,7 @@ Psiflow provides two nearly identical containers; one for AMD GPUs and one for N
 that was included:
 
 - for NVIDIA GPUs and CUDA >=11.3 : `oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3`; includes `torch 1.11.0+cu113`
-- for AMD GPUs and ROCm 5.2       : `oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2`; includes `torch 1.130+rocm5.2`
+- for AMD GPUs and ROCm 5.2       : `oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2`; includes `torch 1.13.0+rocm5.2`
 
 Apart from that, these containers come with CP2K 2023.1, PLUMED 2.7.2, NequIP 0.5.4, and MACE 0.1.0, in addition to a bunch
 of other psiflow dependencies such as e.g. Numpy, ASE, and Pymatgen; check out the psiflow Dockerfiles for more information.

@@ -25,7 +25,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=64,          # number of cores per singlepoint
         omp_num_threads=1,  # only use MPI for parallelization
-        mpi_command=lambda x: f'mpirun -np {x} -bind-to core',
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to rr',
         cp2k_exec='cp2k.psmp',
         walltime=30,         # minimum walltime per singlepoint
         )

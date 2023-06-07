@@ -1,8 +1,7 @@
 from psiflow.external import SlurmProviderVSC # fixed SlurmProvider
 
 from psiflow.models import MACEModel, NequIPModel, AllegroModel
-from psiflow.reference import CP2KReference, HybridCP2KReference, \
-        MP2CP2KReference, DoubleHybridCP2KReference
+from psiflow.reference import CP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
 from psiflow.execution import generate_parsl_config, ContainerizedLauncher
@@ -26,7 +25,7 @@ reference_evaluate = ReferenceEvaluationExecution(
         device='cpu',
         ncores=64,              # number of cores per singlepoint
         omp_num_threads=1,      # only use MPI for parallelization
-        mpi_command=lambda x: f'mpirun -np {x} -bind-to rr',
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to core',
         cp2k_exec='cp2k.psmp',
         walltime=20,            # minimum walltime per singlepoint
         )
@@ -35,9 +34,6 @@ definitions = {
         NequIPModel: [model_evaluate, model_training],
         AllegroModel: [model_evaluate, model_training],
         CP2KReference: [reference_evaluate],
-        MP2CP2KReference: [reference_evaluate],
-        HybridCP2KReference: [reference_evaluate],
-        DoubleHybridCP2KReference: [reference_evaluate],
         }
 
 
