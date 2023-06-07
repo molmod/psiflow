@@ -1,7 +1,8 @@
 from psiflow.external import SlurmProviderVSC # fixed SlurmProvider
 
 from psiflow.models import MACEModel, NequIPModel, AllegroModel
-from psiflow.reference import CP2KReference
+from psiflow.reference import CP2KReference, HybridCP2KReference, \
+        MP2CP2KReference, DoubleHybridCP2KReference
 from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
         ReferenceEvaluationExecution
 from psiflow.execution import generate_parsl_config, ContainerizedLauncher
@@ -13,19 +14,19 @@ model_evaluate = ModelEvaluationExecution(
         device='cuda',      # run MD on GPU
         ncores=8,
         dtype='float32',
-        walltime=30, # in minutes
+        walltime=240, # in minutes
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',
         ncores=8, # number of cores per GPU
-        walltime=120, # in minutes; includes 100s slack
+        walltime=240, # in minutes; includes 100s slack
         )
 reference_evaluate = ReferenceEvaluationExecution(
         executor='reference',
         device='cpu',
         ncores=64,          # number of cores per singlepoint
         omp_num_threads=1,  # only use MPI for parallelization
-        mpi_command=lambda x: f'mpirun -np {x} -bind-to rr',
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork',
         cp2k_exec='cp2k.psmp',
         walltime=15,         # maximum walltime per singlepoint
         )
@@ -43,6 +44,7 @@ launcher_cpu = ContainerizedLauncher(
         'oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2',
         apptainer_or_singularity='singularity',
         enable_gpu=False,
+        addopts='-e --contain --no-mount home -W /tmp',
         )
 launcher_gpu = ContainerizedLauncher(
         'oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2',
@@ -88,7 +90,7 @@ provider = SlurmProviderVSC(
         min_blocks=0,
         max_blocks=5,
         parallelism=1.0,
-        walltime='02:05:00',
+        walltime='12:05:00',
         worker_init=worker_init,
         exclusive=False,
         scheduler_options='#SBATCH --gpus=4\n#SBATCH --cpus-per-gpu=8\n', # request gpu
@@ -103,9 +105,9 @@ provider = SlurmProviderVSC(
         cores_per_node=32, # 4 GPUs per SLURM job; 4 workers per job
         init_blocks=0,
         min_blocks=0,
-        max_blocks=4,
+        max_blocks=10,
         parallelism=1.0,
-        walltime='01:05:00',
+        walltime='12:05:00',
         worker_init=worker_init,
         exclusive=False,
         scheduler_options='#SBATCH --gpus=4\n#SBATCH --cpus-per-gpu=8\n', # request gpu
@@ -119,13 +121,14 @@ provider = SlurmProviderVSC(
         partition='small',
         account='project_465000315',
         nodes_per_block=1,
-        cores_per_node=reference_evaluate.ncores, # 1 worker per block; leave this!
+        cores_per_node=64,
         init_blocks=0,
         min_blocks=0,
-        max_blocks=20,
+        max_blocks=50,
         parallelism=1,
-        walltime='00:59:59',
-        exclusive=False,
+        walltime='03:00:00',
+        exclusive=True,
+        move_files=False,
         launcher=launcher_cpu,
         )
 providers['reference'] = provider
