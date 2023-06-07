@@ -3,7 +3,7 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/svandenhaute/psiflow/badge.svg?branch=main&service=github)](https://coveralls.io/github/svandenhaute/psiflow?branch=main)
 
-# interatomic potentials using online learning
+# Interatomic potentials using online learning
 
 Psiflow is a modular and scalable library for developing interatomic potentials.
 It uses Parsl to interface popular trainable interaction potentials with
@@ -33,7 +33,7 @@ clusters (e.g. SLURM, Torque/PBS, HTCondor)
 and even container orchestration systems (e.g. Kubernetes). Visit the [psiflow documentation](https://molmod.github.io/psiflow) for more details.
 
 
-# setup
+# Setup
 
 The easiest way to get started is via the provided
 [Apptainer](https://apptainer.org/)/[Singularity](https://sylabs.io/singularity/) containers.
@@ -97,7 +97,7 @@ to some other location, add the following lines to your `.bashrc`:
         pip install pytest coverage coveralls
         
 
-## first steps
+# First steps
 An easy way to explore psiflow's features is through a number of examples.
 Before doing so, we suggest taking a look at the [psiflow documentation](https://molmod.github.io/psiflow) in order to get acquainted with the API.
 Next, take a look at the example configuration files [here](https://github.com/molmod/psiflow/tree/main/configs), adapt them for the compute resources you have available,
