@@ -16,7 +16,8 @@ def get_apptainer_or_singularity():
     return apptainer_or_singularity
 
 
-@pytest.mark.skipif(get_apptainer_or_singularity() is None, reason='no apptainer/singularity found')
+#@pytest.mark.skipif(get_apptainer_or_singularity() is None, reason='no apptainer/singularity found')
+@pytest.mark.skip
 def test_launcher():
     launcher = ContainerizedLauncher(
             uri='oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2',

@@ -46,13 +46,14 @@ def molecular_dynamics_yaff(
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd  = 'cd $mytmpdir;'
     command_unbuffer = 'export PYTHONUNBUFFERED=TRUE;'
-    command_omp = 'export OMP_PROC_BIND=TRUE;'
+    #command_omp = 'export OMP_PROC_BIND=TRUE;'
+    command_printenv = 'printenv | grep OMP;'
     command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
     command_list = [
             command_tmp,
             command_cd,
             command_unbuffer,
-            command_omp,
+            command_printenv,
             command_write,
             'timeout -k 5 {}s'.format(max(walltime - 10, 0)), # some time is spent on copying
             'psiflow-md-yaff',

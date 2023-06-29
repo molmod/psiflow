@@ -42,7 +42,7 @@ definitions = {
         MP2CP2KReference: [reference_evaluate],
         }
 
-containerize = False
+containerize = True
 if containerize:
     launcher = ContainerizedLauncher(uri='oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2', enable_gpu=False)
 else:

@@ -41,15 +41,15 @@ definitions = {
         MP2CP2KReference: [reference_evaluate],
         }
 
-containerize = False
+containerize = True
 if containerize:
-    launcher = ContainerizedLauncher(uri='oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2', enable_gpu=False)
+    launcher = ContainerizedLauncher(uri='docker://svandenhaute/psiflow:1.0.1-rocm5.2', enable_gpu=False)
 else:
     launcher = SimpleLauncher()
 
 providers = {
         'default': LocalProvider(launcher=launcher),
-        'model': LocalProvider(launcher=launcher),
+        'model': LocalProvider(launcher=launcher, worker_init='export APPTAINERENV_OMP_PROC_BIND=CLOSE;'),
         'training': LocalProvider(launcher=launcher),
         'reference': LocalProvider(launcher=launcher),
         }
