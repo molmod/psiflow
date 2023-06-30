@@ -120,6 +120,16 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
     assert np.allclose(e0, e1, atol=1e-4) # up to single precision
 
 
+def test_nequip_seed(context, nequip_config):
+    config = NequIPConfig(**nequip_config)
+    model = NequIPModel(config)
+    assert model.seed == 123
+    model.seed = 111
+    assert model.seed == 111
+    model.config_raw['seed'] = 112
+    assert model.seed == 112
+
+
 def test_nequip_formation(context, nequip_config, dataset):
     config = NequIPConfig(**nequip_config)
     config.dataset_key_mapping['formation_energy'] = 'total_energy'
@@ -358,6 +368,16 @@ def test_mace_save_load(context, mace_config, dataset, tmp_path):
     model_.deploy()
     e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info['energy']
     assert np.allclose(e0, e1, atol=1e-4) # up to single precision
+
+
+def test_mace_seed(context, mace_config):
+    config = MACEConfig(**mace_config)
+    model = MACEModel(config)
+    assert model.seed == 0
+    model.seed = 111
+    assert model.seed == 111
+    model.config_raw['seed'] = 112
+    assert model.seed == 112
 
 
 def test_mace_formation(context, mace_config, dataset):

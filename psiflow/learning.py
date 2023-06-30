@@ -291,9 +291,7 @@ class SequentialLearning(BaseLearning):
 
 @typeguard.typechecked
 @dataclass
-class IncrementalLearning(BaseLearning):
-    # niterations is overrided based on walker settings
-    num_propagations:   int = 1      # number of additional propagations per iteration
+class CommitteeLearning(BaseLearning):
 
     def run(
             self,
@@ -309,20 +307,9 @@ class IncrementalLearning(BaseLearning):
                 initial_data,
                 )
         model.deploy()
-
-        # determine max number of iterations
-        self.niterations = 0
-        for walker in walkers:
-            niterations = (walker.max_value - walker.min_value) / (walker.increment * self.num_propagations)
-            niterations = int(niterations) + 1
-            self.niterations = max(self.niterations, niterations)
-
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
-            for walker in walkers:
-                walker.reset()
-                walker.num_propagations = (i + 1) * self.num_propagations
             data = generate_all(
                     walkers,
                     model,

@@ -230,3 +230,11 @@ class BaseModel:
     @use_formation_energy.setter
     def use_formation_energy(self, arg) -> None:
         raise NotImplementedError
+
+    @property
+    def seed(self) -> int:
+        raise NotImplementedError
+
+    @seed.setter
+    def seed(self, arg) -> None:
+        raise NotImplementedError

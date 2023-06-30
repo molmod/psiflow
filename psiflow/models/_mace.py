@@ -599,3 +599,11 @@ class MACEModel(BaseModel):
             self.config_raw['energy_key'] = 'formation_energy'
         else: # switch to total energy
             self.config_raw['energy_key'] = 'energy'
+    
+    @property
+    def seed(self) -> int:
+        return self.config_raw['seed']
+
+    @seed.setter
+    def seed(self, arg: int) -> None:
+        self.config_raw['seed'] = arg

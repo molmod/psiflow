@@ -41,7 +41,7 @@ class NequIPConfig: # taken from nequip@v0.5.6 full.yaml
     root: Optional[str] = None
     run_name: str = 'training'
     seed: int = 123
-    dataset_seed: int = 456
+    dataset_seed: int = 123
     append: bool = True
     default_dtype: str = 'float32'
     allow_tf32: bool = False
@@ -544,6 +544,15 @@ class NequIPModel(BaseModel):
             self.config_raw['dataset_key_mapping']['formation_energy'] = 'total_energy'
         else: # switch to total energy
             self.config_raw['dataset_key_mapping']['energy'] = 'total_energy'
+
+    @property
+    def seed(self) -> int:
+        return self.config_raw['seed']
+
+    @seed.setter
+    def seed(self, arg: int) -> None:
+        self.config_raw['seed'] = arg
+        self.config_raw['dataset_seed'] = arg
 
 
 @typeguard.typechecked
