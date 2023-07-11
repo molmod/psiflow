@@ -76,6 +76,7 @@ def mace_config(tmp_path):
     mace_config.MLP_irreps = '2x0e'
     mace_config.hidden_irreps = '4x0e'
     mace_config.r_max = 5
+    mace_config.radial_MLP = '[4, 4, 4]'
     return asdict(mace_config)
 
 

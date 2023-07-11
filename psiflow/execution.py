@@ -256,9 +256,6 @@ class ExecutionContext:
         self.file_index[key] += 1
         return File(str(self.path / (prefix + identifier + suffix)))
 
-    def atexit_cleanup(self) -> None:
-        parsl.wait_for_current_tasks()
-
     @property
     def executor_labels(self):
         return list(self.executors.keys())
@@ -310,7 +307,7 @@ class ExecutionContextLoader:
                 )
         path_context = path_internal / 'context_dir'
         cls._context = ExecutionContext(config, definitions, path_context)
-        atexit.register(cls._context.atexit_cleanup)
+        atexit.register(parsl.wait_for_current_tasks)
         return cls._context
 
     @classmethod

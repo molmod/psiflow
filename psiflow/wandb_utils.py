@@ -167,10 +167,8 @@ class WandBLogger:
                 )
 
     def insert_name(self, model: BaseModel) -> None:
-        if isinstance(model, NequIPModel):
-            model.config_raw['wandb_group'] = self.wandb_group
-        else:
-            logger.warning('cannot set wandb name for model {}'.format(model.__class__))
+        model.config_raw['wandb_group'] = self.wandb_group
+        model.config_raw['wandb_project'] = self.wandb_project
 
 
 @typeguard.typechecked

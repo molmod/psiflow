@@ -139,6 +139,16 @@ save_yaml = python_app(_save_yaml, executors=['default'])
 
 
 @typeguard.typechecked
+def _read_yaml(inputs: List[File] = [], outputs: List[File] = []) -> dict:
+    import yaml
+    with open(inputs[0], 'r') as f:
+        config_dict = yaml.load(f, Loader=yaml.FullLoader)
+    return config_dict
+read_yaml = python_app(_read_yaml, executors=['default'])
+
+
+
+@typeguard.typechecked
 def _save_txt(data: str, outputs: List[File] = []) -> None:
     with open(outputs[0], 'w') as f:
         f.write(data)

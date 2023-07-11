@@ -20,6 +20,8 @@ import ast
 import logging
 from pathlib import Path
 from typing import Optional
+from dataclasses import asdict
+import json
 
 import numpy as np
 import torch.nn.functional
@@ -30,7 +32,21 @@ from torch_ema import ExponentialMovingAverage
 import mace
 from mace import data, modules, tools
 from mace.tools import torch_geometric
-from mace.tools.scripts_utils import create_error_table, get_dataset_from_xyz
+from mace.tools.scripts_utils import create_error_table, get_dataset_from_xyz, \
+        LRScheduler
+
+import signal
+import time
+
+
+#class GracefulKiller:
+#  kill_now = False
+#  def __init__(self):
+#    signal.signal(signal.SIGINT, self.exit_gracefully)
+#    signal.signal(signal.SIGTERM, self.exit_gracefully)
+#
+#  def exit_gracefully(self, *args):
+#    self.kill_now = True
 
 
 def main():
@@ -42,14 +58,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', help='path to initialized config', default='', type=str)
     parser.add_argument('--model', help='path to undeployed model', default='', type=str)
-    parser.add_argument('--time', help='running time (s)', default='', type=int)
+    parser.add_argument('--init_only', help='only perform initialization', default=False, action='store_true')
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
         config_dict = yaml.load(f, Loader=yaml.FullLoader)
     config = MACEConfig(**config_dict)
     assert config.train_file is not None
-    assert config.valid_file is not None
+    if not args.init_only:
+        assert config.valid_file is not None
+    else:
+        assert config.valid_file is None
     config.device = 'cuda' # hardcode GPU training
     config.default_dtype = 'float32'
 
@@ -57,10 +76,10 @@ def main():
     # even if swa is set to False, swa_start could accidentally start saving
     # checkpoints with the '_swa' prefix if the model with lowest validation
     # error happens at an epoch > swa_start. Set swa_start to None to avoid this
-    if not config.swa:
-        config.start_swa = None
-    else:
-        raise NotImplementedError
+    #if not config.swa:
+    #    config.start_swa = None
+    #else:
+    #    raise NotImplementedError
 
     # create working directories in current tmpdir
     config.log_dir = os.path.join(os.getcwd(), 'log')
@@ -73,11 +92,10 @@ def main():
     os.mkdir(config.results_dir)
     os.mkdir(config.downloads_dir)
     os.mkdir(config.checkpoints_dir)
-    train(config, args.model, args.time)
+    train(config, args.model, args.init_only)
 
 
-def train(args, path_model, running_time) -> None:
-    # dirty; run tools.train for given amount of time, then save
+def train(args, path_model, init_only) -> None:
     import signal
     class TimeoutException(Exception):
         pass
@@ -85,11 +103,9 @@ def train(args, path_model, running_time) -> None:
     def timeout_handler(signum, frame):
         raise TimeoutException
 
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(running_time)
+    signal.signal(signal.SIGTERM, timeout_handler)
+    #signal.alarm(running_time)
 
-    # start processing; training
-    #args = tools.build_default_arg_parser().parse_args()
     tag = tools.get_tag(name=args.name, seed=args.seed)
 
     # Setup
@@ -113,6 +129,8 @@ def train(args, path_model, running_time) -> None:
         config_type_weights = {"Default": 1.0}
 
     # Data preparation
+    if init_only:
+        assert args.valid_file is None
     collections, atomic_energies_dict = get_dataset_from_xyz(
         train_path=args.train_file,
         valid_path=args.valid_file,
@@ -200,15 +218,16 @@ def train(args, path_model, running_time) -> None:
         shuffle=True,
         drop_last=True,
     )
-    valid_loader = torch_geometric.dataloader.DataLoader(
-        dataset=[
-            data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
-            for config in collections.valid
-        ],
-        batch_size=args.valid_batch_size,
-        shuffle=False,
-        drop_last=False,
-    )
+    if not init_only:
+        valid_loader = torch_geometric.dataloader.DataLoader(
+            dataset=[
+                data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
+                for config in collections.valid
+            ],
+            batch_size=args.valid_batch_size,
+            shuffle=False,
+            drop_last=False,
+        )
 
     loss_fn: torch.nn.Module
     if args.loss == "weighted":
@@ -228,6 +247,13 @@ def train(args, path_model, running_time) -> None:
             energy_weight=args.energy_weight,
             forces_weight=args.forces_weight,
             stress_weight=args.stress_weight,
+        )
+    elif args.loss == "huber":
+        loss_fn = modules.WeightedHuberEnergyForcesStressLoss(
+            energy_weight=args.energy_weight,
+            forces_weight=args.forces_weight,
+            stress_weight=args.stress_weight,
+            huber_delta=args.huber_delta,
         )
     elif args.loss == "dipole":
         assert (
@@ -251,11 +277,11 @@ def train(args, path_model, running_time) -> None:
 
     if args.compute_avg_num_neighbors:
         args.avg_num_neighbors = modules.compute_avg_num_neighbors(train_loader)
-    logging.info(f"Average number of neighbors: {args.avg_num_neighbors:.3f}")
+    logging.info(f"Average number of neighbors: {args.avg_num_neighbors}")
 
     # Selecting outputs
     compute_virials = False
-    if args.loss in ("stress", "virials"):
+    if args.loss in ("stress", "virials", "huber"):
         compute_virials = True
         args.compute_stress = True
         args.error_table = "PerAtomRMSEstressvirials"
@@ -271,6 +297,20 @@ def train(args, path_model, running_time) -> None:
 
     # Build model
     logging.info("Building model")
+    if args.num_channels is not None and args.max_L is not None:
+        assert args.num_channels > 0, "num_channels must be positive integer"
+        assert args.max_L >= 0, "max_L must be non-negative integer"
+        args.hidden_irreps = o3.Irreps(
+            (args.num_channels * o3.Irreps.spherical_harmonics(args.max_L))
+            .sort()
+            .irreps.simplify()
+        )
+
+    assert (
+        len({irrep.mul for irrep in o3.Irreps(args.hidden_irreps)}) == 1
+    ), "All channels must have the same dimension, use the num_channels and max_L keywords to specify the number of channels and the maximum L"
+
+    logging.info(f"Hidden irreps: {args.hidden_irreps}")
     model_config = dict(
         r_max=args.r_max,
         num_bessel=args.num_radial_basis,
@@ -305,6 +345,7 @@ def train(args, path_model, running_time) -> None:
             MLP_irreps=o3.Irreps(args.MLP_irreps),
             atomic_inter_scale=std,
             atomic_inter_shift=0.0,
+            radial_MLP=ast.literal_eval(args.radial_MLP),
         )
     elif args.model == "ScaleShiftMACE":
         mean, std = modules.scaling_classes[args.scaling](train_loader, atomic_energies)
@@ -316,6 +357,7 @@ def train(args, path_model, running_time) -> None:
             MLP_irreps=o3.Irreps(args.MLP_irreps),
             atomic_inter_scale=std,
             atomic_inter_shift=mean,
+            radial_MLP=ast.literal_eval(args.radial_MLP),
         )
     elif args.model == "ScaleShiftBOTNet":
         mean, std = modules.scaling_classes[args.scaling](train_loader, atomic_energies)
@@ -371,12 +413,26 @@ def train(args, path_model, running_time) -> None:
     else:
         raise RuntimeError(f"Unknown model: '{args.model}'")
 
-    model.to(device)
+    if init_only:
+        import yaml
+        assert path_model == 'None'
+        torch.save(model.to('cpu'), 'undeployed.pth')
 
-    # LOAD MODEL STATE DICT FROM FILE
-    model_from_restart = torch.load(path_model, map_location='cpu')
-    model_from_restart.to(device=torch.device('cuda'), dtype=torch.float32)
-    model.load_state_dict(model_from_restart.state_dict())
+        # save E0s in config and overwrite local config.yaml
+        args.compute_avg_num_neighbors = False # value already set
+        args.E0s = str(atomic_energies_dict)
+        args.log_dir = ''
+        args.model_dir = ''
+        args.results_dir = ''
+        args.downloads_dir = ''
+        args.checkpoints_dir = ''
+        with open('config.yaml', 'w') as f:
+            yaml.dump(asdict(args), f, default_flow_style=False)
+        return 0
+    else:
+        state_dict = torch.load(path_model, map_location='cpu').state_dict()
+        model.load_state_dict(state_dict)
+        model = model.to(device)
 
     # Optimizer
     decay_interactions = {}
@@ -427,18 +483,7 @@ def train(args, path_model, running_time) -> None:
 
     logger = tools.MetricsLogger(directory=args.results_dir, tag=tag + "_train")
 
-    if args.scheduler == "ExponentialLR":
-        lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer=optimizer, gamma=args.lr_scheduler_gamma
-        )
-    elif args.scheduler == "ReduceLROnPlateau":
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer=optimizer,
-            factor=args.lr_factor,
-            patience=args.scheduler_patience,
-        )
-    else:
-        raise RuntimeError(f"Unknown scheduler: '{args.scheduler}'")
+    lr_scheduler = LRScheduler(optimizer, args)
 
     swa: Optional[tools.SWAContainer] = None
     swas = [False]
@@ -500,21 +545,21 @@ def train(args, path_model, running_time) -> None:
     )
 
     start_epoch = 0
-    if args.restart_latest:
-        try:
-            opt_start_epoch = checkpoint_handler.load_latest(
-                state=tools.CheckpointState(model, optimizer, lr_scheduler),
-                swa=True,
-                device=device,
-            )
-        except:
-            opt_start_epoch = checkpoint_handler.load_latest(
-                state=tools.CheckpointState(model, optimizer, lr_scheduler),
-                swa=False,
-                device=device,
-            )
-        if opt_start_epoch is not None:
-            start_epoch = opt_start_epoch
+    #if args.restart_latest:
+    #    try:
+    #        opt_start_epoch = checkpoint_handler.load_latest(
+    #            state=tools.CheckpointState(model, optimizer, lr_scheduler),
+    #            swa=True,
+    #            device=device,
+    #        )
+    #    except Exception as e:  # pylint: disable=W0703
+    #        opt_start_epoch = checkpoint_handler.load_latest(
+    #            state=tools.CheckpointState(model, optimizer, lr_scheduler),
+    #            swa=False,
+    #            device=device,
+    #        )
+    #    if opt_start_epoch is not None:
+    #        start_epoch = opt_start_epoch
 
     ema: Optional[ExponentialMovingAverage] = None
     if args.ema:
@@ -524,7 +569,23 @@ def train(args, path_model, running_time) -> None:
     logging.info(f"Number of parameters: {tools.count_parameters(model)}")
     logging.info(f"Optimizer: {optimizer}")
 
-    logging.info('start epoch: {}\t swa: {}'.format(start_epoch, swa))
+    if args.wandb:
+        logging.info("Using Weights and Biases for logging")
+        import wandb
+
+        wandb_config = {}
+        args_dict = vars(args)
+        args_dict_json = json.dumps(args_dict)
+        for key in args.wandb_log_hypers:
+            wandb_config[key] = args_dict[key]
+        wandb.init(
+            project=args.wandb_project,
+            name=args.wandb_name,
+            group=args.wandb_group,
+            config=wandb_config,
+        )
+        wandb.run.summary["params"] = args_dict_json
+
     try:
         tools.train(
             model=model,
@@ -545,6 +606,7 @@ def train(args, path_model, running_time) -> None:
             ema=ema,
             max_grad_norm=args.clip_grad,
             log_errors=args.error_table,
+            log_wandb=args.wandb,
         )
     except TimeoutException:
         pass
@@ -558,44 +620,38 @@ def train(args, path_model, running_time) -> None:
     ] + collections.tests
 
     for swa_eval in swas:
-        device = torch.device('cpu')
-        model = model.to(torch.device('cpu'))
-        print('loading checkpoint with swa set to {}'.format(swa_eval))
-        print('loading into device {}'.format(device))
         epoch = checkpoint_handler.load_latest(
             state=tools.CheckpointState(model, optimizer, lr_scheduler),
             swa=swa_eval,
             device=device,
         )
-        #model.to(device)
+        model.to(device)
         logging.info(f"Loaded model from epoch {epoch}")
 
-        #table = create_error_table(
-        #    table_type=args.error_table,
-        #    all_collections=all_collections,
-        #    z_table=z_table,
-        #    r_max=args.r_max,
-        #    valid_batch_size=args.valid_batch_size,
-        #    model=model,
-        #    loss_fn=loss_fn,
-        #    output_args=output_args,
-        #    device=device,
-        #)
-        #logging.info("\n" + str(table))
+        for param in model.parameters():
+            param.requires_grad = False
+        table = create_error_table(
+            table_type=args.error_table,
+            all_collections=all_collections,
+            z_table=z_table,
+            r_max=args.r_max,
+            valid_batch_size=args.valid_batch_size,
+            model=model,
+            loss_fn=loss_fn,
+            output_args=output_args,
+            log_wandb=args.wandb,
+            device=device,
+        )
+        logging.info("\n" + str(table))
 
         # Save entire model
-        if swa_eval:
-            model_path = Path(args.checkpoints_dir) / (tag + "_swa.model")
-        else:
-            model_path = Path(args.checkpoints_dir) / (tag + ".model")
+        #if swa_eval:
+            #model_path = Path(args.checkpoints_dir) / (tag + "_swa.model")
+        #else:
+        model_path = Path(args.model_dir) / 'mace.model'
         logging.info(f"Saving model to {model_path}")
-        if args.save_cpu:
-            model = model.to("cpu")
-        torch.save(model, model_path)
-
-        if swa_eval:
-            torch.save(model, Path(args.model_dir) / (args.name + "_swa.model"))
-        else:
-            torch.save(model, Path(args.model_dir) / (args.name + ".model"))
-
+        #if args.save_cpu:
+        assert args.save_cpu
+        torch.save(model.to('cpu'), model_path)
     logging.info("Done")
+
