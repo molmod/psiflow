@@ -22,7 +22,6 @@ from psiflow.reference import BaseReference
 from psiflow.sampling import BaseWalker, RandomWalker, PlumedBias, \
         BiasedDynamicWalker
 from psiflow.generate import generate, generate_all
-from psiflow.checks import Check, DiscrepancyCheck
 from psiflow.state import save_state, load_state
 from psiflow.utils import resolve_and_check
 
@@ -60,7 +59,6 @@ class BaseLearning:
         if path_config.is_file():
             logger.warning('overriding learning config file {}'.format(path_config))
         save_yaml(config, outputs=[File(str(path_config))]).result()
-        self.checks = []
 
     def output_exists(self, name):
         return (self.path_output / name).is_dir()
@@ -85,11 +83,6 @@ class BaseLearning:
                 data_failed=data_failed,
                 require_done=require_done,
                 )
-        for check in self.checks:
-            if isinstance(check, DiscrepancyCheck):
-                if len(model.deploy_future) == 0:
-                    model.deploy()
-                check.update_model(model)
         if self.wandb_logger is not None:
             log = self.wandb_logger( # log training
                     run_name=name,
@@ -264,59 +257,6 @@ class SequentialLearning(BaseLearning):
                     reference,
                     self.num_tries_sampling,
                     self.num_tries_reference,
-                    checks=self.checks,
-                    )
-            _data_train, _data_valid = self.split_successful(data)
-            data_train.append(_data_train)
-            data_valid.append(_data_valid)
-            data_train.log('data_train')
-            data_valid.log('data_valid')
-            if self.train_from_scratch:
-                logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
-                model.reset()
-                model.initialize(data_train)
-            model.train(data_train, data_valid)
-            model.deploy()
-            self.finish_iteration(
-                    name=str(i),
-                    model=model,
-                    walkers=walkers,
-                    data_train=data_train,
-                    data_valid=data_valid,
-                    data_failed=data.get(indices=data.failed),
-                    require_done=True,
-                    )
-        return data_train, data_valid
-
-
-@typeguard.typechecked
-@dataclass
-class CommitteeLearning(BaseLearning):
-
-    def run(
-            self,
-            model: BaseModel,
-            reference: BaseReference,
-            walkers: list[BaseWalker],
-            initial_data: Optional[Dataset] = None,
-            ) -> tuple[Dataset, Dataset]:
-        data_train, data_valid = self.initialize_run(
-                model,
-                reference,
-                walkers,
-                initial_data,
-                )
-        model.deploy()
-        for i in range(self.niterations):
-            if self.output_exists(str(i)):
-                continue # skip iterations in case of restarted run
-            data = generate_all(
-                    walkers,
-                    model,
-                    reference,
-                    self.num_tries_sampling,
-                    self.num_tries_reference,
-                    checks=self.checks,
                     )
             _data_train, _data_valid = self.split_successful(data)
             data_train.append(_data_train)
@@ -387,7 +327,6 @@ class ConcurrentLearning(BaseLearning):
                         self.num_tries_sampling,
                         self.num_tries_reference,
                         queue[index],
-                        checks=self.checks,
                         )
                 queue[index] = state
                 states.append(state)

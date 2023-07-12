@@ -69,7 +69,8 @@ def main():
         assert config.valid_file is not None
     else:
         assert config.valid_file is None
-    config.device = 'cuda' # hardcode GPU training
+    if not args.init_only:
+        config.device = 'cuda' # hardcode GPU training
     config.default_dtype = 'float32'
 
     # BUG IN MACE!

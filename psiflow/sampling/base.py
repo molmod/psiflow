@@ -159,7 +159,7 @@ class BaseWalker:
             require_done: bool = True,
             ) -> tuple[DataFuture, DataFuture, DataFuture]:
         path = Path(path)
-        assert path.is_dir()
+        path.mkdir(exist_ok=True)
         name = self.__class__.__name__
         path_start = path / 'start.xyz'
         path_state = path / 'state.xyz'

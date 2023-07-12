@@ -179,7 +179,7 @@ class BaseModel:
             require_done: bool = True,
             ) -> Tuple[DataFuture, Optional[DataFuture], Optional[DataFuture]]:
         path = resolve_and_check(Path(path))
-        assert path.is_dir()
+        path.mkdir(exist_ok=True)
         path_config_raw = path / (self.__class__.__name__ + '.yaml')
         future_raw = save_yaml(
                 self.config_raw,

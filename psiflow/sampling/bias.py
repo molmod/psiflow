@@ -441,7 +441,7 @@ class PlumedBias:
             require_done: bool = True,
             ) -> tuple[DataFuture, dict[str, DataFuture]]:
         path = Path(path)
-        assert path.is_dir()
+        path.mkdir(exist_ok=True)
         path_input = path / 'plumed_input.txt'
         input_future = save_txt(
                 self.plumed_input,

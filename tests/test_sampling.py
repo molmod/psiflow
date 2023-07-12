@@ -37,16 +37,16 @@ def test_random_walker_multiply(context, dataset, tmp_path):
         assert np.all(delta < amplitude_pos)
 
 
-def test_save_load(context, dataset, mace_config, tmp_path):
+def test_walker_save_load(context, dataset, mace_config, tmp_path):
     walker = DynamicWalker(dataset[0], steps=10, step=1)
-    path_start = tmp_path / 'start.xyz'
-    path_state = tmp_path / 'state.xyz'
-    path_pars  = tmp_path / 'DynamicWalker.yaml' # has name of walker class
-    future, future, future = walker.save(tmp_path)
+    path_start = tmp_path / 'new' / 'start.xyz'
+    path_state = tmp_path / 'new' / 'state.xyz'
+    path_pars  = tmp_path / 'new' / 'DynamicWalker.yaml' # has name of walker class
+    future, future, future = walker.save(tmp_path / 'new')
     assert os.path.exists(path_start)
     assert os.path.exists(path_state)
     assert os.path.exists(path_pars)
-    walker_ = load_walker(tmp_path)
+    walker_ = load_walker(tmp_path / 'new')
     assert type(walker_) == DynamicWalker
     assert np.allclose(
             walker.start_future.result().positions,
@@ -62,8 +62,8 @@ def test_save_load(context, dataset, mace_config, tmp_path):
     model.initialize(dataset[:3])
     model.deploy()
     walker.propagate(model=model)
-    walker.save(tmp_path)
-    walker = load_walker(tmp_path)
+    walker.save(tmp_path / 'new_again')
+    walker = load_walker(tmp_path / 'new_again')
     assert walker.counter_future.result() == 10
 
 def test_base_walker(context, dataset):

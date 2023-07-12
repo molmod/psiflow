@@ -14,7 +14,6 @@ from psiflow.sampling import BaseWalker, PlumedBias, load_walker, RandomWalker
 from psiflow.reference import BaseReference
 from psiflow.models import BaseModel
 from psiflow.utils import copy_app_future
-from psiflow.checks import Check
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -30,10 +29,8 @@ def generate(
         num_tries_sampling: int,
         num_tries_reference: int,
         *args, # waits for these futures to complete before execution
-        checks: list[Check] = [],
         ) -> AppFuture:
     for arg in args:
-        assert not isinstance(arg, Check) # can occur by mistake
         assert not isinstance(arg, list) # can occur by mistake
     if not num_tries_sampling > 0:
         logger.info('reached max sampling retries for walker {}, aborting'.format(
@@ -61,8 +58,6 @@ def generate(
             model=model,
             keep_trajectory=False,
             )
-    for check in checks:
-        state = check(state, walker.tag_future)
     return _evaluate(
             name,
             walker,
@@ -72,7 +67,6 @@ def generate(
             num_tries_reference,
             state,
             walker.counter_future,
-            checks=checks,
             )
 
 
@@ -86,7 +80,6 @@ def _evaluate(
         num_tries_sampling: int,
         num_tries_reference: int,
         *args, # waits for these futures to complete before execution
-        checks: list[Check] = [],
         ) -> AppFuture:
     assert len(args) == 2
     state = args[0]
@@ -105,7 +98,6 @@ def _evaluate(
                     num_tries_sampling,
                     num_tries_reference - 1, # one reference try
                     reference.evaluate(state),
-                    checks=checks,
                     )
         else:
             logger.info('\tno reference level given, returning state')
@@ -122,7 +114,6 @@ def _evaluate(
                 reference,
                 num_tries_sampling,
                 num_tries_reference,
-                checks=checks,
                 )
 
 
@@ -136,7 +127,6 @@ def _gather(
         num_tries_sampling: int,
         num_tries_reference: int,
         *args, # waits for these futures to complete before execution
-        checks: list[Check] = [],
         ) -> Union[AppFuture, FlowAtoms]:
     assert len(args) == 1
     state = args[0]
@@ -158,7 +148,6 @@ def _gather(
                 reference,
                 num_tries_sampling,
                 num_tries_reference,
-                checks=checks,
                 )
 
 
@@ -166,9 +155,7 @@ def generate_all(
         walkers: list[BaseWalker],
         model: Optional[BaseModel],
         reference: Optional[BaseReference],
-        num_tries_sampling: int = 10,
         num_tries_reference: int = 1,
-        checks: list[Check] = [],
         ) -> Dataset:
     states = []
     for i, walker in enumerate(walkers):
@@ -179,7 +166,6 @@ def generate_all(
                 reference,
                 num_tries_sampling,
                 num_tries_reference,
-                checks=checks, # call as keyword arg!
                 )
         states.append(state)
     return Dataset(states)
