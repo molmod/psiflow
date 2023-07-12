@@ -16,14 +16,14 @@ def test_save_load(context, dataset, nequip_config, tmp_path):
             name=name,
             model=model,
             walkers=walkers,
-            data_failed=dataset,
+            data_train=dataset,
             )
     assert (path_output / name / 'walkers').is_dir()
     assert (path_output / name / 'walkers' / '0').is_dir()
     assert (path_output / name / 'walkers' / '1').is_dir()
     assert (path_output / name / 'walkers' / '2').is_dir()
     assert (path_output / name / 'walkers' / '3').is_dir()
-    assert (path_output / name / 'failed.xyz').is_file()
+    assert (path_output / name / 'train.xyz').is_file()
 
     model_, walkers_, data_train, data_valid = load_state(path_output, 'test')
     assert model_.config_future is None # model was not initialized

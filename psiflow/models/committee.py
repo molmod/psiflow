@@ -11,16 +11,9 @@ from psiflow.data import Dataset
 from psiflow.models import BaseModel
 
 
-@typeguard.typechecked
-class Filter:
-
-    def apply(self, data: Dataset, nstates: int) -> Dataset:
-        raise NotImplementedError
-
-
 @python_app(executors=['default'])
 def apply_committee(
-        nstates: int,
+        discard_percentage: float,
         metric: str,
         inputs: list[File] = [],
         outputs: list[File] = [],
@@ -36,6 +29,7 @@ def apply_committee(
     assert lengths[0] > 0
     for l in lengths:
         assert l == lengths[0]
+    nstates = int((1 - discard_percentage) * l)
     if nstates > lengths[0]:
         extracted = _data
     else:
@@ -58,34 +52,57 @@ def apply_committee(
 
 
 @typeguard.typechecked
-class Committee(Filter):
+class CommitteeMixin:
 
     def __init__(
             self,
-            models: list[BaseModel],
+            config: Any, # can be dict or SomeModelConfig
+            size: int = 4,
+            discard_percentage: float = 0.5,
             metric: str = 'mean_force',
             ):
-        for i, model in enumerate(models):
-            model.seed = i
-        self.models = models
+        super().__init__(config)
+        self.discard_percentage = discard_percentage
         self.metric = metric
 
-    def apply(self, data: Dataset, nstates: int) -> tuple[Dataset, AppFuture]:
+        assert size > 1
+        model_cls = list(self.__class__.__bases__)[0]
+        self.models = [model_cls(config) for i in range(size - 1)]
+        for i, model in enumerate(self.models):
+            model.seed = i + 1
+
+    def apply(self, data: Dataset) -> tuple[Dataset, AppFuture]:
         context = psiflow.context()
-        inputs = [m.evaluate(data).data_future for m in self.models]
+        inputs = [m.evaluate(data).data_future for m in [self] + self.models]
         disagreements = apply_committee(
-                nstates,
+                self.discard_percentage,
                 self.metric,
                 inputs=inputs,
                 outputs=[context.new_file('data_', '.xyz')],
                 )
         return Dataset(None, data_future=disagreements.outputs[0]), disagreements
 
-    def train(self, training, validation) -> None:
+    def reset(self):
+        super().reset()
         for i, model in enumerate(self.models):
             model.reset()
-            model.seed += len(self.models)
+            model.seed += len(self.models) + 1
+
+    def initialize(self, dataset: Dataset):
+        super().initialize()
         for model in self.models:
-            model.initialize(training)
+            model.initialize(dataset)
+
+    def train(self, training, validation) -> None:
+        super().train(training, validation) # train first model
+        for model in self.models:
             model.train(training, validation)
-            model.deploy()
+
+    def save(
+            self,
+            path: Union[Path, str],
+            require_done: bool = True,
+            ):
+        super().save(path, require_done)
+        for i, model in enumerate(self.models):
+            model.save(path / str(i + 1), require_done)

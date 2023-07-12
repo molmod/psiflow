@@ -68,7 +68,6 @@ class BaseLearning:
             walkers,
             data_train,
             data_valid,
-            data_failed,
             require_done=False,
             ):
         save_state(
@@ -78,7 +77,6 @@ class BaseLearning:
                 walkers=walkers,
                 data_train=data_train,
                 data_valid=data_valid,
-                data_failed=data_failed,
                 require_done=require_done,
                 )
         if self.wandb_logger is not None:
@@ -177,7 +175,6 @@ class BaseLearning:
                 walkers,
                 data_train,
                 data_valid,
-                data_failed=None,
                 require_done=True,
                 )
         return data_train, data_valid
@@ -271,7 +268,6 @@ class SequentialLearning(BaseLearning):
                     walkers=walkers,
                     data_train=data_train,
                     data_valid=data_valid,
-                    data_failed=data.get(indices=data.failed),
                     require_done=True,
                     )
         return data_train, data_valid

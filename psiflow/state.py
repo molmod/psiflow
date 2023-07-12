@@ -20,7 +20,6 @@ def save_state(
         walkers: list[BaseWalker],
         data_train: Optional[Dataset] = None,
         data_valid: Optional[Dataset] = None,
-        data_failed: Optional[Dataset] = None,
         require_done=True,
         ) -> None:
     path_output = resolve_and_check(path_output)
@@ -40,8 +39,6 @@ def save_state(
         data_train.save(path / 'train.xyz')
     if data_valid is not None:
         data_valid.save(path / 'validate.xyz')
-    if data_failed is not None:
-        data_failed.save(path / 'failed.xyz')
 
 
 @typeguard.typechecked
