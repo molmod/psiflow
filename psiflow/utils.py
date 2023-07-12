@@ -28,7 +28,6 @@ def set_logger( # hacky
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
     names = [
-            'psiflow.checks',
             'psiflow.data',
             'psiflow.generate',
             'psiflow.execution',
@@ -40,7 +39,7 @@ def set_logger( # hacky
             'psiflow.models._mace',
             'psiflow.models._nequip',
             'psiflow.reference._cp2k',
-            'psiflow.sampling.bias',
+            'psiflow.walkers.bias',
             ]
     for name in names:
         logger = logging.getLogger(name)

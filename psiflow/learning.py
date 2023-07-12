@@ -19,7 +19,7 @@ from psiflow.data import Dataset
 from psiflow.wandb_utils import WandBLogger
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
-from psiflow.sampling import BaseWalker, RandomWalker, PlumedBias, \
+from psiflow.walkers import BaseWalker, RandomWalker, PlumedBias, \
         BiasedDynamicWalker
 from psiflow.generate import generate, generate_all
 from psiflow.state import save_state, load_state
@@ -43,8 +43,6 @@ class BaseLearning:
     atomic_energies_box_size: float = 10
     train_from_scratch: bool = True
     niterations: int = 10
-    num_tries_sampling: int = 5
-    num_tries_reference: int = 1
 
     def __post_init__(self) -> None: # save self in output folder
         self.path_output = resolve_and_check(Path(self.path_output))
@@ -255,8 +253,6 @@ class SequentialLearning(BaseLearning):
                     walkers,
                     model,
                     reference,
-                    self.num_tries_sampling,
-                    self.num_tries_reference,
                     )
             _data_train, _data_valid = self.split_successful(data)
             data_train.append(_data_train)
@@ -286,91 +282,91 @@ def delayed_deploy(model, wait_for_it):
     model.deploy()
 
 
-@typeguard.typechecked
-@dataclass
-class ConcurrentLearning(BaseLearning):
-    min_states_per_iteration: int = 20
-    max_states_per_iteration: int = 100
-
-    def run(
-            self,
-            model: BaseModel,
-            reference: BaseReference,
-            walkers: list[BaseWalker],
-            initial_data: Optional[Dataset] = None,
-            ) -> tuple[Dataset, Dataset]:
-        data_train, data_valid = self.initialize_run(
-                model,
-                reference,
-                walkers,
-                initial_data,
-                )
-        nwalkers = len(walkers)
-        assert self.min_states_per_iteration <= nwalkers, ('the number of '
-                'walkers should be larger than the threshold number of '
-                'states for retraining.')
-        states = []
-        queue  = [None for i in range(nwalkers)]
-        for i in range(self.niterations):
-            if self.output_exists(str(i)):
-                continue # skip iterations in case of restarted run
-            model.deploy()
-            j = 0
-            assert self.max_states_per_iteration - len(states) >= self.min_states_per_iteration
-            while len(states) < self.max_states_per_iteration:
-                index = j % nwalkers
-                state = generate(
-                        str(index),
-                        walkers[index],
-                        model,
-                        reference,
-                        self.num_tries_sampling,
-                        self.num_tries_reference,
-                        queue[index],
-                        )
-                queue[index] = state
-                states.append(state)
-                j += 1
-
-            # finish previous training before gathering data
-            model.model_future.result()
-
-            # gather finished data, with a minimum of retrain_threshold
-            retrain_threshold = (i + 1) * self.min_states_per_iteration
-            for k, _ in enumerate(as_completed(states)):
-                if k > retrain_threshold:
-                    break # wait until at least retrain_threshold have completed
-            completed = []
-            try:
-                for k, future in enumerate(as_completed(states, timeout=5)):
-                    completed.append(future)
-                    states.remove(future)
-            except TimeoutError:
-                pass
-            logger.info('building dataset with {} states'.format(len(completed)))
-            data = Dataset(completed)
-            _data_train, _data_valid = self.split_successful(data)
-            data_train.append(_data_train)
-            data_valid.append(_data_valid)
-            data_train.log('data_train')
-            data_valid.log('data_valid')
-            model.train(data_train, data_valid, keep_deployed=True)
-            delayed_deploy(model, model.model_future) # only deploy after training
-
-            # save model obtained from this iteration
-            model_ = model.copy()
-            model_.deploy()
-            self.finish_iteration(
-                    name=str(i),
-                    model=model,
-                    walkers=walkers,
-                    data_train=data_train,
-                    data_valid=data_valid,
-                    data_failed=data.get(indices=data.failed),
-                    require_done=False,
-                    )
-        parsl.dfk().wait_for_current_tasks() # force execution of finish_iter
-        return data_train, data_valid
+#@typeguard.typechecked
+#@dataclass
+#class ConcurrentLearning(BaseLearning):
+#    min_states_per_iteration: int = 20
+#    max_states_per_iteration: int = 100
+#
+#    def run(
+#            self,
+#            model: BaseModel,
+#            reference: BaseReference,
+#            walkers: list[BaseWalker],
+#            initial_data: Optional[Dataset] = None,
+#            ) -> tuple[Dataset, Dataset]:
+#        data_train, data_valid = self.initialize_run(
+#                model,
+#                reference,
+#                walkers,
+#                initial_data,
+#                )
+#        nwalkers = len(walkers)
+#        assert self.min_states_per_iteration <= nwalkers, ('the number of '
+#                'walkers should be larger than the threshold number of '
+#                'states for retraining.')
+#        states = []
+#        queue  = [None for i in range(nwalkers)]
+#        for i in range(self.niterations):
+#            if self.output_exists(str(i)):
+#                continue # skip iterations in case of restarted run
+#            model.deploy()
+#            j = 0
+#            assert self.max_states_per_iteration - len(states) >= self.min_states_per_iteration
+#            while len(states) < self.max_states_per_iteration:
+#                index = j % nwalkers
+#                state = generate(
+#                        str(index),
+#                        walkers[index],
+#                        model,
+#                        reference,
+#                        self.num_tries_sampling,
+#                        self.num_tries_reference,
+#                        queue[index],
+#                        )
+#                queue[index] = state
+#                states.append(state)
+#                j += 1
+#
+#            # finish previous training before gathering data
+#            model.model_future.result()
+#
+#            # gather finished data, with a minimum of retrain_threshold
+#            retrain_threshold = (i + 1) * self.min_states_per_iteration
+#            for k, _ in enumerate(as_completed(states)):
+#                if k > retrain_threshold:
+#                    break # wait until at least retrain_threshold have completed
+#            completed = []
+#            try:
+#                for k, future in enumerate(as_completed(states, timeout=5)):
+#                    completed.append(future)
+#                    states.remove(future)
+#            except TimeoutError:
+#                pass
+#            logger.info('building dataset with {} states'.format(len(completed)))
+#            data = Dataset(completed)
+#            _data_train, _data_valid = self.split_successful(data)
+#            data_train.append(_data_train)
+#            data_valid.append(_data_valid)
+#            data_train.log('data_train')
+#            data_valid.log('data_valid')
+#            model.train(data_train, data_valid, keep_deployed=True)
+#            delayed_deploy(model, model.model_future) # only deploy after training
+#
+#            # save model obtained from this iteration
+#            model_ = model.copy()
+#            model_.deploy()
+#            self.finish_iteration(
+#                    name=str(i),
+#                    model=model,
+#                    walkers=walkers,
+#                    data_train=data_train,
+#                    data_valid=data_valid,
+#                    data_failed=data.get(indices=data.failed),
+#                    require_done=False,
+#                    )
+#        parsl.dfk().wait_for_current_tasks() # force execution of finish_iter
+#        return data_train, data_valid
 
 
 @typeguard.typechecked
@@ -380,7 +376,6 @@ def load_learning(path_output: Union[Path, str]):
     classes = [
             SequentialLearning,
             ConcurrentLearning,
-            IncrementalLearning,
             None,
             ]
     for learning_cls in classes:

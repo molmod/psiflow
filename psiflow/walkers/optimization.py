@@ -13,7 +13,7 @@ from parsl.app.futures import DataFuture
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.execution import ModelEvaluationExecution
-from psiflow.sampling.base import BaseWalker
+from psiflow.walkers.base import BaseWalker
 from psiflow.models import BaseModel
 
 

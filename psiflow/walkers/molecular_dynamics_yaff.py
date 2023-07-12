@@ -12,10 +12,10 @@ from ase.io import read, write
 from ase.io.extxyz import write_extxyz
 
 from psiflow.data import FlowAtoms
-from psiflow.sampling.utils import ForcePartASE, DataHook, \
+from psiflow.walkers.utils import ForcePartASE, DataHook, \
         create_forcefield, ForceThresholdExceededException, ForcePartPlumed, \
         ExtXYZHook
-from psiflow.sampling.bias import try_manual_plumed_linking
+from psiflow.walkers.bias import try_manual_plumed_linking
 
 
 def main():

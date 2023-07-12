@@ -131,9 +131,9 @@ def evaluate_bias(
     import yaff
     yaff.log.set_level(yaff.log.silent)
     import molmod
-    from psiflow.sampling.utils import ForcePartASE, create_forcefield, \
+    from psiflow.walkers.utils import ForcePartASE, create_forcefield, \
             ForceThresholdExceededException, ForcePartPlumed
-    from psiflow.sampling.bias import try_manual_plumed_linking
+    from psiflow.walkers.bias import try_manual_plumed_linking
     from psiflow.data import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     values = np.zeros((len(dataset), len(variables) + 1)) # column 0 for CV, 1 for bias

@@ -9,7 +9,7 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import FlowAtoms
-from psiflow.sampling import BaseWalker, PlumedBias
+from psiflow.walkers import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 
 
@@ -20,7 +20,7 @@ def random_perturbation(
         ) -> tuple[FlowAtoms, str, int]:
     import numpy as np
     import copy
-    from psiflow.sampling.utils import apply_strain
+    from psiflow.walkers.utils import apply_strain
     state = copy.deepcopy(state)
     np.random.seed(parameters['seed'])
     frac = state.positions @ np.linalg.inv(state.cell)

@@ -5,7 +5,7 @@ import logging
 
 from psiflow.models import BaseModel, load_model
 from psiflow.data import Dataset
-from psiflow.sampling import BaseWalker, save_walkers, load_walkers
+from psiflow.walkers import BaseWalker, save_walkers, load_walkers
 from psiflow.utils import resolve_and_check
 
 

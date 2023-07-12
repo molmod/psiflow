@@ -14,10 +14,9 @@ from parsl.dataflow.futures import AppFuture
 
 from psiflow.models import BaseModel, NequIPModel
 from psiflow.reference.base import BaseReference
-from psiflow.sampling import RandomWalker, PlumedBias, BiasedDynamicWalker, \
+from psiflow.walkers import RandomWalker, PlumedBias, BiasedDynamicWalker, \
         BaseWalker
 from psiflow.data import Dataset
-from psiflow.checks import Check
 from psiflow.utils import copy_app_future
 
 

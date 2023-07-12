@@ -71,7 +71,7 @@ def check_torch():
     return report
 
 
-def check_sampling():
+def check_walkers():
     report = '\tase:\t'
     try:
         import ase
@@ -96,7 +96,7 @@ def check_sampling():
     report += '\tplumed:\t'
     try:
         import plumed
-        from psiflow.sampling.bias import try_manual_plumed_linking
+        from psiflow.walkers.bias import try_manual_plumed_linking
         report += 'libplumedKernel.so at {}'.format(try_manual_plumed_linking())
     except ModuleNotFoundError:
         report += 'module not found'
@@ -149,7 +149,7 @@ def main():
                 apps.append(app)
                 app = python_app(check_models, executors=[definition.executor])
                 apps.append(app)
-                app = python_app(check_sampling, executors=[definition.executor])
+                app = python_app(check_walkers, executors=[definition.executor])
                 apps.append(app)
                 reports = [app().result() for app in apps]
                 for report in reports:
