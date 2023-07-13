@@ -15,18 +15,14 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.utils import get_train_valid_indices, save_yaml, copy_app_future
-from psiflow.data import Dataset
+from psiflow.data import Dataset, FlowAtoms
 from psiflow.wandb_utils import WandBLogger
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
 from psiflow.walkers import BaseWalker, RandomWalker, PlumedBias, \
         BiasedDynamicWalker
-from psiflow.generate import generate, generate_all
 from psiflow.state import save_state, load_state
 from psiflow.utils import resolve_and_check
-
-
-logger = logging.getLogger(__name__) # logging per module
 
 
 @typeguard.typechecked
