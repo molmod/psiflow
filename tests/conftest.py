@@ -36,7 +36,7 @@ def context(request, tmp_path_factory):
         context = psiflow.load(
                 path_config,
                 tmp_path_factory.mktemp('psiflow_internal'),
-                psiflow_log_level='DEBUG',
+                psiflow_log_level='INFO',
                 parsl_log_level='INFO',
                 )
     def cleanup():

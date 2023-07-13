@@ -11,8 +11,7 @@ from psiflow.utils import copy_app_future, resolve_and_check
 from .base import BaseWalker # import base and bias before walkers
 from .bias import PlumedBias
 from .random import RandomWalker
-from .dynamic import DynamicWalker, BiasedDynamicWalker, \
-        MovingRestraintDynamicWalker
+from .dynamic import DynamicWalker, BiasedDynamicWalker
 from .optimization import OptimizationWalker
 
 
@@ -35,7 +34,6 @@ def load_walker(path: Union[Path, str]) -> BaseWalker:
             DynamicWalker,
             OptimizationWalker,
             BiasedDynamicWalker,
-            MovingRestraintDynamicWalker,
             None,
             ]
     for walker_cls in classes:
@@ -48,7 +46,7 @@ def load_walker(path: Union[Path, str]) -> BaseWalker:
     with open(path_pars, 'r') as f:
         parameters = yaml.load(f, Loader=yaml.FullLoader)
         counter = parameters.pop('counter')
-    if walker_cls in [BiasedDynamicWalker, MovingRestraintDynamicWalker]:
+    if walker_cls == BiasedDynamicWalker:
         path_plumed = path / ('plumed_input.txt')
         assert path_plumed.is_file() # has to exist
         bias = PlumedBias.load(path)

@@ -4,8 +4,7 @@ import pytest
 from psiflow.reference import EMTReference
 from psiflow.sampling import RandomWalker, PlumedBias, BiasedDynamicWalker
 from psiflow.models import MACEModel
-from psiflow.learning import SequentialLearning, ConcurrentLearning, \
-        load_learning
+from psiflow.learning import SequentialLearning, load_learning
 from psiflow.wandb_utils import WandBLogger
 
 
@@ -103,40 +102,3 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     assert (path_output / 'random_pretraining').is_dir()
     assert data_train.length().result() == 44 # because of pretraining
     assert data_valid.length().result() == 11
-
-
-def test_concurrent_learning(context, tmp_path, mace_config, dataset):
-    path_output = tmp_path / 'output'
-    path_output.mkdir()
-    reference = EMTReference()
-
-    learning = ConcurrentLearning(
-            path_output=path_output,
-            wandb_logger=None,
-            pretraining_nstates=50,
-            train_from_scratch=True,
-            use_formation_energy=True,
-            train_valid_split=0.8,
-            niterations=1,
-            min_states_per_iteration=8,
-            max_states_per_iteration=40,
-            )
-    model = MACEModel(mace_config)
-    model.config_raw['max_num_epochs'] = 1
-    model.initialize(dataset[:2])
-
-    walkers = RandomWalker.multiply(
-            10,
-            dataset,
-            amplitude_pos=0.05,
-            amplitude_box=0,
-            )
-    with pytest.raises(ValueError): # model initialized on absolute energies
-        data_train, data_valid = learning.run(model, reference, walkers, dataset)
-    model.reset()
-    assert not model.use_formation_energy
-    data_train, data_valid = learning.run(model, reference, walkers, dataset)
-    assert model.use_formation_energy
-
-    assert data_train.length().result() == 16 + 1 * 32
-    assert data_valid.length().result() == 4  + 1 * 8

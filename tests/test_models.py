@@ -18,6 +18,7 @@ from psiflow.execution import ModelEvaluationExecution
 from psiflow.data import Dataset
 from psiflow.models import MACEModel, NequIPModel, AllegroModel, load_model, \
         MACEConfig, NequIPConfig
+from psiflow.committee import Committee
 
 
 def test_nequip_init(context, nequip_config, dataset):
@@ -430,21 +431,3 @@ def test_model_evaluate(context, mace_config, dataset):
                 evaluated[i].result().info['energy'],
                 evaluated__[i].result().info['energy'],
                 )
-
-
-def test_committee_mace(context, mace_config, dataset):
-    mace_config['max_num_epochs'] = 1
-    models = [MACEModel(mace_config) for i in range(3)]
-    committee = MACECommittee(mace_config)
-    for i, model in enumerate(committee.models):
-        assert model.seed == i
-    committee.train(dataset[:5], dataset[5:10])
-    extracted, disagreements = committee.apply(dataset, 5)
-    assert extracted.length().result() == 5
-    assert np.all(disagreements.result() > 0)
-    index_max = int(np.argmax(disagreements.result()))
-    assert np.allclose(
-            extracted[-1].result().positions,
-            dataset[index_max].result().positions,
-            )
-

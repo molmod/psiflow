@@ -9,8 +9,7 @@ from ase import Atoms
 
 from psiflow.models import NequIPModel, MACEModel
 from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
-        OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker, \
-        MovingRestraintDynamicWalker
+        OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker
 from psiflow.sampling.utils import parse_yaff_output
 from psiflow.data import Dataset
 from psiflow.generate import generate_all
@@ -361,74 +360,3 @@ restraint: RESTRAINT ARG=CV AT=15 KAPPA=100
     assert walkers[0].state_future.result().get_volume() == volume_min
     assert walkers[1].state_future.result().get_volume() == volume_max
     assert walkers[0].bias.plumed_input != walkers[1].bias.plumed_input
-
-
-def test_moving_restraint_walker(context, dataset, mace_config, tmp_path):
-    plumed_input = """
-UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-restraint: RESTRAINT ARG=CV AT=100.0 KAPPA=100
-""" # AT=100.0 because floats are written with decimal
-    bias = PlumedBias(plumed_input)
-    walkers = MovingRestraintDynamicWalker.multiply(
-            3,
-            dataset,
-            bias=bias,
-            variable='CV',
-            min_value=100,
-            max_value=200,
-            increment=50,
-            num_propagations=1,
-            steps=11,
-            step=1,
-            )
-    assert walkers[0].steps == 11
-    assert np.allclose(
-            walkers[0].targets,
-            100 + np.arange(3) * 50,
-            )
-    model = MACEModel(mace_config)
-    model.initialize(dataset[:2])
-    model.deploy()
-    state, trajectory = walkers[0].propagate(model=model, keep_trajectory=True)
-    assert walkers[0].counter_future.result() == 11 * 1
-
-    walkers[0].save(tmp_path)
-    walker = load_walker(tmp_path)
-    assert type(walker) == MovingRestraintDynamicWalker
-    assert walker.counter_future.result() == 11
-    assert walker.bias.plumed_input == walkers[0].bias.plumed_input
-
-    assert walkers[1].bias.plumed_input == walkers[2].bias.plumed_input
-    state = walkers[0].propagate(model=model)
-    state.result()
-    assert not (walkers[0].bias.plumed_input == walkers[1].bias.plumed_input)
-
-    state = walker.propagate(model=model) # 200
-    state.result()
-    state = walker.propagate(model=model) # 150
-    state.result()
-    state = walker.propagate(model=model) # 100
-    state.result()
-    assert walker.bias.plumed_input.split('\n')[-1] == walkers[1].bias.plumed_input.split('\n')[-1]
-
-    walker.temperature = np.exp(np.log(400)) # test conversion to python native types before saving yaml
-    walker.save(tmp_path)
-    walker = load_walker(tmp_path)
-
-    walker.num_propagations = 3
-    walker.propagate(model=model)
-    assert walker.counter_future.result() == 7 * walker.steps
-
-    walker.reset()
-    assert walker.counter_future.result() == 0
-
-    _, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    assert walker.counter_future.result() == 33
-    assert trajectory.length().result() == 3 * 12
-
-    walker.force_threshold = 1e-7
-    walker.propagate(model=model)
-    assert walker.counter_future.result() == 0 # is reset
-    assert walker.tag_future.result() == 'safe'
-    assert walker.bias.plumed_input == walkers[1].bias.plumed_input
