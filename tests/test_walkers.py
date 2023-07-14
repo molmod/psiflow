@@ -8,11 +8,10 @@ from parsl.dataflow.futures import AppFuture
 from ase import Atoms
 
 from psiflow.models import NequIPModel, MACEModel
-from psiflow.sampling import BaseWalker, RandomWalker, DynamicWalker, \
+from psiflow.walkers import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker
-from psiflow.sampling.utils import parse_yaff_output
+from psiflow.walkers.utils import parse_yaff_output
 from psiflow.data import Dataset
-from psiflow.generate import generate_all
 
 
 def test_random_walker_multiply(context, dataset, tmp_path):
@@ -30,7 +29,7 @@ def test_random_walker_multiply(context, dataset, tmp_path):
         assert np.allclose(delta, 0)
         delta = np.abs(dataset[0].result().positions - walker.start_future.result().positions)
         assert np.allclose(delta, 0)
-    data = generate_all(walkers, None, None, 1, 1)
+    data = Dataset([w.propagate(None) for w in walkers])
     for i, walker in enumerate(walkers):
         delta = np.abs(walker.start_future.result().positions - walker.state_future.result().positions)
         assert np.all(delta < amplitude_pos)

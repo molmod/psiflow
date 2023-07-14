@@ -23,7 +23,7 @@ from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future, pack
 from psiflow.walkers import BaseWalker, PlumedBias
-from psiflow.walkers.base import sum_counters, update_tag, conditional_reset
+from psiflow.walkers.base import sum_counters, conditional_reset
 from psiflow.models import BaseModel
 
 
@@ -94,9 +94,9 @@ def molecular_dynamics_yaff_post(
     from psiflow.walkers.utils import parse_yaff_output
     with open(inputs[1], 'r') as f:
         stdout = f.read()
-    tag, counter = parse_yaff_output(stdout)
+    counter = parse_yaff_output(stdout)
     atoms = FlowAtoms.from_atoms(read(str(inputs[2]))) # reads last state
-    return atoms, tag, counter
+    return atoms, counter
 
 
 @typeguard.typechecked
@@ -265,7 +265,7 @@ class BiasedDynamicWalker(DynamicWalker):
     def copy(self) -> BaseWalker:
         walker = self.__class__(self.state_future, self.bias, **self.parameters)
         walker.start_future = copy_app_future(self.start_future)
-        walker.tag_future   = copy_app_future(self.tag_future)
+        walker.counter_future = copy_app_future(self.counter_future)
         return walker
 
     def _propagate(self, model, keep_trajectory, file):

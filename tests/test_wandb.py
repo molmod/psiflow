@@ -8,11 +8,10 @@ import numpy as np
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import Dataset
-from psiflow.generate import generate_all
 from psiflow.models import NequIPModel, MACEModel
 from psiflow.wandb_utils import WandBLogger, log_data, to_wandb
 from psiflow.reference import EMTReference
-from psiflow.sampling import RandomWalker, DynamicWalker, PlumedBias, \
+from psiflow.walkers import RandomWalker, DynamicWalker, PlumedBias, \
         BiasedDynamicWalker
 
 
@@ -53,22 +52,6 @@ mtd: METAD ARG=CV1 PACE=1 SIGMA=10 HEIGHT=23
             inputs=[log['all']],
             )
     log0.result()
-
-    #walkers = RandomWalker.multiply(7, dataset) + BiasedDynamicWalker.multiply(2, dataset[:5], bias=bias)
-    #walkers[3].tag_unsafe()
-    #walkers[7].tag_unsafe()
-    #data_new = generate_all(walkers, model, reference, 1, 1)
-    #data_new.length().result()
-    #future = log_walkers(walkers)
-    #log1 = to_wandb(
-    #        'run_name',
-    #        'test_log_dataset_walkers',
-    #        'pytest',
-    #        'dummy',
-    #        ['walkers'],
-    #        inputs=[future],
-    #        )
-    #log1.result()
 
 
 def test_wandb_logger(context, dataset, mace_config, tmp_path):

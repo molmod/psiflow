@@ -8,8 +8,8 @@ from ase.build import bulk
 
 from psiflow.data import Dataset
 from psiflow.models import NequIPModel
-from psiflow.sampling import RandomWalker, PlumedBias
-from psiflow.sampling.bias import set_path_in_plumed, parse_plumed_input, \
+from psiflow.walkers import RandomWalker, PlumedBias
+from psiflow.walkers.bias import set_path_in_plumed, parse_plumed_input, \
         generate_external_grid, remove_comments_printflush
 
 

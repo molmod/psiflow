@@ -2,7 +2,7 @@ import shutil
 import pytest
 
 from psiflow.reference import EMTReference
-from psiflow.sampling import RandomWalker, PlumedBias, BiasedDynamicWalker
+from psiflow.walkers import RandomWalker, PlumedBias, BiasedDynamicWalker
 from psiflow.models import MACEModel
 from psiflow.learning import SequentialLearning, load_learning
 from psiflow.wandb_utils import WandBLogger

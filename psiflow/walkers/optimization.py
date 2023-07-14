@@ -69,11 +69,11 @@ def optimize_geometry(
             trajectory=path_traj,
             )
 
-    tag = 'safe'
     try:
         optimizer.run(fmax=pars['fmax'])
+        nsteps = optimizer.nsteps
     except:
-        tag = 'unsafe'
+        nsteps = 0
         pass
     atoms.calc = None
     if keep_trajectory:
@@ -82,7 +82,7 @@ def optimize_geometry(
             trajectory = read(path_traj, index=':')
             write_extxyz(f, trajectory)
     os.unlink(path_traj)
-    return FlowAtoms.from_atoms(atoms), tag, optimizer.nsteps
+    return FlowAtoms.from_atoms(atoms), optimizer.nsteps
 
 
 @typeguard.typechecked

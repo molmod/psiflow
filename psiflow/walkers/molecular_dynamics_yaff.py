@@ -145,7 +145,6 @@ def main():
     else:
         print('sampling NVE ensemble')
 
-    tag = 'safe'
     counter = 0
     try: # exception may already be raised at initialization of verlet
         verlet = yaff.VerletIntegrator(
@@ -160,14 +159,7 @@ def main():
         assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
     except ForceThresholdExceededException as e:
         print(e)
-        print('tagging sample as unsafe')
-        tag = 'unsafe'
-        try:
-            counter = verlet.counter
-        except UnboundLocalError: # if it happened during verlet init
-            assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
-            pass
-        assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
+        counter = 0
     except TimeoutException as e:
         counter = verlet.counter
         assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
@@ -198,4 +190,4 @@ def main():
                 )
     #if counter_is_reset: assert state_is_reset
     if state_is_reset and (args.step == 1): assert counter_is_reset
-    return FlowAtoms.from_atoms(atoms), tag, counter
+    return FlowAtoms.from_atoms(atoms), counter

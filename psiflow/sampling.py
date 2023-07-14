@@ -4,6 +4,8 @@ import typeguard
 import logging
 from typing import Optional, Union
 
+from parsl.dataflow.futures import AppFuture
+
 from parsl.app.app import join_app, python_app
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.models import BaseModel
@@ -14,14 +16,19 @@ from psiflow.committee import Committee
 
 
 logger = logging.getLogger(__name__) # logging per module
+logger.setLevel(logging.INFO)
 
 
 @join_app
 def log_propagation(*counters: int) -> None:
     logger.info('PROPAGATION')
     for i, counter in enumerate(counters):
-        logger.info('\twalker {:5}:\t{:10} steps'.format(i, counter))
-
+        s = '\twalker {:5}:'.format(i)
+        if counter == 0:
+            s += '\tfailed'
+        else:
+            s += '\t{:10} steps'.format(counter)
+            
 
 @join_app
 def log_evaluation(*states: FlowAtoms) -> None:
@@ -35,24 +42,23 @@ def log_evaluation(*states: FlowAtoms) -> None:
 
 
 @python_app(executors=['default'])
-def assign_identifier(identifier: int, state: FlowAtoms):
+def assign_identifier(state: FlowAtoms, identifier: int):
     if state.reference_status:
         state.info['identifier'] = identifier
         identifier += 1
     else:
         pass
-    return identifier, state
+    return state, identifier
 
 
-#@typeguard.typechecked
 @join_app
-def sample(
+def _sample(
         identifier: int,
         model: BaseModel,
         reference: BaseReference,
         walkers: list[BaseWalker],
         error_thresholds_for_reset: tuple[float] = (10, 200), # (e_rmse, f_rmse)
-        ) -> Dataset:
+        ) -> list[AppFuture]:
     states = [w.propagate(model) for w in walkers]
     log_propagation(*[w.counter_future for w in walkers])
     states = [reference.evaluate(s) for s in states]
@@ -63,4 +69,10 @@ def sample(
         states[i] = state
     log_evaluation(*states)
     data = Dataset(states)
-    return data.get(indices=data.success), identifier
+    return [data.get(indices=data.success).as_list(), identifier]
+
+
+# use wrapper because join_app can only return future
+def sample(*args, **kwargs) -> tuple[Dataset, AppFuture]:
+    f = _sample(*args, **kwargs)
+    return Dataset(unpack_i(f, 0)), unpack_i(f, 1)

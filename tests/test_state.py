@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from psiflow.models import NequIPModel
-from psiflow.sampling import RandomWalker, DynamicWalker
+from psiflow.walkers import RandomWalker, DynamicWalker
 from psiflow.state import save_state, load_state
 
 

@@ -48,6 +48,12 @@ def set_logger( # hacky
 
 
 @typeguard.typechecked
+def _sum_integers(a: int, b: int) -> int:
+    return a + b
+sum_integers = python_app(_sum_integers, executors=['default'])
+
+
+@typeguard.typechecked
 def _create_if_empty(outputs: List[File] = []) -> None:
     try:
         with open(inputs[1], 'r') as f:
@@ -116,6 +122,13 @@ pack = python_app(_pack, executors=['default'])
 def _unpack_i(result: Union[List, Tuple], i: int) -> Any:
     return result[i]
 unpack_i = python_app(_unpack_i, executors=['default'])
+
+
+@typeguard.typechecked
+def _unpack_dict(result: dict, key: Any) -> Any:
+    assert key in result.keys()
+    return result[key]
+unpack_dict = python_app(_unpack_dict, executors=['default'])
 
 
 @typeguard.typechecked

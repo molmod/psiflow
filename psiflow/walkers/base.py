@@ -16,49 +16,29 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.models import BaseModel
 from psiflow.utils import copy_app_future, unpack_i, copy_data_future, \
-        save_yaml
+        save_yaml, sum_integers, unpack_dict
 from psiflow.data import save_atoms, FlowAtoms, Dataset, app_reset_atoms
 
 
 @typeguard.typechecked
-def _conditional_reset(
+def _conditioned_reset(
         state: FlowAtoms,
         start: FlowAtoms,
-        tag: str,
         counter: int,
-        conditional: bool,
+        condition: bool,
         ) -> tuple[FlowAtoms, str, int]:
     from copy import deepcopy # copy necessary!
-    if (not conditional): # reset anyway
-        return deepcopy(start), 'safe', 0
+    if condition:
+        return deepcopy(start), 0
     else: # reset if unsafe
-        if tag == 'unsafe':
-            return deepcopy(start), 'safe', 0
-    return deepcopy(state), tag, counter
-conditional_reset = python_app(_conditional_reset, executors=['default'])
+        return deepcopy(state), counter
+conditioned_reset = python_app(_conditioned_reset, executors=['default'])
 
 
 @typeguard.typechecked
 def _is_reset(counter: int) -> bool:
     return counter == 0
 is_reset = python_app(_is_reset, executors=['default'])
-
-
-@typeguard.typechecked
-def _sum_counters(counter0: int, counter1: int) -> int:
-    return counter0 + counter1
-sum_counters = python_app(_sum_counters, executors=['default'])
-
-
-@typeguard.typechecked
-def _update_tag(tag0: str, tag1: str) -> str:
-    if tag0 == 'unsafe':
-        return 'unsafe'
-    else:
-        if tag1 == 'unsafe':
-            return 'unsafe'
-    return 'safe'
-update_tag = python_app(_update_tag, executors=['default'])
 
 
 @typeguard.typechecked
@@ -72,7 +52,6 @@ class BaseWalker:
             atoms = FlowAtoms.from_atoms(atoms)
         self.start_future   = app_reset_atoms(atoms)
         self.state_future   = app_reset_atoms(atoms)
-        self.tag_future     = copy_app_future('safe')
         self.counter_future = copy_app_future(0) # counts nsteps
         self.seed = seed
         # apps for walkers are only created at the time when they are invoked,
@@ -83,9 +62,8 @@ class BaseWalker:
 
     def propagate(
             self,
-            keep_trajectory: bool = False,
-            reset_if_unsafe: bool = True,
             model: Optional[BaseModel] = None,
+            keep_trajectory: bool = False,
             ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
         if keep_trajectory:
             file = psiflow.context().new_file('data_', '.xyz')
@@ -96,47 +74,42 @@ class BaseWalker:
                 keep_trajectory=keep_trajectory,
                 file=file,
                 )
-        self.state_future   = unpack_i(result, 0)
-        self.tag_future     = update_tag(self.tag_future, unpack_i(result, 1))
-        self.counter_future = sum_counters(self.counter_future, unpack_i(result, 2))
+        state    = unpack_i(result, 0)
+        metadata = unpack_i(result, 1)
+        self.state_future   = state
+        self.counter_future = sum_integers(
+                self.counter_future,
+                unpack_dict(metadata, 'counter'),
+                )
         if hasattr(self, 'bias'):
             future = self.bias.evaluate(
                     Dataset([self.state_future]),
                     as_dataset=True)[0]
         else:
             future = copy_app_future(self.state_future) # necessary
-        if reset_if_unsafe:
-            self.reset(conditional=True)
         if keep_trajectory:
             assert output_future is not None
             return future, Dataset(None, data_future=output_future)
         else:
             return future
 
-    def tag_unsafe(self) -> None:
-        self.tag_future = copy_app_future('unsafe')
-
-    def tag_safe(self) -> None:
-        self.tag_future = copy_app_future('safe')
-
-    def reset(self, conditional: bool = False) -> AppFuture:
+    def reset(self, condition: Union[None, bool, AppFuture] = None) -> AppFuture:
         """Resets walker to a copy of its starting configuration
 
-        If conditional is enabled, then the reset is only performed when the
-        current tag of the walker is unsafe.
+        If condition is not None, it is assumed to be a boolean or an AppFuture representing a boolean
+        which determines whether or not to reset.
 
         """
-        result = conditional_reset(
+        if condition is None:
+            condition = True
+        result = conditioned_reset(
                 self.state_future,
                 self.start_future,
-                self.tag_future,
                 self.counter_future,
-                conditional,
+                condition,
                 )
         self.state_future   = unpack_i(result, 0)
-        self.tag_future     = unpack_i(result, 1)
-        self.counter_future = unpack_i(result, 2)
-        return self.state_future
+        self.counter_future = unpack_i(result, 1)
 
     def is_reset(self):
         return is_reset(self.counter_future)
@@ -149,8 +122,8 @@ class BaseWalker:
 
     def copy(self) -> BaseWalker:
         walker = self.__class__(self.state_future, **self.parameters)
-        walker.start_future = copy_app_future(self.start_future)
-        walker.tag_future   = copy_app_future(self.tag_future)
+        walker.start_future   = copy_app_future(self.start_future)
+        walker.counter_future = copy_app_future(self.counter_future)
         return walker
 
     def save(
