@@ -1,10 +1,11 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, Callable, Type, Any
+from typing import Optional, Union, Callable, Type, Any, NamedTuple
 import typeguard
 from copy import deepcopy
 import numpy as np
 from pathlib import Path
 from dataclasses import dataclass, asdict
+from collections import namedtuple
 
 from ase import Atoms
 
@@ -23,8 +24,10 @@ from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future, pack
 from psiflow.walkers import BaseWalker, PlumedBias
-from psiflow.walkers.base import sum_counters, conditional_reset
 from psiflow.models import BaseModel
+
+
+Metadata = namedtuple('Metadata', ['state', 'counter', 'reset', 'temperature', 'time'])
 
 
 #@typeguard.typechecked
@@ -94,9 +97,13 @@ def molecular_dynamics_yaff_post(
     from psiflow.walkers.utils import parse_yaff_output
     with open(inputs[1], 'r') as f:
         stdout = f.read()
-    counter = parse_yaff_output(stdout)
+    if 'unsafe' in stdout:
+        reset = True
+    else:
+        reset = False
+    counter, temperature, elapsed_time = parse_yaff_output(stdout)
     atoms = FlowAtoms.from_atoms(read(str(inputs[2]))) # reads last state
-    return atoms, counter
+    return atoms, counter, reset, temperature, elapsed_time
 
 
 @typeguard.typechecked
@@ -148,7 +155,7 @@ class DynamicWalker(BaseWalker):
             self.create_apps(model_cls=model.__class__)
             app = context.apps(self.__class__, 'propagate_' + name)
         return app(
-                self.state_future,
+                self.state,
                 self.parameters,
                 model,
                 keep_trajectory,
@@ -202,7 +209,7 @@ class DynamicWalker(BaseWalker):
                 model: BaseModel = None,
                 keep_trajectory: bool = False,
                 file: Optional[File] = None,
-                ) -> tuple[AppFuture, Optional[DataFuture]]:
+                ) -> tuple[NamedTuple, Optional[DataFuture]]:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
             future_atoms = app_save_dataset(
@@ -234,7 +241,8 @@ class DynamicWalker(BaseWalker):
             result = app_propagate_post(
                     inputs=[future, future.stdout, future.outputs[0]],
                     )
-            return result, future.outputs[0]
+            metadata = Metadata(*[unpack_i(result, i) for i in range(5)])
+            return metadata, future.outputs[0]
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
 
@@ -259,13 +267,14 @@ class BiasedDynamicWalker(DynamicWalker):
         self.bias.save(path, require_done)
         return super().save(path, require_done)
 
-    def reset(self, conditional: bool = False) -> AppFuture:
-        return super().reset(conditional)
+    def reset(self, condition: Union[bool, AppFuture] = None) -> None:
+        self.bias.reset(condition)
+        return super().reset(condition)
 
     def copy(self) -> BaseWalker:
-        walker = self.__class__(self.state_future, self.bias, **self.parameters)
-        walker.start_future = copy_app_future(self.start_future)
-        walker.counter_future = copy_app_future(self.counter_future)
+        walker = self.__class__(self.state, self.bias, **self.parameters)
+        walker.state0  = copy_app_future(self.state0)
+        walker.counter = copy_app_future(self.counter)
         return walker
 
     def _propagate(self, model, keep_trajectory, file):
@@ -279,7 +288,7 @@ class BiasedDynamicWalker(DynamicWalker):
             self.create_apps(model_cls=model.__class__)
             app = context.apps(self.__class__, 'propagate_' + name)
         return app(
-                self.state_future,
+                self.state,
                 self.parameters,
                 self.bias,
                 model,
@@ -342,7 +351,7 @@ class BiasedDynamicWalker(DynamicWalker):
                 else:
                     resource_spec = {}
         if walltime is None:
-            walltime = 1e4 # infinite
+            walltime = 1e6 # infinite
 
         app_propagate = bash_app(
                 molecular_dynamics_yaff,
@@ -363,7 +372,7 @@ class BiasedDynamicWalker(DynamicWalker):
                 model: BaseModel = None,
                 keep_trajectory: bool = False,
                 file: Optional[File] = None,
-                ) -> tuple[AppFuture, Optional[DataFuture]]:
+                ) -> tuple[Metadata, Optional[DataFuture]]:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
             future_atoms = app_save_dataset(
@@ -399,6 +408,8 @@ class BiasedDynamicWalker(DynamicWalker):
             result = app_propagate_post(
                     inputs = [future, future.stdout, future.outputs[0]],
                     )
-            return result, future.outputs[0]
+            state = bias.evaluate(Dataset([unpack_i(result, 0)]), as_dataset=True)[0]
+            metadata = Metadata(*([state] + [unpack_i(result, i) for i in range(1, 5)]))
+            return metadata, future.outputs[0]
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)

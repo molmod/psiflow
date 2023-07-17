@@ -12,12 +12,13 @@ from psiflow.walkers import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker
 from psiflow.walkers.utils import parse_yaff_output
 from psiflow.data import Dataset
+from psiflow.utils import copy_app_future
 
 
 def test_random_walker_multiply(context, dataset, tmp_path):
     amplitude_pos = 0.1
     amplitude_box = 0.0
-    nwalkers = 400
+    nwalkers = 40
     walkers = RandomWalker.multiply(
             nwalkers,
             dataset[:1],
@@ -25,34 +26,40 @@ def test_random_walker_multiply(context, dataset, tmp_path):
             amplitude_box=amplitude_box,
             )
     for i, walker in enumerate(walkers):
-        delta = np.abs(dataset[0].result().positions - walker.state_future.result().positions)
+        delta = np.abs(dataset[0].result().positions - walker.state.result().positions)
         assert np.allclose(delta, 0)
-        delta = np.abs(dataset[0].result().positions - walker.start_future.result().positions)
+        delta = np.abs(dataset[0].result().positions - walker.state0.result().positions)
         assert np.allclose(delta, 0)
-    data = Dataset([w.propagate(None) for w in walkers])
+    data = Dataset([w.propagate(None).state for w in walkers])
     for i, walker in enumerate(walkers):
-        delta = np.abs(walker.start_future.result().positions - walker.state_future.result().positions)
+        delta = np.abs(walker.state0.result().positions - walker.state.result().positions)
         assert np.all(delta < amplitude_pos)
+    walker.reset(copy_app_future(True))
+    assert np.allclose(
+            walker.state.result().positions,
+            walker.state0.result().positions,
+            )
+    assert walker.counter.result() == 0
 
 
 def test_walker_save_load(context, dataset, mace_config, tmp_path):
     walker = DynamicWalker(dataset[0], steps=10, step=1)
-    path_start = tmp_path / 'new' / 'start.xyz'
+    path_state0 = tmp_path / 'new' / 'state0.xyz'
     path_state = tmp_path / 'new' / 'state.xyz'
     path_pars  = tmp_path / 'new' / 'DynamicWalker.yaml' # has name of walker class
     future, future, future = walker.save(tmp_path / 'new')
-    assert os.path.exists(path_start)
+    assert os.path.exists(path_state0)
     assert os.path.exists(path_state)
     assert os.path.exists(path_pars)
     walker_ = load_walker(tmp_path / 'new')
     assert type(walker_) == DynamicWalker
     assert np.allclose(
-            walker.start_future.result().positions,
-            walker_.start_future.result().positions,
+            walker.state0.result().positions,
+            walker_.state0.result().positions,
             )
     assert np.allclose(
-            walker.state_future.result().positions,
-            walker_.state_future.result().positions,
+            walker.state.result().positions,
+            walker_.state.result().positions,
             )
     for key, value in walker.parameters.items():
         assert value == walker_.parameters[key]
@@ -62,15 +69,15 @@ def test_walker_save_load(context, dataset, mace_config, tmp_path):
     walker.propagate(model=model)
     walker.save(tmp_path / 'new_again')
     walker = load_walker(tmp_path / 'new_again')
-    assert walker.counter_future.result() == 10
+    assert walker.counter.result() == 10
 
 def test_base_walker(context, dataset):
     walker = BaseWalker(dataset[0])
-    assert isinstance(walker.state_future, AppFuture)
-    assert isinstance(walker.start_future, AppFuture)
-    assert walker.state_future != walker.start_future # do not point to same future
-    assert isinstance(walker.start_future.result(), Atoms)
-    assert isinstance(walker.state_future.result(), Atoms)
+    assert isinstance(walker.state, AppFuture)
+    assert isinstance(walker.state0, AppFuture)
+    assert walker.state != walker.state0 # do not point to same future
+    assert isinstance(walker.state0.result(), Atoms)
+    assert isinstance(walker.state.result(), Atoms)
 
     with pytest.raises(TypeError): # illegal kwarg
         BaseWalker(dataset[0], some_illegal_kwarg=0)
@@ -79,21 +86,20 @@ def test_base_walker(context, dataset):
 def test_random_walker(context, dataset):
     walker = RandomWalker(dataset[0], seed=0)
 
-    state = walker.propagate()
-    assert isinstance(state, AppFuture)
+    metadata = walker.propagate()
+    for key in ['counter', 'state']:
+        assert key in metadata._asdict().keys()
+    assert isinstance(metadata.state, AppFuture)
+    assert isinstance(metadata.counter, AppFuture)
     assert isinstance(walker.is_reset(), AppFuture)
     assert not walker.is_reset().result()
-    assert not walker.counter_future.result() == 0
+    assert not walker.counter.result() == 0
 
-    walker.reset(conditional=True) # random walker is never unsafe
+    walker.reset(condition=False)
     assert not walker.is_reset().result()
-
-    walker.tag_future = 'unsafe'
-    walker.reset(conditional=True) # should reset
+    walker.reset(condition=True)
     assert walker.is_reset().result() # should reset
-    assert walker.tag_future.result() == 'safe'
-
-    state = walker.propagate(model=None) # irrelevant kwargs are ignored
+    metadata = walker.propagate(model=None) # irrelevant kwargs are ignored
 
 
 def test_parse_yaff(context, dataset, tmp_path):
@@ -109,8 +115,8 @@ def test_parse_yaff(context, dataset, tmp_path):
  VERLET g-rmsd    = the root-mean-square gradient of the energy.
  VERLET counter  Cons.Err.       Temp     d-RMSD     g-RMSD   Walltime
  VERLET ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- VERLET       0    0.00000      353.7     0.0000      166.3        0.0
- VERLET       1    0.00000      353.7     0.0000      166.3        0.0
+ VERLET       2    0.00000      353.7     0.0000      166.3        0.0
+ VERLET       9    0.00000      355.7     0.0000      166.3        2.0
  VERLET WARNING!! You are using PLUMED as a hook for your integrator. If PLUMED
  VERLET           adds time-dependent forces (for instance when performing
  VERLET           metadynamics) there is no energy conservation. The conserved
@@ -118,9 +124,10 @@ def test_parse_yaff(context, dataset, tmp_path):
 Max force exceeded: 32.15052795410156 eV/A by atom index 289
 tagging sample as unsafe
     """
-    tag, counter = parse_yaff_output(stdout)
-    assert tag == 'unsafe'
-    assert counter == 1
+    counter, temperature, time = parse_yaff_output(stdout)
+    assert counter == 9
+    assert temperature == 354.7
+    assert time == 2.0
 
 
 def test_dynamic_walker_plain(context, dataset, mace_config):
@@ -128,37 +135,37 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     model = MACEModel(mace_config)
     model.initialize(dataset[:3])
     model.deploy()
-    state, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
     assert trajectory.length().result() == 6
-    assert walker.counter_future.result() == 10
+    assert walker.counter.result() == 10
     assert np.allclose(
             trajectory[0].result().get_positions(), # initial structure
-            walker.start_future.result().get_positions(),
+            walker.state0.result().get_positions(),
             )
-    assert walker.tag_future.result() == 'safe'
     assert not np.allclose(
-            walker.start_future.result().get_positions(),
-            state.result().get_positions(),
+            walker.state0.result().get_positions(),
+            metadata.state.result().get_positions(),
             )
 
     # test timeout
-    walker = DynamicWalker(dataset[0], steps=10000, step=1)
-    state, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    assert trajectory.length().result() < 10001 # timeout
+    walker = DynamicWalker(dataset[0], steps=int(1e9), step=1)
+    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    assert trajectory.length().result() < int(1e9) # timeout
     assert trajectory.length().result() > 1
-    #assert walker.counter_future.result() == trajectory.length().result() - 1 # not deterministic
+    assert metadata.time.result() > 10 # ran for some time
     walker.force_threshold = 1e-7 # always exceeded
-    walker.steps           = 1
-    walker.step            = 1
-    state = walker.propagate(model=model, reset_if_unsafe=True)
+    walker.steps           = 20
+    walker.step            = 5
+    metadata = walker.propagate(model=model)
     assert walker.is_reset().result()
-
-    state = walker.propagate(model=model, reset_if_unsafe=False)
-    assert walker.tag_future.result() == 'unsafe' # raised ForceExceededException
-
-    walker.reset()
+    assert np.allclose(
+            walker.state0.result().positions,
+            walker.state.result().positions,
+            )
     walker.temperature = None # NVE
-    state = walker.propagate(model=model)
+    walker.force_threshold = 40
+    metadata = walker.propagate(model=model)
+    assert not metadata.reset.result()
 
 
 def test_optimization_walker(context, dataset, mace_config):
@@ -170,16 +177,16 @@ def test_optimization_walker(context, dataset, mace_config):
     model.deploy()
 
     walker = OptimizationWalker(dataset[0], optimize_cell=False, fmax=1e-2)
-    final, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
     assert trajectory.length().result() > 1
-    assert np.all(np.abs(final.result().positions - dataset[0].result().positions) < 1.0)
-    assert not np.all(np.abs(final.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved
-    counter = walker.counter_future.result()
+    assert np.all(np.abs(metadata.state.result().positions - dataset[0].result().positions) < 1.0)
+    assert not np.all(np.abs(metadata.state.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved
+    counter = walker.counter.result()
     assert counter > 0
     walker.fmax = 1e-3
-    final_ = walker.propagate(model=model)
-    assert not np.all(np.abs(final_.result().positions - dataset[0].result().positions) < 0.001) # moved again
-    assert walker.counter_future.result() > counter # more steps in total
+    metadata = walker.propagate(model=model)
+    assert not np.all(np.abs(metadata.state.result().positions - dataset[0].result().positions) < 0.001) # moved again
+    assert walker.counter.result() > counter # more steps in total
 
 
 def test_biased_dynamic_walker(context, nequip_config, dataset):
@@ -206,8 +213,8 @@ restraint: RESTRAINT ARG=CV,CV1 AT=150,450 KAPPA=1,10
     bias = PlumedBias(plumed_input)
     walker = BiasedDynamicWalker(dataset[0], bias=bias, **parameters)
     assert bias.components[0] == ('RESTRAINT', ('CV','CV1'))
-    _, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    state = _.result()
+    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    state = metadata.state.result()
     assert 'CV' in state.info
     assert 'CV1' in state.info
     state.reset()
@@ -217,11 +224,12 @@ restraint: RESTRAINT ARG=CV,CV1 AT=150,450 KAPPA=1,10
             3 * values[:, 0],
             values[:, 1],
             )
-    assert walker.tag_future.result() == 'safe'
     assert not np.allclose(
-            walker.state_future.result().positions,
-            walker.start_future.result().positions,
+            walker.state.result().positions,
+            walker.state0.result().positions,
             )
+    assert walker.counter.result() > 0
+    assert not metadata.reset.result()
 
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
@@ -244,13 +252,17 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     walker = BiasedDynamicWalker(dataset[0], bias=bias, **parameters)
     walker.propagate(model=model)
 
-    with open(bias.data_futures['METAD'].result(), 'r') as f:
+    with open(walker.bias.data_futures['METAD'].result(), 'r') as f:
         single_length = len(f.read().split('\n'))
-    assert walker.tag_future.result() == 'safe'
-    walker.propagate(model=model)
-    with open(bias.data_futures['METAD'].result(), 'r') as f:
+    assert single_length > 1
+    assert walker.counter.result() > 0
+    metadata = walker.propagate(model=model)
+    assert walker.counter.result() > 0
+    assert not metadata.reset.result()
+    with open(walker.bias.data_futures['METAD'].result(), 'r') as f:
         double_length = len(f.read().split('\n'))
     assert double_length == 2 * single_length - 1 # twice as many gaussians
+    assert double_length > 1 # have to contain some hills
 
     # double check MTD gives correct nonzero positive contribution
     values = walker.bias.evaluate(dataset).result()
@@ -275,6 +287,14 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=2 LABEL=metad FILE=test_hills
             total,
             manual,
             )
+    walker.bias = bias_mtd
+    walker.reset(True) # should also reset bias
+    values = walker.bias.evaluate(dataset).result()
+    assert np.allclose(
+            values[:, -1],
+            np.zeros(len(values[:, -1])),
+            )
+
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -318,12 +338,12 @@ def test_walker_multiply_distribute(context, dataset, mace_config):
     def check(walkers):
         for i, walker in enumerate(walkers):
             assert np.allclose(
-                    walker.start_future.result().positions,
-                    walker.state_future.result().positions,
+                    walker.state0.result().positions,
+                    walker.state.result().positions,
                     )
             assert np.allclose(
                     dataset[i].result().positions,
-                    walker.state_future.result().positions,
+                    walker.state.result().positions,
                     )
             for j in range(i + 1, len(walkers)):
                 if hasattr(walker, 'bias'): # check whether bias is copied
@@ -356,6 +376,6 @@ restraint: RESTRAINT ARG=CV AT=15 KAPPA=100
     volume_min = min(volumes)
     volume_max = max(volumes)
     assert not volume_min == volume_max
-    assert walkers[0].state_future.result().get_volume() == volume_min
-    assert walkers[1].state_future.result().get_volume() == volume_max
+    assert walkers[0].state.result().get_volume() == volume_min
+    assert walkers[1].state.result().get_volume() == volume_max
     assert walkers[0].bias.plumed_input != walkers[1].bias.plumed_input

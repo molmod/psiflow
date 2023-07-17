@@ -125,13 +125,6 @@ unpack_i = python_app(_unpack_i, executors=['default'])
 
 
 @typeguard.typechecked
-def _unpack_dict(result: dict, key: Any) -> Any:
-    assert key in result.keys()
-    return result[key]
-unpack_dict = python_app(_unpack_dict, executors=['default'])
-
-
-@typeguard.typechecked
 def _save_yaml(input_dict: Dict, outputs: List[File] = []) -> None:
     import yaml
     def _make_dict_safe(arg):

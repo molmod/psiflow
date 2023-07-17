@@ -179,6 +179,22 @@ app_evaluate = python_app(evaluate_bias, executors=['default'])
 
 
 @typeguard.typechecked
+def _reset_mtd(
+        condition: bool,
+        inputs: list[File] = [],
+        outputs: list[File] = [],
+        ) -> None:
+    if condition: # empty hills file
+        content = ' '
+    else: # copy existing hills
+        with open(inputs[0], 'r') as f:
+            content = f.read()
+    with open(outputs[0], 'w') as f:
+        f.write(content)
+reset_mtd = python_app(_reset_mtd, executors=['default'])
+
+
+@typeguard.typechecked
 def extract_grid(
         index: int,
         values: np.ndarray,
@@ -362,7 +378,7 @@ class PlumedBias:
                         )
         if 'METAD' in self.keys: # necessary to print hills properly
             plumed_input = 'RESTART\n' + plumed_input
-            #plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
+            plumed_input += '\nFLUSH STRIDE=1' # has to come before PRINT?!
         return plumed_input
 
     def copy(self) -> PlumedBias:
@@ -398,6 +414,16 @@ class PlumedBias:
                     found = True
         assert found
         self.plumed_input = '\n'.join(lines)
+
+    def reset(self, condition: Union[bool, AppFuture] = None):
+        if condition is None:
+            condition = True
+        if 'METAD' in self.keys:
+            self.data_futures['METAD'] = reset_mtd(
+                    condition,
+                    inputs=[self.data_futures['METAD']],
+                    outputs=[psiflow.context().new_file('METAD_', '.txt')],
+                    ).outputs[0]
 
     def extract_grid(
             self,

@@ -16,8 +16,6 @@ from .optimization import OptimizationWalker
 
 
 @typeguard.typechecked
-
-# not in BaseWalker to avoid circular import
 def load_walker(path: Union[Path, str]) -> BaseWalker:
     from pathlib import Path
     from ase.io import read
@@ -25,9 +23,9 @@ def load_walker(path: Union[Path, str]) -> BaseWalker:
     from psiflow.utils import copy_app_future
     path = resolve_and_check(Path(path))
     assert path.is_dir()
-    path_start = path / 'start.xyz'
+    path_state0 = path / 'state0.xyz'
     path_state = path / 'state.xyz'
-    assert path_start.is_file()
+    assert path_state0.is_file()
     assert path_state.is_file()
     classes = [
             RandomWalker,
@@ -41,8 +39,8 @@ def load_walker(path: Union[Path, str]) -> BaseWalker:
         path_pars  = path / (walker_cls.__name__ + '.yaml')
         if path_pars.is_file():
             break
-    start = FlowAtoms.from_atoms(read(str(path_start)))
-    state = FlowAtoms.from_atoms(read(str(path_state)))
+    state0 = FlowAtoms.from_atoms(read(str(path_state0)))
+    state  = FlowAtoms.from_atoms(read(str(path_state)))
     with open(path_pars, 'r') as f:
         parameters = yaml.load(f, Loader=yaml.FullLoader)
         counter = parameters.pop('counter')
@@ -50,11 +48,11 @@ def load_walker(path: Union[Path, str]) -> BaseWalker:
         path_plumed = path / ('plumed_input.txt')
         assert path_plumed.is_file() # has to exist
         bias = PlumedBias.load(path)
-        walker = walker_cls(start, bias=bias, **parameters)
+        walker = walker_cls(state0, bias=bias, **parameters)
     else:
-        walker = walker_cls(start, **parameters)
+        walker = walker_cls(state0, **parameters)
     walker.set_state(state)
-    walker.counter_future = copy_app_future(counter)
+    walker.counter = copy_app_future(counter)
     return walker
 
 

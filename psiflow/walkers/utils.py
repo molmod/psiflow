@@ -157,6 +157,7 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
         self.path_xyz = path_xyz
         self.atoms = None
         self.nwrites = 0
+        self.temperatures = []
 
     def init(self, iterative):
         self.atoms = Atoms(
@@ -178,6 +179,7 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
             self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
             write(self.path_xyz, self.atoms, append=True)
             self.nwrites += 1
+            self.temperatures.append(iterative.temp)
 
 
 def apply_strain(strain, box0):
@@ -230,19 +232,18 @@ def compute_strain(box, box0):
 
 
 def parse_yaff_output(stdout):
+    temperatures = []
     counter = 0
-    for line in stdout.split('\n')[::-1]:
+    time = 0
+    for line in stdout.split('\n'):
         if ('VERLET' in line):
             try:
                 a = [float(s) for s in line.split()[1:]]
             except ValueError:
                 continue
+            temperatures.append(float(line.split()[3]))
             counter = int(line.split()[1])
-            break
+            time = float(line.split()[6])
         else:
             pass
-    if 'unsafe' in stdout:
-        tag = 'unsafe'
-    else:
-        tag = 'safe'
-    return tag, counter
+    return counter, np.mean(np.array(temperatures)), time

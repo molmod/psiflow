@@ -1,7 +1,8 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, NamedTuple
 import typeguard
 from dataclasses import dataclass
+from collections import namedtuple
 
 from ase import Atoms
 
@@ -11,13 +12,17 @@ from parsl.dataflow.futures import AppFuture
 from psiflow.data import FlowAtoms
 from psiflow.walkers import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
+from psiflow.utils import unpack_i
+
+
+Metadata = namedtuple('Metadata', ['state', 'counter', 'reset'])
 
 
 @typeguard.typechecked
 def random_perturbation(
         state: FlowAtoms,
         parameters: dict[str, Any],
-        ) -> tuple[FlowAtoms, str, int]:
+        ) -> tuple[FlowAtoms, int, bool]:
     import numpy as np
     import copy
     from psiflow.walkers.utils import apply_strain
@@ -41,7 +46,7 @@ def random_perturbation(
             )
     state.set_positions(positions)
     state.set_cell(box)
-    return state, 'safe', 1
+    return state, 1, False
 app_random_perturbation = python_app(random_perturbation, executors=['default'])
 
 
@@ -59,11 +64,12 @@ class RandomWalker(BaseWalker):
         self.amplitude_box = amplitude_box
 
     def _propagate(self, **kwargs):
-        future = app_random_perturbation(
-                self.state_future,
+        result = app_random_perturbation(
+                self.state,
                 self.parameters,
                 )
-        return future, None # no output trajectory
+        metadata = Metadata(*[unpack_i(result, i) for i in range(3)])
+        return metadata, None # no output trajectory
 
     @property
     def parameters(self) -> dict[str, Any]:

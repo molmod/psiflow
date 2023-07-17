@@ -1,5 +1,5 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, NamedTuple
 import typeguard
 from dataclasses import dataclass, asdict
 from copy import deepcopy
@@ -16,20 +16,20 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.models import BaseModel
 from psiflow.utils import copy_app_future, unpack_i, copy_data_future, \
-        save_yaml, sum_integers, unpack_dict
+        save_yaml, sum_integers
 from psiflow.data import save_atoms, FlowAtoms, Dataset, app_reset_atoms
 
 
 @typeguard.typechecked
 def _conditioned_reset(
         state: FlowAtoms,
-        start: FlowAtoms,
+        state0: FlowAtoms,
         counter: int,
         condition: bool,
-        ) -> tuple[FlowAtoms, str, int]:
+        ) -> tuple[FlowAtoms, int]:
     from copy import deepcopy # copy necessary!
     if condition:
-        return deepcopy(start), 0
+        return deepcopy(state0), 0
     else: # reset if unsafe
         return deepcopy(state), counter
 conditioned_reset = python_app(_conditioned_reset, executors=['default'])
@@ -41,6 +41,15 @@ def _is_reset(counter: int) -> bool:
 is_reset = python_app(_is_reset, executors=['default'])
 
 
+#@typeguard.typechecked
+#def _update_counter(existing: int, new: int) -> int:
+#    if (new == 0): # should reset
+#        return 0
+#    else:
+#        return existing + b
+#update_counter = python_app(_update_counter, executors=['default'])
+
+
 @typeguard.typechecked
 class BaseWalker:
 
@@ -50,9 +59,10 @@ class BaseWalker:
             ) -> None:
         if type(atoms) == Atoms:
             atoms = FlowAtoms.from_atoms(atoms)
-        self.start_future   = app_reset_atoms(atoms)
-        self.state_future   = app_reset_atoms(atoms)
-        self.counter_future = copy_app_future(0) # counts nsteps
+        self.state0 = app_reset_atoms(atoms)
+        self.state  = app_reset_atoms(atoms)
+        self.counter = copy_app_future(0) # counts nsteps
+
         self.seed = seed
         # apps for walkers are only created at the time when they are invoked,
         # as the execution definition of the model needs to be available.
@@ -64,36 +74,33 @@ class BaseWalker:
             self,
             model: Optional[BaseModel] = None,
             keep_trajectory: bool = False,
-            ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
+            ) -> Union[NamedTuple, tuple[NamedTuple, Dataset]]:
         if keep_trajectory:
             file = psiflow.context().new_file('data_', '.xyz')
         else:
             file = None
-        result, output_future = self._propagate(
+        metadata, output_future = self._propagate(
                 model=model,
                 keep_trajectory=keep_trajectory,
                 file=file,
                 )
-        state    = unpack_i(result, 0)
-        metadata = unpack_i(result, 1)
-        self.state_future   = state
-        self.counter_future = sum_integers(
-                self.counter_future,
-                unpack_dict(metadata, 'counter'),
+        self.state   = metadata.state
+        self.counter = sum_integers(
+                self.counter,
+                metadata.counter,
                 )
-        if hasattr(self, 'bias'):
-            future = self.bias.evaluate(
-                    Dataset([self.state_future]),
-                    as_dataset=True)[0]
-        else:
-            future = copy_app_future(self.state_future) # necessary
+        self.reset(metadata.reset)
+        #if hasattr(self, 'bias'):
+        #    metadata.state = self.bias.evaluate(
+        #            Dataset([metadata.state]),
+        #            as_dataset=True)[0]
         if keep_trajectory:
             assert output_future is not None
-            return future, Dataset(None, data_future=output_future)
+            return metadata, Dataset(None, data_future=output_future)
         else:
-            return future
+            return metadata
 
-    def reset(self, condition: Union[None, bool, AppFuture] = None) -> AppFuture:
+    def reset(self, condition: Union[None, bool, AppFuture] = None):
         """Resets walker to a copy of its starting configuration
 
         If condition is not None, it is assumed to be a boolean or an AppFuture representing a boolean
@@ -103,27 +110,27 @@ class BaseWalker:
         if condition is None:
             condition = True
         result = conditioned_reset(
-                self.state_future,
-                self.start_future,
-                self.counter_future,
+                self.state,
+                self.state0,
+                self.counter,
                 condition,
                 )
-        self.state_future   = unpack_i(result, 0)
-        self.counter_future = unpack_i(result, 1)
+        self.state   = unpack_i(result, 0)
+        self.counter = unpack_i(result, 1)
 
     def is_reset(self):
-        return is_reset(self.counter_future)
+        return is_reset(self.counter)
 
     def set_state(self, atoms):
-        self.state_future = app_reset_atoms(atoms)
+        self.state = app_reset_atoms(atoms)
 
-    def set_start(self, atoms):
-        self.start_future = app_reset_atoms(atoms)
+    def set_initial_state(self, atoms):
+        self.state0 = app_reset_atoms(atoms)
 
     def copy(self) -> BaseWalker:
-        walker = self.__class__(self.state_future, **self.parameters)
-        walker.start_future   = copy_app_future(self.start_future)
-        walker.counter_future = copy_app_future(self.counter_future)
+        walker = self.__class__(self.state, **self.parameters)
+        walker.state0  = copy_app_future(self.state0)
+        walker.counter = copy_app_future(self.counter)
         return walker
 
     def save(
@@ -134,28 +141,28 @@ class BaseWalker:
         path = Path(path)
         path.mkdir(exist_ok=True)
         name = self.__class__.__name__
-        path_start = path / 'start.xyz'
+        path_state0 = path / 'state0.xyz'
         path_state = path / 'state.xyz'
         path_pars  = path / (name + '.yaml')
-        future_start = save_atoms(
-                self.start_future,
-                outputs=[File(str(path_start))],
+        future_state0 = save_atoms(
+                self.state0,
+                outputs=[File(str(path_state0))],
                 ).outputs[0]
         future_state = save_atoms(
-                self.state_future,
+                self.state,
                 outputs=[File(str(path_state))],
                 ).outputs[0]
         pars = self.parameters
-        pars['counter'] = self.counter_future.result()
+        pars['counter'] = self.counter.result()
         future_pars = save_yaml(
                 pars,
                 outputs=[File(str(path_pars))],
                 ).outputs[0]
         if require_done:
-            future_start.result()
+            future_state0.result()
             future_state.result()
             future_pars.result()
-        return future_start, future_state, future_pars
+        return future_state0, future_state, future_pars
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -171,7 +178,7 @@ class BaseWalker:
         length = data_start.length().result()
         for i, walker in enumerate(walkers):
             walker.seed = i
-            walker.set_start(data_start[i % length])
+            walker.set_initial_state(data_start[i % length])
             walker.set_state(data_start[i % length])
         return walkers
 

@@ -1,7 +1,8 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Callable, Type, Any, Union
+from typing import Optional, Callable, Type, Any, Union, NamedTuple
 import typeguard
 from dataclasses import dataclass
+from collections import namedtuple
 
 from ase import Atoms
 
@@ -15,6 +16,10 @@ from psiflow.data import Dataset, FlowAtoms
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.walkers.base import BaseWalker
 from psiflow.models import BaseModel
+from psiflow.utils import unpack_i
+
+
+Metadata = namedtuple('Metadata', ['state', 'counter', 'reset', 'time'])
 
 
 @typeguard.typechecked
@@ -28,11 +33,12 @@ def optimize_geometry(
         plumed_input: str = '',
         inputs: list[File] = [],
         outputs: list[File] = [],
-        ) -> tuple[FlowAtoms, str, int]:
+        ) -> tuple[FlowAtoms, int, bool, float]:
     import os
     import tempfile
     import torch
     import numpy as np
+    import time
     from ase.optimize.precon import Exp, PreconLBFGS
     from ase.constraints import ExpCellFilter
     from ase.io import read
@@ -41,6 +47,7 @@ def optimize_geometry(
     torch.set_default_dtype(torch.float64) # optimization always in double
     if device == 'cpu':
         torch.set_num_threads(ncores)
+    t0 = time.time()
 
     np.random.seed(pars['seed'])
     torch.manual_seed(pars['seed'])
@@ -69,10 +76,12 @@ def optimize_geometry(
             trajectory=path_traj,
             )
 
+    reset = False
     try:
         optimizer.run(fmax=pars['fmax'])
         nsteps = optimizer.nsteps
     except:
+        reset = True
         nsteps = 0
         pass
     atoms.calc = None
@@ -82,7 +91,7 @@ def optimize_geometry(
             trajectory = read(path_traj, index=':')
             write_extxyz(f, trajectory)
     os.unlink(path_traj)
-    return FlowAtoms.from_atoms(atoms), optimizer.nsteps
+    return FlowAtoms.from_atoms(atoms), optimizer.nsteps, reset, time.time() - t0
 
 
 @typeguard.typechecked
@@ -108,7 +117,7 @@ class OptimizationWalker(BaseWalker):
             self.create_apps(model_cls=model.__class__)
             app = context.apps(OptimizationWalker, 'propagate_' + name)
         return app(
-                self.state_future,
+                self.state,
                 self.parameters,
                 model,
                 keep_trajectory,
@@ -142,7 +151,7 @@ class OptimizationWalker(BaseWalker):
                 keep_trajectory: bool = False,
                 file: Optional[File] = None,
                 **kwargs,
-                ) -> tuple[AppFuture, Optional[DataFuture]]:
+                ) -> tuple[NamedTuple, Optional[DataFuture]]:
             assert model is not None # model is required
             assert 'float64' in model.deploy_future.keys() # has to be deployed
             inputs = [model.deploy_future['float64']]
@@ -164,7 +173,8 @@ class OptimizationWalker(BaseWalker):
                 output_future = result.outputs[0]
             else:
                 output_future = None
-            return result, output_future
+            metadata = Metadata(*[unpack_i(result, i) for i in range(4)])
+            return metadata, output_future
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, optimize_wrapped)
         super(OptimizationWalker, cls).create_apps()

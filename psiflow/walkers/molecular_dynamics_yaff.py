@@ -145,7 +145,8 @@ def main():
     else:
         print('sampling NVE ensemble')
 
-    counter = 0
+    assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
+    initial_size = os.path.getsize(args.trajectory) > 0
     try: # exception may already be raised at initialization of verlet
         verlet = yaff.VerletIntegrator(
                 forcefield,
@@ -156,14 +157,16 @@ def main():
         yaff.log.set_level(yaff.log.medium)
         verlet.run(args.steps)
         counter = verlet.counter
-        assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
     except ForceThresholdExceededException as e:
         print(e)
-        counter = 0
+        print('simulation is unsafe')
+        counter = 0 
     except TimeoutException as e:
-        counter = verlet.counter
-        assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
         print(e)
+    except Exception as e:
+        print(e)
+        print('simulation is unsafe')
+        counter = 0
     yaff.log.set_level(yaff.log.silent)
 
     if Path('plumed.dat').is_file():
@@ -178,16 +181,13 @@ def main():
         datahook.data.append(initial)
 
     # write data to output xyz
-    if not args.keep_trajectory:
-        write(args.trajectory, atoms)
-    assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
-
-    # check whether counter == 0 actually means state = start
-    counter_is_reset = counter == 0
-    state_is_reset   = np.allclose(
-                initial.get_positions(),
-                atoms.get_positions(),
-                )
-    #if counter_is_reset: assert state_is_reset
-    if state_is_reset and (args.step == 1): assert counter_is_reset
-    return FlowAtoms.from_atoms(atoms), counter
+    if counter > 0:
+        if args.keep_trajectory:
+            pass # already written by ExtXYZHook
+        elif os.path.getsize(args.trajectory) > initial_size:
+            write(args.trajectory, atoms)
+    else:
+        if not args.keep_trajectory:
+            os.path.remove(args.trajectory)
+            write(args.trajectory, read(args.atoms))
+    return None
