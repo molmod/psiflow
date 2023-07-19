@@ -25,6 +25,9 @@ from psiflow.state import save_state, load_state
 from psiflow.utils import resolve_and_check
 
 
+logger = logging.getLogger(__name__) # logging per module
+
+
 @typeguard.typechecked
 @dataclass
 class BaseLearning:

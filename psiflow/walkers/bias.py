@@ -18,7 +18,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.utils import copy_data_future, save_txt, create_if_empty
-from psiflow.data import read_dataset, save_dataset, Dataset, FlowAtoms
+from psiflow.data import read_dataset, write_dataset, Dataset, FlowAtoms
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -270,7 +270,7 @@ def insert_cv_values_data(
     assert len(data) == values.shape[0]
     for i, atoms in enumerate(data):
         insert_cv_values(variables, atoms, values[i, :].reshape(1, -1))
-    save_dataset(data, outputs=[outputs[0]])
+    write_dataset(data, outputs=[outputs[0]])
 app_insert_cv_values_data = python_app(insert_cv_values_data, executors=['default'])
 
 

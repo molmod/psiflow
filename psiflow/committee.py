@@ -20,7 +20,7 @@ def compute_disagreements(
         outputs: list[File] = [],
         ) -> np.ndarray:
     import numpy as np
-    from psiflow.data import read_dataset, save_dataset
+    from psiflow.data import read_dataset, write_dataset
     data = []
     assert len(inputs) > 0
     for inp in inputs:
@@ -53,7 +53,7 @@ def filter_disagreements(
         outputs: list[File] = [],
         ) -> None:
     import numpy as np
-    from psiflow.data import read_dataset, save_dataset
+    from psiflow.data import read_dataset, write_dataset
     if nstates is None:
         assert retain_percentage is not None
         nstates = int(retain_percentage) * len(disagreements)
@@ -62,7 +62,7 @@ def filter_disagreements(
     indices = np.argsort(disagreements)[-nstates:][::-1]
     data = read_dataset(slice(None), inputs=[inputs[0]])
     assert len(data) == len(disagreements)
-    save_dataset(
+    write_dataset(
             read_dataset(
                 [int(i) for i in indices],
                 inputs=[inputs[0]],

@@ -132,6 +132,10 @@ class FlowAtoms(Atoms):
         return flow_atoms
 
 
+# use universal dummy state
+NullState = FlowAtoms(numbers=[0], positions=[[0, 0, 0]])
+
+
 @typeguard.typechecked
 def reset_atoms(atoms: Union[Atoms, FlowAtoms]): # modify FlowAtoms Future before returning
     from copy import deepcopy
@@ -144,7 +148,7 @@ app_reset_atoms = python_app(reset_atoms, executors=['default'])
 
 
 @typeguard.typechecked
-def save_dataset(
+def write_dataset(
         states: Optional[List[Optional[FlowAtoms]]],
         inputs: List[Optional[FlowAtoms]] = [], # allow None
         return_data: bool = False, # whether to return data
@@ -155,24 +159,18 @@ def save_dataset(
         _data = states
     else:
         _data = inputs
-    i = 0
-    while i < len(_data):
-        if _data[i] is None:
-            del _data[i]
-        else:
-            i += 1
     with open(outputs[0], 'w') as f:
         write_extxyz(f, _data)
     if return_data:
         return _data
-app_save_dataset = python_app(save_dataset, executors=['default'])
+app_write_dataset = python_app(write_dataset, executors=['default'])
 
 
 @typeguard.typechecked
-def _save_atoms(atoms: FlowAtoms, outputs=[]):
+def _write_atoms(atoms: FlowAtoms, outputs=[]):
     from ase.io import write
     write(outputs[0].filepath, atoms)
-save_atoms = python_app(_save_atoms, executors=['default'])
+write_atoms = python_app(_write_atoms, executors=['default'])
 
 
 @typeguard.typechecked
@@ -195,7 +193,7 @@ def read_dataset(
             else:
                 raise ValueError
             data = [FlowAtoms.from_atoms(a) for a in data] # list of atoms
-    if len(outputs) > 0: # save to file
+    if len(outputs) > 0: # write to file
         with open(outputs[0], 'w') as f:
             write_extxyz(f, data)
     return data
@@ -222,7 +220,7 @@ def join_dataset(inputs: List[File] = [], outputs: List[File] = []) -> None:
     data = []
     for i in range(len(inputs)):
         data += read_dataset(slice(None), inputs=[inputs[i]]) # read all
-    save_dataset(data, outputs=[outputs[0]])
+    write_dataset(data, outputs=[outputs[0]])
 app_join_dataset = python_app(join_dataset, executors=['default'])
 
 
@@ -261,7 +259,7 @@ def compute_metrics(
     from copy import deepcopy
     from ase.units import Pascal
     from psiflow.data import read_dataset
-    from psiflow.utils import get_index_element_mask
+    from psiflow.utils import get_index_element_mask, compute_error
     data_0 = read_dataset(slice(None), inputs=[inputs[0]])
     if len(inputs) == 1:
         assert intrinsic
@@ -299,50 +297,20 @@ def compute_metrics(
         if not np.any(mask): # no target atoms present; skip
             outer_mask[i] = False
             continue
-        if 'energy' in properties:
-            formation = all(['formation_energy' in a.info.keys() for a in [atoms_0, atoms_1]])
-            if formation:
-                energy_key = 'formation_energy'
-            else:
-                energy_key = 'energy'
-            assert energy_key in atoms_0.info.keys()
-            assert energy_key in atoms_1.info.keys()
-        if 'forces' in properties:
-            assert 'forces' in atoms_0.arrays.keys()
-            assert 'forces' in atoms_1.arrays.keys()
-        if 'stress' in properties:
-            assert 'stress' in atoms_0.info.keys()
-            assert 'stress' in atoms_1.info.keys()
-        for j, property_ in enumerate(properties):
-            if property_ == 'energy':
-                array_0 = np.array([atoms_0.info[energy_key]]).reshape((1, 1))
-                array_1 = np.array([atoms_1.info[energy_key]]).reshape((1, 1))
-                array_0 /= len(atoms_0) # per atom energy error
-                array_1 /= len(atoms_1)
-                array_0 *= 1000 # in meV/atom
-                array_1 *= 1000
-            elif property_ == 'forces':
-                array_0 = atoms_0.arrays['forces'][mask, :]
-                array_1 = atoms_1.arrays['forces'][mask, :]
-                array_0 *= 1000 # in meV/angstrom
-                array_1 *= 1000
-            elif property_ == 'stress':
-                array_0 = atoms_0.info['stress'].reshape((1, 9))
-                array_1 = atoms_1.info['stress'].reshape((1, 9))
-                array_0 /= (1e6 * Pascal) # in MPa
-                array_1 /= (1e6 * Pascal)
-            else:
-                raise ValueError('property {} unknown!'.format(property_))
-            if metric == 'mae':
-                errors[i, j] = np.mean(np.abs(array_0 - array_1))
-            elif metric == 'rmse':
-                errors[i, j] = np.sqrt(np.mean((array_0 - array_1) ** 2))
-            elif metric == 'max':
-                errors[i, j] = np.max(np.linalg.norm(array_0 - array_1, axis=1))
-            else:
-                raise ValueError('metric {} unknown!'.format(metric))
     if not np.any(outer_mask):
         raise AssertionError('no states in dataset contained atoms of interest')
+    for i in range(len(data_0)):
+        atoms_0 = data_0[i]
+        atoms_1 = data_1[i]
+        if outer_mask[i]:
+            errors[i, :] = compute_error(
+                    atoms_0,
+                    atoms_1,
+                    atom_indices,
+                    elements,
+                    metric,
+                    properties,
+                    )
     return errors[outer_mask, :]
 app_compute_metrics = python_app(compute_metrics, executors=['default'])
 
@@ -451,7 +419,7 @@ class Dataset:
                 else:
                     states = [FlowAtoms.from_atoms(a) for a in atoms_list]
                     inputs = []
-            self.data_future = app_save_dataset(
+            self.data_future = app_write_dataset(
                     states,
                     inputs=inputs,
                     outputs=[context.new_file('data_', '.xyz')],
@@ -568,19 +536,19 @@ class Dataset:
                 ).outputs[0]
         return Dataset(None, data_future)
 
-    @property
-    def success(self) -> AppFuture:
-        return app_get_indices(
+    def success(self) -> Dataset:
+        indices = app_get_indices(
                 True,
                 inputs=[self.data_future],
                 )
+        return self.get(indices=indices)
 
-    @property
-    def failed(self) -> AppFuture:
-        return app_get_indices(
+    def failed(self) -> Dataset:
+        indices = app_get_indices(
                 False,
                 inputs=[self.data_future],
                 )
+        return self.get(indices=indices)
 
     @staticmethod
     def get_errors(

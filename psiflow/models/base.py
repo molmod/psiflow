@@ -12,10 +12,11 @@ import parsl
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
+from parsl.app.app import join_app
 
 import psiflow
 from psiflow.execution import ModelTrainingExecution, ModelEvaluationExecution
-from psiflow.data import Dataset, app_join_dataset
+from psiflow.data import Dataset, app_join_dataset, NullState
 from psiflow.utils import copy_app_future, save_yaml, copy_data_future, \
         resolve_and_check
 
@@ -36,7 +37,7 @@ def evaluate_dataset(
         ) -> None:
     import torch
     import numpy as np
-    from psiflow.data import read_dataset, save_dataset
+    from psiflow.data import read_dataset, write_dataset, NullState
     if device == 'cpu':
         torch.set_num_threads(ncores)
     if dtype == 'float64':
@@ -47,6 +48,8 @@ def evaluate_dataset(
     if len(dataset) > 0:
         calculator = load_calculator(inputs[1].filepath, device, dtype)
         for atoms in dataset:
+            if atoms == NullState:
+                continue
             calculator.reset()
             atoms.calc = calculator
             energy = atoms.get_potential_energy()
@@ -65,7 +68,39 @@ def evaluate_dataset(
             atoms.info['stress'] = stress
             atoms.arrays['forces'] = forces
             atoms.calc = None
-        save_dataset(dataset, outputs=[outputs[0]])
+        write_dataset(dataset, outputs=[outputs[0]])
+
+
+@join_app
+#@typeguard.typechecked
+def evaluate_batched(
+        model: BaseModel,
+        dataset: Dataset,
+        length: int,
+        batch_size: int,
+        outputs: list[File],
+        ):
+    context = psiflow.context()
+    if (batch_size is None) or (batch_size >= length):
+        future = context.apps(model.__class__, 'evaluate')(
+                model.deploy_future,
+                model.use_formation_energy,
+                inputs=[dataset.data_future],
+                outputs=[outputs[0]],
+                )
+    else:
+        nbatches = ceil(length / batch_size)
+        data_list = []
+        for i in range(nbatches - 1):
+            batch = dataset[i * batch_size : (i + 1) * batch_size]
+            data_list.append(model.evaluate(batch))
+        last = dataset[(nbatches - 1) * batch_size:]
+        data_list.append(model.evaluate(last))
+        future = app_join_dataset(
+                inputs=[d.data_future for d in data_list],
+                outputs=[outputs[0]],
+                )
+    return future
 
 
 @typeguard.typechecked
@@ -133,29 +168,14 @@ class BaseModel:
 
     def evaluate(self, dataset: Dataset, batch_size: Optional[int] = 100) -> Dataset:
         """Evaluates a dataset using a model"""
-        context = psiflow.context()
-        length = dataset.length().result()
-        if (batch_size is None) or (batch_size >= length):
-            data_future = context.apps(self.__class__, 'evaluate')(
-                    self.deploy_future,
-                    self.use_formation_energy,
-                    inputs=[dataset.data_future],
-                    outputs=[context.new_file('data_', '.xyz')],
-                    ).outputs[0]
-            return Dataset(None, data_future=data_future)
-        else:
-            nbatches = ceil(length / batch_size)
-            data_list = []
-            for i in range(nbatches - 1):
-                batch = dataset[i * batch_size : (i + 1) * batch_size]
-                data_list.append(self.evaluate(batch))
-            last = dataset[(nbatches - 1) * batch_size:]
-            data_list.append(self.evaluate(last))
-            data_future = app_join_dataset(
-                    inputs=[d.data_future for d in data_list],
-                    outputs=[context.new_file('data_', '.xyz')],
-                    ).outputs[0]
-            return Dataset(None, data_future=data_future)
+        future = evaluate_batched(
+                self,
+                dataset,
+                dataset.length(), # use join_app because length is unknown
+                batch_size,
+                outputs=[psiflow.context().new_file('data_', '.xyz')],
+                )
+        return Dataset(None, data_future=future.outputs[0])
 
     def reset(self) -> None:
         self.config_future = None

@@ -17,7 +17,7 @@ import psiflow
 from psiflow.models import BaseModel
 from psiflow.utils import copy_app_future, unpack_i, copy_data_future, \
         save_yaml, sum_integers
-from psiflow.data import save_atoms, FlowAtoms, Dataset, app_reset_atoms
+from psiflow.data import write_atoms, FlowAtoms, Dataset, app_reset_atoms
 
 
 @typeguard.typechecked
@@ -39,15 +39,6 @@ conditioned_reset = python_app(_conditioned_reset, executors=['default'])
 def _is_reset(counter: int) -> bool:
     return counter == 0
 is_reset = python_app(_is_reset, executors=['default'])
-
-
-#@typeguard.typechecked
-#def _update_counter(existing: int, new: int) -> int:
-#    if (new == 0): # should reset
-#        return 0
-#    else:
-#        return existing + b
-#update_counter = python_app(_update_counter, executors=['default'])
 
 
 @typeguard.typechecked
@@ -90,10 +81,6 @@ class BaseWalker:
                 metadata.counter,
                 )
         self.reset(metadata.reset)
-        #if hasattr(self, 'bias'):
-        #    metadata.state = self.bias.evaluate(
-        #            Dataset([metadata.state]),
-        #            as_dataset=True)[0]
         if keep_trajectory:
             assert output_future is not None
             return metadata, Dataset(None, data_future=output_future)
@@ -144,11 +131,11 @@ class BaseWalker:
         path_state0 = path / 'state0.xyz'
         path_state = path / 'state.xyz'
         path_pars  = path / (name + '.yaml')
-        future_state0 = save_atoms(
+        future_state0 = write_atoms(
                 self.state0,
                 outputs=[File(str(path_state0))],
                 ).outputs[0]
-        future_state = save_atoms(
+        future_state = write_atoms(
                 self.state,
                 outputs=[File(str(path_state))],
                 ).outputs[0]

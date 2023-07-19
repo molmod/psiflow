@@ -19,7 +19,7 @@ from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, app_join_dataset, \
-        app_save_dataset
+        app_write_dataset, NullState
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future, pack
@@ -93,7 +93,7 @@ def molecular_dynamics_yaff_post(
         outputs: list[File] = [],
         ):
     from ase.io import read
-    from psiflow.data import FlowAtoms
+    from psiflow.data import FlowAtoms, NullState
     from psiflow.walkers.utils import parse_yaff_output
     with open(inputs[1], 'r') as f:
         stdout = f.read()
@@ -102,7 +102,10 @@ def molecular_dynamics_yaff_post(
     else:
         reset = False
     counter, temperature, elapsed_time = parse_yaff_output(stdout)
-    atoms = FlowAtoms.from_atoms(read(str(inputs[2]))) # reads last state
+    if not reset:
+        atoms = FlowAtoms.from_atoms(read(str(inputs[2]))) # reads last state
+    else:
+        atoms = NullState
     return atoms, counter, reset, temperature, elapsed_time
 
 
@@ -212,7 +215,7 @@ class DynamicWalker(BaseWalker):
                 ) -> tuple[NamedTuple, Optional[DataFuture]]:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
-            future_atoms = app_save_dataset(
+            future_atoms = app_write_dataset(
                     states=None,
                     inputs=[state],
                     outputs=[psiflow.context().new_file('data_', '.xyz')],
@@ -375,7 +378,7 @@ class BiasedDynamicWalker(DynamicWalker):
                 ) -> tuple[Metadata, Optional[DataFuture]]:
             assert model is not None # model is required
             assert model.deploy_future[dtype] is not None # has to be deployed
-            future_atoms = app_save_dataset(
+            future_atoms = app_write_dataset(
                     states=None,
                     inputs=[state],
                     outputs=[psiflow.context().new_file('data_', '.xyz')],

@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 from parsl.app.futures import DataFuture
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms
+from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.execution import ModelEvaluationExecution
 from psiflow.walkers.base import BaseWalker
 from psiflow.models import BaseModel
@@ -85,11 +85,13 @@ def optimize_geometry(
         nsteps = 0
         pass
     atoms.calc = None
-    if keep_trajectory:
+    if (keep_trajectory) and not reset:
         assert str(outputs[0].filepath).endswith('.xyz')
         with open(outputs[0], 'w') as f:
             trajectory = read(path_traj, index=':')
             write_extxyz(f, trajectory)
+    else:
+        atoms = NullState
     os.unlink(path_traj)
     return FlowAtoms.from_atoms(atoms), optimizer.nsteps, reset, time.time() - t0
 

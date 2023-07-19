@@ -246,4 +246,6 @@ def parse_yaff_output(stdout):
             time = float(line.split()[6])
         else:
             pass
+    if len(temperatures) == 0:
+        temperatures.append(-1)
     return counter, np.mean(np.array(temperatures)), time

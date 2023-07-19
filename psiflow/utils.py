@@ -209,3 +209,68 @@ def resolve_and_check(path: Path) -> Path:
                 ' that will get bound into the container.'.format(
                     path, Path.cwd()))
     return path
+
+
+def compute_error(
+        atoms_0: FlowAtoms,
+        atoms_1: FlowAtoms,
+        atom_indices: Optional[List[int]],
+        elements: Optional[List[str]],
+        metric: str,
+        properties: List[str],
+        ) -> tuple:
+    import numpy as np
+    from ase.units import Pascal
+    from psiflow.utils import get_index_element_mask
+    errors = np.zeros(len(properties))
+    if (atom_indices is not None) or (elements is not None):
+        assert 'energy' not in properties
+        assert 'stress' not in properties
+        assert 'forces' in properties # only makes sense for forces
+        mask = get_index_element_mask(atoms_0.numbers, elements, atom_indices)
+    else:
+        mask = np.array([True] * len(atoms_0))
+    assert np.any(mask)
+    if 'energy' in properties:
+        formation = all(['formation_energy' in a.info.keys() for a in [atoms_0, atoms_1]])
+        if formation:
+            energy_key = 'formation_energy'
+        else:
+            energy_key = 'energy'
+        assert energy_key in atoms_0.info.keys()
+        assert energy_key in atoms_1.info.keys()
+    if 'forces' in properties:
+        assert 'forces' in atoms_0.arrays.keys()
+        assert 'forces' in atoms_1.arrays.keys()
+    if 'stress' in properties:
+        assert 'stress' in atoms_0.info.keys()
+        assert 'stress' in atoms_1.info.keys()
+    for j, property_ in enumerate(properties):
+        if property_ == 'energy':
+            array_0 = np.array([atoms_0.info[energy_key]]).reshape((1, 1))
+            array_1 = np.array([atoms_1.info[energy_key]]).reshape((1, 1))
+            array_0 /= len(atoms_0) # per atom energy error
+            array_1 /= len(atoms_1)
+            array_0 *= 1000 # in meV/atom
+            array_1 *= 1000
+        elif property_ == 'forces':
+            array_0 = atoms_0.arrays['forces'][mask, :]
+            array_1 = atoms_1.arrays['forces'][mask, :]
+            array_0 *= 1000 # in meV/angstrom
+            array_1 *= 1000
+        elif property_ == 'stress':
+            array_0 = atoms_0.info['stress'].reshape((1, 9))
+            array_1 = atoms_1.info['stress'].reshape((1, 9))
+            array_0 /= (1e6 * Pascal) # in MPa
+            array_1 /= (1e6 * Pascal)
+        else:
+            raise ValueError('property {} unknown!'.format(property_))
+        if metric == 'mae':
+            errors[j] = np.mean(np.abs(array_0 - array_1))
+        elif metric == 'rmse':
+            errors[j] = np.sqrt(np.mean((array_0 - array_1) ** 2))
+        elif metric == 'max':
+            errors[j] = np.max(np.linalg.norm(array_0 - array_1, axis=1))
+        else:
+            raise ValueError('metric {} unknown!'.format(metric))
+    return tuple([float(e) for e in errors])

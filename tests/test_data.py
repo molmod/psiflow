@@ -7,7 +7,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.io.extxyz import write_extxyz
 
-from psiflow.data import FlowAtoms, Dataset
+from psiflow.data import FlowAtoms, Dataset, NullState
 from psiflow.utils import get_index_element_mask
 
 from tests.conftest import generate_emt_cu_data # explicit import for regular function
@@ -25,11 +25,8 @@ def test_flow_atoms(context, dataset, tmp_path):
         atoms = dataset[i].result()
         assert type(atoms) == FlowAtoms
         assert atoms.reference_status == True
-    assert np.allclose(
-            np.array(dataset.success.result()),
-            np.arange(dataset.length().result()),
-            )
-    assert len(dataset.failed.result()) == 0
+    assert dataset.success().length().result() == dataset.length().result()
+    assert dataset.failed().length().result() == 0
     assert atoms.reference_status == True
     atoms.reset()
     assert not 'energy' in atoms.info
@@ -189,3 +186,13 @@ def test_data_reset(context, dataset):
     dataset = dataset.reset()
     assert tuple(dataset.energy_labels().result()) == tuple()
     assert not 'energy' in dataset[0].result().info
+
+
+def test_nullstate(context):
+    state = FlowAtoms(
+            numbers=np.array([0]),
+            positions=np.array([[0.0, 0, 0]]),
+            pbc=False,
+            )
+    assert not id(state) == id(NullState)
+    assert state == NullState

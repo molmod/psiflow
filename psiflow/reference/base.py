@@ -16,8 +16,8 @@ from ase import Atoms
 from ase.data import atomic_numbers
 
 import psiflow
-from psiflow.data import FlowAtoms, Dataset, read_dataset, app_save_dataset, \
-        get_length_dataset
+from psiflow.data import FlowAtoms, Dataset, read_dataset, app_write_dataset, \
+        get_length_dataset, NullState
 from psiflow.utils import copy_app_future, unpack_i, combine_futures, \
         resolve_and_check
 
@@ -79,12 +79,15 @@ class BaseReference:
                     outputs=[context.new_file('data_', '.xyz')],
                     )
             # to ensure the correct dependencies, it is important that
-            # the output future corresponds to the actual save_dataset app.
+            # the output future corresponds to the actual write_dataset app.
             # otherwise, FileNotFoundErrors will occur when using HTEX.
             retval = Dataset(None, data_future=data.outputs[0])
         else: # Atoms, FlowAtoms, AppFuture
             if type(arg) == Atoms:
                 arg = FlowAtoms.from_atoms(arg)
+            if type(arg) == FlowAtoms:
+                if arg == NullState:
+                    return NullState
             data = context.apps(self.__class__, 'evaluate_single')(
                     arg, # converts to FlowAtoms if necessary
                     deepcopy(self.parameters),
@@ -130,13 +133,17 @@ class BaseReference:
             assert len(inputs) == len(cls.required_files) + 1
             data = []
             for i in range(nstates):
-                data.append(context.apps(cls, 'evaluate_single')(
-                    read_dataset(i, inputs=[inputs[0]], outputs=[]),
-                    parameters,
-                    file_names,
-                    inputs=inputs[1:],
-                    ))
-            return app_save_dataset(
+                state = read_dataset(i, inputs=[inputs[0]], outputs=[])
+                if state == NullState:
+                    data.append(NullState)
+                else:
+                    data.append(context.apps(cls, 'evaluate_single')(
+                        state,
+                        parameters,
+                        file_names,
+                        inputs=inputs[1:],
+                        ))
+            return app_write_dataset(
                     None,
                     return_data=True,
                     inputs=data,
