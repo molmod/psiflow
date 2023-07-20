@@ -9,12 +9,12 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from parsl.app.app import python_app
-from psiflow.data import Dataset
+from psiflow.data import Dataset, NullState
 from psiflow.models import BaseModel, load_model
 
 
-@python_app(executors=['default'])
-def compute_disagreements(
+@typeguard.typechecked
+def _compute_disagreements(
         metric: str,
         inputs: list[File] = [],
         outputs: list[File] = [],
@@ -35,6 +35,9 @@ def compute_disagreements(
         for i in range(lengths[0]):
             forces = np.zeros((len(inputs), len(data[0][0]), 3))
             for j in range(len(inputs)):
+                if data[j][i] == NullState:
+                    assert j == 0 # nullstates do not depend on j
+                    break
                 forces[j] = data[j][i].arrays['forces']
             SE = (forces - np.mean(forces, axis=0, keepdims=True)) ** 2    
             RMSE = np.sqrt(np.mean(SE))
@@ -42,33 +45,38 @@ def compute_disagreements(
     else:
         raise NotImplementedError('unknown metric ' + metric)
     return disagreements
+compute_disagreements = python_app(_compute_disagreements, executors=['default'])
 
 
-@python_app(executors=['default'])
-def filter_disagreements(
+# expose outside filter app to reproduce filtering behavior elsewhere
+@typeguard.typechecked
+def _filter_disagreements(disagreements: np.ndarray, nstates: int):
+    if nstates >= len(disagreements):
+        indices = np.arange(len(disagreements))
+    else:
+        indices = np.argsort(disagreements)[-nstates:][::-1]
+    return indices
+filter_disagreements = python_app(_filter_disagreements, executors=['default'])
+
+
+@typeguard.typechecked
+def _extract_highest(
         disagreements: np.ndarray,
-        retain_percentage: Optional[float] = None,
         nstates: Optional[int] = None,
         inputs: list[File] = [],
         outputs: list[File] = [],
         ) -> None:
     import numpy as np
     from psiflow.data import read_dataset, write_dataset
-    if nstates is None:
-        assert retain_percentage is not None
-        nstates = int(retain_percentage) * len(disagreements)
-    else:
-        assert retain_percentage is None
-    indices = np.argsort(disagreements)[-nstates:][::-1]
+    from psiflow.committee import _filter_disagreements
     data = read_dataset(slice(None), inputs=[inputs[0]])
     assert len(data) == len(disagreements)
+    indices = filter_data(disagreements, nstates)
     write_dataset(
-            read_dataset(
-                [int(i) for i in indices],
-                inputs=[inputs[0]],
-                ),
+            [data[i] for i in indices],
             outputs=[outputs[0]],
             )
+extract_highest = python_app(_extract_highest, executors=['default'])
 
 
 @typeguard.typechecked
@@ -84,7 +92,7 @@ class Committee:
         for i, model in enumerate(self.models):
             model.seed = i
 
-    def compute_disagreements(self, data: Dataset) -> AppFuture:
+    def compute_disagreements(self, data: Dataset) -> AppFuture[np.ndarray]:
         context = psiflow.context()
         inputs = [m.evaluate(data).data_future for m in self.models]
         disagreements = compute_disagreements(
@@ -93,24 +101,15 @@ class Committee:
                 )
         return disagreements
 
-    def apply(self, data: Dataset, nstates_or_retain: Union[int, float]) -> Dataset:
+    def apply(self, data: Dataset, nstates: int) -> tuple[Dataset, AppFuture]:
         disagreements = self.compute_disagreements(data)
-        if type(nstates_or_retain) == float:
-            assert nstates_or_retain <= 1.0
-            assert nstates_or_retain >  0.0
-            retain_percentage = nstates_or_retain
-            nstates = None
-        else:
-            nstates = nstates_or_retain
-            retain_percentage = None
-        future = filter_disagreements(
+        future = extract_highest(
                 disagreements,
-                retain_percentage=retain_percentage,
                 nstates=nstates,
                 inputs=[data.data_future],
                 outputs=[psiflow.context().new_file('data_', '.xyz')],
                 )
-        return Dataset(None, data_future=future.outputs[0])
+        return Dataset(None, data_future=future.outputs[0]), disagreements
 
     def train(self, training, validation) -> None:
         for i, model in enumerate(self.models):

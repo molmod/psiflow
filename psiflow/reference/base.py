@@ -85,9 +85,6 @@ class BaseReference:
         else: # Atoms, FlowAtoms, AppFuture
             if type(arg) == Atoms:
                 arg = FlowAtoms.from_atoms(arg)
-            if type(arg) == FlowAtoms:
-                if arg == NullState:
-                    return NullState
             data = context.apps(self.__class__, 'evaluate_single')(
                     arg, # converts to FlowAtoms if necessary
                     deepcopy(self.parameters),

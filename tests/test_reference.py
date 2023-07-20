@@ -14,7 +14,7 @@ from ase.io.extxyz import write_extxyz
 from ase.units import Pascal
 
 import psiflow
-from psiflow.data import FlowAtoms
+from psiflow.data import FlowAtoms, NullState
 from psiflow.reference import EMTReference, CP2KReference, MP2CP2KReference
 from psiflow.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
@@ -267,6 +267,10 @@ def test_cp2k_success(context, cp2k_reference):
             evaluated.result().info['stress'],
             #atol=1e-5,
             )
+
+    # check whether NullState evaluates to NullState
+    state = cp2k_reference.evaluate(NullState)
+    assert state.result() == NullState
 
     # check number of mpi processes
     with open(evaluated.result().reference_stdout, 'r') as f:

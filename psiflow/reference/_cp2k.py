@@ -12,14 +12,14 @@ from ase.data import atomic_numbers
 
 import parsl
 from parsl.executors import WorkQueueExecutor
-from parsl.app.app import python_app, bash_app
+from parsl.app.app import python_app, bash_app, join_app
 from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.execution import ReferenceEvaluationExecution
-from psiflow.data import FlowAtoms
-from psiflow.utils import get_active_executor
+from psiflow.data import FlowAtoms, NullState
+from psiflow.utils import get_active_executor, copy_app_future
 from .base import BaseReference
 
 
@@ -221,10 +221,6 @@ def cp2k_singlepoint_post(
     import numpy as np
     from ase.units import Hartree, Bohr, Pascal
     from pymatgen.io.cp2k.outputs import Cp2kOutput
-    #with open(inputs[0], 'r', encoding='utf8') as f:
-    #    stdout = f.read()
-    #with open(inputs[1], 'r', encoding='utf8') as f:
-    #    stderr = f.read()
     atoms.reference_stdout = inputs[0]
     atoms.reference_stderr = inputs[1]
     try:
@@ -339,6 +335,7 @@ class CP2KReference(BaseReference):
                 executors=['default'],
                 cache=False,
                 )
+        @join_app
         def singlepoint_wrapped(
                 atoms,
                 parameters,
@@ -348,22 +345,25 @@ class CP2KReference(BaseReference):
             assert len(file_names) == len(inputs)
             for name in cls.required_files:
                 assert name in file_names
-            pre = singlepoint_pre(
-                    atoms,
-                    parameters['cp2k_input'],
-                    command,
-                    file_names,
-                    omp_num_threads,
-                    stdout=parsl.AUTO_LOGNAME,
-                    stderr=parsl.AUTO_LOGNAME,
-                    walltime=60 * walltime, # killed after walltime - 10s
-                    inputs=inputs, # tmp Files
-                    parsl_resource_specification=resource_specification,
-                    )
-            return singlepoint_post(
-                    atoms=atoms,
-                    inputs=[pre.stdout, pre.stderr, pre], # wait for bash app
-                    )
+            if atoms == NullState:
+                return copy_app_future(NullState)
+            else:
+                pre = singlepoint_pre(
+                        atoms,
+                        parameters['cp2k_input'],
+                        command,
+                        file_names,
+                        omp_num_threads,
+                        stdout=parsl.AUTO_LOGNAME,
+                        stderr=parsl.AUTO_LOGNAME,
+                        walltime=60 * walltime, # killed after walltime - 10s
+                        inputs=inputs, # tmp Files
+                        parsl_resource_specification=resource_specification,
+                        )
+                return singlepoint_post(
+                        atoms=atoms,
+                        inputs=[pre.stdout, pre.stderr, pre], # wait for bash app
+                        )
         context.register_app(cls, 'evaluate_single', singlepoint_wrapped)
         super(CP2KReference, cls).create_apps()
 
