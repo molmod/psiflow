@@ -52,7 +52,9 @@ def log_evaluation(
     if metadata.reset.result():
         assert state == NullState
         assert metadata.state.result() == NullState
-        s += '\tfailed during propagation; no evaluation was attempted'.format(i)
+        s += '\tpropagation failed'
+        if 'stdout' in metadata_dict:
+            s+= '; see {} in the task_logs directory'.format(Path(metadata.stdout).stem)
         s += '\n\twalker reset'
         assert condition
     else:
@@ -64,13 +66,10 @@ def log_evaluation(
             assert errors is not None
         s += '\n'
         if errors is not None:
-            #assert not errors[0] == 0.0
-            #assert not errors[1] == 0.0
             if condition:
-                s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A -- above threshold; walker reset'.format(*errors)
+                s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A -- above threshold\n\twalker reset'.format(*errors)
             else:
                 s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A -- below threshold'.format(*errors)
-                #s += '\tRMSE below threshold   ({:7.1f} meV/atom | {:5.0f} meV/A); walker OK'.format(*errors)
         else:
             s += '\twalker reset'
     s += '\n'

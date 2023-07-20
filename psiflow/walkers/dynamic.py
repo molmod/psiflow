@@ -27,7 +27,7 @@ from psiflow.walkers import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 
 
-Metadata = namedtuple('Metadata', ['state', 'counter', 'reset', 'temperature', 'time'])
+Metadata = namedtuple('Metadata', ['state', 'counter', 'reset', 'temperature', 'time', 'stdout', 'stderr'])
 
 
 #@typeguard.typechecked
@@ -244,7 +244,10 @@ class DynamicWalker(BaseWalker):
             result = app_propagate_post(
                     inputs=[future, future.stdout, future.outputs[0]],
                     )
-            metadata = Metadata(*[unpack_i(result, i) for i in range(5)])
+            metadata_args = [unpack_i(result, i) for i in range(5)]
+            metadata_args.append(future.stdout)
+            metadata_args.append(future.stderr)
+            metadata = Metadata(*metadata_args)
             return metadata, future.outputs[0]
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
@@ -412,7 +415,10 @@ class BiasedDynamicWalker(DynamicWalker):
                     inputs = [future, future.stdout, future.outputs[0]],
                     )
             state = bias.evaluate(Dataset([unpack_i(result, 0)]), as_dataset=True)[0]
-            metadata = Metadata(*([state] + [unpack_i(result, i) for i in range(1, 5)]))
+            metadata_args = [state] + [unpack_i(result, i) for i in range(1, 5)]
+            metadata_args.append(future.stdout)
+            metadata_args.append(future.stderr)
+            metadata = Metadata(*metadata_args)
             return metadata, future.outputs[0]
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
