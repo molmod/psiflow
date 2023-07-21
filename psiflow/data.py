@@ -232,18 +232,24 @@ app_length_dataset = python_app(get_length_dataset, executors=['default'])
 
 
 @typeguard.typechecked
-def get_indices_per_flag(
-        flag: bool,
+def _get_indices(
+        flag: str,
         inputs: List[File] = [],
         ) -> List[int]:
+    from psiflow.data import read_dataset, NullState
     data = read_dataset(slice(None), inputs=[inputs[0]])
     indices = []
     for i, atoms in enumerate(data):
-        assert atoms.reference_status is not None
-        if atoms.reference_status == flag:
-            indices.append(i)
+        if flag == 'labeled':
+            if atoms.reference_status:
+                indices.append(i)
+        elif flag == 'not_null':
+            if atoms != NullState:
+                indices.append(i)
+        else:
+            raise ValueError('unrecopgnized flag ' + flag)
     return indices
-app_get_indices = python_app(get_indices_per_flag, executors=['default'])
+get_indices = python_app(_get_indices, executors=['default'])
 
 
 @typeguard.typechecked
@@ -536,16 +542,16 @@ class Dataset:
                 ).outputs[0]
         return Dataset(None, data_future)
 
-    def success(self) -> Dataset:
-        indices = app_get_indices(
-                True,
+    def labeled(self) -> Dataset:
+        indices = get_indices(
+                'labeled',
                 inputs=[self.data_future],
                 )
         return self.get(indices=indices)
 
-    def failed(self) -> Dataset:
-        indices = app_get_indices(
-                False,
+    def not_null(self) -> Dataset:
+        indices = get_indices(
+                'not_null',
                 inputs=[self.data_future],
                 )
         return self.get(indices=indices)

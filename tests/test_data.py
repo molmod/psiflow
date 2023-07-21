@@ -25,8 +25,9 @@ def test_flow_atoms(context, dataset, tmp_path):
         atoms = dataset[i].result()
         assert type(atoms) == FlowAtoms
         assert atoms.reference_status == True
-    assert dataset.success().length().result() == dataset.length().result()
-    assert dataset.failed().length().result() == 0
+    assert dataset.labeled().length().result() == dataset.length().result()
+    dataset += Dataset([NullState])
+    assert dataset.length().result() == 1 + dataset.not_null().length().result()
     assert atoms.reference_status == True
     atoms.reset()
     assert not 'energy' in atoms.info
