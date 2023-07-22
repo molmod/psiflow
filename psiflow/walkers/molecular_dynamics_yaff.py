@@ -1,9 +1,7 @@
 import torch
 import argparse
 import os
-import tempfile
 import numpy as np
-from copy import deepcopy
 from pathlib import Path
 
 import yaff
@@ -11,7 +9,6 @@ import molmod
 from ase.io import read, write
 from ase.io.extxyz import write_extxyz
 
-from psiflow.data import FlowAtoms
 from psiflow.walkers.utils import ForcePartASE, DataHook, \
         create_forcefield, ForceThresholdExceededException, ForcePartPlumed, \
         ExtXYZHook

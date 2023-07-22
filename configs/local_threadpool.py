@@ -14,6 +14,7 @@ model_evaluate = ModelEvaluationExecution(
         ncores=1,
         dtype='float32',
         walltime=1,
+        dynamics_engine='openmm',
         )
 model_training = ModelTrainingExecution( # forced cuda/float32
         executor='training',

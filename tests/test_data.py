@@ -8,7 +8,7 @@ from ase.io import read, write
 from ase.io.extxyz import write_extxyz
 
 from psiflow.data import FlowAtoms, Dataset, NullState
-from psiflow.utils import get_index_element_mask
+from psiflow.utils import get_index_element_mask, is_reduced
 
 from tests.conftest import generate_emt_cu_data # explicit import for regular function
 
@@ -33,6 +33,9 @@ def test_flow_atoms(context, dataset, tmp_path):
     assert not 'energy' in atoms.info
     assert atoms.reference_status == False
     assert tuple(sorted(atoms.elements)) == ('Cu', 'H')
+    assert not is_reduced(atoms.cell)
+    atoms.canonical_orientation()
+    assert is_reduced(atoms.cell)
 
 
 def test_dataset_empty(context, tmp_path):
@@ -62,6 +65,20 @@ def test_dataset_append(dataset):
     assert dataset.length().result() == 40 # may not changed
     dataset += dataset
     assert dataset.length().result() == 80 # may not changed
+
+    # test canonical transformation
+    transformed = dataset.canonical_orientation()
+    for i in range(dataset.length().result()):
+        atoms = dataset[i].result()
+        atoms.canonical_orientation()
+        assert np.allclose(
+                atoms.positions,
+                transformed[i].result().positions,
+                )
+        assert np.allclose(
+                atoms.cell,
+                transformed[i].result().cell,
+                )
 
 
 def test_dataset_slice(dataset):

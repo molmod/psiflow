@@ -163,7 +163,7 @@ def sample_with_model(
         walkers[i].reset(condition)
         s = log_evaluation_model(i, metadatas[i], states[i], errors[i], condition, identifier)
         print(s.result())
-    return Dataset(states).success(), identifier
+    return Dataset(states).labeled(), identifier
 
 
 @join_app
@@ -251,4 +251,4 @@ def sample_with_committee(
             indices,
             )
         print(s.result())
-    return Dataset(states).success(), identifier
+    return Dataset(states).labeled(), identifier

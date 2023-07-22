@@ -60,6 +60,7 @@ class ModelEvaluationExecution(Execution):
     device: str = 'cpu'
     ncores: int = 1
     dtype: str = 'float32'
+    dynamics_engine: str = 'openmm'
     walltime: Optional[int] = None
     memory_per_core: int = 1900
     disk: int = 1000

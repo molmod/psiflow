@@ -49,7 +49,6 @@ def molecular_dynamics_yaff(
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd  = 'cd $mytmpdir;'
     command_unbuffer = 'export PYTHONUNBUFFERED=TRUE;'
-    #command_omp = 'export OMP_PROC_BIND=TRUE;'
     command_printenv = 'printenv | grep OMP;'
     command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
     command_list = [
@@ -58,7 +57,7 @@ def molecular_dynamics_yaff(
             command_unbuffer,
             command_printenv,
             command_write,
-            'timeout -k 5 {}s'.format(max(walltime - 10, 0)), # some time is spent on copying
+            'timeout -k 5 {}s'.format(max(walltime - 20, 0)), # some time is spent on copying
             'psiflow-md-yaff',
             '--device {}'.format(device),
             '--ncores {}'.format(ncores),
@@ -88,6 +87,7 @@ def molecular_dynamics_yaff(
     return ' '.join(command_list)
 
 
+@python_app(executors=['default'])
 def molecular_dynamics_yaff_post(
         inputs: list[File] = [],
         outputs: list[File] = [],
@@ -102,6 +102,85 @@ def molecular_dynamics_yaff_post(
     else:
         reset = False
     counter, temperature, elapsed_time = parse_yaff_output(stdout)
+    if not reset:
+        atoms = FlowAtoms.from_atoms(read(str(inputs[2]))) # reads last state
+    else:
+        atoms = NullState
+    return atoms, counter, reset, temperature, elapsed_time
+
+
+#@typeguard.typechecked
+def molecular_dynamics_openmm(
+        device: str,
+        ncores: int,
+        dtype: str,
+        pars: dict[str, Any],
+        model_cls: str,
+        keep_trajectory: bool = False,
+        plumed_input: str = '',
+        inputs: list[File] = [],
+        outputs: list[File] = [],
+        walltime: float = 1e9, # infinite by default
+        stdout: str = '',
+        stderr: str = '',
+        parsl_resource_specification: dict = None,
+        ) -> str:
+    command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
+    command_cd  = 'cd $mytmpdir;'
+    command_unbuffer = 'export PYTHONUNBUFFERED=TRUE;'
+    command_printenv = 'printenv | grep OMP;'
+    command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
+    command_list = [
+            command_tmp,
+            command_cd,
+            command_unbuffer,
+            command_printenv,
+            command_write,
+            'timeout --kill-after=5 {}s'.format(max(walltime - 20, 0)), # some time is spent on copying
+            'psiflow-md-openmm',
+            '--device {}'.format(device),
+            '--ncores {}'.format(ncores),
+            '--dtype {}'.format(dtype),
+            '--atoms {}'.format(inputs[0].filepath),
+            ]
+    parameters_to_pass = [
+            'seed',
+            'timestep',
+            'steps',
+            'step',
+            'start',
+            'temperature',
+            'pressure',
+            'force_threshold',
+            'initial_temperature',
+            ]
+    for key in parameters_to_pass:
+        if pars[key] is not None:
+            command_list.append('--{} {}'.format(key, pars[key]))
+    command_list.append('--model-cls {}'.format(model_cls))
+    command_list.append('--model {}'.format(inputs[1].filepath))
+    command_list.append('--keep-trajectory {}'.format(keep_trajectory))
+    command_list.append('--trajectory {}'.format(outputs[0].filepath))
+    command_list.append('--walltime {}'.format(walltime))
+    command_list.append(' || true')
+    return ' '.join(command_list)
+
+
+@python_app(executors=['default'])
+def molecular_dynamics_openmm_post(
+        inputs: list[File] = [],
+        outputs: list[File] = [],
+        ):
+    from ase.io import read
+    from psiflow.data import FlowAtoms, NullState
+    #from psiflow.walkers.utils import parse_openmm_output
+    with open(inputs[1], 'r') as f:
+        stdout = f.read()
+    if 'unsafe' in stdout:
+        reset = True
+    else:
+        reset = False
+    counter, temperature, elapsed_time = parse_openmm_output(stdout)
     if not reset:
         atoms = FlowAtoms.from_atoms(read(str(inputs[2]))) # reads last state
     else:
@@ -187,6 +266,7 @@ class DynamicWalker(BaseWalker):
                 dtype    = execution.dtype
                 ncores   = execution.ncores
                 walltime = execution.walltime
+                engine   = execution.dynamics_engine
                 if isinstance(get_active_executor(label), WorkQueueExecutor):
                     resource_spec = execution.generate_parsl_resource_specification()
                 else:
@@ -194,61 +274,111 @@ class DynamicWalker(BaseWalker):
         if walltime is None:
             walltime = 1e4 # infinite
 
-        app_propagate = bash_app(
-                molecular_dynamics_yaff,
-                executors=[label],
-                cache=False,
-                )
-        app_propagate_post = python_app(
-                molecular_dynamics_yaff_post,
-                executors=['default'],
-                cache=False,
-                )
+        if engine == 'yaff':
+            app_propagate = bash_app(
+                    molecular_dynamics_yaff,
+                    executors=[label],
+                    cache=False,
+                    )
 
-        @typeguard.typechecked
-        def propagate_wrapped(
-                state: AppFuture,
-                parameters: dict[str, Any],
-                model: BaseModel = None,
-                keep_trajectory: bool = False,
-                file: Optional[File] = None,
-                ) -> tuple[NamedTuple, Optional[DataFuture]]:
-            assert model is not None # model is required
-            assert model.deploy_future[dtype] is not None # has to be deployed
-            future_atoms = app_write_dataset(
-                    states=None,
-                    inputs=[state],
-                    outputs=[psiflow.context().new_file('data_', '.xyz')],
-                    ).outputs[0]
-            inputs = [future_atoms, model.deploy_future[dtype]]
-            if keep_trajectory:
-                assert file is not None
-            else:
-                file = psiflow.context().new_file('data_', '.xyz')
-            outputs = [file]
-            future = app_propagate(
-                    device,
-                    ncores,
-                    dtype,
-                    parameters,
-                    model.__class__.__name__, # load function
-                    keep_trajectory=keep_trajectory,
-                    plumed_input='',
-                    inputs=inputs,
-                    outputs=outputs,
-                    walltime=(walltime * 60 - 20), # 20s slack
-                    stdout=parsl.AUTO_LOGNAME, # output redirected to this file
-                    stderr=parsl.AUTO_LOGNAME, # error redirected to this file
-                    parsl_resource_specification=resource_spec,
+            @typeguard.typechecked
+            def propagate_wrapped(
+                    state: AppFuture,
+                    parameters: dict[str, Any],
+                    model: BaseModel = None,
+                    keep_trajectory: bool = False,
+                    file: Optional[File] = None,
+                    ) -> tuple[NamedTuple, Optional[DataFuture]]:
+                assert model is not None # model is required
+                assert model.deploy_future[dtype] is not None # has to be deployed
+                future_atoms = app_write_dataset(
+                        states=None,
+                        inputs=[state],
+                        outputs=[psiflow.context().new_file('data_', '.xyz')],
+                        ).outputs[0]
+                inputs = [future_atoms, model.deploy_future[dtype]]
+                if keep_trajectory:
+                    assert file is not None
+                else:
+                    file = psiflow.context().new_file('data_', '.xyz')
+                outputs = [file]
+                future = app_propagate(
+                        device,
+                        ncores,
+                        dtype,
+                        parameters,
+                        model.__class__.__name__, # load function
+                        keep_trajectory=keep_trajectory,
+                        plumed_input='',
+                        inputs=inputs,
+                        outputs=outputs,
+                        walltime=(walltime * 60),
+                        stdout=parsl.AUTO_LOGNAME, # output redirected to this file
+                        stderr=parsl.AUTO_LOGNAME, # error redirected to this file
+                        parsl_resource_specification=resource_spec,
+                        )
+                result = molecular_dynamics_yaff_post(
+                        inputs=[future, future.stdout, future.outputs[0]],
+                        )
+                metadata_args = [unpack_i(result, i) for i in range(5)]
+                metadata_args.append(future.stdout)
+                metadata_args.append(future.stderr)
+                metadata = Metadata(*metadata_args)
+                return metadata, future.outputs[0]
+
+        elif engine == 'openmm':
+            app_propagate = bash_app(
+                    molecular_dynamics_openmm,
+                    executors=[label],
                     )
-            result = app_propagate_post(
-                    inputs=[future, future.stdout, future.outputs[0]],
-                    )
-            metadata_args = [unpack_i(result, i) for i in range(5)]
-            metadata_args.append(future.stdout)
-            metadata_args.append(future.stderr)
-            metadata = Metadata(*metadata_args)
-            return metadata, future.outputs[0]
+
+            @typeguard.typechecked
+            def propagate_wrapped(
+                    state: AppFuture,
+                    parameters: dict[str, Any],
+                    model: BaseModel = None,
+                    keep_trajectory: bool = False,
+                    file: Optional[File] = None,
+                    ) -> tuple[NamedTuple, Optional[DataFuture]]:
+                assert model is not None # model is required
+                assert model.deploy_future[dtype] is not None # has to be deployed
+                future_atoms = app_write_dataset(
+                        states=None,
+                        inputs=[state],
+                        outputs=[psiflow.context().new_file('data_', '.xyz')],
+                        ).outputs[0]
+                inputs = [future_atoms, model.deploy_future[dtype]]
+                if keep_trajectory:
+                    assert file is not None
+                else:
+                    file = psiflow.context().new_file('data_', '.xyz')
+                outputs = [file]
+                future = app_propagate(
+                        device,
+                        ncores,
+                        dtype,
+                        parameters,
+                        model.__class__.__name__, # load function
+                        keep_trajectory=keep_trajectory,
+                        plumed_input='',
+                        inputs=inputs,
+                        outputs=outputs,
+                        walltime=(walltime * 60),
+                        stdout=parsl.AUTO_LOGNAME, # output redirected to this file
+                        stderr=parsl.AUTO_LOGNAME, # error redirected to this file
+                        parsl_resource_specification=resource_spec,
+                        )
+                result = molecular_dynamics_openmm_post(
+                        inputs=[future, future.stdout, future.outputs[0]],
+                        )
+                metadata_args = [unpack_i(result, i) for i in range(5)]
+                metadata_args.append(future.stdout)
+                metadata_args.append(future.stderr)
+                metadata = Metadata(*metadata_args)
+                return metadata, future.outputs[0]
+
+        else:
+            raise ValueError('unknown dynamics engine ' + engine)
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
 
@@ -404,7 +534,7 @@ class BiasedDynamicWalker(DynamicWalker):
                     plumed_input=bias.prepare_input(),
                     inputs=inputs,
                     outputs=outputs,
-                    walltime=(walltime * 60 - 20), # 20s slack
+                    walltime=(walltime * 60), # 20s slack
                     stdout=parsl.AUTO_LOGNAME, # output redirected to this file
                     stderr=parsl.AUTO_LOGNAME, # error redirected to this file
                     parsl_resource_specification=resource_spec,

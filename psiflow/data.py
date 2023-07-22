@@ -32,7 +32,8 @@ from parsl.dataflow.memoization import id_for_memo
 
 import psiflow
 from psiflow.utils import copy_data_future, copy_app_future, \
-        resolve_and_check
+        resolve_and_check, transform_lower_triangular, \
+        reduce_box_vectors, is_reduced
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -108,6 +109,14 @@ class FlowAtoms(Atoms):
         self.info = info
         self.arrays.pop('forces', None)
 
+    def canonical_orientation(self):
+        pos = self.get_positions()
+        box = np.array(self.get_cell())
+        transform_lower_triangular(pos, box, reorder=False)
+        reduce_box_vectors(box)
+        self.set_positions(pos)
+        self.set_cell(box)
+
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> FlowAtoms:
         """Generates a `FlowAtoms` object based on an existing `Atoms`
@@ -134,6 +143,21 @@ class FlowAtoms(Atoms):
 
 # use universal dummy state
 NullState = FlowAtoms(numbers=[0], positions=[[0, 0, 0]])
+
+
+@typeguard.typechecked
+def _canonical_orientation(
+        inputs: list[File] = [],
+        outputs: list[File] = [],
+        ) -> None:
+    from psiflow.data import read_dataset
+    from ase.io.extxyz import write_extxyz
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    for atoms in data:
+        atoms.canonical_orientation()
+    with open(outputs[0], 'w') as f:
+        write_extxyz(f, data)
+canonical_orientation = python_app(_canonical_orientation, executors=['default'])
 
 
 @typeguard.typechecked
@@ -555,6 +579,13 @@ class Dataset:
                 inputs=[self.data_future],
                 )
         return self.get(indices=indices)
+
+    def canonical_orientation(self):
+        future = canonical_orientation(
+                inputs=[self.data_future],
+                outputs=[psiflow.context().new_file('data_', '.xyz')],
+                )
+        return Dataset(None, data_future=future.outputs[0])
 
     @staticmethod
     def get_errors(
