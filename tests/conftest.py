@@ -107,4 +107,4 @@ def dataset(context, tmp_path):
     data_ = [FlowAtoms.from_atoms(atoms) for atoms in data]
     for atoms in data_:
         atoms.reference_status = True
-    return Dataset(data_)
+    return Dataset(data_).canonical_orientation()

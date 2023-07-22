@@ -12,11 +12,11 @@ import openmm.unit as unit
 from openmmml import MLPotential
 from openmmplumed import PlumedForce
 
-from ase.io import read
+from ase import Atoms
+from ase.io import read, write
 from ase.data import chemical_symbols
-import ase.build
-import ase.io
 
+from psiflow.walkers.bias import try_manual_plumed_linking
 
 def main():
     parser = argparse.ArgumentParser()
@@ -112,6 +112,7 @@ def main():
     platform = openmm.Platform.getPlatformByName(platform_name)
     simulation = app.Simulation(topology, system, integrator, platform=platform)
     simulation.context.setPositions(positions)
+    simulation.context.setVelocitiesToTemperature(args.initial_temperature)
 
     if Path('plumed.dat').is_file():
         try_manual_plumed_linking()
@@ -134,7 +135,7 @@ def main():
 
     #simulation.reporters.append(app.PDBReporter('output.pdb', 50, enforcePeriodicBox=True))
     hdf = mdtraj.reporters.HDF5Reporter(
-            args.trajectory,
+            'traj.h5',
             reportInterval=args.step,
             coordinates=True,
             time=False,
@@ -156,8 +157,25 @@ def main():
     simulation.reporters.append(log)
 
     try:
-        simulation.step(100000)
-        print('current step: {}'.format(simulation.currentStep))
+        simulation.step(args.steps)
+        print('completed all steps')
     except TimeoutException:
-        print('current step: {}'.format(simulation.currentStep))
-        hdf.close()
+        print('simulation stopped due to timeout')
+    print('current step: {}'.format(simulation.currentStep))
+    hdf.close()
+
+    # save either entire trajectory or only last state
+    traj = mdtraj.load_hdf5('traj.h5')
+    symbols = list(traj.top.to_dataframe()[0]['element'])
+    trajectory = [initial]
+    for i in range(traj.xyz.shape[0]):
+        if not args.keep_trajectory and (i != traj.xyz.shape[0] - 1):
+            continue # only do last frame
+        else:
+            pass # do all frames
+        _atoms = atoms.copy()
+        _atoms.set_positions(traj.xyz[i] * 10)
+        if atoms.pbc.all():
+            _atoms.set_cell(traj.unitcell_vectors[i] * 10)
+        trajectory.append(_atoms)
+    write(args.trajectory, trajectory)

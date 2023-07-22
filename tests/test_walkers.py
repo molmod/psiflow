@@ -10,7 +10,7 @@ from ase import Atoms
 from psiflow.models import NequIPModel, MACEModel
 from psiflow.walkers import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker
-from psiflow.walkers.utils import parse_yaff_output
+from psiflow.walkers.utils import parse_yaff_output, parse_openmm_output
 from psiflow.data import Dataset
 from psiflow.utils import copy_app_future
 
@@ -102,7 +102,7 @@ def test_random_walker(context, dataset):
     metadata = walker.propagate(model=None) # irrelevant kwargs are ignored
 
 
-def test_parse_yaff(context, dataset, tmp_path):
+def test_parse_yaff(context):
     stdout = """
     sampling NVT ensemble ...
 
@@ -128,6 +128,27 @@ tagging sample as unsafe
     assert counter == 9
     assert temperature == 354.7
     assert time == 2.0
+
+
+def test_parse_openmm(context):
+    stdout = """
+PLUMED: Finished setup
+PLUMED: FILE: /tmp/fileahZtE6
+PLUMED: END FILE: /tmp/fileahZtE6
+#"Step","Potential Energy (kJ/mole)","Temperature (K)","Box Volume (nm^3)","Elapsed Time (s)"
+2,0.7217584252357483,0,0.04851977898327855,0.0004239082336425781
+4,0.7216319441795349,100,0.04851977898327855,0.022877931594848633
+6,0.721476137638092,200,0.04851977898327855,0.05740809440612793
+8,0.7211964130401611,300,0.04851977898327855,0.0892629623413086
+10,0.7210664749145508,400,0.04851977898327855,0.11220741271972656
+completed all steps
+current step: 10
+PLUMED:                                               Cycles        Total      Average      Minimum      Max
+"""
+    counter, temperature, time = parse_openmm_output(stdout)
+    assert counter == 10
+    assert temperature == 200
+    assert time == 0.11220741271972656
 
 
 def test_dynamic_walker_plain(context, dataset, mace_config):

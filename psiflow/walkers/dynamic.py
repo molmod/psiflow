@@ -136,7 +136,7 @@ def molecular_dynamics_openmm(
             command_unbuffer,
             command_printenv,
             command_write,
-            'timeout --kill-after=5 {}s'.format(max(walltime - 20, 0)), # some time is spent on copying
+            'timeout --kill-after=15 {}s'.format(max(walltime - 20, 0)), # some time is spent on copying
             'psiflow-md-openmm',
             '--device {}'.format(device),
             '--ncores {}'.format(ncores),
@@ -173,7 +173,7 @@ def molecular_dynamics_openmm_post(
         ):
     from ase.io import read
     from psiflow.data import FlowAtoms, NullState
-    #from psiflow.walkers.utils import parse_openmm_output
+    from psiflow.walkers.utils import parse_openmm_output
     with open(inputs[1], 'r') as f:
         stdout = f.read()
     if 'unsafe' in stdout:

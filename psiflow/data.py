@@ -110,12 +110,13 @@ class FlowAtoms(Atoms):
         self.arrays.pop('forces', None)
 
     def canonical_orientation(self):
-        pos = self.get_positions()
-        box = np.array(self.get_cell())
-        transform_lower_triangular(pos, box, reorder=False)
-        reduce_box_vectors(box)
-        self.set_positions(pos)
-        self.set_cell(box)
+        if self.pbc.all(): # only do something if periodic:
+            pos = self.get_positions()
+            box = np.array(self.get_cell())
+            transform_lower_triangular(pos, box, reorder=False)
+            reduce_box_vectors(box)
+            self.set_positions(pos)
+            self.set_cell(box)
 
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> FlowAtoms:
