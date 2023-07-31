@@ -2,6 +2,7 @@ import os
 import molmod
 import yaff
 import numpy as np
+from scipy.stats import chi2
 
 from ase.geometry import Cell
 from ase import Atoms
@@ -270,3 +271,18 @@ def parse_openmm_output(stdout):
     if len(temperatures) == 0:
         temperatures.append(-1)
     return counter, np.mean(np.array(temperatures)), time
+
+
+def max_temperature(temperature, natoms, quantile) -> tuple[float, float]:
+    ndof = 3 * natoms
+    return chi2.ppf(1 - quantile, ndof) * temperature / ndof
+
+
+def get_velocities_at_temperature(temperature, masses):
+    from ase.units import kB
+    velocities =  np.random.normal(0, 1, (len(masses), 3))
+    velocities *= np.sqrt(kB * temperature / masses).reshape(-1, 1)
+    actual = (velocities ** 2 * masses.reshape(-1, 1)).mean() / kB
+    scale = np.sqrt(temperature / actual)
+    velocities *= scale
+    return velocities

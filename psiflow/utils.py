@@ -50,7 +50,7 @@ def set_logger( # hacky
 @typeguard.typechecked
 def _sum_integers(a: int, b: int) -> int:
     return a + b
-sum_integers = python_app(_sum_integers, executors=['default'])
+sum_integers = python_app(_sum_integers, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -61,13 +61,13 @@ def _create_if_empty(outputs: List[File] = []) -> None:
     except FileNotFoundError: # create it if it doesn't exist
         with open(inputs[1], 'w+') as f:
             f.write('')
-create_if_empty = python_app(_create_if_empty, executors=['default'])
+create_if_empty = python_app(_create_if_empty, executors=['Default'])
 
 
 @typeguard.typechecked
 def _combine_futures(inputs: List[Any]) -> List[Any]:
     return list(inputs)
-combine_futures = python_app(_combine_futures, executors=['default'])
+combine_futures = python_app(_combine_futures, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -102,27 +102,27 @@ def _copy_data_future(inputs: List[File] = [], outputs: List[File] = []) -> None
         shutil.copyfile(inputs[0], outputs[0])
     else: # no need to copy empty file
         pass
-copy_data_future = python_app(_copy_data_future, executors=['default'])
+copy_data_future = python_app(_copy_data_future, executors=['Default'])
 
 
 @typeguard.typechecked
 def _copy_app_future(future: Any) -> Any:
     from copy import deepcopy
     return deepcopy(future)
-copy_app_future = python_app(_copy_app_future, executors=['default'])
+copy_app_future = python_app(_copy_app_future, executors=['Default'])
 
 
 @typeguard.typechecked
 def _pack(*args):
     return args
-pack = python_app(_pack, executors=['default'])
+pack = python_app(_pack, executors=['Default'])
 
 
 @typeguard.typechecked
 def _unpack_i(result: Union[np.ndarray, List, Tuple], i: int) -> Any:
     assert i <= len(result)
     return result[i]
-unpack_i = python_app(_unpack_i, executors=['default'])
+unpack_i = python_app(_unpack_i, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -141,7 +141,7 @@ def _save_yaml(input_dict: Dict, outputs: List[File] = []) -> None:
     input_dict = _make_dict_safe(input_dict)
     with open(outputs[0], 'w') as f:
         yaml.dump(input_dict, f, default_flow_style=False)
-save_yaml = python_app(_save_yaml, executors=['default'])
+save_yaml = python_app(_save_yaml, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -150,7 +150,7 @@ def _read_yaml(inputs: List[File] = [], outputs: List[File] = []) -> dict:
     with open(inputs[0], 'r') as f:
         config_dict = yaml.load(f, Loader=yaml.FullLoader)
     return config_dict
-read_yaml = python_app(_read_yaml, executors=['default'])
+read_yaml = python_app(_read_yaml, executors=['Default'])
 
 
 
@@ -158,7 +158,7 @@ read_yaml = python_app(_read_yaml, executors=['default'])
 def _save_txt(data: str, outputs: List[File] = []) -> None:
     with open(outputs[0], 'w') as f:
         f.write(data)
-save_txt = python_app(_save_txt, executors=['default'])
+save_txt = python_app(_save_txt, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -176,7 +176,7 @@ def _app_train_valid_indices(
     train_list = list(order[:ntrain])
     valid_list = list(order[ntrain:(ntrain + nvalid)])
     return [int(i) for i in train_list], [int(i) for i in valid_list]
-app_train_valid_indices = python_app(_app_train_valid_indices, executors=['default'])
+app_train_valid_indices = python_app(_app_train_valid_indices, executors=['Default'])
 
 
 @typeguard.typechecked

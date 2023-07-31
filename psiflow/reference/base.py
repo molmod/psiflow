@@ -25,7 +25,7 @@ from psiflow.utils import copy_app_future, unpack_i, combine_futures, \
 logger = logging.getLogger(__name__) # logging per module
 
 
-@python_app(executors=['default'])
+@python_app(executors=['Default'])
 def extract_energy(state):
     if state.reference_status:
         return state.info['energy']

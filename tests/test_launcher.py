@@ -3,7 +3,7 @@ import subprocess
 import shlex
 import pytest
 
-from psiflow.execution import ContainerizedLauncher
+from psiflow.parsl_utils import ContainerizedLauncher
 
 
 def get_apptainer_or_singularity():

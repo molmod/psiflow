@@ -17,7 +17,6 @@ from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.execution import ReferenceEvaluationExecution
 from psiflow.data import FlowAtoms, NullState
 from psiflow.utils import get_active_executor, copy_app_future
 from .base import BaseReference
@@ -206,7 +205,7 @@ def cp2k_singlepoint_pre(
             command_cd,
             command_write,
             'export OMP_NUM_THREADS={};'.format(omp_num_threads),
-            'timeout -k 5 {}s'.format(max(walltime - 100, 0)), # some time is spent on copying
+            'timeout -k 5 {}s'.format(max(walltime - 20, 0)), # some time is spent on copying
             cp2k_command,
             '-i cp2k.inp',
             ' || true',
@@ -301,29 +300,22 @@ class CP2KReference(BaseReference):
     @classmethod
     def create_apps(cls):
         context = psiflow.context()
-        execution  = context[cls][0]
-        label       = execution.executor
-        device      = execution.device
-        mpi_command = execution.mpi_command
-        cp2k_exec   = execution.cp2k_exec
-        ncores      = execution.ncores
-        walltime    = execution.walltime
+        definition = context[cls]
+        label       = definition.name()
+        mpi_command = definition.mpi_command
+        ncores      = definition.cores_per_worker
+        walltime    = definition.max_walltime
         if isinstance(get_active_executor(label), WorkQueueExecutor):
             resource_specification = execution.generate_parsl_resource_specification()
         else:
             resource_specification = {}
 
-        omp_num_threads = execution.omp_num_threads
-        assert ncores % execution.omp_num_threads == 0
-        mpi_num_procs = ncores // execution.omp_num_threads
-        assert device == 'cpu' # cuda not supported at the moment
-
         # parse full command
+        omp_num_threads = 1
         command = ''
-        if mpi_command is not None:
-            command += mpi_command(mpi_num_procs)
+        command += mpi_command(ncores)
         command += ' '
-        command += cp2k_exec
+        command += 'cp2k.psmp'
 
         singlepoint_pre = bash_app(
                 cp2k_singlepoint_pre,
@@ -332,7 +324,7 @@ class CP2KReference(BaseReference):
                 )
         singlepoint_post = python_app(
                 cp2k_singlepoint_post,
-                executors=['default'],
+                executors=['Default'],
                 cache=False,
                 )
         @join_app

@@ -23,8 +23,8 @@ import psiflow
 from psiflow.models.base import evaluate_dataset
 from psiflow.models import BaseModel
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.execution import ModelTrainingExecution, ModelEvaluationExecution
-from psiflow.utils import copy_data_future, get_active_executor
+from psiflow.utils import copy_data_future, get_active_executor, \
+        read_yaml
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -160,204 +160,62 @@ class AllegroConfig(NequIPConfig):
     r_max: float = 5.0
 
 
-def init_n_update(config):
-    import wandb
-    import logging
-    from wandb.util import json_friendly_val
-    conf_dict = dict(config)
-    # wandb mangles keys (in terms of type) as well, but we can't easily correct that because there are many ambiguous edge cases. (E.g. string "-1" vs int -1 as keys, are they different config keys?)
-    if any(not isinstance(k, str) for k in conf_dict.keys()):
-        raise TypeError(
-            "Due to wandb limitations, only string keys are supported in configurations."
-        )
-
-    # download from wandb set up
-    config.run_id = wandb.util.generate_id()
-
-    wandb.init(
-        project=config.wandb_project,
-        config=conf_dict,
-        group=config.wandb_group,
-        name=config.run_name,
-        resume="allow",
-        id=config.run_id,
-    )
-    # # download from wandb set up
-    updated_parameters = dict(wandb.config)
-    for k, v_new in updated_parameters.items():
-        skip = False
-        if k in config.keys():
-            # double check the one sanitized by wandb
-            v_old = json_friendly_val(config[k])
-            if repr(v_new) == repr(v_old):
-                skip = True
-        if skip:
-            #logging.info(f"# skipping wandb update {k} from {v_old} to {v_new}")
-            pass
-        else:
-            config.update({k: v_new})
-            #logging.info(f"# wandb update {k} from {v_old} to {v_new}")
-    return config
-
-
-@typeguard.typechecked
-def get_elements(data: List[FlowAtoms]) -> List[str]:
-    from ase.data import chemical_symbols
-    _all = [set(a.numbers) for a in data]
-    numbers = sorted(list(set(b for a in _all for b in a)))
-    return [chemical_symbols[n] for n in numbers]
-
-# do not type hint ASEDataset to avoid having to import nequip types outside
-# of the function
-@typeguard.typechecked
-def to_nequip_dataset(data: List[FlowAtoms], nequip_config: Any):
-    import tempfile
-    import shutil
-    from copy import deepcopy
-    from nequip.utils import Config, instantiate
-    from nequip.data.transforms import TypeMapper
-    from nequip.data import ASEDataset
-
-    tmpdir = tempfile.mkdtemp() # not guaranteed to be new/empty for some reason
-    shutil.rmtree(tmpdir)
-    Path(tmpdir).mkdir()
-    nequip_config_dict = deepcopy(dict(nequip_config))
-    nequip_config_dict['root'] = tmpdir
-    _config = Config.from_dict(dict(nequip_config_dict))
-    _config['chemical_symbols'] = get_elements(data)
-    type_mapper, _ = instantiate(
-            TypeMapper,
-            prefix='dataset',
-            optional_args=_config,
-            )
-    if 'formation_energy' in _config['dataset_key_mapping'].keys():
-        logger.critical('training NequIP on formation energy -- experimental!')
-        for atoms in data: # remove 'energy' key manually; otherwise it's still used
-            atoms.info['energy'] = atoms.info['formation_energy']
-            atoms.calc = None
-    ase_dataset = ASEDataset.from_atoms_list(
-            data,
-            extra_fixed_fields={'r_max': _config['r_max']},
-            type_mapper=type_mapper,
-            include_keys=_config['dataset_include_keys'],
-            key_mapping=_config['dataset_key_mapping'],
-            )
-    shutil.rmtree(tmpdir)
-    return ase_dataset, _config
-
-
 @typeguard.typechecked
 def initialize(
-        config: Dict,
+        nequip_config: dict,
+        stdout: str = '',
+        stderr: str = '',
         inputs: List[File] = [],
         outputs: List[File] = [],
-        ) -> Dict:
-    import torch
-    import numpy as np
-    from nequip.utils import Config
-    from nequip.scripts.train import default_config
-    from nequip.model import model_from_config
-
-    from psiflow.data import read_dataset
-    from psiflow.models._nequip import to_nequip_dataset
-
-    torch.manual_seed(config['seed']) # necessary to ensure reproducible init!
-    np.random.seed(config['seed'])
-
-    config['dataset_file_name'] = inputs[0].filepath
-    ase_dataset, nequip_config = to_nequip_dataset(
-            read_dataset(slice(None), inputs=[inputs[0]]),
-            Config.from_dict(config, defaults=default_config),
-            )
-    model = model_from_config(
-            nequip_config,
-            initialize=True,
-            dataset=ase_dataset,
-            )
-    nequip_config = nequip_config.as_dict()
-    torch.save(model.state_dict(), outputs[0].filepath)
-    return nequip_config
+        ) -> str:
+    import yaml
+    nequip_config['dataset_file_name'] = inputs[0].filepath
+    config_str = yaml.dump(dict(nequip_config))
+    command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
+    command_cd  = 'cd $mytmpdir;'
+    command_write = 'echo "{}" > config.yaml;'.format(config_str)
+    command_list = [
+            command_tmp,
+            command_cd,
+            command_write,
+            'psiflow-train-nequip',
+            '--config=config.yaml',
+            '--model=None',
+            '--init_only;',
+            'ls *;',
+            'cp undeployed.pth {};'.format(outputs[0].filepath),
+            'cp config.yaml {};'.format(outputs[1].filepath),
+            ]
+    return ' '.join(command_list)
 
 
 @typeguard.typechecked
 def deploy(
-        device: str,
-        dtype: str,
-        nequip_config: Dict,
+        nequip_config: dict,
+        stdout: str = '',
+        stderr: str = '',
         inputs: List[File] = [],
         outputs: List[File] = [],
-        ) -> None:
-    import torch
-    import ase
+        ) -> str:
     import yaml
-    from nequip.utils import Config
-    from nequip.model import model_from_config
-    from e3nn.util.jit import script
-    from nequip.scripts.deploy import CONFIG_KEY, NEQUIP_VERSION_KEY, \
-            TORCH_VERSION_KEY, E3NN_VERSION_KEY, R_MAX_KEY, N_SPECIES_KEY, \
-            TYPE_NAMES_KEY, JIT_BAILOUT_KEY, JIT_FUSION_STRATEGY, TF32_KEY
-    from nequip.utils.versions import get_config_code_versions
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-    # load model
-    nequip_config = Config.from_dict(nequip_config)
-    model = model_from_config(
-            nequip_config,
-            initialize=False,
-            )
-    model.load_state_dict(torch.load(inputs[0].filepath, map_location='cpu'))
-    torch_device = torch.device(device)
-    if dtype == 'float32':
-        torch_dtype = torch.float32
-    else:
-        torch_dtype = torch.float64
-    model.to(device=torch_device, dtype=torch_dtype)
-
-    # compile for deploy
-    model.eval()
-    if not isinstance(model, torch.jit.ScriptModule):
-        model = script(model)
-
-    # generate metadata
-    metadata: dict = {}
-    code_versions, code_commits = get_config_code_versions(nequip_config)
-    for code, version in code_versions.items():
-        metadata[code + "_version"] = version
-    if len(code_commits) > 0:
-        metadata[CODE_COMMITS_KEY] = ";".join(
-            f"{k}={v}" for k, v in code_commits.items()
-        )
-
-    metadata[R_MAX_KEY] = str(float(nequip_config["r_max"]))
-    if "allowed_species" in nequip_config:
-        # This is from before the atomic number updates
-        n_species = len(nequip_config["allowed_species"])
-        type_names = {
-            type: ase.data.chemical_symbols[atomic_num]
-            for type, atomic_num in enumerate(nequip_config["allowed_species"])
-        }
-    else:
-        # The new atomic number setup
-        n_species = str(nequip_config["num_types"])
-        type_names = nequip_config["type_names"]
-    metadata[N_SPECIES_KEY] = str(n_species)
-    metadata[TYPE_NAMES_KEY] = " ".join(type_names)
-
-    metadata[JIT_BAILOUT_KEY] = str(nequip_config[JIT_BAILOUT_KEY])
-    if int(torch.__version__.split(".")[1]) >= 11 and JIT_FUSION_STRATEGY in nequip_config:
-        metadata[JIT_FUSION_STRATEGY] = ";".join(
-            "%s,%i" % e for e in nequip_config[JIT_FUSION_STRATEGY]
-        )
-    metadata[TF32_KEY] = str(int(nequip_config["allow_tf32"]))
-    metadata[CONFIG_KEY] = yaml.dump(dict(nequip_config))
-
-    metadata = {k: v.encode("ascii") for k, v in metadata.items()}
-    torch.jit.save(model, outputs[0].filepath, _extra_files=metadata)
+    command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
+    command_cd  = 'cd $mytmpdir;'
+    config_str = yaml.dump(dict(nequip_config))
+    command_write = 'echo "{}" > config.yaml;'.format(config_str)
+    command_list = [
+            command_tmp,
+            command_cd,
+            command_write,
+            'psiflow-deploy-nequip',
+            '--config=config.yaml',
+            '--model={}'.format(inputs[0].filepath),
+            '--deployed={}'.format(outputs[0].filepath),
+            ]
+    return ' '.join(command_list)
 
 
 def train(
-        nequip_config: Dict,
+        nequip_config: dict,
         stdout: str = '',
         stderr: str = '',
         inputs: List[File] = [],
@@ -367,10 +225,6 @@ def train(
         ) -> str:
     import yaml
     from psiflow.data import read_dataset
-    ntrain = len(read_dataset(slice(None), inputs=[inputs[1]]))
-    nvalid = len(read_dataset(slice(None), inputs=[inputs[2]]))
-    nequip_config['n_train'] = ntrain
-    nequip_config['n_val']   = nvalid
     nequip_config['dataset_file_name'] = inputs[1].filepath
     nequip_config['validation_dataset'] = 'ase'
     nequip_config['validation_dataset_file_name'] = inputs[2].filepath
@@ -384,12 +238,10 @@ def train(
             command_cd,
             command_env,
             command_write,
-            'timeout -k 5 {}s'.format(max(walltime - 15, 0)), # 15 s Slack
+            'timeout -s 15 {}s'.format(max(walltime - 15, 0)), # 15 s slack
             'psiflow-train-nequip',
             '--config config.yaml',
-            '--model {}'.format(inputs[0].filepath),
-            '--ntrain {}'.format(ntrain),
-            '--nvalid {};'.format(nvalid),
+            '--model {};'.format(inputs[0].filepath),
             'ls;',
             'cp {}/best_model.pth {}'.format(
                 nequip_config['run_name'], outputs[0].filepath)
@@ -412,73 +264,57 @@ class NequIPModel(BaseModel):
         assert self.config_future is not None
         assert self.model_future is not None
         context = psiflow.context()
-        self.deploy_future['float32'] = context.apps(self.__class__, 'deploy_float32')(
+        self.deploy_future = context.apps(self.__class__, 'deploy')(
                 self.config_future,
                 inputs=[self.model_future],
                 outputs=[context.new_file('deployed_', '.pth')],
                 ).outputs[0]
-        self.deploy_future['float64'] = context.apps(self.__class__, 'deploy_float64')(
-                self.config_future,
-                inputs=[self.model_future],
-                outputs=[context.new_file('deployed_', '.pth')],
-                ).outputs[0]
-
-    def save_deployed(
-            self,
-            path_deployed: Union[Path, str],
-            dtype: str = 'float32',
-            ) -> DataFuture:
-        return copy_data_future(
-                inputs=[self.deploy_future[dtype]],
-                outputs=[File(str(path_deployed))],
-                ).outputs[0] # return data future
-
-    def set_seed(self, seed: int) -> None:
-        self.config_raw['seed'] = seed
-        self.config_raw['dataset_seed'] = seed
 
     @classmethod
     def create_apps(cls) -> None:
         context = psiflow.context()
-        for execution in context[cls]:
-            if type(execution) == ModelTrainingExecution:
-                training_label    = execution.executor
-                training_walltime = execution.walltime
-                training_ncores   = execution.ncores
-                if isinstance(get_active_executor(training_label), WorkQueueExecutor):
-                    training_resource_specification = execution.generate_parsl_resource_specification()
-                else:
-                    training_resource_specification = {}
-            elif type(execution) == ModelEvaluationExecution:
-                model_label    = execution.executor
-                model_device   = execution.device
-                model_dtype    = execution.dtype
-                model_ncores   = execution.ncores
+        evaluation, training = context[cls]
+        training_label    = training.name()
+        training_walltime = training.max_walltime
+        training_ncores   = training.cores_per_worker
+        if isinstance(get_active_executor(training_label), WorkQueueExecutor):
+            training_resource_specification = execution.generate_parsl_resource_specification()
+        else:
+            training_resource_specification = {}
+        model_label  = evaluation.name()
+        model_device = 'cuda' if evaluation.gpu else 'cpu'
+        model_ncores = evaluation.cores_per_worker
 
-        app_initialize = python_app(initialize, executors=[model_label], cache=False)
-        context.register_app(cls, 'initialize', app_initialize)
-        deploy_unwrapped = python_app(deploy, executors=[model_label], cache=False)
-        def deploy_float32(config, inputs=[], outputs=[]):
-            return deploy_unwrapped(
-                    model_device,
-                    'float32',
-                    config,
+        app_initialize = bash_app(initialize, executors=['Default'])
+        app_deploy     = bash_app(deploy, executors=['Default'])
+        def initialize_wrapped(config_raw, inputs=[]):
+            assert len(inputs) == 1
+            outputs = [
+                    context.new_file('model_', '.pth'),
+                    context.new_file('config_', '.yaml'),
+                    ]
+            init_future = app_initialize(
+                    config_raw,
                     inputs=inputs,
                     outputs=outputs,
+                    stdout=parsl.AUTO_LOGNAME,
+                    stderr=parsl.AUTO_LOGNAME,
                     )
-        context.register_app(cls, 'deploy_float32', deploy_float32)
-        def deploy_float64(config, inputs=[], outputs=[]):
-            return deploy_unwrapped(
-                    model_device,
-                    'float64',
-                    config,
-                    inputs=inputs,
-                    outputs=outputs,
+            future = read_yaml(inputs=[init_future.outputs[1]], outputs=[])
+            deploy_future = app_deploy(
+                    future,
+                    stdout=parsl.AUTO_LOGNAME,
+                    stderr=parsl.AUTO_LOGNAME,
+                    inputs=[init_future.outputs[0]],
+                    outputs=[context.new_file('deploy_', '.pth')],
                     )
-        context.register_app(cls, 'deploy_float64', deploy_float64)
-        train_unwrapped = bash_app(train, executors=[training_label], cache=False)
+            return future, init_future.outputs[0], deploy_future.outputs[0]
+        context.register_app(cls, 'initialize', initialize_wrapped)
+
+        app_train = bash_app(train, executors=[training_label])
         def train_wrapped(config, inputs=[], outputs=[]):
-            future = train_unwrapped(
+            outputs = [context.new_file('model_', '.pth')]
+            future = app_train(
                     config,
                     stdout=parsl.AUTO_LOGNAME,
                     stderr=parsl.AUTO_LOGNAME,
@@ -487,20 +323,23 @@ class NequIPModel(BaseModel):
                     walltime=training_walltime * 60,
                     parsl_resource_specification=training_resource_specification,
                     )
-            return future
+            deploy_future = app_deploy(
+                    config,
+                    stdout=parsl.AUTO_LOGNAME,
+                    stderr=parsl.AUTO_LOGNAME,
+                    inputs=[future.outputs[0]],
+                    outputs=[context.new_file('deploy_', '.pth')],
+                    )
+            return future.outputs[0], deploy_future.outputs[0]
         context.register_app(cls, 'train', train_wrapped)
         evaluate_unwrapped = python_app(
                 evaluate_dataset,
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(deploy_future, use_formation_energy, inputs=[], outputs=[]):
-            assert model_dtype in deploy_future.keys(), ('model is not '
-                    'deployed; use model.deploy() before using model.evaluate()')
-            inputs.append(deploy_future[model_dtype])
+        def evaluate_wrapped(use_formation_energy, inputs=[], outputs=[]):
             return evaluate_unwrapped(
                     model_device,
-                    model_dtype,
                     model_ncores,
                     use_formation_energy,
                     cls.load_calculator,
@@ -514,14 +353,11 @@ class NequIPModel(BaseModel):
             cls,
             path_model: Union[Path, str],
             device: str,
-            dtype: str,
-            set_global_options: str = 'warn',
             ) -> BaseCalculator:
         from nequip.ase import NequIPCalculator
         return NequIPCalculator.from_deployed_model(
                 model_path=path_model,
                 device=device,
-                set_global_options=set_global_options,
                 )
 
     @property

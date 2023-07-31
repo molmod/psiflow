@@ -19,6 +19,7 @@ NequIP train script -- copied from nequip@v0.5.6 with the following changes:
 import logging
 import argparse
 import warnings
+import yaml
 
 # This is a weird hack to avoid Intel MKL issues on the cluster when this is called as a subprocess of a process that has itself initialized PyTorch.
 # Since numpy gets imported later anyway for dataset stuff, this shouldn't affect performance.
@@ -26,6 +27,7 @@ import numpy as np  # noqa: F401
 
 from os.path import isdir
 from pathlib import Path
+from ase.io import read, write
 
 import torch
 
@@ -40,24 +42,27 @@ from nequip.scripts._logger import set_up_script_logger
 
 default_config = dict(
     root="./",
-    run_name="NequIP",
+    tensorboard=False,
     wandb=False,
-    wandb_project="NequIP",
     model_builders=[
         "SimpleIrrepsConfig",
         "EnergyModel",
         "PerSpeciesRescale",
-        "ForceOutput",
+        "StressForceOutput",
         "RescaleEnergyEtc",
     ],
     dataset_statistics_stride=1,
+    device='cuda',
     default_dtype="float32",
-    allow_tf32=False,  # TODO: until we understand equivar issues
+    model_dtype="float32",
+    allow_tf32=True,
     verbose="INFO",
     model_debug_mode=False,
     equivariance_test=False,
     grad_anomaly_mode=False,
+    gpu_oom_offload=False,
     append=False,
+    warn_unused=False,
     _jit_bailout_depth=2,  # avoid 20 iters of pain, see https://github.com/pytorch/pytorch/issues/52286
     # Quote from eelison in PyTorch slack:
     # https://pytorch.slack.com/archives/CDZD1FANA/p1644259272007529?thread_ts=1644064449.039479&cid=CDZD1FANA
@@ -68,7 +73,51 @@ default_config = dict(
     # We default to DYNAMIC alone because the number of edges is always dynamic,
     # even if the number of atoms is fixed:
     _jit_fusion_strategy=[("DYNAMIC", 3)],
+    # Due to what appear to be ongoing bugs with nvFuser, we default to NNC (fuser1) for now:
+    # TODO: still default to NNC on CPU regardless even if change this for GPU
+    # TODO: default for ROCm?
+    _jit_fuser="fuser1",
 )
+
+
+def init_n_update(config):
+    import wandb
+    import logging
+    from wandb.util import json_friendly_val
+    conf_dict = dict(config)
+    # wandb mangles keys (in terms of type) as well, but we can't easily correct that because there are many ambiguous edge cases. (E.g. string "-1" vs int -1 as keys, are they different config keys?)
+    if any(not isinstance(k, str) for k in conf_dict.keys()):
+        raise TypeError(
+            "Due to wandb limitations, only string keys are supported in configurations."
+        )
+
+    # download from wandb set up
+    config.run_id = wandb.util.generate_id()
+
+    wandb.init(
+        project=config.wandb_project,
+        config=conf_dict,
+        group=config.wandb_group,
+        name=config.run_name,
+        resume="allow",
+        id=config.run_id,
+    )
+    # # download from wandb set up
+    updated_parameters = dict(wandb.config)
+    for k, v_new in updated_parameters.items():
+        skip = False
+        if k in config.keys():
+            # double check the one sanitized by wandb
+            v_old = json_friendly_val(config[k])
+            if repr(v_new) == repr(v_old):
+                skip = True
+        if skip:
+            #logging.info(f"# skipping wandb update {k} from {v_old} to {v_new}")
+            pass
+        else:
+            config.update({k: v_new})
+            #logging.info(f"# wandb update {k} from {v_old} to {v_new}")
+    return config
 
 
 def main():
@@ -82,50 +131,65 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', help='path to initialized config', default='', type=str)
     parser.add_argument('--model', help='path to undeployed model', default='', type=str)
-    parser.add_argument('--ntrain', help='number of configurations in training set', default=0, type=int)
-    parser.add_argument('--nvalid', help='number of configurations in validation set', default=0, type=int)
+    parser.add_argument('--init_only', help='only perform initialization', default=False, action='store_true')
     args = parser.parse_args()
 
-    # hacky! if remove 'energy' label when training on 'formation_energy'
     config = Config.from_file(args.config, defaults=default_config)
+
+    if args.init_only: # create dummy validation set based on first state of training
+        assert args.model == 'None'
+        atoms = read(config['dataset_file_name'])
+        path_valid = str(Path.cwd() / 'validation_dummy.xyz')
+        write(path_valid, atoms)
+        config['validation_dataset_file_name'] = path_valid
+
+    # hacky; remove 'energy' label when training on 'formation_energy'
+    # put chemical symbols in config
+    from ase.data import chemical_symbols
+    from ase.io.extxyz import read_extxyz, write_extxyz
+    with open(config['dataset_file_name'], 'r') as f:
+        data = list(read_extxyz(f, index=slice(None)))
+        ntrain = len(data)
+    _all = [set(a.numbers) for a in data]
+    numbers = sorted(list(set(b for a in _all for b in a)))
+    config['chemical_symbols'] = [chemical_symbols[n] for n in numbers]
     if 'formation_energy' in config['dataset_key_mapping'].keys():
-        from ase.io.extxyz import read_extxyz, write_extxyz
-        with open(config['dataset_file_name'], 'r') as f:
-            data = list(read_extxyz(f, index=slice(None)))
-            for atoms in data:
-                atoms.info['energy'] = atoms.info['formation_energy']
-                atoms.calc = None
+        for atoms in data:
+            atoms.info['energy'] = atoms.info['formation_energy']
+            atoms.calc = None
         with open(config['dataset_file_name'], 'w') as f:
             write_extxyz(f, data)
-        with open(config['validation_dataset_file_name'], 'r') as f:
-            data = list(read_extxyz(f, index=slice(None)))
-            for atoms in data:
-                atoms.info['energy'] = atoms.info['formation_energy']
-                atoms.calc = None
+    with open(config['validation_dataset_file_name'], 'r') as f:
+        data = list(read_extxyz(f, index=slice(None)))
+        nvalid = len(data)
+    if 'formation_energy' in config['dataset_key_mapping'].keys():
+        for atoms in data:
+            atoms.info['energy'] = atoms.info['formation_energy']
+            atoms.calc = None
         with open(config['validation_dataset_file_name'], 'w') as f:
             write_extxyz(f, data)
+    config['n_train'] = ntrain
+    config['n_val'] = nvalid
 
     import os
     config['root'] = os.getcwd()
-    trainer = fresh_start(config, args.model)
-    assert trainer.n_train == args.ntrain # should have been set in config by bash_app
-    assert trainer.n_val   == args.nvalid
-    trainer.save()
-    trainer.train()
+    trainer = fresh_start(config, args.model, args.init_only)
+    if not args.init_only:
+        trainer.save()
+        trainer.train()
+    else:
+        return 0
 
 
-def fresh_start(config, path_model):
+def fresh_start(config, path_model, init_only):
     # we use add_to_config cause it's a fresh start and need to record it
-    check_code_version(config, add_to_config=True)
+    check_code_version(config, add_to_config=False)
     _set_global_options(config)
 
     # = Make the trainer =
     if config.wandb:
         import wandb  # noqa: F401
         from nequip.train.trainer_wandb import TrainerWandB
-
-        # download parameters from wandb in case of sweeping
-        from psiflow.models._nequip import init_n_update
 
         config = init_n_update(config)
 
@@ -142,28 +206,33 @@ def fresh_start(config, path_model):
     # = Load the dataset =
     dataset = dataset_from_config(config, prefix="dataset")
     logging.info(f"Successfully loaded the data set of type {dataset}...")
-    try:
+    if not init_only:
         validation_dataset = dataset_from_config(config, prefix="validation_dataset")
         logging.info(
             f"Successfully loaded the validation data set of type {validation_dataset}..."
         )
-    except KeyError:
-        # It couldn't be found
+    else:
+        trainer.n_val = 0
         validation_dataset = None
 
     # = Train/test split =
+    print('ntrain: {}'.format(trainer.n_train))
+    print('nvalid: {}'.format(trainer.n_val))
     trainer.set_dataset(dataset, validation_dataset)
 
-    # = Build model =
-    #final_model = model_from_config(
-    #    config=config, initialize=True, dataset=trainer.dataset_train
-    #)
-    model = model_from_config(config, initialize=False)
+    model = model_from_config(config, initialize=True, dataset=trainer.dataset_train)
     logging.info("Successfully built the network...")
     logging.info("psiflow-modification: loading state dict into model; "
             "setting precision float32; transferring to device cuda")
-    model.load_state_dict(torch.load(path_model, map_location='cpu'))
-    model.to(device=torch.device('cuda'), dtype=torch.float32)
+    if not init_only:
+        model.load_state_dict(torch.load(path_model, map_location='cpu'))
+        model.to(device=torch.device('cuda'), dtype=torch.float32)
+    else:
+        nequip_config = Config.as_dict(config)
+        with open('config.yaml', 'w') as f:
+            yaml.dump(nequip_config, f, default_flow_style=False)
+        torch.save(model.to('cpu').state_dict(), 'undeployed.pth')
+        return 0
     logging.info("psiflow-modification: success")
 
     # by doing this here we check also any keys custom builders may have added

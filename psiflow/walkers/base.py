@@ -32,13 +32,13 @@ def _conditioned_reset(
         return deepcopy(state0), 0
     else: # reset if unsafe
         return deepcopy(state), counter
-conditioned_reset = python_app(_conditioned_reset, executors=['default'])
+conditioned_reset = python_app(_conditioned_reset, executors=['Default'])
 
 
 @typeguard.typechecked
 def _is_reset(counter: int) -> bool:
     return counter == 0
-is_reset = python_app(_is_reset, executors=['default'])
+is_reset = python_app(_is_reset, executors=['Default'])
 
 
 @typeguard.typechecked

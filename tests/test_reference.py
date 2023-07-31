@@ -276,17 +276,15 @@ def test_cp2k_success(context, cp2k_reference):
     with open(evaluated.result().reference_stdout, 'r') as f:
         content = f.read()
     context = psiflow.context()
-    ncores = context[CP2KReference][0].ncores
-    omp_num_threads = context[CP2KReference][0].omp_num_threads
-    mpi_num_procs = ncores // omp_num_threads
+    ncores = context[CP2KReference].cores_per_worker
     lines = content.split('\n')
     for line in lines:
         if 'Total number of message passing processes' in line:
             nprocesses = int(line.split()[-1])
         if 'Number of threads for this process' in line:
             nthreads = int(line.split()[-1])
-    assert mpi_num_procs == nprocesses
-    assert omp_num_threads == nthreads
+    assert ncores == nprocesses
+    assert 1 == nthreads
 
 
 def test_cp2k_failure(context, cp2k_data, tmp_path):
@@ -401,7 +399,6 @@ def test_cp2k_atomic_energies(cp2k_reference, dataset):
     element = 'H'
     energy  = cp2k_reference.compute_atomic_energy(element, box_size=8)
     assert abs(energy.result() - (-13.6)) < 1e-1
-    # testing of additional atoms is possible but not really critical
 
 
 def test_data_set_formation_energy(context, dataset):

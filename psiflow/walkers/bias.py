@@ -175,7 +175,7 @@ def evaluate_bias(
     os.unlink(colvar_log)
     os.unlink(path_input)
     return values
-app_evaluate = python_app(evaluate_bias, executors=['default'])
+app_evaluate = python_app(evaluate_bias, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -191,7 +191,7 @@ def _reset_mtd(
             content = f.read()
     with open(outputs[0], 'w') as f:
         f.write(content)
-reset_mtd = python_app(_reset_mtd, executors=['default'])
+reset_mtd = python_app(_reset_mtd, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -218,7 +218,7 @@ def extract_grid(
             raise ValueError('could not find state for target value {}'.format(targets[i]))
     assert len(to_extract) == nstates
     return to_extract
-app_extract_grid = python_app(extract_grid, executors=['default'])
+app_extract_grid = python_app(extract_grid, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -234,14 +234,14 @@ def extract_between(
     mask_lower  = variable_values < max_value
     indices = np.arange(len(variable_values))[mask_higher * mask_lower]
     return [int(index) for index in indices]
-app_extract_between = python_app(extract_between, executors=['default'])
+app_extract_between = python_app(extract_between, executors=['Default'])
 
 
 @typeguard.typechecked
 def extract_column(array: np.ndarray, index: int) -> np.ndarray:
     assert index < array.shape[1]
     return array[:, index].reshape(-1, 1) # maintain shape
-app_extract_column = python_app(extract_column, executors=['default'])
+app_extract_column = python_app(extract_column, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -256,7 +256,7 @@ def insert_cv_values(
     for i, variable in enumerate(variables):
         state.info[variable] = values[0, i]
     return state
-app_insert_cv_values = python_app(insert_cv_values, executors=['default'])
+app_insert_cv_values = python_app(insert_cv_values, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -271,7 +271,7 @@ def insert_cv_values_data(
     for i, atoms in enumerate(data):
         insert_cv_values(variables, atoms, values[i, :].reshape(1, -1))
     write_dataset(data, outputs=[outputs[0]])
-app_insert_cv_values_data = python_app(insert_cv_values_data, executors=['default'])
+app_insert_cv_values_data = python_app(insert_cv_values_data, executors=['Default'])
 
 
 @typeguard.typechecked

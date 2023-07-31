@@ -30,6 +30,10 @@ def test_flow_atoms(context, dataset, tmp_path):
     assert dataset.length().result() == 1 + dataset.not_null().length().result()
     assert atoms.reference_status == True
     atoms.reset()
+    atoms.cell[:] = np.array([
+            [3, 1, 1],
+            [1, 5, 0],
+            [0, -1, 5]])
     assert not 'energy' in atoms.info
     assert atoms.reference_status == False
     assert tuple(sorted(atoms.elements)) == ('Cu', 'H')

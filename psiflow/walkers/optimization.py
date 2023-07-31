@@ -13,7 +13,6 @@ from parsl.app.futures import DataFuture
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
-from psiflow.execution import ModelEvaluationExecution
 from psiflow.walkers.base import BaseWalker
 from psiflow.models import BaseModel
 from psiflow.utils import unpack_i
@@ -44,7 +43,6 @@ def optimize_geometry(
     from ase.io import read
     from ase.io.extxyz import write_extxyz
     from psiflow.data import FlowAtoms
-    torch.set_default_dtype(torch.float64) # optimization always in double
     if device == 'cpu':
         torch.set_num_threads(ncores)
     t0 = time.time()
@@ -52,7 +50,7 @@ def optimize_geometry(
     np.random.seed(pars['seed'])
     torch.manual_seed(pars['seed'])
     atoms = state.copy()
-    atoms.calc = load_calculator(inputs[0].filepath, device, dtype='float64')
+    atoms.calc = load_calculator(inputs[0].filepath, device)
     preconditioner = Exp(A=3) # from ASE docs
     if pars['optimize_cell']: # include cell DOFs in optimization 
         try: # some models do not have stress support; prevent full cell opt!
@@ -62,10 +60,6 @@ def optimize_geometry(
         dof = ExpCellFilter(atoms, mask=[True] * 6)
     else:
         dof = atoms
-    #optimizer = SciPyFminCG(
-    #        dof,
-    #        trajectory=str(path_traj),
-    #        )
     tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
     tmp.close()
     path_traj = tmp.name # dummy log file
@@ -75,7 +69,6 @@ def optimize_geometry(
             use_armijo=True,
             trajectory=path_traj,
             )
-
     reset = False
     try:
         optimizer.run(fmax=pars['fmax'])
@@ -115,7 +108,6 @@ class OptimizationWalker(BaseWalker):
         try:
             app = context.apps(OptimizationWalker, 'propagate_' + name)
         except KeyError:
-            assert model.__class__ in context.definitions.keys()
             self.create_apps(model_cls=model.__class__)
             app = context.apps(OptimizationWalker, 'propagate_' + name)
         return app(
@@ -135,11 +127,10 @@ class OptimizationWalker(BaseWalker):
     @classmethod
     def create_apps(cls, model_cls: Type[BaseModel]) -> None:
         context = psiflow.context()
-        for execution in context[model_cls]:
-            if type(execution) == ModelEvaluationExecution:
-                label    = execution.executor
-                device   = execution.device
-                ncores   = execution.ncores
+        evaluation, _ = context[model_cls]
+        ncores   = evaluation.cores_per_worker
+        device   = 'cuda' if evaluation.gpu else 'cpu'
+        label    = evaluation.name()
 
         app_optimize = python_app(
                 optimize_geometry,
@@ -155,8 +146,7 @@ class OptimizationWalker(BaseWalker):
                 **kwargs,
                 ) -> tuple[NamedTuple, Optional[DataFuture]]:
             assert model is not None # model is required
-            assert 'float64' in model.deploy_future.keys() # has to be deployed
-            inputs = [model.deploy_future['float64']]
+            inputs = [model.deploy_future]
             outputs = []
             if keep_trajectory:
                 assert file is not None

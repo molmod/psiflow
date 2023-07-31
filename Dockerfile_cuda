@@ -5,6 +5,11 @@ FROM mambaorg/micromamba:1.4.2 as micromamba
 FROM svandenhaute/cp2k:2023.1
 #FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
+RUN apt -y install gfortran mpi-default-bin mpi-default-dev ssh
+RUN curl -LJO https://github.com/nwchemgit/nwchem/releases/download/v7.2.0-release/nwchem-data_7.2.0-2_all.ubuntu_jammy.deb \
+    && curl -LJO https://github.com/nwchemgit/nwchem/releases/download/v7.2.0-release/nwchem_7.2.0-2_amd64.ubuntu_jammy.deb \
+    && dpkg -i nwchem*7.2.0*jammy*.deb
+
 USER root
 
 # if your image defaults to a non-root user, then you may want to make the
@@ -54,7 +59,7 @@ RUN pip install cython matscipy prettytable plumed && \
     pip install git+https://github.com/molmod/molmod && \
     pip install git+https://github.com/molmod/yaff && \
     pip install e3nn==0.4.4 && \
-    pip install git+https://github.com/davkovacs/MACE.git@develop
+    pip install git+https://github.com/acesuit/MACE.git@develop
 RUN pip install numpy ase tqdm e3nn>=0.4.4 pyyaml \
     torch-runstats>=0.2.0 \
     torch-ema>=0.3.0

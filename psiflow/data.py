@@ -158,7 +158,7 @@ def _canonical_orientation(
         atoms.canonical_orientation()
     with open(outputs[0], 'w') as f:
         write_extxyz(f, data)
-canonical_orientation = python_app(_canonical_orientation, executors=['default'])
+canonical_orientation = python_app(_canonical_orientation, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -169,7 +169,7 @@ def reset_atoms(atoms: Union[Atoms, FlowAtoms]): # modify FlowAtoms Future befor
         _atoms = FlowAtoms.from_atoms(_atoms)
     _atoms.reset()
     return _atoms
-app_reset_atoms = python_app(reset_atoms, executors=['default'])
+app_reset_atoms = python_app(reset_atoms, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -188,14 +188,14 @@ def write_dataset(
         write_extxyz(f, _data)
     if return_data:
         return _data
-app_write_dataset = python_app(write_dataset, executors=['default'])
+app_write_dataset = python_app(write_dataset, executors=['Default'])
 
 
 @typeguard.typechecked
 def _write_atoms(atoms: FlowAtoms, outputs=[]):
     from ase.io import write
     write(outputs[0].filepath, atoms)
-write_atoms = python_app(_write_atoms, executors=['default'])
+write_atoms = python_app(_write_atoms, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -222,7 +222,7 @@ def read_dataset(
         with open(outputs[0], 'w') as f:
             write_extxyz(f, data)
     return data
-app_read_dataset = python_app(read_dataset, executors=['default'])
+app_read_dataset = python_app(read_dataset, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -237,7 +237,7 @@ def reset_dataset(
         atoms.reset()
     with open(outputs[0], 'w') as f:
         write_extxyz(f, data)
-app_reset_dataset = python_app(reset_dataset, executors=['default'])
+app_reset_dataset = python_app(reset_dataset, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -246,14 +246,14 @@ def join_dataset(inputs: List[File] = [], outputs: List[File] = []) -> None:
     for i in range(len(inputs)):
         data += read_dataset(slice(None), inputs=[inputs[i]]) # read all
     write_dataset(data, outputs=[outputs[0]])
-app_join_dataset = python_app(join_dataset, executors=['default'])
+app_join_dataset = python_app(join_dataset, executors=['Default'])
 
 
 @typeguard.typechecked
 def get_length_dataset(inputs: List[File] = []) -> int:
     data = read_dataset(slice(None), inputs=[inputs[0]])
     return len(data)
-app_length_dataset = python_app(get_length_dataset, executors=['default'])
+app_length_dataset = python_app(get_length_dataset, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -274,7 +274,7 @@ def _get_indices(
         else:
             raise ValueError('unrecopgnized flag ' + flag)
     return indices
-get_indices = python_app(_get_indices, executors=['default'])
+get_indices = python_app(_get_indices, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -343,7 +343,7 @@ def compute_metrics(
                     properties,
                     )
     return errors[outer_mask, :]
-app_compute_metrics = python_app(compute_metrics, executors=['default'])
+app_compute_metrics = python_app(compute_metrics, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -386,7 +386,7 @@ def insert_formation_energy(
         atoms.info['formation_energy'] = atoms.info['energy'] - reference
     with open(outputs[0], 'w') as f:
         write_extxyz(f, data)
-app_insert_formation_energy = python_app(insert_formation_energy, executors=['default'])
+app_insert_formation_energy = python_app(insert_formation_energy, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -394,7 +394,7 @@ def get_elements(inputs=[]) -> set[str]:
     from ase.data import chemical_symbols
     data = read_dataset(slice(None), inputs=[inputs[0]])
     return set([e for atoms in data for e in atoms.elements])
-app_get_elements = python_app(get_elements, executors=['default'])
+app_get_elements = python_app(get_elements, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -406,7 +406,7 @@ def get_info_keys(inputs=[]) -> list[str]:
             if not label in atoms.info:
                 labels.remove(label)
     return labels
-app_get_info_keys = python_app(get_info_keys, executors=['default'])
+app_get_info_keys = python_app(get_info_keys, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -416,7 +416,7 @@ def get_energy_labels(info_keys) -> list[str]:
         if 'energy' in key:
             labels.append(key)
     return labels
-app_get_energy_labels = python_app(get_energy_labels, executors=['default'])
+app_get_energy_labels = python_app(get_energy_labels, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -424,7 +424,7 @@ class Dataset:
     """Container to represent a dataset of atomic structures
 
     Args:
-        context: an `ExecutionContext` instance with a 'default' executor.
+        context: an `ExecutionContext` instance with a 'Default' executor.
         atoms_list: a list of `Atoms` instances which represent the dataset.
         data_future: a `parsl.app.futures.DataFuture` instance that points
             to an `.xyz` file.

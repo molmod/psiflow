@@ -10,93 +10,98 @@ import logging
 import os
 import sys
 import importlib
-from importlib import metadata # necessary on python 3.9
 import atexit
 
 import parsl
-from parsl.launchers.launchers import Launcher
-from parsl.executors import HighThroughputExecutor, WorkQueueExecutor
+from parsl.executors import HighThroughputExecutor
 from parsl.providers.base import ExecutionProvider
 from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 from parsl.config import Config
 
 from psiflow.utils import set_logger
+from psiflow.parsl_utils import MyWorkQueueExecutor
+from psiflow.reference import BaseReference
+from psiflow.models import BaseModel
 
 
 logger = logging.getLogger(__name__) # logging per module
 
 
-class MyWorkQueueExecutor(WorkQueueExecutor):
-    
-    def _get_launch_command(self, block_id):
-        return self.worker_command
-
-
 @typeguard.typechecked
 @dataclass(frozen=True, eq=True) # allows checking for equality
-class Execution:
-    executor: str
-    ncores: int
-    walltime: Optional[int]
+class ExecutionDefinition:
+    parsl_provider: ExecutionProvider
+    gpu: bool = False
+    cores_per_worker: int = 1
+    max_walltime: Optional[float] = None
 
     def generate_parsl_resource_specification(self):
         resource_specification = {}
-        resource_specification['cores'] = self.ncores
-        resource_specification['disk'] = self.disk
-        memory = self.memory_per_core * self.ncores
+        resource_specification['cores'] = self.cores_per_worker
+        resource_specification['disk'] = 1000
+        memory = 2000 * self.ncores
         resource_specification['memory'] = int(memory)
-        if self.device == 'cuda':
+        if self.gpu:
             resource_specification['gpus'] = 1
-        if self.walltime is not None:
-            resource_specification['running_time_min'] = self.walltime
+        if hasattr(self.parsl_provider, 'walltime'):
+            walltime_hhmmss = provider.walltime.split(':')
+            assert len(walltime_hhmmss) == 3
+            walltime = 0
+            walltime += 60 * float(walltime_hhmmss[0])
+            walltime += float(walltime_hhmmss[1])
+            walltime += 1 # whatever seconds are present
+            walltime -= 4 # add 4 minutes of slack, e.g. for container downloading
+            self.max_walltime = walltime
+        if self.max_walltime is not None:
+            resource_specification['running_time_min'] = self.max_walltime
         return resource_specification
 
-
-@typeguard.typechecked
-@dataclass(frozen=True, eq=True) # allows checking for equality
-class ModelEvaluationExecution(Execution):
-    executor: str = 'model'
-    device: str = 'cpu'
-    ncores: int = 1
-    dtype: str = 'float32'
-    dynamics_engine: str = 'openmm'
-    walltime: Optional[int] = None
-    memory_per_core: int = 1900
-    disk: int = 1000
+    def name(self):
+        return self.__class__.__name__
 
 
 @typeguard.typechecked
 @dataclass(frozen=True, eq=True)
-class ModelTrainingExecution(Execution):
-    device: ClassVar[str] = 'cuda' # fixed
-    dtype: ClassVar[str] = 'float32' # fixed
-    executor: str = 'training'
-    ncores: int = 1
-    walltime: Optional[int] = 10
-    memory_per_core: int = 1900
-    disk: int = 1000
+class Default(ExecutionDefinition):
+    pass
 
 
 @typeguard.typechecked
 @dataclass(frozen=True, eq=True)
-class ReferenceEvaluationExecution(Execution):
-    executor: str = 'reference'
-    device: str = 'cpu'
-    mpi_command: Callable = lambda x: f'mpirun -np {x}'
-    cp2k_exec: str = 'cp2k.psmp'
-    memory_per_core: int = 1900
-    disk: int = 1000
-    ncores: int = 1
-    omp_num_threads: int = 1
-    walltime: Optional[int] = None
+class ModelEvaluation(ExecutionDefinition):
+    simulation_engine: str = 'openmm'
+
+    def __post_init__(self) -> None: # validate config
+        assert self.simulation_engine in ['openmm', 'yaff']
+
+
+@typeguard.typechecked
+@dataclass(frozen=True, eq=True)
+class ModelTraining(ExecutionDefinition):
+
+    def __post_init__(self) -> None:
+        assert self.gpu
+
+
+@typeguard.typechecked
+@dataclass(frozen=True, eq=True)
+class ReferenceEvaluation(ExecutionDefinition):
+    mpi_command: Callable = lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork'
+    reference_calculator: Optional[Type[BaseReference]] = None
+
+    def name(self):
+        if self.reference_calculator is not None:
+            return self.reference_calculator.__name__
+        else:
+            return super().name()
 
 
 @typeguard.typechecked
 def get_psiflow_config_from_file(
         path_config: Union[Path, str],
         path_internal: Union[Path, str],
-        ) -> tuple[Config, dict]:
+        ) -> tuple[Config, list]:
     path_config = Path(path_config)
     assert path_config.is_file(), 'cannot find psiflow config at {}'.format(path_config)
     # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
@@ -110,8 +115,7 @@ def get_psiflow_config_from_file(
 @typeguard.typechecked
 def generate_parsl_config(
         path_internal: Union[Path, str],
-        definitions: dict[Any, list[Execution]],
-        providers: dict[str, ExecutionProvider],
+        definitions: list[ExecutionDefinition],
         use_work_queue: bool = True,
         wq_timeout: int = 120, # in seconds
         parsl_app_cache: bool = False,
@@ -121,61 +125,38 @@ def generate_parsl_config(
         parsl_initialize_logging: bool = True,
         htex_address: Optional[str] = None,
         ) -> Config:
-    assert 'default' in providers.keys()
     if htex_address is None: # determine address for htex
         if 'HOSTNAME' in os.environ.keys():
-            htex_address = os.environ['HOSTNAME']
+            htex_address_name = os.environ['HOSTNAME']
         else:
-            htex_address = 'localhost'
-    executors = {}
-    for label, provider in providers.items():
-        if label == 'default':
+            htex_address_name = 'localhost'
+        htex_address = parsl.addresses.get_address_by_hostname(htex_address_name)
+    labels = [d.name()  for d in definitions]
+    assert len(labels) == len(set(labels)), 'labels must be unique, but found {}'.format(labels)
+    executors = []
+    for definition in definitions:
+        if type(definition) == Default:
             executor = HighThroughputExecutor(
                     address=htex_address,
-                    label='default',
+                    label=definition.name(),
                     working_dir=str(Path(path_internal) / label),
                     cores_per_worker=1,
                     provider=provider,
                     )
         else:
-            execution = None
-            for executions in definitions.values():
-                for e in executions:
-                    if e.executor == label:
-                        if execution is not None:
-                            assert e == execution
-                        else:
-                            execution = e
-            assert execution is not None
             if use_work_queue:
                 worker_options = [
                         '--gpus={}'.format(16 if execution.device == 'cuda' else 0),
                         '--cores={}'.format(provider.cores_per_node),
                         ]
-                if hasattr(provider, 'walltime'):
-                    walltime_hhmmss = provider.walltime.split(':')
-                    assert len(walltime_hhmmss) == 3
-                    walltime = 0
-                    walltime += 3600 * float(walltime_hhmmss[0])
-                    walltime += 60 * float(walltime_hhmmss[1])
-                    walltime += float(walltime_hhmmss[2])
-                    walltime -= 60 * 4 # add 4 minutes of slack
-                    if execution.walltime is not None: # fit at least one app
-                        assert 60 * execution.walltime < walltime, ('the '
-                                'walltime of your execution definition is '
-                                '{}m, which should be less than the total walltime '
-                                'available in the corresponding slurm block, '
-                                'which is {}'.format(
-                                    execution.walltime,
-                                    walltime // 60,
-                                    ))
-                    worker_options.append('--wall-time={}'.format(walltime))
-                    worker_options.append('--timeout={}'.format(wq_timeout))
-                    worker_options.append('--parent-death')
+                if definition.max_walltime is not None:
+                    worker_options.append('--wall-time={}'.format(definition.max_walltime))
+                worker_options.append('--timeout={}'.format(wq_timeout))
+                worker_options.append('--parent-death')
                 executor = MyWorkQueueExecutor(
-                    label=label,
+                    label=definition.name(),
                     working_dir=str(Path(path_internal) / label),
-                    provider=provider,
+                    provider=definition.parsl_provider,
                     shared_fs=True,
                     autocategory=False,
                     port=0,
@@ -185,17 +166,17 @@ def generate_parsl_config(
             else:
                 executor = HighThroughputExecutor(
                         address=htex_address,
-                        label=label,
+                        label=definition.name(),
                         working_dir=str(Path(path_internal) / label),
-                        cores_per_worker=execution.ncores,
-                        provider=provider,
+                        cores_per_worker=definition.cores_per_worker,
+                        provider=definition.parsl_provider,
                         )
-        executors[label] = executor
+        executors.append(executor)
     config = Config(
-            executors=list(executors.values()),
+            executors=executors,
             run_dir=str(path_internal),
             usage_tracking=True,
-            app_cache=parsl_app_cache,
+            app_cache=False,
             retries=parsl_retries,
             initialize_logging=False,
             strategy=parsl_strategy,
@@ -210,40 +191,49 @@ class ExecutionContext:
     def __init__(
             self,
             config: Config,
-            definitions: dict[Any, list[Execution]],
+            definitions: list[ExecutionDefinition],
             path: Union[Path, str],
             ) -> None:
         self.config = config
+        self.definitions = definitions
         self.path = Path(path).resolve()
         self.path.mkdir(parents=True, exist_ok=True)
-        self.definitions = definitions
         self._apps = {}
         self.file_index = {}
         parsl.load(config)
 
-    def __getitem__(self, container) -> list[Execution]:
-        assert container in self.definitions.keys(), ('container {}'
-                ' has no registered execution definitions with this context. '
-                '\navailable definitions are {}'.format(
-                    container,
-                    list(self.definitions.keys()),
-                    ))
-        return self.definitions[container]
+    def __getitem__(self, Class):
+        if issubclass(Class, BaseReference):
+            for definition in self.definitions:
+                if isinstance(definition, ReferenceEvaluation):
+                    if definition.reference_calculator == Class:
+                        return definition
+            for definition in self.definitions:
+                if isinstance(definition, ReferenceEvaluation):
+                    if definition.reference_calculator is None:
+                        return definition
+        if issubclass(Class, BaseModel):
+            for evaluation in self.definitions:
+                if isinstance(evaluation, ModelEvaluation):
+                    for training in self.definitions:
+                        if isinstance(training, ModelTraining):
+                            return evaluation, training
+        raise ValueError('no available execution definition for {}'.format(Class.__name__))
 
-    def apps(self, container, app_name: str) -> Callable:
-        assert app_name in self._apps[container].keys()
-        return self._apps[container][app_name]
+    def apps(self, Class, app_name: str) -> Callable:
+        assert app_name in self._apps[Class].keys()
+        return self._apps[Class][app_name]
 
     def register_app(
             self,
-            container,
+            Class,
             app_name: str,
             app: Callable,
             ) -> None:
-        if container not in self._apps.keys():
-            self._apps[container] = {}
-        assert app_name not in self._apps[container].keys()
-        self._apps[container][app_name] = app
+        if Class not in self._apps.keys():
+            self._apps[Class] = {}
+        assert app_name not in self._apps[Class].keys()
+        self._apps[Class][app_name] = app
 
     def new_file(self, prefix: str, suffix: str) -> File:
         assert prefix[-1] == '_'
@@ -316,54 +306,3 @@ class ExecutionContextLoader:
         if cls._context is None:
             raise RuntimeError('No ExecutionContext is currently loaded')
         return cls._context
-
-
-VERSION    = metadata.version('psiflow')
-ADDOPTS    = ' --no-eval -e --no-mount home -W /tmp --writable-tmpfs'
-ENTRYPOINT = '/usr/local/bin/entry.sh'
-
-
-@typeguard.typechecked
-class ContainerizedLauncher(Launcher):
-
-    def __init__(
-        self,
-        uri: str,
-        apptainer_or_singularity: str = 'apptainer',
-        addopts: str = ADDOPTS,
-        entrypoint: str = ENTRYPOINT,
-        enable_gpu: Optional[bool] = False,
-    ) -> None:
-        super().__init__(debug=True)
-        self.uri = uri # required by Parsl parent class to assign attributes
-        self.apptainer_or_singularity = apptainer_or_singularity
-        self.addopts = addopts
-        self.entrypoint = entrypoint
-        self.enable_gpu = enable_gpu
-
-        self.launch_command = ''
-        self.launch_command += apptainer_or_singularity
-        self.launch_command += ' exec '
-        self.launch_command += addopts
-        self.launch_command += ' --bind {}'.format(Path.cwd().resolve()) # access to data / internal dir
-        env  = {}
-        keys = ['WANDB_API_KEY']
-        for key in keys:
-            if key in os.environ.keys():
-                env[key] = os.environ[key]
-        if 'WANDB_API_KEY' not in env.keys():
-            logger.critical('wandb API key not set; please go to wandb.ai/authorize and '
-                'set that key in the current environment: export WANDB_API_KEY=<key-from-wandb.ai/authorize>')
-        env['PARSL_CORES'] = '${PARSL_CORES}'
-        if len(env) > 0:
-            self.launch_command += ' --env '
-            self.launch_command += ','.join([f'{k}={v}' for k, v in env.items()])
-        if enable_gpu:
-            if 'cuda' in self.uri:
-                self.launch_command += ' --nv'
-            else:
-                self.launch_command += ' --rocm'
-        self.launch_command += ' ' + uri + ' ' + entrypoint + ' '
-
-    def __call__(self, command: str, tasks_per_node: int, nodes_per_block: int) -> str:
-        return self.launch_command + "{}".format(command)

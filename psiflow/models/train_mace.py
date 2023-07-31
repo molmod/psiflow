@@ -39,16 +39,6 @@ import signal
 import time
 
 
-#class GracefulKiller:
-#  kill_now = False
-#  def __init__(self):
-#    signal.signal(signal.SIGINT, self.exit_gracefully)
-#    signal.signal(signal.SIGTERM, self.exit_gracefully)
-#
-#  def exit_gracefully(self, *args):
-#    self.kill_now = True
-
-
 def main():
     """Entry point for the train bash_app of psiflow"""
     import os
@@ -610,10 +600,10 @@ def train(args, path_model, init_only) -> None:
             log_wandb=args.wandb,
         )
     except TimeoutException:
+        logging.info('received SIGTERM!')
         pass
 
     # Evaluation on test datasets
-    logging.info("Computing metrics for training, validation, and test sets")
 
     all_collections = [
         ("train", collections.train),
@@ -629,6 +619,13 @@ def train(args, path_model, init_only) -> None:
         model.to(device)
         logging.info(f"Loaded model from epoch {epoch}")
 
+        model_path = Path(args.model_dir) / 'mace.model'
+        logging.info(f"Saving model to {model_path}")
+        #if args.save_cpu:
+        assert args.save_cpu
+        torch.save(model.to('cpu'), model_path)
+
+        logging.info("Computing metrics for training, validation, and test sets")
         for param in model.parameters():
             param.requires_grad = False
         table = create_error_table(
@@ -649,10 +646,5 @@ def train(args, path_model, init_only) -> None:
         #if swa_eval:
             #model_path = Path(args.checkpoints_dir) / (tag + "_swa.model")
         #else:
-        model_path = Path(args.model_dir) / 'mace.model'
-        logging.info(f"Saving model to {model_path}")
-        #if args.save_cpu:
-        assert args.save_cpu
-        torch.save(model.to('cpu'), model_path)
     logging.info("Done")
 

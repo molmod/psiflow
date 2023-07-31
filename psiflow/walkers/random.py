@@ -47,7 +47,7 @@ def random_perturbation(
     state.set_positions(positions)
     state.set_cell(box)
     return state, 1, False
-app_random_perturbation = python_app(random_perturbation, executors=['default'])
+app_random_perturbation = python_app(random_perturbation, executors=['Default'])
 
 
 @typeguard.typechecked

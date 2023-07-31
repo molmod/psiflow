@@ -11,7 +11,7 @@ from ase.io.extxyz import write_extxyz
 
 from psiflow.walkers.utils import ForcePartASE, DataHook, \
         create_forcefield, ForceThresholdExceededException, ForcePartPlumed, \
-        ExtXYZHook
+        ExtXYZHook, max_temperature
 from psiflow.walkers.bias import try_manual_plumed_linking
 
 
@@ -19,7 +19,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', default=None, type=str)
     parser.add_argument('--ncores', default=None, type=int)
-    parser.add_argument('--dtype', default=None, type=str)
     parser.add_argument('--atoms', default=None, type=str)
 
     # pars
@@ -31,7 +30,7 @@ def main():
     parser.add_argument('--temperature', default=None, type=float)
     parser.add_argument('--pressure', default=None, type=float)
     parser.add_argument('--force_threshold', default=None, type=float)
-    parser.add_argument('--initial_temperature', default=None, type=float)
+    parser.add_argument('--temperature_reset_quantile', default=None, type=float)
 
     parser.add_argument('--model-cls', default=None, type=str) # model name
     parser.add_argument('--model', default=None, type=str) # model name
@@ -44,7 +43,6 @@ def main():
     path_plumed = 'plumed.dat'
 
     assert args.device in ['cpu', 'cuda']
-    assert args.dtype in ['float32', 'float64']
     assert Path(args.atoms).is_file()
     assert args.model_cls in ['MACEModel', 'NequIPModel', 'AllegroModel']
     assert Path(args.model).is_file()
@@ -63,10 +61,7 @@ def main():
     print('torch: initial num threads: ', torch.get_num_threads())
     torch.set_num_threads(args.ncores)
     print('torch: num threads set to ', torch.get_num_threads())
-    if args.dtype == 'float64':
-        torch.set_default_dtype(torch.float64)
-    else:
-        torch.set_default_dtype(torch.float32)
+    torch.set_default_dtype(torch.float32)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     atoms = read(args.atoms)
@@ -82,7 +77,7 @@ def main():
         load_calculator = AllegroModel.load_calculator
     else:
         raise ValueError
-    atoms.calc = load_calculator(args.model, args.device, args.dtype)
+    atoms.calc = load_calculator(args.model, args.device, 'float32')
     forcefield = create_forcefield(atoms, args.force_threshold)
 
     loghook  = yaff.VerletScreenLog(step=args.step, start=0)
@@ -145,11 +140,15 @@ def main():
     assert os.path.getsize(args.trajectory) > 0 # should be nonempty!
     initial_size = os.path.getsize(args.trajectory) > 0
     try: # exception may already be raised at initialization of verlet
+        if args.temperature is not None:
+            temp0 = args.temperature
+        else:
+            temp0 = 300
         verlet = yaff.VerletIntegrator(
                 forcefield,
                 timestep=args.timestep*molmod.units.femtosecond,
                 hooks=hooks,
-                temp0=args.initial_temperature,
+                temp0=temp0,
                 )
         yaff.log.set_level(yaff.log.medium)
         verlet.run(args.steps)
@@ -187,4 +186,21 @@ def main():
         if not args.keep_trajectory:
             os.path.remove(args.trajectory)
             write(args.trajectory, read(args.atoms))
+
+    # perform temperature check
+    T = verlet.temp
+    print('temperature: ', T)
+    if (args.temperature_reset_quantile > 0) and (args.temperature is not None):
+        T_max = max_temperature(
+                args.temperature,
+                len(atoms),
+                args.temperature_reset_quantile,
+                )
+        print('T_max: {} K'.format(T_max))
+        if T < T_max:
+            print('temperature within range')
+        else:
+            print('temperature outside reasonable range; simulation unsafe')
+    else:
+        print('no temperature checks performed; simulation assumed to be safe')
     return None

@@ -21,9 +21,8 @@ import psiflow
 from psiflow.models import BaseModel
 from psiflow.models.base import evaluate_dataset
 from psiflow.data import Dataset
-from psiflow.utils import get_active_executor, read_yaml
-from psiflow.execution import ExecutionContext, ModelTrainingExecution, \
-        ModelEvaluationExecution
+from psiflow.utils import get_active_executor, read_yaml, \
+        copy_data_future
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -64,6 +63,7 @@ class MACEConfig:
     compute_forces: bool = True
     device: str = 'cuda'
     default_dtype: str = 'float32'
+    model_dtype: str = 'float32'
     config_type_weights: str = '{"Default":1.0}'
     valid_fraction: float = 1e-12 # never split training set
     test_file: Optional[str] = None
@@ -173,8 +173,8 @@ def train(
     command_list = [
             command_tmp,
             command_cd,
-            command_write, # SIGTERM has id 15; gets caught by GracefulKiller
-            'timeout {}s psiflow-train-mace'.format(max(walltime - 15, 0)),
+            command_write,
+            'timeout -s 15 {}s psiflow-train-mace'.format(max(walltime - 15, 0)),
             '--config config.yaml',
             '--model {};'.format(inputs[0].filepath),
             'ls *;',
@@ -186,18 +186,12 @@ def train(
 @typeguard.typechecked
 def deploy(
         device: str,
-        dtype: str,
         inputs: List[File] = [],
         outputs: List[File] = [],
         ) -> None:
     import torch
     model = torch.load(inputs[0].filepath, map_location='cpu')
-    torch_device = torch.device(device)
-    if dtype == 'float32':
-        torch_dtype = torch.float32
-    else:
-        torch_dtype = torch.float64
-    model.to(device=torch_device, dtype=torch_dtype)
+    model.to(device=torch.device(device), dtype=torch.float32)
     torch.save(model, outputs[0].filepath)
 
 
@@ -210,76 +204,53 @@ class MACEModel(BaseModel):
         else:
             config = dict(config)
         assert not config['swa'], 'usage of SWA is currently not supported'
+        assert config['model_dtype'] == 'float32', 'dtype is enforced to float32'
         config['device'] = 'cpu' # guarantee consistent initialization
         super().__init__(config)
-
-    def deploy(self) -> None:
-        assert self.config_future is not None
-        assert self.model_future is not None
-        context = psiflow.context()
-        self.deploy_future['float32'] = context.apps(MACEModel, 'deploy_float32')(
-                inputs=[self.model_future],
-                outputs=[context.new_file('deployed_', '.pth')],
-                ).outputs[0]
-        self.deploy_future['float64'] = context.apps(MACEModel, 'deploy_float64')(
-                inputs=[self.model_future],
-                outputs=[context.new_file('deployed_', '.pth')],
-                ).outputs[0]
-
-    def set_seed(self, seed: int) -> None:
-        self.config_raw['seed'] = seed
 
     @classmethod
     def create_apps(cls) -> None:
         context = psiflow.context()
-        for execution in context[cls]:
-            if type(execution) == ModelTrainingExecution:
-                training_label    = execution.executor
-                training_walltime = execution.walltime
-                training_ncores   = execution.ncores
-                if isinstance(get_active_executor(training_label), WorkQueueExecutor):
-                    training_resource_specification = execution.generate_parsl_resource_specification()
-                else:
-                    training_resource_specification = {}
-            elif type(execution) == ModelEvaluationExecution:
-                model_label    = execution.executor
-                model_device   = execution.device
-                model_dtype    = execution.dtype
-                model_ncores   = execution.ncores
+        evaluation, training = context[cls]
+        training_label    = training.name()
+        training_walltime = training.max_walltime
+        training_ncores   = training.cores_per_worker
+        if isinstance(get_active_executor(training_label), WorkQueueExecutor):
+            training_resource_specification = execution.generate_parsl_resource_specification()
+        else:
+            training_resource_specification = {}
+        model_label  = evaluation.name()
+        model_device = 'cuda' if evaluation.gpu else 'cpu'
+        model_ncores = evaluation.cores_per_worker
 
-        app_initialize = bash_app(initialize, executors=[model_label])
+        app_initialize = bash_app(initialize, executors=['Default'])
+        app_deploy     = python_app(deploy, executors=['Default'])
         def initialize_wrapped(config_raw, inputs=[], outputs=[]):
-            assert len(outputs) == 1
-            bash_future = app_initialize(
+            assert len(inputs) == 1
+            outputs = [
+                    context.new_file('model_', '.pth'),
+                    context.new_file('config_', '.yaml'),
+                    ]
+            init_future = app_initialize(
                     config_raw,
                     inputs=inputs,
-                    outputs=outputs + [context.new_file('config_', '.yaml')],
+                    outputs=outputs,
                     stdout=parsl.AUTO_LOGNAME,
                     stderr=parsl.AUTO_LOGNAME,
                     )
-            return read_yaml(inputs=[bash_future.outputs[1]], outputs=[File(bash_future.outputs[0].filepath)])
+            future = read_yaml(inputs=[init_future.outputs[1]])
+            deploy_future = app_deploy(
+                    model_device,
+                    inputs=[init_future.outputs[0]],
+                    outputs=[context.new_file('deploy_', '.pth')],
+                    )
+            return future, init_future.outputs[0], deploy_future.outputs[0]
         context.register_app(cls, 'initialize', initialize_wrapped)
 
-        deploy_unwrapped = python_app(deploy, executors=[model_label])
-        def deploy_float32(inputs=[], outputs=[]):
-            return deploy_unwrapped(
-                    model_device,
-                    'float32',
-                    inputs=inputs,
-                    outputs=outputs,
-                    )
-        context.register_app(cls, 'deploy_float32', deploy_float32)
-        def deploy_float64(inputs=[], outputs=[]):
-            return deploy_unwrapped(
-                    model_device,
-                    'float64',
-                    inputs=inputs,
-                    outputs=outputs,
-                    )
-        context.register_app(cls, 'deploy_float64', deploy_float64)
         train_unwrapped = bash_app(train, executors=[training_label])
         def train_wrapped(config, inputs=[], outputs=[]):
-            return train_unwrapped(
+            outputs = [context.new_file('model_', '.pth')]
+            future = train_unwrapped(
                     config,
                     stdout=parsl.AUTO_LOGNAME,
                     stderr=parsl.AUTO_LOGNAME,
@@ -288,19 +259,21 @@ class MACEModel(BaseModel):
                     walltime=training_walltime * 60,
                     parsl_resource_specification=training_resource_specification,
                     )
+            deploy_future = app_deploy(
+                    model_device,
+                    inputs=[future.outputs[0]],
+                    outputs=[context.new_file('deploy_', '.pth')],
+                    )
+            return future.outputs[0], deploy_future.outputs[0]
         context.register_app(cls, 'train', train_wrapped)
         evaluate_unwrapped = python_app(
                 evaluate_dataset,
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(deploy_future, use_formation_energy, inputs=[], outputs=[]):
-            assert model_dtype in deploy_future.keys(), ('model is not '
-                    'deployed; use model.deploy() before using model.evaluate()')
-            inputs.append(deploy_future[model_dtype])
+        def evaluate_wrapped(use_formation_energy, inputs=[], outputs=[]):
             return evaluate_unwrapped(
                     model_device,
-                    model_dtype,
                     model_ncores,
                     use_formation_energy,
                     cls.load_calculator,
@@ -314,14 +287,13 @@ class MACEModel(BaseModel):
             cls,
             path_model: Union[Path, str],
             device: str,
-            dtype: str,
             set_global_options: str = 'warn',
             ) -> BaseCalculator:
         from mace.calculators import MACECalculator
         return MACECalculator(
                 model_paths=path_model,
                 device=device,
-                default_dtype=dtype,
+                default_dtype='float32',
                 )
 
     @property

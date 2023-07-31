@@ -20,7 +20,6 @@ from parsl.executors import WorkQueueExecutor
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, app_join_dataset, \
         app_write_dataset, NullState
-from psiflow.execution import ModelEvaluationExecution
 from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
         copy_app_future, pack
 from psiflow.walkers import BaseWalker, PlumedBias
@@ -34,7 +33,6 @@ Metadata = namedtuple('Metadata', ['state', 'counter', 'reset', 'temperature', '
 def molecular_dynamics_yaff(
         device: str,
         ncores: int,
-        dtype: str,
         pars: dict[str, Any],
         model_cls: str,
         keep_trajectory: bool = False,
@@ -61,7 +59,6 @@ def molecular_dynamics_yaff(
             'psiflow-md-yaff',
             '--device {}'.format(device),
             '--ncores {}'.format(ncores),
-            '--dtype {}'.format(dtype),
             '--atoms {}'.format(inputs[0].filepath),
             ]
     parameters_to_pass = [
@@ -73,7 +70,7 @@ def molecular_dynamics_yaff(
             'temperature',
             'pressure',
             'force_threshold',
-            'initial_temperature',
+            'temperature_reset_quantile',
             ]
     for key in parameters_to_pass:
         if pars[key] is not None:
@@ -87,7 +84,7 @@ def molecular_dynamics_yaff(
     return ' '.join(command_list)
 
 
-@python_app(executors=['default'])
+@python_app(executors=['Default'])
 def molecular_dynamics_yaff_post(
         inputs: list[File] = [],
         outputs: list[File] = [],
@@ -113,7 +110,6 @@ def molecular_dynamics_yaff_post(
 def molecular_dynamics_openmm(
         device: str,
         ncores: int,
-        dtype: str,
         pars: dict[str, Any],
         model_cls: str,
         keep_trajectory: bool = False,
@@ -140,7 +136,6 @@ def molecular_dynamics_openmm(
             'psiflow-md-openmm',
             '--device {}'.format(device),
             '--ncores {}'.format(ncores),
-            '--dtype {}'.format(dtype),
             '--atoms {}'.format(inputs[0].filepath),
             ]
     parameters_to_pass = [
@@ -152,7 +147,7 @@ def molecular_dynamics_openmm(
             'temperature',
             'pressure',
             'force_threshold',
-            'initial_temperature',
+            'temperature_reset_quantile',
             ]
     for key in parameters_to_pass:
         if pars[key] is not None:
@@ -166,7 +161,7 @@ def molecular_dynamics_openmm(
     return ' '.join(command_list)
 
 
-@python_app(executors=['default'])
+@python_app(executors=['Default'])
 def molecular_dynamics_openmm_post(
         inputs: list[File] = [],
         outputs: list[File] = [],
@@ -199,8 +194,8 @@ class DynamicWalker(BaseWalker):
             start: int = 0,
             temperature: Optional[float] = 300,
             pressure: Optional[float] = None,
+            temperature_reset_quantile: float = 0.01, # bounds at 0.005 and 0.995
             force_threshold: float = 1e6, # no threshold by default
-            initial_temperature: float = 600, # to mimick parallel tempering
             **kwargs,
             ) -> None:
         super().__init__(atoms, **kwargs)
@@ -211,7 +206,7 @@ class DynamicWalker(BaseWalker):
         self.temperature = temperature
         self.pressure = pressure
         self.force_threshold = force_threshold
-        self.initial_temperature = initial_temperature
+        self.temperature_reset_quantile = temperature_reset_quantile
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -223,7 +218,7 @@ class DynamicWalker(BaseWalker):
         parameters['temperature'] = self.temperature
         parameters['pressure'] = self.pressure
         parameters['force_threshold'] = self.force_threshold
-        parameters['initial_temperature'] = self.initial_temperature
+        parameters['temperature_reset_quantile'] = self.temperature_reset_quantile
         return parameters
 
     def _propagate(self, model, keep_trajectory, file):
@@ -233,7 +228,6 @@ class DynamicWalker(BaseWalker):
         try:
             app = context.apps(self.__class__, 'propagate_' + name)
         except (KeyError, AssertionError):
-            assert model.__class__ in context.definitions.keys()
             self.create_apps(model_cls=model.__class__)
             app = context.apps(self.__class__, 'propagate_' + name)
         return app(
@@ -259,20 +253,16 @@ class DynamicWalker(BaseWalker):
 
         """
         context = psiflow.context()
-        for execution in context[model_cls]:
-            if type(execution) == ModelEvaluationExecution:
-                label    = execution.executor
-                device   = execution.device
-                dtype    = execution.dtype
-                ncores   = execution.ncores
-                walltime = execution.walltime
-                engine   = execution.dynamics_engine
-                if isinstance(get_active_executor(label), WorkQueueExecutor):
-                    resource_spec = execution.generate_parsl_resource_specification()
-                else:
-                    resource_spec = {}
-        if walltime is None:
-            walltime = 1e4 # infinite
+        evaluation, _ = context[model_cls]
+        ncores   = evaluation.cores_per_worker
+        device   = 'cuda' if evaluation.gpu else 'cpu'
+        label    = evaluation.name()
+        walltime = evaluation.max_walltime
+        engine   = evaluation.simulation_engine
+        if isinstance(get_active_executor(label), WorkQueueExecutor):
+            resource_spec = evaluation.generate_parsl_resource_specification()
+        else:
+            resource_spec = {}
 
         if engine == 'yaff':
             app_propagate = bash_app(
@@ -280,7 +270,6 @@ class DynamicWalker(BaseWalker):
                     executors=[label],
                     cache=False,
                     )
-
             @typeguard.typechecked
             def propagate_wrapped(
                     state: AppFuture,
@@ -290,13 +279,12 @@ class DynamicWalker(BaseWalker):
                     file: Optional[File] = None,
                     ) -> tuple[NamedTuple, Optional[DataFuture]]:
                 assert model is not None # model is required
-                assert model.deploy_future[dtype] is not None # has to be deployed
                 future_atoms = app_write_dataset(
                         states=None,
                         inputs=[state],
                         outputs=[psiflow.context().new_file('data_', '.xyz')],
                         ).outputs[0]
-                inputs = [future_atoms, model.deploy_future[dtype]]
+                inputs = [future_atoms, model.deploy_future]
                 if keep_trajectory:
                     assert file is not None
                 else:
@@ -305,7 +293,6 @@ class DynamicWalker(BaseWalker):
                 future = app_propagate(
                         device,
                         ncores,
-                        dtype,
                         parameters,
                         model.__class__.__name__, # load function
                         keep_trajectory=keep_trajectory,
@@ -325,13 +312,11 @@ class DynamicWalker(BaseWalker):
                 metadata_args.append(future.stderr)
                 metadata = Metadata(*metadata_args)
                 return metadata, future.outputs[0]
-
         elif engine == 'openmm':
             app_propagate = bash_app(
                     molecular_dynamics_openmm,
                     executors=[label],
                     )
-
             @typeguard.typechecked
             def propagate_wrapped(
                     state: AppFuture,
@@ -341,13 +326,12 @@ class DynamicWalker(BaseWalker):
                     file: Optional[File] = None,
                     ) -> tuple[NamedTuple, Optional[DataFuture]]:
                 assert model is not None # model is required
-                assert model.deploy_future[dtype] is not None # has to be deployed
                 future_atoms = app_write_dataset(
                         states=None,
                         inputs=[state],
                         outputs=[psiflow.context().new_file('data_', '.xyz')],
                         ).outputs[0]
-                inputs = [future_atoms, model.deploy_future[dtype]]
+                inputs = [future_atoms, model.deploy_future]
                 if keep_trajectory:
                     assert file is not None
                 else:
@@ -356,7 +340,6 @@ class DynamicWalker(BaseWalker):
                 future = app_propagate(
                         device,
                         ncores,
-                        dtype,
                         parameters,
                         model.__class__.__name__, # load function
                         keep_trajectory=keep_trajectory,
@@ -378,7 +361,7 @@ class DynamicWalker(BaseWalker):
                 return metadata, future.outputs[0]
 
         else:
-            raise ValueError('unknown dynamics engine ' + engine)
+            raise ValueError('unknown simulation engine ' + engine)
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)
 
@@ -420,7 +403,6 @@ class BiasedDynamicWalker(DynamicWalker):
         try:
             app = context.apps(self.__class__, 'propagate_' + name)
         except (KeyError, AssertionError):
-            assert model.__class__ in context.definitions.keys()
             self.create_apps(model_cls=model.__class__)
             app = context.apps(self.__class__, 'propagate_' + name)
         return app(
@@ -475,80 +457,125 @@ class BiasedDynamicWalker(DynamicWalker):
             model_cls: Type[BaseModel],
             ) -> None:
         context = psiflow.context()
-        for execution in context[model_cls]:
-            if type(execution) == ModelEvaluationExecution:
-                label    = execution.executor
-                device   = execution.device
-                dtype    = execution.dtype
-                ncores   = execution.ncores
-                walltime = execution.walltime
-                if isinstance(get_active_executor(label), WorkQueueExecutor):
-                    resource_spec = execution.generate_parsl_resource_specification()
+        evaluation, _ = context[model_cls]
+        ncores   = evaluation.cores_per_worker
+        device   = 'cuda' if evaluation.gpu else 'cpu'
+        label    = evaluation.name()
+        walltime = evaluation.max_walltime
+        engine   = evaluation.simulation_engine
+        if isinstance(get_active_executor(label), WorkQueueExecutor):
+            resource_spec = evaluation.generate_parsl_resource_specification()
+        else:
+            resource_spec = {}
+
+        if engine == 'yaff':
+            app_propagate = bash_app(
+                    molecular_dynamics_yaff,
+                    executors=[label],
+                    cache=False,
+                    )
+            @typeguard.typechecked
+            def propagate_wrapped(
+                    state: Union[AppFuture, FlowAtoms],
+                    parameters: dict[str, Any],
+                    bias: PlumedBias,
+                    model: BaseModel = None,
+                    keep_trajectory: bool = False,
+                    file: Optional[File] = None,
+                    ) -> tuple[Metadata, Optional[DataFuture]]:
+                assert model is not None # model is required
+                future_atoms = app_write_dataset(
+                        states=None,
+                        inputs=[state],
+                        outputs=[psiflow.context().new_file('data_', '.xyz')],
+                        ).outputs[0]
+                inputs = [future_atoms, model.deploy_future]
+                if keep_trajectory:
+                    assert file is not None
                 else:
-                    resource_spec = {}
-        if walltime is None:
-            walltime = 1e6 # infinite
-
-        app_propagate = bash_app(
-                molecular_dynamics_yaff,
-                executors=[label],
-                cache=False,
-                )
-        app_propagate_post = python_app(
-                molecular_dynamics_yaff_post,
-                executors=['default'],
-                cache=False,
-                )
-
-        @typeguard.typechecked
-        def propagate_wrapped(
-                state: Union[AppFuture, FlowAtoms],
-                parameters: dict[str, Any],
-                bias: PlumedBias,
-                model: BaseModel = None,
-                keep_trajectory: bool = False,
-                file: Optional[File] = None,
-                ) -> tuple[Metadata, Optional[DataFuture]]:
-            assert model is not None # model is required
-            assert model.deploy_future[dtype] is not None # has to be deployed
-            future_atoms = app_write_dataset(
-                    states=None,
-                    inputs=[state],
-                    outputs=[psiflow.context().new_file('data_', '.xyz')],
-                    ).outputs[0]
-            inputs = [future_atoms, model.deploy_future[dtype]]
-            if keep_trajectory:
-                assert file is not None
-            else:
-                file = psiflow.context().new_file('data_', '.xyz')
-            outputs = [file]
-            inputs += bias.futures
-            outputs += [File(f.filepath) for f in bias.futures]
-            future = app_propagate(
-                    device,
-                    ncores,
-                    dtype,
-                    parameters,
-                    model.__class__.__name__, # load function
-                    keep_trajectory=keep_trajectory,
-                    plumed_input=bias.prepare_input(),
-                    inputs=inputs,
-                    outputs=outputs,
-                    walltime=(walltime * 60), # 20s slack
-                    stdout=parsl.AUTO_LOGNAME, # output redirected to this file
-                    stderr=parsl.AUTO_LOGNAME, # error redirected to this file
-                    parsl_resource_specification=resource_spec,
+                    file = psiflow.context().new_file('data_', '.xyz')
+                outputs = [file]
+                inputs += bias.futures
+                outputs += [File(f.filepath) for f in bias.futures]
+                future = app_propagate(
+                        device,
+                        ncores,
+                        parameters,
+                        model.__class__.__name__, # load function
+                        keep_trajectory=keep_trajectory,
+                        plumed_input=bias.prepare_input(),
+                        inputs=inputs,
+                        outputs=outputs,
+                        walltime=(walltime * 60), # 20s slack
+                        stdout=parsl.AUTO_LOGNAME, # output redirected to this file
+                        stderr=parsl.AUTO_LOGNAME, # error redirected to this file
+                        parsl_resource_specification=resource_spec,
+                        )
+                if 'METAD' in bias.keys:
+                    bias.data_futures['METAD'] = future.outputs[1]
+                result = molecular_dynamics_yaff_post(
+                        inputs = [future, future.stdout, future.outputs[0]],
+                        )
+                state = bias.evaluate(Dataset([unpack_i(result, 0)]), as_dataset=True)[0]
+                metadata_args = [state] + [unpack_i(result, i) for i in range(1, 5)]
+                metadata_args.append(future.stdout)
+                metadata_args.append(future.stderr)
+                metadata = Metadata(*metadata_args)
+                return metadata, future.outputs[0]
+        elif engine == 'openmm':
+            app_propagate = bash_app(
+                    molecular_dynamics_openmm,
+                    executors=[label],
                     )
-            if 'METAD' in bias.keys:
-                bias.data_futures['METAD'] = future.outputs[1]
-            result = app_propagate_post(
-                    inputs = [future, future.stdout, future.outputs[0]],
-                    )
-            state = bias.evaluate(Dataset([unpack_i(result, 0)]), as_dataset=True)[0]
-            metadata_args = [state] + [unpack_i(result, i) for i in range(1, 5)]
-            metadata_args.append(future.stdout)
-            metadata_args.append(future.stderr)
-            metadata = Metadata(*metadata_args)
-            return metadata, future.outputs[0]
+            @typeguard.typechecked
+            def propagate_wrapped(
+                    state: Union[AppFuture, FlowAtoms],
+                    parameters: dict[str, Any],
+                    bias: PlumedBias,
+                    model: BaseModel = None,
+                    keep_trajectory: bool = False,
+                    file: Optional[File] = None,
+                    ) -> tuple[Metadata, Optional[DataFuture]]:
+                assert model is not None # model is required
+                future_atoms = app_write_dataset(
+                        states=None,
+                        inputs=[state],
+                        outputs=[psiflow.context().new_file('data_', '.xyz')],
+                        ).outputs[0]
+                inputs = [future_atoms, model.deploy_future]
+                if keep_trajectory:
+                    assert file is not None
+                else:
+                    file = psiflow.context().new_file('data_', '.xyz')
+                outputs = [file]
+                inputs += bias.futures
+                outputs += [File(f.filepath) for f in bias.futures]
+                future = app_propagate(
+                        device,
+                        ncores,
+                        parameters,
+                        model.__class__.__name__, # load function
+                        keep_trajectory=keep_trajectory,
+                        plumed_input=bias.prepare_input(),
+                        inputs=inputs,
+                        outputs=outputs,
+                        walltime=(walltime * 60), # 20s slack
+                        stdout=parsl.AUTO_LOGNAME, # output redirected to this file
+                        stderr=parsl.AUTO_LOGNAME, # error redirected to this file
+                        parsl_resource_specification=resource_spec,
+                        )
+                if 'METAD' in bias.keys:
+                    bias.data_futures['METAD'] = future.outputs[1]
+                result = molecular_dynamics_openmm_post(
+                        inputs = [future, future.stdout, future.outputs[0]],
+                        )
+                state = bias.evaluate(Dataset([unpack_i(result, 0)]), as_dataset=True)[0]
+                metadata_args = [state] + [unpack_i(result, i) for i in range(1, 5)]
+                metadata_args.append(future.stdout)
+                metadata_args.append(future.stderr)
+                metadata = Metadata(*metadata_args)
+                return metadata, future.outputs[0]
+        else:
+            raise ValueError('unknown dynamics engine ' + engine)
         name = model_cls.__name__
         context.register_app(cls, 'propagate_' + name, propagate_wrapped)

@@ -45,7 +45,7 @@ def _compute_disagreements(
     else:
         raise NotImplementedError('unknown metric ' + metric)
     return disagreements
-compute_disagreements = python_app(_compute_disagreements, executors=['default'])
+compute_disagreements = python_app(_compute_disagreements, executors=['Default'])
 
 
 # expose outside filter app to reproduce filtering behavior elsewhere
@@ -56,7 +56,7 @@ def _filter_disagreements(disagreements: np.ndarray, nstates: int):
     else:
         indices = np.argsort(disagreements)[-nstates:][::-1]
     return indices
-filter_disagreements = python_app(_filter_disagreements, executors=['default'])
+filter_disagreements = python_app(_filter_disagreements, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -76,7 +76,7 @@ def _extract_highest(
             [data[i] for i in indices],
             outputs=[outputs[0]],
             )
-extract_highest = python_app(_extract_highest, executors=['default'])
+extract_highest = python_app(_extract_highest, executors=['Default'])
 
 
 @typeguard.typechecked

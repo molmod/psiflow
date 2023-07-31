@@ -65,7 +65,7 @@ def _assign_identifier(state: FlowAtoms, identifier: int):
         else:
             pass
     return state, identifier
-assign_identifier = python_app(_assign_identifier, executors=['default'])
+assign_identifier = python_app(_assign_identifier, executors=['Default'])
             
 
 @join_app
@@ -122,7 +122,7 @@ def _compute_error(
                     )
             return error
     return None
-compute_error = python_app(_compute_error, executors=['default'])
+compute_error = python_app(_compute_error, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -133,7 +133,7 @@ def _check_error(
     if (error is None) or (not np.all(np.array(error) < np.array(error_thresholds))):
         return True # do reset in this case
     return False
-check_error = python_app(_check_error, executors=['default'])
+check_error = python_app(_check_error, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -185,7 +185,7 @@ def _reset_condition(i: int, state: FlowAtoms, indices: np.ndarray) -> bool:
     if (i in indices) or (state == NullState):
         return True
     return False
-reset_condition = python_app(_reset_condition, executors=['default'])
+reset_condition = python_app(_reset_condition, executors=['Default'])
 
 
 @join_app

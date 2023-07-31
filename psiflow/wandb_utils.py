@@ -54,7 +54,7 @@ def _app_log_data(
         assert len(columns) == len(row)
         table_data.append(row)
     return [columns] + table_data
-app_log_data = python_app(_app_log_data, executors=['default'])
+app_log_data = python_app(_app_log_data, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -216,4 +216,4 @@ def _to_wandb(
     os.environ['WANDB_SILENT'] = 'True' # suppress logs
     wandb.log(wandb_log)
     wandb.finish()
-to_wandb = python_app(_to_wandb, executors=['default'])
+to_wandb = python_app(_to_wandb, executors=['Default'])

@@ -6,11 +6,13 @@ import numpy as np
 from parsl.dataflow.futures import AppFuture
 
 from ase import Atoms
+from ase.units import kB
 
 from psiflow.models import NequIPModel, MACEModel
 from psiflow.walkers import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker
-from psiflow.walkers.utils import parse_yaff_output, parse_openmm_output
+from psiflow.walkers.utils import parse_yaff_output, parse_openmm_output, \
+        get_velocities_at_temperature
 from psiflow.data import Dataset
 from psiflow.utils import copy_app_future
 
@@ -65,7 +67,6 @@ def test_walker_save_load(context, dataset, mace_config, tmp_path):
         assert value == walker_.parameters[key]
     model = MACEModel(mace_config)
     model.initialize(dataset[:3])
-    model.deploy()
     walker.propagate(model=model)
     walker.save(tmp_path / 'new_again')
     walker = load_walker(tmp_path / 'new_again')
@@ -151,11 +152,17 @@ PLUMED:                                               Cycles        Total      A
     assert time == 0.11220741271972656
 
 
+def test_initial_velocities(context):
+    masses = np.random.uniform(10, 20, size=20)
+    velocities = get_velocities_at_temperature(300, masses)
+    actual = (velocities ** 2 * masses.reshape(-1, 1)).mean() / kB
+    assert np.allclose(actual, 300, atol=2)
+
+
 def test_dynamic_walker_plain(context, dataset, mace_config):
     walker = DynamicWalker(dataset[0], steps=10, step=2)
     model = MACEModel(mace_config)
     model.initialize(dataset[:3])
-    model.deploy()
     metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
     assert trajectory.length().result() == 6
     assert walker.counter.result() == 10
@@ -174,15 +181,18 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     assert trajectory.length().result() < int(1e9) # timeout
     assert trajectory.length().result() > 1
     assert metadata.time.result() > 10 # ran for some time
-    walker.force_threshold = 1e-7 # always exceeded
+
+    # test temperature reset
     walker.steps           = 20
     walker.step            = 5
+    walker.temperature_reset_quantile = 1.0 # always resets
     metadata = walker.propagate(model=model)
     assert walker.is_reset().result()
     assert np.allclose(
             walker.state0.result().positions,
             walker.state.result().positions,
             )
+
     walker.temperature = None # NVE
     walker.force_threshold = 40
     metadata = walker.propagate(model=model)
@@ -195,7 +205,6 @@ def test_optimization_walker(context, dataset, mace_config):
     model = MACEModel(mace_config)
     model.initialize(training)
     model.train(training, validate)
-    model.deploy()
 
     walker = OptimizationWalker(dataset[0], optimize_cell=False, fmax=1e-2)
     metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
@@ -210,17 +219,15 @@ def test_optimization_walker(context, dataset, mace_config):
     assert walker.counter.result() > counter # more steps in total
 
 
-def test_biased_dynamic_walker(context, nequip_config, dataset):
-    model = NequIPModel(nequip_config)
+def test_biased_dynamic_walker(context, mace_config, dataset):
+    model = MACEModel(mace_config)
     model.initialize(dataset)
-    model.deploy()
     parameters = {
             'timestep'           : 1,
             'steps'              : 10,
             'step'               : 1,
             'start'              : 0,
             'temperature'        : 100,
-            'initial_temperature': 100,
             'pressure'           : None,
             }
 
@@ -267,7 +274,6 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             'step'               : 1,
             'start'              : 0,
             'temperature'        : 100,
-            'initial_temperature': 100,
             'pressure'           : None,
             }
     walker = BiasedDynamicWalker(dataset[0], bias=bias, **parameters)
@@ -329,30 +335,6 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             values_[:, 0],
             values[:, 0],
             )
-
-
-def test_bias_force_threshold(context, mace_config, dataset):
-    model = MACEModel(mace_config)
-    model.initialize(dataset[:2])
-    model.deploy()
-    plumed_input = """
-UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: DISTANCE ATOMS=1,2
-restraint: RESTRAINT ARG=CV AT=2 KAPPA=0.1
-"""
-    bias = PlumedBias(plumed_input)
-    walker = BiasedDynamicWalker(
-            dataset[0],
-            bias=bias,
-            force_threshold=20,
-            steps=3,
-            step=1,
-            )
-    state = walker.propagate(model=model)
-    assert not walker.is_reset().result()
-    bias.adjust_restraint(variable='CV', center=2, kappa=10000)
-    state = walker.propagate(model=model)
-    assert walker.is_reset() # force threshold exceeded!
 
 
 def test_walker_multiply_distribute(context, dataset, mace_config):

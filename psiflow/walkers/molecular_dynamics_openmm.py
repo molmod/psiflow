@@ -15,14 +15,16 @@ from openmmplumed import PlumedForce
 from ase import Atoms
 from ase.io import read, write
 from ase.data import chemical_symbols
+from ase.units import nm, fs
 
 from psiflow.walkers.bias import try_manual_plumed_linking
+from psiflow.walkers.utils import max_temperature, \
+        get_velocities_at_temperature
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', default=None, type=str)
     parser.add_argument('--ncores', default=None, type=int)
-    parser.add_argument('--dtype', default=None, type=str)
     parser.add_argument('--atoms', default=None, type=str)
 
     # pars
@@ -34,7 +36,7 @@ def main():
     parser.add_argument('--temperature', default=None, type=float)
     parser.add_argument('--pressure', default=None, type=float)
     parser.add_argument('--force_threshold', default=None, type=float)
-    parser.add_argument('--initial_temperature', default=None, type=float)
+    parser.add_argument('--temperature_reset_quantile', default=None, type=float)
 
     parser.add_argument('--model-cls', default=None, type=str) # model name
     parser.add_argument('--model', default=None, type=str) # model name
@@ -47,7 +49,6 @@ def main():
     path_plumed = 'plumed.dat'
 
     assert args.device in ['cpu', 'cuda']
-    assert args.dtype in ['float32', 'float64']
     assert Path(args.atoms).is_file()
     assert args.model_cls in ['MACEModel', 'NequIPModel', 'AllegroModel']
     assert Path(args.model).is_file()
@@ -65,11 +66,10 @@ def main():
     print('torch: initial num threads: ', torch.get_num_threads())
     torch.set_num_threads(args.ncores)
     print('torch: num threads set to ', torch.get_num_threads())
-    if args.dtype == 'float64':
-        print('simulation will proceed in float32, even though float64 was requested')
     if args.force_threshold is not None:
         print('IGNORING requested force threshold at {} eV/A!'.format(args.force_threshold))
         print('force thresholds are only supported in the yaff engine')
+    print('device: {}'.format(args.device))
     torch.set_default_dtype(torch.float32)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -86,33 +86,53 @@ def main():
     if atoms.pbc.all():
         cell = np.array(atoms.cell[:]) * 0.1 # A -> nm
         topology.setPeriodicBoxVectors(cell)
+        print('initial periodic box [A]:')
+        print(atoms.cell[0, :])
+        print(atoms.cell[1, :])
+        print(atoms.cell[2, :])
+    else:
+        print('no periodic boundary conditions applied')
     positions = atoms.positions * 0.1 # A->nm
+
 
     A_to_nm          = 0.1
     eV_to_kJ_per_mol = 96.49
     if args.model_cls == 'MACEModel':
         model_cls = 'mace'
+        potential = MLPotential(
+                model_cls,
+                model_path=args.model, 
+                distance_to_nm=A_to_nm, 
+                energy_to_kJ_per_mol=eV_to_kJ_per_mol,
+                )
+        system = potential.createSystem(topology, dtype='float32', device=args.device)
     elif args.model_cls in ['NequIPModel', 'AllegroModel']:
         model_cls = 'nequip'
-    potential = MLPotential(
-            model_cls,
-            model_path=args.model, 
-            distance_to_nm=A_to_nm, 
-            energy_to_kJ_per_mol=eV_to_kJ_per_mol,
-            device=args.device,
-            )
-    system = potential.createSystem(topology, dtype='float32')
+        potential = MLPotential(
+                model_cls,
+                model_path=args.model, 
+                distance_to_nm=A_to_nm, 
+                energy_to_kJ_per_mol=eV_to_kJ_per_mol,
+                )
+        system = potential.createSystem(topology, device=args.device)
 
-    temperature = args.temperature * unit.kelvin
-    integrator = openmm.LangevinIntegrator(temperature, 1.0/unit.picoseconds, args.timestep * unit.femtosecond)
+    if args.temperature is not None:
+        temperature = args.temperature * unit.kelvin
+        integrator = openmm.LangevinIntegrator(temperature, 1.0/unit.picoseconds, args.timestep * unit.femtosecond)
+        velocities = get_velocities_at_temperature(args.temperature, atoms.get_masses())
+    else:
+        integrator = openmm.VerletIntegrator(args.timestep * unit.femtosecond)
+        velocities = get_velocities_at_temperature(300, atoms.get_masses()) # NVE at 300 K 
     if args.device == 'cuda':
         platform_name = 'CUDA'
     else:
         platform_name = 'CPU'
     platform = openmm.Platform.getPlatformByName(platform_name)
+    print('using platform: {}'.format(platform.getName()))
     simulation = app.Simulation(topology, system, integrator, platform=platform)
     simulation.context.setPositions(positions)
-    simulation.context.setVelocitiesToTemperature(args.initial_temperature)
+    # set velocities in nm / ps
+    simulation.context.setVelocities(velocities / nm * (1000 * fs))
 
     if Path('plumed.dat').is_file():
         try_manual_plumed_linking()
@@ -121,9 +141,10 @@ def main():
         system.addForce(PlumedForce(plumed_input))
 
     if args.pressure is None:
-        print('sampling NVT ensemble ...')
+        print('sampling at constant volume ...')
     else:
-        print('sampling NPT ensemble ...')
+        print('sampling at constant pressure ...')
+        assert args.temperature is not None
         barostat = openmm.MonteCarloFlexibleBarostat(
                 10 * args.pressure,          # to bar
                 args.temperature,
@@ -179,3 +200,26 @@ def main():
             _atoms.set_cell(traj.unitcell_vectors[i] * 10)
         trajectory.append(_atoms)
     write(args.trajectory, trajectory)
+
+    # check final temperature
+    ekin = simulation.context.getState(getEnergy=True).getKineticEnergy()
+    ekin = ekin.value_in_unit(unit.kilojoules_per_mole)
+    N  = 3 * len(atoms)
+    kB = 8.314 * 1e-3 # in kJ/mol / K
+    T  = 2 * ekin / (N * kB)
+    print('kinetic energy: ', ekin)
+    print('temperature: ', T)
+
+    if (args.temperature_reset_quantile > 0) and (args.temperature is not None):
+        T_max = max_temperature(
+                args.temperature,
+                len(atoms),
+                args.temperature_reset_quantile,
+                )
+        print('T_max: {} K'.format(T_max))
+        if T < T_max:
+            print('temperature within range')
+        else:
+            print('temperature outside reasonable range; simulation unsafe')
+    else:
+        print('no temperature checks performed; simulation assumed to be safe')

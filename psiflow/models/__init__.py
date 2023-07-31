@@ -34,13 +34,19 @@ def load_model(path: Union[Path, str]) -> BaseModel:
     model = model_cls(config)
     path_config = path / 'config_after_init.yaml'
     path_model  = path / 'model_undeployed.pth'
+    path_deploy = path / 'model_deployed.pth'
     if path_model.is_file():
         assert path_config.is_file()
+        assert path_deploy.is_file()
         with open(path_config, 'r') as f:
             config_init = yaml.load(f, Loader=yaml.FullLoader)
         model.config_future = copy_app_future(config_init)
         model.model_future = copy_data_future(
                 inputs=[File(str(path_model))],
+                outputs=[psiflow.context().new_file('model_', '.pth')],
+                ).outputs[0]
+        model.deploy_future = copy_data_future(
+                inputs=[File(str(path_deploy))],
                 outputs=[psiflow.context().new_file('model_', '.pth')],
                 ).outputs[0]
     return model
