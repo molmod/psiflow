@@ -26,7 +26,7 @@ from psiflow.walkers import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 
 
-Metadata = namedtuple('Metadata', ['state', 'counter', 'reset', 'temperature', 'time', 'stdout', 'stderr'])
+Metadata = namedtuple('Metadata', ['state', 'counter', 'reset', 'temperature', 'time', 'stdout'])
 
 
 #@typeguard.typechecked
@@ -309,7 +309,6 @@ class DynamicWalker(BaseWalker):
                         )
                 metadata_args = [unpack_i(result, i) for i in range(5)]
                 metadata_args.append(future.stdout)
-                metadata_args.append(future.stderr)
                 metadata = Metadata(*metadata_args)
                 return metadata, future.outputs[0]
         elif engine == 'openmm':
@@ -356,7 +355,6 @@ class DynamicWalker(BaseWalker):
                         )
                 metadata_args = [unpack_i(result, i) for i in range(5)]
                 metadata_args.append(future.stdout)
-                metadata_args.append(future.stderr)
                 metadata = Metadata(*metadata_args)
                 return metadata, future.outputs[0]
 
@@ -519,7 +517,6 @@ class BiasedDynamicWalker(DynamicWalker):
                 state = bias.evaluate(Dataset([unpack_i(result, 0)]), as_dataset=True)[0]
                 metadata_args = [state] + [unpack_i(result, i) for i in range(1, 5)]
                 metadata_args.append(future.stdout)
-                metadata_args.append(future.stderr)
                 metadata = Metadata(*metadata_args)
                 return metadata, future.outputs[0]
         elif engine == 'openmm':
@@ -572,7 +569,6 @@ class BiasedDynamicWalker(DynamicWalker):
                 state = bias.evaluate(Dataset([unpack_i(result, 0)]), as_dataset=True)[0]
                 metadata_args = [state] + [unpack_i(result, i) for i in range(1, 5)]
                 metadata_args.append(future.stdout)
-                metadata_args.append(future.stderr)
                 metadata = Metadata(*metadata_args)
                 return metadata, future.outputs[0]
         else:

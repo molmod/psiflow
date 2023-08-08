@@ -15,6 +15,7 @@ from psiflow.reference import BaseReference
 from psiflow.walkers import BaseWalker
 from psiflow.utils import unpack_i, copy_app_future
 from psiflow.committee import Committee, filter_disagreements
+from psiflow.metrics import Metrics
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -74,7 +75,7 @@ def log_evaluation_model(
         i: int,
         metadata: NamedTuple,
         state: FlowAtoms,
-        errors: Optional[tuple[float, float]],
+        errors: tuple[Optional[float], Optional[float]],
         condition: bool,
         identifier: int,
         ) -> AppFuture:
@@ -89,7 +90,7 @@ def log_evaluation_model(
             s += '\tevaluation successful; state received unique id {}'.format(identifier - 1)
             assert errors is not None
         s += '\n'
-        if errors is not None:
+        if errors[0] is not None:
             if condition:
                 s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (above threshold)\n\twalker reset'.format(*errors)
             else:
@@ -105,7 +106,7 @@ def log_evaluation_model(
 def _compute_error(
         atoms0: FlowAtoms,
         atoms1: FlowAtoms,
-        ) -> Optional[tuple[float, float]]:
+        ) -> tuple[Optional[float], Optional[float]]:
     import numpy as np
     from psiflow.data import read_dataset
     from psiflow.utils import compute_error
@@ -115,22 +116,23 @@ def _compute_error(
             error = compute_error(
                     atoms0,
                     atoms1,
-                    None,
-                    None,
                     metric='rmse',
+                    mask=np.array([True] * len(atoms0)),
                     properties=['energy', 'forces'],
                     )
             return error
-    return None
+    return None, None
 compute_error = python_app(_compute_error, executors=['Default'])
 
 
 @typeguard.typechecked
 def _check_error(
-        error: Union[tuple[float, float], np.ndarray, None],
-        error_thresholds: Union[tuple[float, float], np.ndarray],
+        error: tuple[Optional[float], Optional[float]],
+        error_thresholds: tuple[float, float],
         ) -> bool:
-    if (error is None) or (not np.all(np.array(error) < np.array(error_thresholds))):
+    if ((error[0] is None) or
+        (error[1] is None) or
+        (not np.all(np.array(error) < np.array(error_thresholds)))):
         return True # do reset in this case
     return False
 check_error = python_app(_check_error, executors=['Default'])
@@ -143,6 +145,7 @@ def sample_with_model(
         walkers: list[BaseWalker],
         identifier: Union[AppFuture, int],
         error_thresholds_for_reset: tuple[float, float] = (10, 200), # (e_rmse, f_rmse)
+        metrics: Optional[Metrics] = None,
         ) -> tuple[Dataset, AppFuture]:
     assert len(error_thresholds_for_reset) == 2
     logger.info('')
@@ -162,7 +165,8 @@ def sample_with_model(
                 )
         walkers[i].reset(condition)
         s = log_evaluation_model(i, metadatas[i], states[i], errors[i], condition, identifier)
-        print(s.result())
+        if metrics is not None:
+            metrics.log_walker(i, metadatas[i], states[i], errors[i], condition, identifier)
     return Dataset(states).labeled(), identifier
 
 

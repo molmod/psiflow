@@ -278,7 +278,7 @@ get_indices = python_app(_get_indices, executors=['Default'])
 
 
 @typeguard.typechecked
-def compute_metrics(
+def compute_errors(
         intrinsic: bool,
         atom_indices: Optional[List[int]],
         elements: Optional[List[str]],
@@ -312,7 +312,6 @@ def compute_metrics(
         assert np.allclose(atoms_0.positions, atoms_1.positions)
         if atoms_0.cell is not None:
             assert np.allclose(atoms_0.cell, atoms_1.cell)
-
     errors = np.zeros((len(data_0), len(properties)))
     outer_mask = np.array([True] * len(data_0))
     for i in range(len(data_0)):
@@ -325,25 +324,16 @@ def compute_metrics(
             mask = get_index_element_mask(atoms_0.numbers, elements, atom_indices)
         else:
             mask = np.array([True] * len(atoms_0))
-        if not np.any(mask): # no target atoms present; skip
-            outer_mask[i] = False
-            continue
-    if not np.any(outer_mask):
-        raise AssertionError('no states in dataset contained atoms of interest')
-    for i in range(len(data_0)):
-        atoms_0 = data_0[i]
-        atoms_1 = data_1[i]
-        if outer_mask[i]:
-            errors[i, :] = compute_error(
-                    atoms_0,
-                    atoms_1,
-                    atom_indices,
-                    elements,
-                    metric,
-                    properties,
-                    )
-    return errors[outer_mask, :]
-app_compute_metrics = python_app(compute_metrics, executors=['Default'])
+        errors[i, :] = compute_error(
+                atoms_0,
+                atoms_1,
+                metric,
+                mask,
+                properties,
+                )
+    outer_mask = np.invert(np.isnan(np.sum(errors, axis=1)))
+    return errors[outer_mask]
+app_compute_errors = python_app(compute_errors, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -603,7 +593,7 @@ class Dataset:
             intrinsic = False
         else:
             intrinsic = True
-        return app_compute_metrics(
+        return app_compute_errors(
                 intrinsic=intrinsic,
                 atom_indices=atom_indices,
                 elements=elements,

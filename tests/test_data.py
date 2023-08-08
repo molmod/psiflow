@@ -127,6 +127,10 @@ def test_dataset_metric(context, dataset):
     with pytest.raises(AssertionError):
         errors = Dataset.get_errors(dataset, None, elements=['C'])
         errors.result()
+    # should return empty array
+    errors = Dataset.get_errors(dataset, None, elements=['Ne'], properties=['forces'])
+    assert errors.result().shape == (0, 1)
+
     errors = Dataset.get_errors(dataset, None, elements=['H'], properties=['forces']) # H present
     errors.result()
     errors_rmse = Dataset.get_errors(dataset, None, elements=['Cu'], properties=['forces']) # Cu present
@@ -134,10 +138,6 @@ def test_dataset_metric(context, dataset):
     errors_max  = Dataset.get_errors(dataset, None, elements=['Cu'], properties=['forces'], metric='max') # Cu present
     assert np.all(errors_rmse.result() > errors_mae.result())
     assert np.all(errors_max.result() > errors_rmse.result())
-
-    with pytest.raises(AssertionError): # no atoms of interest
-        errors = Dataset.get_errors(dataset, None, elements=['O'], properties=['forces']) # Cu present
-        errors.result()
 
     atoms = FlowAtoms(numbers=30 * np.ones(10), positions=np.zeros((10, 3)), pbc=False)
     atoms.info['forces'] = np.random.uniform(-1, 1, size=(10, 3))

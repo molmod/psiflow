@@ -1,6 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Any, Tuple, Dict
 import typeguard
+import pandas
 import os
 import sys
 import logging
@@ -215,23 +216,16 @@ def resolve_and_check(path: Path) -> Path:
 def compute_error(
         atoms_0: FlowAtoms,
         atoms_1: FlowAtoms,
-        atom_indices: Optional[List[int]],
-        elements: Optional[List[str]],
         metric: str,
+        mask: np.ndarray,
         properties: List[str],
         ) -> tuple:
     import numpy as np
     from ase.units import Pascal
-    from psiflow.utils import get_index_element_mask
     errors = np.zeros(len(properties))
-    if (atom_indices is not None) or (elements is not None):
-        assert 'energy' not in properties
-        assert 'stress' not in properties
-        assert 'forces' in properties # only makes sense for forces
-        mask = get_index_element_mask(atoms_0.numbers, elements, atom_indices)
-    else:
-        mask = np.array([True] * len(atoms_0))
-    assert np.any(mask)
+    assert mask.dtype == bool
+    if not np.any(mask):
+        return np.nan
     if 'energy' in properties:
         formation = all(['formation_energy' in a.info.keys() for a in [atoms_0, atoms_1]])
         if formation:

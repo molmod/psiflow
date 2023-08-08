@@ -202,7 +202,7 @@ def train(args, path_model, init_only) -> None:
 
     train_loader = torch_geometric.dataloader.DataLoader(
         dataset=[
-            data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
+            data.AtomicData.from_config(config, z_table=z_table, cutoff=float(args.r_max))
             for config in collections.train
         ],
         batch_size=args.batch_size,
@@ -212,7 +212,7 @@ def train(args, path_model, init_only) -> None:
     if not init_only:
         valid_loader = torch_geometric.dataloader.DataLoader(
             dataset=[
-                data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
+                data.AtomicData.from_config(config, z_table=z_table, cutoff=float(args.r_max))
                 for config in collections.valid
             ],
             batch_size=args.valid_batch_size,

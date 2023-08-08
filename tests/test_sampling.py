@@ -1,14 +1,18 @@
 import numpy as np
 
+import parsl
+
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.walkers import RandomWalker, DynamicWalker
+from psiflow.walkers import RandomWalker, DynamicWalker, PlumedBias, \
+        BiasedDynamicWalker
 from psiflow.reference import EMTReference
 from psiflow.models import MACEModel
 from psiflow.sampling import sample_with_model, sample_with_committee
 from psiflow.committee import Committee
+from psiflow.metrics import report_dataset, Metrics
 
 
-def test_sample_model(mace_config, dataset):
+def test_sample_metrics(mace_config, dataset, tmp_path):
     walkers = RandomWalker.multiply(3, data_start=dataset)
     state = FlowAtoms(
             numbers=100 + np.arange(1, 4),
@@ -18,29 +22,52 @@ def test_sample_model(mace_config, dataset):
             )
     walkers.append(RandomWalker(state, seed=10))
     walkers.append(DynamicWalker(dataset[0], steps=100, step=1, start=0))
-    walkers.append(DynamicWalker(dataset[0], steps=10, step=1, start=0, force_threshold=1e-7))
+    walkers.append(DynamicWalker(dataset[0], steps=10, step=1, start=0))
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+CV1: MATHEVAL ARG=CV VAR=a FUNC=3*a PERIODIC=NO
+restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
+"""
+    bias = PlumedBias(plumed_input)
+    walkers.append(BiasedDynamicWalker(dataset[0], bias=bias, seed=10, steps=10))
 
     reference = EMTReference()
     model = MACEModel(mace_config)
     model.initialize(dataset[:3] + Dataset([state]))
-    model.deploy()
 
     assert not np.allclose(dataset[0].result().arrays['forces'], 0.0)
 
     identifier = 4 
+    metrics = Metrics(wandb_project='psiflow', wandb_group='test_sampling')
     data, identifier = sample_with_model(
             model,
             reference,
             walkers,
             identifier,
             error_thresholds_for_reset=(1e9, 1e9),
+            metrics=metrics,
             )
-    assert data.length().result() == 4 # one state should have failed
-    for i in range(4):
+    assert data.length().result() == 6 # one state should have failed
+    for i in range(5):
         assert data[i].result().reference_status # should be successful
         assert 'identifier' in data[i].result().info.keys()
         assert data[i].result().info['identifier'] >= 4
-        assert data[i].result().info['identifier'] <= 7
+        assert data[i].result().info['identifier'] <= 9
+
+    report = report_dataset(inputs=[data.data_future, model.evaluate(data).data_future])
+    report = report.result()
+    for key in report:
+        assert len(report[key]) == 6
+    assert 'CV1' in report
+    assert 'identifier' in report
+    assert sum([a is None for a in report['CV1']]) == 6 - 1
+
+    assert len(metrics.walker_reports) == len(walkers)
+    metrics.save(tmp_path, model=model, dataset=data)
+    parsl.wait_for_current_tasks()
+    assert (tmp_path / 'walkers.log').exists()
+    assert (tmp_path / 'dataset.log').exists()
         
 
 def test_sample_committee(mace_config, dataset):
