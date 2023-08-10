@@ -13,7 +13,7 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms
+from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.models import BaseModel
 from psiflow.walkers import BaseWalker, DynamicWalker
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__) # logging per module
 
 
 @typeguard.typechecked
-def _save_walkers_report(data: dict[str, list], path: Path) -> str:
+def _save_walker_logs(data: dict[str, list], path: Path) -> str:
     from prettytable import PrettyTable
     pt = PrettyTable()
     field_names = [
@@ -49,16 +49,15 @@ def _save_walkers_report(data: dict[str, list], path: Path) -> str:
     with open(path, 'w') as f:
         f.write(s)
     return s
-save_walkers_report = python_app(_save_walkers_report, executors=['Default'])
+save_walker_logs = python_app(_save_walker_logs, executors=['Default'])
 
 
 @typeguard.typechecked
-def _save_dataset_report(data: dict[str, list], path: Path) -> str:
+def _save_dataset_log(data: dict[str, list], path: Path) -> str:
     from prettytable import PrettyTable
     pt = PrettyTable()
     field_names = [
             'identifier',
-            'e_mae',
             'e_rmse',
             'f_rmse',
             ]
@@ -76,13 +75,13 @@ def _save_dataset_report(data: dict[str, list], path: Path) -> str:
     with open(path, 'w') as f:
         f.write(s)
     return s
-save_dataset_report = python_app(_save_dataset_report, executors=['Default'])
+save_dataset_log = python_app(_save_dataset_log, executors=['Default'])
 
 
 @typeguard.typechecked
-def _report_walker(
+def _log_walker(
         walker_index: int,
-        evaluated_state: Optional[FlowAtoms],
+        evaluated_state: FlowAtoms,
         error: tuple[Optional[float], Optional[float]],
         condition: bool,
         identifier: int,
@@ -92,15 +91,15 @@ def _report_walker(
     from pathlib import Path
     data = {}
     data['walker_index'] = walker_index
-    data['is_reset'] = condition
     data['counter'] = metadata['counter']
-    data['temperature'] = metadata.get('temperature', None)
+    data['is_reset'] = condition
     data['e_rmse'] = error[0]
     data['f_rmse'] = error[1]
     data['disagreement'] = disagreement
+    data['temperature'] = metadata.get('temperature', None)
 
-    if evaluated_state is not None:
-        data['identifier'] = identifier
+    if not evaluated_state == NullState:
+        data['identifier'] = identifier - 1
     else:
         data['identifier'] = None
 
@@ -114,11 +113,11 @@ def _report_walker(
         data['stdout'] = None
 
     return data
-report_walker = python_app(_report_walker, executors=['Default'])
+log_walker = python_app(_log_walker, executors=['Default'])
 
 
 @typeguard.typechecked
-def _gather_walker_reports(*walker_data: dict) -> dict[str, list]:
+def _gather_walker_logs(*walker_data: dict) -> dict[str, list]:
     import numpy as np
     data = {}
     columns = list(set([v for wd in walker_data for v in wd.keys()]))
@@ -128,11 +127,11 @@ def _gather_walker_reports(*walker_data: dict) -> dict[str, list]:
             values.append(wd.get(key, None))
         data[key] = values
     return data
-gather_walker_reports = python_app(_gather_walker_reports, executors=['Default'])
+gather_walker_logs = python_app(_gather_walker_logs, executors=['Default'])
 
 
 @typeguard.typechecked
-def _report_dataset(inputs: list[File] = []) -> dict[str, list]:
+def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
     import pandas
     import numpy as np
     from ase.data import chemical_symbols
@@ -162,7 +161,7 @@ def _report_dataset(inputs: list[File] = []) -> dict[str, list]:
     _all = [set(a.numbers) for a in dataset0]
     numbers = sorted(list(set(b for a in _all for b in a)))
     symbols = [chemical_symbols[n] for n in numbers]
-    y_axis  = ['e_mae', 'e_rmse', 'f_rmse']
+    y_axis  = ['e_rmse', 'f_rmse']
     y_axis += ['f_rmse_{}'.format(s) for s in symbols]
 
     # define data array and fill
@@ -170,13 +169,6 @@ def _report_dataset(inputs: list[File] = []) -> dict[str, list]:
     for key in y_axis:
         data[key] = []
     for i, (atoms0, atoms1) in enumerate(zip(dataset0, dataset1)):
-        data['e_mae'].append(compute_error(
-                atoms0,
-                atoms1,
-                'mae',
-                mask=np.array([True] * len(atoms0)),
-                properties=['energy'],
-                )[0])
         data['e_rmse'].append(compute_error(
                 atoms0,
                 atoms1,
@@ -206,7 +198,7 @@ def _report_dataset(inputs: list[File] = []) -> dict[str, list]:
                 )[0])
     assert len(list(data.keys())) == len(x_axis) + len(y_axis)
     return data
-report_dataset = python_app(_report_dataset, executors=['Default'])
+log_dataset = python_app(_log_dataset, executors=['Default'])
 
 
 def fix_plotly_layout(figure):
@@ -229,17 +221,17 @@ def fix_plotly_layout(figure):
 
 
 @typeguard.typechecked
-def _log_wandb(
+def _to_wandb(
         wandb_id: str,
-        walkers_report: Optional[dict],
-        dataset_report: Optional[dict],
+        walker_logs: Optional[dict],
+        dataset_log: Optional[dict],
         ):
     import wandb
     import plotly.express as px
     figures = {}
-    if walkers_report is not None:
-        y = np.array(walkers_report['f_rmse'])
-        for key in walkers_report:
+    if walker_logs is not None:
+        y = np.array(walker_logs['f_rmse'])
+        for key in walker_logs:
             if key == 'walker_index':
                 name = 'index'
                 tickformat = '.0f'
@@ -250,27 +242,25 @@ def _log_wandb(
                 name = None
                 tickformat = None
             if name is not None:
-                x = np.array(walkers_report[key])
+                x = np.array(walker_logs[key])
                 figure = px.scatter(x=x, y=y)
                 figure.update_xaxes(type='linear', tickformat=tickformat)
                 title = 'walkers_f_rmse_' + name
                 fix_plotly_layout(figure)
                 figure.update_layout(yaxis_title='forces RMSE [meV/A]')
                 figures[title] = figure
-    if dataset_report is not None:
-        for x_axis in dataset_report:
+    if dataset_log is not None:
+        for x_axis in dataset_log:
             if x_axis.startswith('CV') or (x_axis == 'identifier'):
-                for y_axis in dataset_report:
-                    if (y_axis in ['e_rmse', 'e_mae']) or y_axis.startswith('f_rmse'):
-                        x = dataset_report[x_axis]
-                        y = dataset_report[y_axis]
+                for y_axis in dataset_log:
+                    if (y_axis == 'e_rmse') or y_axis.startswith('f_rmse'):
+                        x = dataset_log[x_axis]
+                        y = dataset_log[y_axis]
                         figure = px.scatter(x=x, y=y)
                         figure.update_xaxes(type='linear')
                         title = 'dataset_' + y_axis + '_' + x_axis
                         fix_plotly_layout(figure)
-                        if 'e_mae' in y_axis:
-                            figure.update_layout(yaxis_title='energy MAE [meV/atom]')
-                        elif 'e_rmse' in y_axis:
+                        if 'e_rmse' in y_axis:
                             figure.update_layout(yaxis_title='energy RMSE [meV/atom]')
                         else:
                             figure.update_layout(yaxis_title='forces RMSE [meV/atom]')
@@ -278,7 +268,7 @@ def _log_wandb(
     wandb.init(id=wandb_id, resume='must')
     wandb.log(figures)
     wandb.finish()
-log_wandb = python_app(_log_wandb, executors=['Default'])
+to_wandb = python_app(_to_wandb, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -308,18 +298,28 @@ class Metrics:
                     resume=resume,
                     )
 
-        self.walker_reports = []
+        self.walker_logs = []
 
-    def log_walker(self, i, metadata, state, error, condition, identifier):
-        report = report_walker(
+    def log_walker(
+            self,
+            i,
+            metadata,
+            state,
+            error,
+            condition,
+            identifier,
+            disagreement=None,
+            ):
+        log = log_walker(
                 i,
                 state,
                 error,
                 condition,
                 identifier,
+                disagreement,
                 **metadata._asdict(),
                 )
-        self.walker_reports.append(report)
+        self.walker_logs.append(log)
 
     def save(
             self,
@@ -330,15 +330,15 @@ class Metrics:
         path = Path(path)
         if not path.exists():
             path.mkdir()
-        walkers_report = None
-        dataset_report = None
-        if len(self.walker_reports) > 0:
-            walkers_report = gather_walker_reports(*self.walker_reports)
-            save_walkers_report(walkers_report, path / 'walkers.log')
+        walker_logs = None
+        dataset_log = None
+        if len(self.walker_logs) > 0:
+            walker_logs = gather_walker_logs(*self.walker_logs)
+            save_walker_logs(walker_logs, path / 'walkers.log')
         if model is not None:
             assert dataset is not None
             inputs = [dataset.data_future, model.evaluate(dataset).data_future]
-            dataset_report = report_dataset(inputs=inputs)
-            save_dataset_report(dataset_report, path / 'dataset.log')
+            dataset_log = log_dataset(inputs=inputs)
+            save_dataset_log(dataset_log, path / 'dataset.log')
         if self.wandb_id is not None:
-            f = log_wandb(self.wandb_id, walkers_report, dataset_report)
+            f = to_wandb(self.wandb_id, walker_logs, dataset_log)

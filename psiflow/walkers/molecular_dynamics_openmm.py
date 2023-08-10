@@ -182,6 +182,9 @@ def main():
         print('completed all steps')
     except TimeoutException:
         print('simulation stopped due to timeout')
+    except ValueError as e:
+        print(e)
+        print('simulation unsafe')
     print('current step: {}'.format(simulation.currentStep))
     hdf.close()
 

@@ -71,7 +71,7 @@ def _extract_highest(
     from psiflow.committee import _filter_disagreements
     data = read_dataset(slice(None), inputs=[inputs[0]])
     assert len(data) == len(disagreements)
-    indices = filter_data(disagreements, nstates)
+    indices = _filter_disagreements(disagreements, nstates)
     write_dataset(
             [data[i] for i in indices],
             outputs=[outputs[0]],
@@ -118,7 +118,6 @@ class Committee:
         for model in self.models:
             model.initialize(training)
             model.train(training, validation)
-            model.deploy()
 
     def save(
             self,

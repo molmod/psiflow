@@ -180,13 +180,18 @@ def evaluate_subset(
     if i in indices:
         return reference.evaluate(state)
     else:
-        return copy_app_future(state)
+        return copy_app_future(NullState)
 
 
 @typeguard.typechecked
-def _reset_condition(i: int, state: FlowAtoms, indices: np.ndarray) -> bool:
+def _reset_condition(
+        i: int,
+        state: FlowAtoms,
+        indices: np.ndarray,
+        checked_error: bool,
+        ) -> bool:
     from psiflow.data import NullState
-    if (i in indices) or (state == NullState):
+    if (i in indices) or (state == NullState) or checked_error:
         return True
     return False
 reset_condition = python_app(_reset_condition, executors=['Default'])
@@ -198,8 +203,9 @@ def log_evaluation_committee(
         i: int,
         metadata: NamedTuple,
         state: FlowAtoms,
-        identifier: int,
+        errors: tuple[Optional[float], Optional[float]],
         condition: bool,
+        identifier: int,
         disagreement: float,
         indices: np.ndarray,
         ) -> AppFuture:
@@ -214,10 +220,18 @@ def log_evaluation_committee(
             if not state.reference_status:
                 s += '\tevaluation failed; see {} in the task_logs directory'.format(Path(state.reference_stderr).stem)
             else:
+                assert errors[0] is not None
+                assert errors[1] is not None
                 s += '\tevaluation successful; state received unique id {}'.format(identifier - 1)
-            s += '\n\twalker reset'
+                s += '\n'
+                if condition:
+                    s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (above threshold)\n\twalker reset'.format(*errors)
+                    s += '\n\twalker reset'
+                else:
+                    s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (below threshold)'.format(*errors)
         else:
             s += ' (low)\n\tevaluation skipped'  # state not selected
+            assert errors[0] is None
         s += '\n'
     logger.info(s)
     return copy_app_future(s)
@@ -230,6 +244,8 @@ def sample_with_committee(
         walkers: list[BaseWalker],
         identifier: Union[AppFuture, int],
         nstates: int,
+        error_thresholds_for_reset: tuple[float, float] = (10, 200), # (e_rmse, f_rmse)
+        metrics: Optional[Metrics] = None
         ) -> tuple[Dataset, AppFuture]:
     logger.info('')
     logger.info('')
@@ -238,21 +254,39 @@ def sample_with_committee(
     disagreements = committee.compute_disagreements(Dataset(states))
     indices       = filter_disagreements(disagreements, nstates)
     states        = [evaluate_subset(s, reference, i, indices) for i, s in enumerate(states)] 
+
+    # compute errors for state which were evaluated
+    labeled = committee.models[0].evaluate(Dataset([m.state for m in metadatas]))
+    errors  = [compute_error(labeled[i], state) for i, state in enumerate(states)]
     for i in range(len(metadatas)):
         f = assign_identifier(states[i], identifier)
         state      = unpack_i(f, 0)
         identifier = unpack_i(f, 1)
         states[i]  = state
-        condition  = reset_condition(i, states[i], indices)
+        checked_error = check_error(
+                error=errors[i],
+                error_thresholds=error_thresholds_for_reset,
+                )
+        condition  = reset_condition(i, states[i], indices, checked_error)
         walkers[i].reset(condition)
         s = log_evaluation_committee(
             i,
             metadatas[i],
             states[i],
-            identifier,
+            errors[i],
             condition,
+            identifier,
             unpack_i(disagreements, i),
             indices,
             )
-        print(s.result())
+        if metrics is not None:
+            metrics.log_walker(
+                    i,
+                    metadatas[i],
+                    states[i],
+                    errors[i],
+                    condition,
+                    identifier,
+                    unpack_i(disagreements, i),
+                    )
     return Dataset(states).labeled(), identifier

@@ -16,7 +16,6 @@ from parsl.dataflow.futures import AppFuture
 
 from psiflow.utils import get_train_valid_indices, save_yaml, copy_app_future
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.wandb_utils import WandBLogger
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
 from psiflow.walkers import BaseWalker, RandomWalker, PlumedBias, \

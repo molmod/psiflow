@@ -9,7 +9,7 @@ from psiflow.reference import EMTReference
 from psiflow.models import MACEModel
 from psiflow.sampling import sample_with_model, sample_with_committee
 from psiflow.committee import Committee
-from psiflow.metrics import report_dataset, Metrics
+from psiflow.metrics import log_dataset, Metrics
 
 
 def test_sample_metrics(mace_config, dataset, tmp_path):
@@ -55,22 +55,32 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
         assert data[i].result().info['identifier'] >= 4
         assert data[i].result().info['identifier'] <= 9
 
-    report = report_dataset(inputs=[data.data_future, model.evaluate(data).data_future])
-    report = report.result()
-    for key in report:
-        assert len(report[key]) == 6
-    assert 'CV1' in report
-    assert 'identifier' in report
-    assert sum([a is None for a in report['CV1']]) == 6 - 1
+    dataset_log = log_dataset(inputs=[data.data_future, model.evaluate(data).data_future])
+    dataset_log = dataset_log.result()
+    for key in dataset_log:
+        assert len(dataset_log[key]) == 6
+    assert 'CV1' in dataset_log
+    assert 'identifier' in dataset_log
+    assert sum([a is None for a in dataset_log['CV1']]) == 6 - 1
 
-    assert len(metrics.walker_reports) == len(walkers)
+    assert len(metrics.walker_logs) == len(walkers)
     metrics.save(tmp_path, model=model, dataset=data)
     parsl.wait_for_current_tasks()
     assert (tmp_path / 'walkers.log').exists()
     assert (tmp_path / 'dataset.log').exists()
+
+    data, identifier = sample_with_model( # test without metrics
+            model,
+            reference,
+            walkers,
+            identifier,
+            error_thresholds_for_reset=(0, 0),
+            )
+    for walker in walkers: # should all be reset
+        assert walker.counter.result() == 0
         
 
-def test_sample_committee(mace_config, dataset):
+def test_sample_committee(mace_config, dataset, tmp_path):
     walkers = RandomWalker.multiply(3, data_start=dataset)
     walkers.append(DynamicWalker(dataset[0], steps=100, step=1, start=0))
     walkers.append(DynamicWalker(dataset[0], steps=10, step=1, start=0, force_threshold=1e-7))
@@ -82,14 +92,34 @@ def test_sample_committee(mace_config, dataset):
     committee.train(dataset[:5], dataset[5:10])
 
     identifier = 0 
+    metrics = Metrics(wandb_project='psiflow', wandb_group='test_sampling')
     data, identifier = sample_with_committee(
             committee,
             reference,
             walkers,
             identifier,
-            nstates=3
+            nstates=3,
+            error_thresholds_for_reset=(1e9, 1e9),
+            metrics=metrics,
             )
     for i in range(3):
         assert data[i].result().reference_status # should be successful
         assert 'identifier' in data[i].result().info.keys()
         assert data[i].result().info['identifier'] <= 2
+    assert len(metrics.walker_logs) == len(walkers)
+    metrics.save(tmp_path)
+    parsl.wait_for_current_tasks()
+    assert (tmp_path / 'walkers.log').exists()
+    with open(tmp_path / 'walkers.log', 'r') as f:
+        print(f.read())
+
+    data, identifier = sample_with_committee( # without metric
+            committee,
+            reference,
+            walkers,
+            identifier,
+            nstates=3,
+            error_thresholds_for_reset=(0, 0),
+            )
+    for walker in walkers:
+        assert walker.counter.result() == 0 # all reset

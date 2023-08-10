@@ -15,7 +15,7 @@ import psiflow
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.models import NequIPModel, NequIPConfig, MACEModel, MACEConfig, \
         AllegroModel, AllegroConfig
-from psiflow.reference import CP2KReference, EMTReference
+from psiflow.reference import EMTReference
 
 
 def pytest_addoption(parser):
@@ -108,3 +108,16 @@ def dataset(context, tmp_path):
     for atoms in data_:
         atoms.reference_status = True
     return Dataset(data_).canonical_orientation()
+
+
+@pytest.fixture
+def dataset_h2(context, tmp_path):
+    h2 = FlowAtoms(
+            numbers=[1, 1],
+            positions=[[0, 0, 0], [0.74, 0, 0]],
+            pbc=False,
+            )
+    data = [h2.copy() for i in range(20)]
+    for atoms in data:
+        atoms.set_positions(atoms.get_positions() + np.random.uniform(-0.05, 0.05, size=(2, 3)))
+    return Dataset(data)

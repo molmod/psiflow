@@ -14,7 +14,6 @@ from parsl.app.app import python_app, bash_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-from parsl.dataflow.memoization import id_for_memo
 from parsl.executors import WorkQueueExecutor
 
 import psiflow
@@ -42,7 +41,7 @@ def molecular_dynamics_yaff(
         walltime: float = 1e9, # infinite by default
         stdout: str = '',
         stderr: str = '',
-        parsl_resource_specification: dict = None,
+        parsl_resource_specification: Optional[dict] = None,
         ) -> str:
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd  = 'cd $mytmpdir;'
@@ -119,7 +118,7 @@ def molecular_dynamics_openmm(
         walltime: float = 1e9, # infinite by default
         stdout: str = '',
         stderr: str = '',
-        parsl_resource_specification: dict = None,
+        parsl_resource_specification: Optional[dict] = None,
         ) -> str:
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd  = 'cd $mytmpdir;'

@@ -286,17 +286,9 @@ class PlumedBias:
                 'into a single line in the input file')
         assert '__FILL__' not in plumed_input, ('__FILL__ is not supported')
         if ('PRINT' in plumed_input) or ('FLUSH' in plumed_input):
-            logger.warning('removing *all* print and flush statements '
+            logger.info('removing *all* print and flush statements '
                     'in the input to avoid generating additional (untracked) '
                     'files')
-        logger.warning('PLUMED input files are notoriously '
-                'difficult to parse, and no generic Python API exists. '
-                'To avoid potential bugs as much as possible, psiflow puts a '
-                'few restrictions on the use of PLUMED files: \n'
-                '\tdo not use METAD or EXTERNAL actions more than once\n'
-                '\tonly use the following bias potentials: {}\n'
-                '\tdo not use the "..." syntax; ensure that all actions are '
-                'in a single line in the input.'.format(str(PLUMED_BIAS_KEYWORDS)))
         plumed_input = remove_comments_printflush(plumed_input)
         components, variables = parse_plumed_input(plumed_input)
         assert len(variables) > 0

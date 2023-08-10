@@ -213,6 +213,7 @@ def test_optimization_walker(context, dataset, mace_config):
     assert not np.all(np.abs(metadata.state.result().positions - dataset[0].result().positions) < 0.001) # they have to have moved
     counter = walker.counter.result()
     assert counter > 0
+    assert not metadata.reset.result()
     walker.fmax = 1e-3
     metadata = walker.propagate(model=model)
     assert not np.all(np.abs(metadata.state.result().positions - dataset[0].result().positions) < 0.001) # moved again

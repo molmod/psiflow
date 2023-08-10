@@ -13,7 +13,6 @@ from ase.data import atomic_numbers
 import parsl
 from parsl.executors import WorkQueueExecutor
 from parsl.app.app import python_app, bash_app, join_app
-from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 
 import psiflow
@@ -175,7 +174,6 @@ def cp2k_singlepoint_pre(
         parsl_resource_specification: Optional[dict] = None,
         ):
     import tempfile
-    import glob
     from pathlib import Path
     import numpy as np
     from psiflow.reference._cp2k import insert_filepaths_in_input, \
@@ -279,11 +277,13 @@ class CP2KReference(BaseReference):
                 {'UKS': 'TRUE', 'MULTIPLICITY': 15},
                 ]
         references = []
-        for config in configurations:
+        for mult in range(1, 16):
+            if number % 2 == 0 and mult % 2 == 0:
+                continue # not 2N + 1 is never even
+            if mult - 1 > number:
+                continue # max S = 2 * (N * 1/2) + 1
+            config = {'UKS': 'TRUE', 'MULTIPLICITY': mult}
             inp = Cp2kInput.from_string(self.cp2k_input)
-            if config['UKS'] == 'FALSE': # only possible with even #electrons
-                if number % 2 == 0:
-                    pass
             inp.update({'FORCE_EVAL': {'DFT': {'UKS': config['UKS']}}})
             inp.update({'FORCE_EVAL': {'DFT': {'MULTIPLICITY': config['MULTIPLICITY']}}})
             inp.update({'FORCE_EVAL': {'DFT': {'XC': {'VDW_POTENTIAL': {}}}}}) # disable d3

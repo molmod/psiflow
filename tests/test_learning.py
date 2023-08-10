@@ -5,7 +5,6 @@ from psiflow.reference import EMTReference
 from psiflow.walkers import RandomWalker, PlumedBias, BiasedDynamicWalker
 from psiflow.models import MACEModel
 from psiflow.learning import SequentialLearning, load_learning
-from psiflow.wandb_utils import WandBLogger
 
 
 def test_learning_save_load(context, tmp_path):

@@ -15,7 +15,8 @@ from ase.units import Pascal
 
 import psiflow
 from psiflow.data import FlowAtoms, NullState
-from psiflow.reference import EMTReference, CP2KReference, MP2CP2KReference
+from psiflow.reference import EMTReference, CP2KReference, \
+        NWChemReference
 from psiflow.reference._cp2k import insert_filepaths_in_input, \
         insert_atoms_in_input
 from psiflow.data import Dataset
@@ -446,3 +447,44 @@ def test_data_set_formation_energy(context, dataset):
             Dataset.get_errors(dataset__, dataset_, properties=['energy']).result()[:, 0],
             np.zeros(dataset.length().result()),
             )
+
+
+@pytest.fixture
+def nwchem_reference(context):
+    calculator_kwargs = {
+            'basis': {'H': 'cc-pvqz'},
+            'dft': {
+                'xc': 'pbe96',
+                'mult': 1,
+                'convergence': {
+                    'energy': 1e-6,
+                    'density': 1e-6,
+                    'gradient': 1e-6,
+                    },
+                'disp': {'vdw': 3},
+                },
+            }
+    return NWChemReference(**calculator_kwargs)
+
+
+def test_nwchem_success(nwchem_reference):
+    atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
+            numbers=np.ones(2),
+            positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
+            )
+    dataset = Dataset([atoms])
+    evaluated = nwchem_reference.evaluate(dataset[0])
+    assert isinstance(evaluated, AppFuture)
+    assert evaluated.result().reference_status == True
+    assert Path(evaluated.result().reference_stdout).is_file()
+    assert Path(evaluated.result().reference_stderr).is_file()
+    assert 'energy' in evaluated.result().info.keys()
+    assert not 'stress' in evaluated.result().info.keys()
+    assert 'forces' in evaluated.result().arrays.keys()
+    assert evaluated.result().arrays['forces'][0, 0] < 0
+    assert evaluated.result().arrays['forces'][1, 0] > 0
+
+    energy_h2 = nwchem_reference.evaluate(dataset)
+    assert nwchem_reference.compute_atomic_energy('H').result() < 0
+    energy_h2 = energy_h2.set_formation_energy(H=nwchem_reference.compute_atomic_energy('H'))
+    binding_energy = energy_h2[0].result().info['formation_energy']

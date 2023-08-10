@@ -94,16 +94,23 @@ class BaseReference:
             retval = data
         return retval
 
-    def compute_atomic_energy(self, element, box_size=5):
+    def compute_atomic_energy(self, element, box_size=None):
         energies = []
         references = self.get_single_atom_references(element)
         configs  = [c for c, _ in references]
-        atoms = FlowAtoms(
-                numbers=np.array([atomic_numbers[element]]),
-                positions=np.array([[0, 0, 0]]),
-                cell=np.eye(3) * box_size,
-                pbc=True,
-                )
+        if box_size is not None:
+            atoms = FlowAtoms(
+                    numbers=np.array([atomic_numbers[element]]),
+                    positions=np.array([[0, 0, 0]]),
+                    cell=np.eye(3) * box_size,
+                    pbc=True,
+                    )
+        else:
+            atoms = FlowAtoms(
+                    numbers=np.array([atomic_numbers[element]]),
+                    positions=np.array([[0, 0, 0]]),
+                    pbc=False,
+                    )
         for config, reference in references:
             energies.append(extract_energy(reference.evaluate(atoms)))
         return get_minimum_energy(element, configs, *energies)

@@ -10,12 +10,13 @@ from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.app.futures import DataFuture
+from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.walkers.base import BaseWalker
 from psiflow.models import BaseModel
-from psiflow.utils import unpack_i
+from psiflow.utils import unpack_i, get_active_executor
 
 
 Metadata = namedtuple('Metadata', ['state', 'counter', 'reset', 'time'])
@@ -32,12 +33,15 @@ def optimize_geometry(
         plumed_input: str = '',
         inputs: list[File] = [],
         outputs: list[File] = [],
+        walltime: float = 1e9,
+        parsl_resource_specification: Optional[dict] = None,
         ) -> tuple[FlowAtoms, int, bool, float]:
     import os
     import tempfile
     import torch
     import numpy as np
     import time
+    from parsl.app.errors import AppTimeout
     from ase.optimize.precon import Exp, PreconLBFGS
     from ase.constraints import ExpCellFilter
     from ase.io import read
@@ -73,17 +77,18 @@ def optimize_geometry(
     try:
         optimizer.run(fmax=pars['fmax'])
         nsteps = optimizer.nsteps
+    except AppTimeout:
+        nsteps = optimizer.nsteps
     except:
         reset = True
         nsteps = 0
-        pass
     atoms.calc = None
-    if (keep_trajectory) and not reset:
+    if (keep_trajectory):
         assert str(outputs[0].filepath).endswith('.xyz')
         with open(outputs[0], 'w') as f:
             trajectory = read(path_traj, index=':')
             write_extxyz(f, trajectory)
-    else:
+    if reset:
         atoms = NullState
     os.unlink(path_traj)
     return FlowAtoms.from_atoms(atoms), optimizer.nsteps, reset, time.time() - t0
@@ -131,6 +136,11 @@ class OptimizationWalker(BaseWalker):
         ncores   = evaluation.cores_per_worker
         device   = 'cuda' if evaluation.gpu else 'cpu'
         label    = evaluation.name()
+        walltime = evaluation.max_walltime
+        if isinstance(get_active_executor(label), WorkQueueExecutor):
+            resource_spec = evaluation.generate_parsl_resource_specification()
+        else:
+            resource_spec = {}
 
         app_optimize = python_app(
                 optimize_geometry,
@@ -160,6 +170,8 @@ class OptimizationWalker(BaseWalker):
                     keep_trajectory=keep_trajectory,
                     inputs=inputs,
                     outputs=outputs,
+                    walltime=(60 * walltime),
+                    parsl_resource_specification=resource_spec,
                     )
             if keep_trajectory:
                 output_future = result.outputs[0]
