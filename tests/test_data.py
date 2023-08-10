@@ -218,3 +218,8 @@ def test_nullstate(context):
             )
     assert not id(state) == id(NullState)
     assert state == NullState
+
+
+def test_data_split(context, dataset):
+    train, valid = dataset.split(0.9)
+    assert train.length().result() + valid.length().result() == dataset.length().result()

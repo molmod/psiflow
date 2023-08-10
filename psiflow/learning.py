@@ -7,20 +7,19 @@ from pathlib import Path
 import yaml
 import logging
 
-from concurrent.futures._base import TimeoutError
-from concurrent.futures import as_completed
 import parsl
 from parsl.app.app import join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.utils import get_train_valid_indices, save_yaml, copy_app_future
+from psiflow.utils import save_yaml, copy_app_future
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
-from psiflow.walkers import BaseWalker, RandomWalker, PlumedBias, \
+from psiflow.walkers import BaseWalker, RandomWalker, \
         BiasedDynamicWalker
 from psiflow.state import save_state, load_state
+from psiflow.metrics import Metrics
 from psiflow.utils import resolve_and_check
 
 
@@ -35,11 +34,14 @@ class BaseLearning:
     pretraining_nstates: int = 50
     pretraining_amplitude_pos: float = 0.05
     pretraining_amplitude_box: float = 0.05
-    wandb_logger: Optional[WandBLogger] = None
+    metrics: Optional[Metrics] = None
     use_formation_energy: bool = True
     atomic_energies: Optional[dict[str, float]] = None
-    atomic_energies_box_size: float = 10
+    atomic_energies_box_size: Optional[float] = None
     train_from_scratch: bool = True
+    mix_training_validation: bool = True
+    min_temperature: float = 300
+    max_temperature: float = 1000
     niterations: int = 10
 
     def __post_init__(self) -> None: # save self in output folder
@@ -48,9 +50,9 @@ class BaseLearning:
             self.path_output.mkdir()
         config = asdict(self)
         config['path_output'] = str(self.path_output) # yaml requires str
-        config.pop('wandb_logger')
-        if self.wandb_logger is not None:
-            config['WandBLogger'] = asdict(self.wandb_logger)
+        config.pop('metrics')
+        if self.metrics is not None:
+            config['Metrics'] = self.metrics.as_dict()
         path_config = self.path_output / (self.__class__.__name__ + '.yaml')
         if path_config.is_file():
             logger.warning('overriding learning config file {}'.format(path_config))
@@ -66,7 +68,6 @@ class BaseLearning:
             walkers,
             data_train,
             data_valid,
-            require_done=False,
             ):
         save_state(
                 self.path_output,
@@ -84,8 +85,6 @@ class BaseLearning:
                     data_train=data_train,
                     data_valid=data_valid,
                     )
-            if require_done:
-                log.result() # force execution
 
     def compute_atomic_energies(self, reference, data):
         @join_app
@@ -119,19 +118,6 @@ class BaseLearning:
                 *list(self.atomic_energies.values()),
                 )
 
-    def split_successful(self, data):
-        data_success = data.get(indices=data.success)
-        if self.use_formation_energy: # compute formation energies and add them as label
-            data_success = data_success.set_formation_energy(**self.atomic_energies)
-        assert data_success.length().result() > 0
-        train, valid = get_train_valid_indices(
-                data_success.length(), # can be less than nstates
-                self.train_valid_split,
-                )
-        data_train = data_success.get(indices=train)
-        data_valid = data_success.get(indices=valid)
-        return data_train, data_valid
-
     def run_pretraining(
             self,
             model: BaseModel,
@@ -161,7 +147,7 @@ class BaseLearning:
                 states.append(with_cv_inserted[0])
             else:
                 states.append(data[i])
-        data = Dataset(states)
+        data_train, data_valid = Dataset(states).labeled().split(self.train_valid_split)
         data_train, data_valid = self.split_successful(data)
         data_train.log('data_train')
         data_valid.log('data_valid')
@@ -271,96 +257,8 @@ class SequentialLearning(BaseLearning):
         return data_train, data_valid
 
 
-@join_app
-def delayed_deploy(model, wait_for_it):
-    model.deploy()
-
-
-#@typeguard.typechecked
-#@dataclass
-#class ConcurrentLearning(BaseLearning):
-#    min_states_per_iteration: int = 20
-#    max_states_per_iteration: int = 100
-#
-#    def run(
-#            self,
-#            model: BaseModel,
-#            reference: BaseReference,
-#            walkers: list[BaseWalker],
-#            initial_data: Optional[Dataset] = None,
-#            ) -> tuple[Dataset, Dataset]:
-#        data_train, data_valid = self.initialize_run(
-#                model,
-#                reference,
-#                walkers,
-#                initial_data,
-#                )
-#        nwalkers = len(walkers)
-#        assert self.min_states_per_iteration <= nwalkers, ('the number of '
-#                'walkers should be larger than the threshold number of '
-#                'states for retraining.')
-#        states = []
-#        queue  = [None for i in range(nwalkers)]
-#        for i in range(self.niterations):
-#            if self.output_exists(str(i)):
-#                continue # skip iterations in case of restarted run
-#            model.deploy()
-#            j = 0
-#            assert self.max_states_per_iteration - len(states) >= self.min_states_per_iteration
-#            while len(states) < self.max_states_per_iteration:
-#                index = j % nwalkers
-#                state = generate(
-#                        str(index),
-#                        walkers[index],
-#                        model,
-#                        reference,
-#                        self.num_tries_sampling,
-#                        self.num_tries_reference,
-#                        queue[index],
-#                        )
-#                queue[index] = state
-#                states.append(state)
-#                j += 1
-#
-#            # finish previous training before gathering data
-#            model.model_future.result()
-#
-#            # gather finished data, with a minimum of retrain_threshold
-#            retrain_threshold = (i + 1) * self.min_states_per_iteration
-#            for k, _ in enumerate(as_completed(states)):
-#                if k > retrain_threshold:
-#                    break # wait until at least retrain_threshold have completed
-#            completed = []
-#            try:
-#                for k, future in enumerate(as_completed(states, timeout=5)):
-#                    completed.append(future)
-#                    states.remove(future)
-#            except TimeoutError:
-#                pass
-#            logger.info('building dataset with {} states'.format(len(completed)))
-#            data = Dataset(completed)
-#            _data_train, _data_valid = self.split_successful(data)
-#            data_train.append(_data_train)
-#            data_valid.append(_data_valid)
-#            data_train.log('data_train')
-#            data_valid.log('data_valid')
-#            model.train(data_train, data_valid, keep_deployed=True)
-#            delayed_deploy(model, model.model_future) # only deploy after training
-#
-#            # save model obtained from this iteration
-#            model_ = model.copy()
-#            model_.deploy()
-#            self.finish_iteration(
-#                    name=str(i),
-#                    model=model,
-#                    walkers=walkers,
-#                    data_train=data_train,
-#                    data_valid=data_valid,
-#                    data_failed=data.get(indices=data.failed),
-#                    require_done=False,
-#                    )
-#        parsl.dfk().wait_for_current_tasks() # force execution of finish_iter
-#        return data_train, data_valid
+class IncrementalLearning(BaseLearning):
+    pass
 
 
 @typeguard.typechecked
@@ -369,7 +267,7 @@ def load_learning(path_output: Union[Path, str]):
     assert path_output.is_dir()
     classes = [
             SequentialLearning,
-            ConcurrentLearning,
+            IncrementalLearning,
             None,
             ]
     for learning_cls in classes:

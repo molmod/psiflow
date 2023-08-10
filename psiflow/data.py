@@ -33,7 +33,7 @@ from parsl.dataflow.memoization import id_for_memo
 import psiflow
 from psiflow.utils import copy_data_future, copy_app_future, \
         resolve_and_check, transform_lower_triangular, \
-        reduce_box_vectors, is_reduced
+        reduce_box_vectors, is_reduced, get_train_valid_indices
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -577,6 +577,13 @@ class Dataset:
                 outputs=[psiflow.context().new_file('data_', '.xyz')],
                 )
         return Dataset(None, data_future=future.outputs[0])
+
+    def split(self, fraction): # auto-shuffles
+        train, valid = get_train_valid_indices(
+                self.length(),
+                fraction,
+                )
+        return self.get(indices=train), self.get(indices=valid)
 
     @staticmethod
     def get_errors(

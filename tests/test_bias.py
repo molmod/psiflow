@@ -88,7 +88,7 @@ def test_bias_evaluate(context, dataset):
             'seed': 0,
             }
     walker = RandomWalker(dataset[0], **kwargs)
-    states = [walker.propagate() for i in range(10)]
+    states = [walker.propagate().state for i in range(10)]
     dataset = Dataset(states)
 
     plumed_input = """

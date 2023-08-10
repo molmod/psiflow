@@ -276,14 +276,16 @@ class Metrics:
 
     def __init__(
             self,
-            wandb_project: Optional[str] = None,
+            wandb_name: Optional[str] = None,
             wandb_group: Optional[str] = None,
+            wandb_project: Optional[str] = None,
             wandb_id: Optional[str] = None,
             ) -> None:
+        self.wandb_name = wandb_group
+        self.wandb_group = wandb_group
         self.wandb_project = wandb_project
-        self.wandb_group   = wandb_group
-        self.wandb_id      = None
-        if wandb_project is not None:
+        self.wandb_id = None
+        if wandb_name is not None:
             assert 'WANDB_API_KEY' in os.environ
             if self.wandb_id is None:
                 self.wandb_id = wandb.sdk.lib.runid.generate_id()
@@ -294,11 +296,19 @@ class Metrics:
                     id=self.wandb_id,
                     project=self.wandb_project,
                     group=self.wandb_group,
+                    name=self.wandb_name,
                     dir=psiflow.context().path,
                     resume=resume,
                     )
-
         self.walker_logs = []
+
+    def as_dict(self):
+        return {
+                'wandb_name': self.wandb_name,
+                'wandb_group': self.wandb_group,
+                'wandb_project': self.wandb_project,
+                'wandb_id': self.wandb_id,
+                }
 
     def log_walker(
             self,

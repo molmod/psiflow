@@ -50,19 +50,20 @@ RUN micromamba install --yes --name base --channel conda-forge \
     micromamba clean --all --yes
 
 RUN CONDA_OVERRIDE_CUDA="11.8" micromamba install -n base --yes -c conda-forge \
-    python=3.9 pip ndcctools=7.6.0 \
-    openmm-plumed openmm-torch pytorch=1.13.1=cuda* && \
+    python=3.9 pip ndcctools=7.6.1 \
+    openmm-plumed openmm-torch pytorch=1.13.1=cuda* \
+    nwchem py-plumed && \
     micromamba clean -af --yes
 ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
 
-RUN pip install cython matscipy prettytable plumed && \
+RUN pip install cython matscipy prettytable && \
     pip install git+https://github.com/molmod/molmod && \
     pip install git+https://github.com/molmod/yaff && \
     pip install e3nn==0.4.4 && \
     pip install git+https://github.com/acesuit/MACE.git@develop
 RUN pip install numpy ase tqdm e3nn>=0.4.4 pyyaml \
-    torch-runstats>=0.2.0 \
-    torch-ema>=0.3.0
+    torch-runstats>=0.2.0 torch-ema>=0.3.0 \
+    mdtraj tables
 RUN pip install git+https://github.com/mir-group/nequip.git@v0.5.6 --no-deps
 
 ARG GIT_COMMIT_SHA
