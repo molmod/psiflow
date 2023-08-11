@@ -40,9 +40,10 @@ class BaseLearning:
     atomic_energies_box_size: Optional[float] = None
     train_from_scratch: bool = True
     mix_training_validation: bool = True
-    min_temperature: float = 300
-    max_temperature: float = 1000
+    temperature_ramp: Optional[tuple[float, float]] = None # (Tmin, Tmax)
+    error_thresholds_for_reset: tuple[float, float] = (10, 200)
     niterations: int = 10
+    identifier: int = 0
 
     def __post_init__(self) -> None: # save self in output folder
         self.path_output = resolve_and_check(Path(self.path_output))
@@ -60,31 +61,6 @@ class BaseLearning:
 
     def output_exists(self, name):
         return (self.path_output / name).is_dir()
-
-    def finish_iteration(
-            self,
-            name,
-            model,
-            walkers,
-            data_train,
-            data_valid,
-            ):
-        save_state(
-                self.path_output,
-                name=name,
-                model=model,
-                walkers=walkers,
-                data_train=data_train,
-                data_valid=data_valid,
-                require_done=require_done,
-                )
-        if self.wandb_logger is not None:
-            log = self.wandb_logger( # log training
-                    run_name=name,
-                    model=model,
-                    data_train=data_train,
-                    data_valid=data_valid,
-                    )
 
     def compute_atomic_energies(self, reference, data):
         @join_app
@@ -130,38 +106,42 @@ class BaseLearning:
         logger.info('performing random pretraining')
         walkers_ = RandomWalker.multiply(
                 nstates,
-                data_start=Dataset([w.state_future for w in walkers]),
+                data_start=Dataset([w.state for w in walkers]),
                 amplitude_pos=amplitude_pos,
                 amplitude_box=amplitude_box,
                 )
-        data = generate_all(walkers_, None, reference, 1, 1)
-        states = []
+        states = [w.propagate().state for w in walkers]
         for i in range(nstates):
             index = i % len(walkers)
             walker = walkers[index]
             if isinstance(walker, BiasedDynamicWalker): # evaluate CVs!
                 with_cv_inserted = walker.bias.evaluate(
-                        data.get(indices=[i]),
+                        Dataset([states[i]]),
                         as_dataset=True,
                         )
-                states.append(with_cv_inserted[0])
+                states[i] = with_cv_inserted[0]
             else:
-                states.append(data[i])
-        data_train, data_valid = Dataset(states).labeled().split(self.train_valid_split)
-        data_train, data_valid = self.split_successful(data)
-        data_train.log('data_train')
-        data_valid.log('data_valid')
+                pass
+        data = Dataset(states).labeled()
+        self.identifier = data.assign_identifiers(self.identifier)
+        data_train, data_valid = data.split(self.train_valid_split)
         model.initialize(data_train)
         model.train(data_train, data_valid)
-        self.finish_iteration(
-                'random_pretraining',
-                model,
-                walkers,
-                data_train,
-                data_valid,
-                require_done=True,
+        save_state(
+                self.path_output,
+                name='pretraining',
+                model=model,
+                walkers=walkers,
+                data_train=data_train,
+                data_valid=data_valid,
                 )
-        return data_train, data_valid
+        if self.metrics is not None:
+            self.metrics.save(
+                    self.path_output / 'pretraining',
+                    model=model,
+                    data=data,
+                    )
+        return data
 
     def initialize_run(
             self,
@@ -170,8 +150,8 @@ class BaseLearning:
             walkers: list[BaseWalker],
             initial_data: Optional[Dataset] = None,
             ) -> tuple[Dataset, Dataset]:
-        if self.wandb_logger is not None:
-            self.wandb_logger.insert_name(model)
+        if self.metrics is not None:
+            self.metrics.insert_name(model)
         if self.use_formation_energy:
             if not model.use_formation_energy and (model.model_future is not None):
                 raise ValueError('model was initialized to train on absolute energies'
@@ -185,28 +165,31 @@ class BaseLearning:
             else:
                 self.compute_atomic_energies(
                         reference,
-                        Dataset([w.state_future for w in walkers]),
+                        Dataset([w.state for w in walkers]),
                         )
         else:
             logger.warning('model is trained on *total* energy!')
+        if initial_data is not None:
+            initial_data = initial_data.labeled()
+            self.identifier = initial_data.assign_identifiers(0)
         if model.model_future is None:
             if initial_data is None: # pretrain on random perturbations
-                data_train, data_valid = self.run_pretraining(
+                data = self.run_pretraining(
                         model,
                         reference,
                         walkers,
                         )
             else: # pretrain on initial data
-                data_train, data_valid = self.split_successful(initial_data)
+                data_train, data_valid = initial_data.split(self.train_valid_split)
                 model.initialize(data_train)
                 model.train(data_train, data_valid)
+                data = initial_data
         else:
             if initial_data is None:
-                data_train = Dataset([])
-                data_valid = Dataset([])
+                data = Dataset([])
             else:
-                data_train, data_valid = self.split_successful(initial_data)
-        return data_train, data_valid
+                data = initial_data
+        return data
 
 
 @typeguard.typechecked
@@ -220,32 +203,29 @@ class SequentialLearning(BaseLearning):
             walkers: list[BaseWalker],
             initial_data: Optional[Dataset] = None,
             ) -> tuple[Dataset, Dataset]:
-        data_train, data_valid = self.initialize_run(
+        data = self.initialize_run(
                 model,
                 reference,
                 walkers,
                 initial_data,
                 )
-        model.deploy()
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
-            data = generate_all(
-                    walkers,
+            new_data, self.identifier = sample_with_model(
                     model,
                     reference,
+                    walkers,
+                    self.identifier,
+                    self.error_thresholds_for_reset,
+                    self.metrics,
                     )
-            _data_train, _data_valid = self.split_successful(data)
-            data_train.append(_data_train)
-            data_valid.append(_data_valid)
-            data_train.log('data_train')
-            data_valid.log('data_valid')
+            data_train, data_valid = (data + new_data).split(self.train_valid_split)
             if self.train_from_scratch:
                 logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
                 model.reset()
                 model.initialize(data_train)
             model.train(data_train, data_valid)
-            model.deploy()
             self.finish_iteration(
                     name=str(i),
                     model=model,
@@ -254,7 +234,7 @@ class SequentialLearning(BaseLearning):
                     data_valid=data_valid,
                     require_done=True,
                     )
-        return data_train, data_valid
+        return data
 
 
 class IncrementalLearning(BaseLearning):

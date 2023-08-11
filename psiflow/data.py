@@ -107,6 +107,7 @@ class FlowAtoms(Atoms):
         info['reference_status'] = False
         self.calc = None # necessary
         self.info = info
+        self.info.pop('identifier', None)
         self.arrays.pop('forces', None)
 
     def canonical_orientation(self):
@@ -408,6 +409,23 @@ def get_energy_labels(info_keys) -> list[str]:
     return labels
 app_get_energy_labels = python_app(get_energy_labels, executors=['Default'])
 
+@typeguard.typechecked
+def assign_identifiers(
+        identifier: int,
+        inputs: list[File] = [],
+        outputs: list[File] = [],
+        ) -> int:
+    from psiflow.data import read_dataset, write_dataset
+    from psiflow.sampling import _assign_identifier
+    data = read_dataset(slice(None), inputs=[inputs[0]])
+    states = []
+    for atoms in data:
+        state, identifier = _assign_identifier(atoms, identifier)
+        states.append(state)
+    write_dataset(states, outputs=[outputs[0]])
+    return identifier
+app_assign_identifiers = python_app(assign_identifiers, executors=['Default'])
+
 
 @typeguard.typechecked
 class Dataset:
@@ -584,6 +602,15 @@ class Dataset:
                 fraction,
                 )
         return self.get(indices=train), self.get(indices=valid)
+
+    def assign_identifiers(self, identifier):
+        new = app_assign_identifiers(
+                identifier,
+                inputs=[self.data_future],
+                outputs=[psiflow.context().new_file('data_', '.xyz')],
+                )
+        self.data_future = new.outputs[0]
+        return new
 
     @staticmethod
     def get_errors(

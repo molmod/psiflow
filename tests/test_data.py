@@ -223,3 +223,26 @@ def test_nullstate(context):
 def test_data_split(context, dataset):
     train, valid = dataset.split(0.9)
     assert train.length().result() + valid.length().result() == dataset.length().result()
+
+
+def test_identifier(context, dataset):
+    data = dataset + Dataset([NullState, NullState, dataset[0].result()])
+    identifier = data.assign_identifiers(0)
+    assert identifier.result() == dataset.length().result() + 1
+    assert identifier.result() == data.labeled().length().result()
+    for i in range(data.length().result()):
+        if not data[i].result() == NullState:
+            assert data[i].result().info['identifier'] < identifier.result()
+            assert data[i].result().reference_status
+    data = data.reset()
+    for i in range(data.length().result()):
+        s = data[i].result()
+        if not s == NullState:
+            assert not 'identifier' in s.info
+    identifier = data.assign_identifiers(10)
+    assert identifier.result() == 10 # none are labeled
+    identifier = dataset.assign_identifiers(10)
+    for i in range(dataset.length().result()):
+        s = dataset[i].result()
+        if not s == NullState:
+            assert s.info['identifier'] >= 10

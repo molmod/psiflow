@@ -14,7 +14,7 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
-from psiflow.models import BaseModel
+from psiflow.models import BaseModel, NequIPModel
 from psiflow.walkers import BaseWalker, DynamicWalker
 
 
@@ -226,6 +226,7 @@ def _to_wandb(
         walker_logs: Optional[dict],
         dataset_log: Optional[dict],
         ):
+    import os
     import wandb
     import plotly.express as px
     figures = {}
@@ -265,6 +266,7 @@ def _to_wandb(
                         else:
                             figure.update_layout(yaxis_title='forces RMSE [meV/atom]')
                         figures[title] = figure
+    os.environ['WANDB_SILENT'] = 'True'
     wandb.init(id=wandb_id, resume='must')
     wandb.log(figures)
     wandb.finish()
@@ -286,6 +288,7 @@ class Metrics:
         self.wandb_project = wandb_project
         self.wandb_id = None
         if wandb_name is not None:
+            os.environ['WANDB_SILENT'] = 'True'
             assert 'WANDB_API_KEY' in os.environ
             if self.wandb_id is None:
                 self.wandb_id = wandb.sdk.lib.runid.generate_id()
@@ -309,6 +312,10 @@ class Metrics:
                 'wandb_project': self.wandb_project,
                 'wandb_id': self.wandb_id,
                 }
+
+    def insert_name(self, model: BaseModel):
+        model.config_raw['wandb_project'] = self.wandb_group
+        model.config_raw['wandb_group'] = self.wandb_group
 
     def log_walker(
             self,

@@ -106,7 +106,7 @@ class MACEConfig:
     wandb: bool = True
     wandb_project: str = 'psiflow'
     wandb_group: Optional[str] = None
-    wandb_name: str = 'training'
+    wandb_name: str = 'mace_training'
     wandb_log_hypers: list = field(default_factory=lambda: [
             "num_channels",
             "max_L",
