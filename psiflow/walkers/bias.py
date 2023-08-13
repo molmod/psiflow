@@ -11,7 +11,7 @@ from collections import OrderedDict
 
 from ase import Atoms
 
-from parsl.app.app import python_app
+from parsl.app.app import python_app, join_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
@@ -179,6 +179,71 @@ app_evaluate = python_app(evaluate_bias, executors=['Default'])
 
 
 @typeguard.typechecked
+def _gather_partitions(
+        shape: tuple[int, int],
+        partitions: dict[str, list[int]],
+        **values: np.ndarray,
+        ) -> np.ndarray:
+    final = np.zeros(shape)
+    final[:] = np.nan
+    for key, partition in partitions.items():
+        for i, index in enumerate(partition):
+            final[index, :] = values[key][i, :]
+    return final
+gather_partitions = python_app(_gather_partitions, executors=['Default'])
+
+
+@join_app
+@typeguard.typechecked
+def partitioned_evaluate_bias(
+        plumed_input: str,
+        variables: tuple[str, ...],
+        data_future: File,
+        inputs: list[File] = [],
+        ) -> AppFuture:
+    import psiflow
+    import numpy as np
+    from psiflow.data import write_dataset, read_dataset, \
+            NullState
+    dataset = read_dataset(slice(None), inputs=[data_future])
+
+    def hash_atoms(atoms):
+        return tuple(atoms.numbers) + tuple(atoms.pbc)
+
+    partitions = {}
+    for i, atoms in enumerate(dataset):
+        if atoms == NullState:
+            continue
+        key = hash_atoms(atoms)
+        if key not in partitions:
+            partitions[key] = []
+        partitions[key].append(i)
+
+    futures = {}
+    for key, partition in partitions.items():
+        data_future = psiflow.context().new_file('data_', '.xyz')
+        write_dataset(
+                [dataset[i] for i in partition], 
+                outputs=[data_future],
+                )
+        futures[key] = evaluate_bias(
+                plumed_input,
+                variables,
+                inputs=[data_future] + inputs[1:],
+                )
+
+    # use strings as dict keys in order to pass them as kwargs 
+    keys = {key: str(i) for i, key in enumerate(partitions.keys())}
+    partitions_ = {keys[key]: partitions[key] for key in keys}
+    futures_ = {keys[key]: futures[key] for key in keys}
+    return gather_partitions(
+            (len(dataset), len(variables) + 1),
+            partitions_,
+            **futures_,
+            )
+            
+
+@typeguard.typechecked
 def _reset_mtd(
         condition: bool,
         inputs: list[File] = [],
@@ -250,6 +315,9 @@ def insert_cv_values(
         state: Union[FlowAtoms, Atoms],
         values: np.ndarray,
         ) -> Union[FlowAtoms, Atoms]:
+    from psiflow.data import NullState
+    if state == NullState:
+        return state
     assert len(values.shape) == 2
     assert values.shape[0] == 1
     assert values.shape[1] == len(variables) + 1
@@ -338,9 +406,10 @@ class PlumedBias:
                 pace = 2147483647 # some random high prime number
                 lines[i] = line_before + 'PACE={} '.format(pace) + ' '.join(line_after)
         plumed_input = '\n'.join(lines)
-        values = app_evaluate(
+        values = partitioned_evaluate_bias(
                 plumed_input,
                 self.variables,
+                dataset.data_future,
                 inputs=[dataset.data_future] + self.futures,
                 )
         if not as_dataset:

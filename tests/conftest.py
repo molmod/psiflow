@@ -37,7 +37,7 @@ def context(request, tmp_path_factory):
                 path_config,
                 tmp_path_factory.mktemp('psiflow_internal'),
                 psiflow_log_level='INFO',
-                parsl_log_level='INFO',
+                parsl_log_level='WARN',
                 )
     def cleanup():
         parsl.dfk().wait_for_current_tasks()

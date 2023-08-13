@@ -20,19 +20,18 @@ def save_state(
         walkers: list[BaseWalker],
         data_train: Optional[Dataset] = None,
         data_valid: Optional[Dataset] = None,
-        require_done=True,
         ) -> None:
     path_output = resolve_and_check(path_output)
     path = path_output / name
     path.mkdir(parents=True, exist_ok=False)
 
     # model
-    model.save(path, require_done=require_done)
+    model.save(path)
 
     # walkers
     path_walkers = path / 'walkers'
     path_walkers.mkdir(exist_ok=False)
-    save_walkers(walkers, path_walkers, require_done=require_done)
+    save_walkers(walkers, path_walkers)
 
     # data
     if data_train is not None:

@@ -402,7 +402,7 @@ def test_cp2k_atomic_energies(cp2k_reference, dataset):
     assert abs(energy.result() - (-13.6)) < 1e-1
 
 
-def test_data_set_formation_energy(context, dataset):
+def test_dataset_formation_energy(context, dataset):
     reference = EMTReference()
     nstates = dataset.length().result()
     energies = [dataset[i].result().info['energy'] for i in range(nstates)]

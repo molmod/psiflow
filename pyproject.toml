@@ -54,11 +54,11 @@ include = [
 
 
 [tool.pytest.ini_options]
-log_cli = 1
+log_cli = 0
 addopts = [
     "--basetemp=pytest-tmp", # /tmp/ may be different for each worker!
     "--import-mode=importlib",
     "--psiflow-config=configs/local_threadpool.py",
-    "--log-cli-level=WARNING",
+    #"--log-cli-level=WARNING",
 ]
 testpaths = ["tests"]

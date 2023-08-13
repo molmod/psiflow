@@ -411,19 +411,35 @@ app_get_energy_labels = python_app(get_energy_labels, executors=['Default'])
 
 @typeguard.typechecked
 def assign_identifiers(
-        identifier: int,
+        identifier: Optional[int],
         inputs: list[File] = [],
         outputs: list[File] = [],
         ) -> int:
     from psiflow.data import read_dataset, write_dataset
     from psiflow.sampling import _assign_identifier
+    from psiflow.utils import copy_data_future
     data = read_dataset(slice(None), inputs=[inputs[0]])
     states = []
-    for atoms in data:
-        state, identifier = _assign_identifier(atoms, identifier)
-        states.append(state)
-    write_dataset(states, outputs=[outputs[0]])
-    return identifier
+    if identifier is None: # do not assign but look for max
+        identifier = -1
+        for atoms in data:
+            if 'identifier' in atoms.info:
+                identifier = max(identifier, int(atoms.info['identifier']))
+        identifier += 1
+        for atoms in data: # assign those which were not yet assigned
+            if ('identifier' not in atoms.info) and atoms.reference_status:
+                state, identifier = _assign_identifier(atoms, identifier)
+                states.append(state)
+            else:
+                states.append(atoms)
+        write_dataset(states, outputs=[outputs[0]])
+        return identifier
+    else:
+        for atoms in data:
+            state, identifier = _assign_identifier(atoms, identifier)
+            states.append(state)
+        write_dataset(states, outputs=[outputs[0]])
+        return identifier
 app_assign_identifiers = python_app(assign_identifiers, executors=['Default'])
 
 
@@ -603,7 +619,7 @@ class Dataset:
                 )
         return self.get(indices=train), self.get(indices=valid)
 
-    def assign_identifiers(self, identifier):
+    def assign_identifiers(self, identifier: Union[int, AppFuture, None] = None) -> AppFuture:
         new = app_assign_identifiers(
                 identifier,
                 inputs=[self.data_future],

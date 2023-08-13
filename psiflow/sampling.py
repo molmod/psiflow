@@ -139,26 +139,6 @@ check_error = python_app(_check_error, executors=['Default'])
 
 
 @typeguard.typechecked
-def sample_basic(
-        reference: BaseReference,
-        walkers: list[BaseWalker],
-        identifier: Union[AppFuture, int],
-        metrics: Optional[Metrics] = None,
-        **propagate_kwargs,
-        ) -> tuple[Dataset, AppFuture]:
-    logger.info('')
-    logger.info('')
-    metadatas = [w.propagate(**propagate_kwargs) for w in walkers]
-    states    = [reference.evaluate(m.state) for m in metadatas]
-    for i in range(len(states)):
-        f = assign_identifier(states[i], identifier)
-        state      = unpack_i(f, 0)
-        identifier = unpack_i(f, 1)
-        states[i]  = state
-    return Dataset(states).labeled(), identifier
-
-
-@typeguard.typechecked
 def sample_with_model(
         model: BaseModel,
         reference: BaseReference,

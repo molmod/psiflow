@@ -4,9 +4,9 @@ import yaml
 import numpy as np
 import tempfile
 
-from ase.build import bulk
+from ase.build import bulk, make_supercell
 
-from psiflow.data import Dataset
+from psiflow.data import Dataset, NullState
 from psiflow.models import NequIPModel
 from psiflow.walkers import RandomWalker, PlumedBias
 from psiflow.walkers.bias import set_path_in_plumed, parse_plumed_input, \
@@ -229,6 +229,8 @@ RESTRAINT ARG=CV1.x AT=1 KAPPA=1 LABEL=bla
     bias = PlumedBias(plumed_input, data={})
     values = bias.evaluate(dataset).result()
     assert values.shape == (dataset.length().result(), 3)
+    none = bias.evaluate(Dataset([NullState])).result()
+    assert np.all(np.isnan(none))
     values = values[:, 0]
     targets = np.array([np.min(values), np.mean(values), np.max(values)])
     extracted = bias.extract_grid(
@@ -256,3 +258,30 @@ RESTRAINT ARG=CV1.x AT=1 KAPPA=1 LABEL=bla
             max_value=1e10,
             )
     assert extracted.length().result() == dataset.length().result()
+
+
+def test_bias_edge_cases(context, dataset):
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
+"""
+    bias = PlumedBias(plumed_input, data={})
+    data = Dataset([
+        dataset[0].result(),
+        NullState,
+        make_supercell(dataset[0].result(), 2 * np.eye(3)),
+        dataset[1].result(),
+        make_supercell(dataset[0].result(), 2 * np.eye(3)),
+        NullState,
+        make_supercell(dataset[1].result(), 2 * np.eye(3)),
+        ])
+    values = bias.evaluate(data).result()
+    assert np.allclose(values[0, 0], dataset[0].result().get_volume())
+    assert np.all(np.isnan(values[1, 0]))
+    assert np.allclose(values[2, 0], values[0, 0] * 8)
+    assert np.allclose(values[3, 0], dataset[1].result().get_volume())
+    assert np.allclose(values[4, 0], values[0, 0] * 8)
+    assert np.all(np.isnan(values[5, 0]))
+    assert np.allclose(values[6, 0], dataset[1].result().get_volume() * 8)
+

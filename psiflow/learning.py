@@ -20,6 +20,7 @@ from psiflow.walkers import BaseWalker, RandomWalker, \
         BiasedDynamicWalker
 from psiflow.state import save_state, load_state
 from psiflow.metrics import Metrics
+from psiflow.sampling import sample_with_model
 from psiflow.utils import resolve_and_check
 
 
@@ -99,7 +100,7 @@ class BaseLearning:
             model: BaseModel,
             reference: BaseReference,
             walkers: list[BaseWalker],
-            ):
+            ) -> Dataset:
         nstates = self.pretraining_nstates
         amplitude_pos = self.pretraining_amplitude_pos
         amplitude_box = self.pretraining_amplitude_box
@@ -110,7 +111,7 @@ class BaseLearning:
                 amplitude_pos=amplitude_pos,
                 amplitude_box=amplitude_box,
                 )
-        states = [w.propagate().state for w in walkers]
+        states = [w.propagate().state for w in walkers_]
         for i in range(nstates):
             index = i % len(walkers)
             walker = walkers[index]
@@ -149,7 +150,21 @@ class BaseLearning:
             reference: BaseReference,
             walkers: list[BaseWalker],
             initial_data: Optional[Dataset] = None,
-            ) -> tuple[Dataset, Dataset]:
+            ) -> Dataset:
+        """
+        no initial data, model is None:
+            do pretraining based on dataset of random perturbations on walker states
+
+        no initial data, model is not None:
+            continue with online learning, start with empty dataset
+
+        initial data, model is None:
+             train on initial data
+
+        initial data, model is not None:
+            continue with online learning, build on top of initial data
+
+        """
         if self.metrics is not None:
             self.metrics.insert_name(model)
         if self.use_formation_energy:
@@ -171,7 +186,7 @@ class BaseLearning:
             logger.warning('model is trained on *total* energy!')
         if initial_data is not None:
             initial_data = initial_data.labeled()
-            self.identifier = initial_data.assign_identifiers(0)
+            self.identifier = initial_data.assign_identifiers()
         if model.model_future is None:
             if initial_data is None: # pretrain on random perturbations
                 data = self.run_pretraining(
@@ -191,6 +206,18 @@ class BaseLearning:
                 data = initial_data
         return data
 
+    def set_temperature(self, walkers: list[BaseWalker], iteration: int):
+        if self.temperature_ramp is not None:
+            temperatures = 1 / np.linspace(
+                    1 / self.temperature_ramp[0],
+                    1 / self.temperature_ramp[1],
+                    self.niterations,
+                    )
+            T = temperatures[iteration]
+            for walker in walkers:
+                if hasattr(walker, 'temperature'):
+                    walker.temperature = T
+
 
 @typeguard.typechecked
 @dataclass
@@ -202,7 +229,7 @@ class SequentialLearning(BaseLearning):
             reference: BaseReference,
             walkers: list[BaseWalker],
             initial_data: Optional[Dataset] = None,
-            ) -> tuple[Dataset, Dataset]:
+            ) -> Dataset:
         data = self.initialize_run(
                 model,
                 reference,
@@ -212,6 +239,7 @@ class SequentialLearning(BaseLearning):
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
+            self.set_temperature(walkers, i)
             new_data, self.identifier = sample_with_model(
                     model,
                     reference,
@@ -220,24 +248,27 @@ class SequentialLearning(BaseLearning):
                     self.error_thresholds_for_reset,
                     self.metrics,
                     )
-            data_train, data_valid = (data + new_data).split(self.train_valid_split)
+            data = data + new_data
+            data_train, data_valid = data.split(self.train_valid_split)
             if self.train_from_scratch:
                 logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
                 model.reset()
                 model.initialize(data_train)
             model.train(data_train, data_valid)
-            self.finish_iteration(
-                    name=str(i),
+            save_state(
+                    self.path_output,
+                    str(i),
                     model=model,
                     walkers=walkers,
                     data_train=data_train,
                     data_valid=data_valid,
-                    require_done=True,
                     )
+            if self.metrics is not None:
+                self.metrics.save(self.path_output / str(i), model, data)
         return data
 
 
-class IncrementalLearning(BaseLearning):
+class IncrementalLearning:
     pass
 
 
@@ -258,9 +289,9 @@ def load_learning(path_output: Union[Path, str]):
     with open(path_learning, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
     config['path_output'] = str(path_output)
-    if 'WandBLogger' in config.keys():
-        wandb_logger = WandBLogger(**config.pop('WandBLogger'))
+    if 'Metrics' in config.keys():
+        metrics = Metrics(**config.pop('Metrics'))
     else:
-        wandb_logger = None
-    learning = learning_cls(wandb_logger=wandb_logger, **config)
+        metrics = None
+    learning = learning_cls(metrics=metrics, **config)
     return learning

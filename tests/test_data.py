@@ -242,6 +242,7 @@ def test_identifier(context, dataset):
     identifier = data.assign_identifiers(10)
     assert identifier.result() == 10 # none are labeled
     identifier = dataset.assign_identifiers(10)
+    assert dataset.assign_identifiers().result() == 10 + dataset.length().result()
     for i in range(dataset.length().result()):
         s = dataset[i].result()
         if not s == NullState:

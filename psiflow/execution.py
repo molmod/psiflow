@@ -126,11 +126,7 @@ def generate_parsl_config(
         htex_address: Optional[str] = None,
         ) -> Config:
     if htex_address is None: # determine address for htex
-        if 'HOSTNAME' in os.environ.keys():
-            htex_address_name = os.environ['HOSTNAME']
-        else:
-            htex_address_name = 'localhost'
-        htex_address = parsl.addresses.get_address_by_hostname(htex_address_name)
+        htex_address = '127.0.0.1'
     labels = [d.name()  for d in definitions]
     assert len(labels) == len(set(labels)), 'labels must be unique, but found {}'.format(labels)
     executors = []
@@ -139,9 +135,9 @@ def generate_parsl_config(
             executor = HighThroughputExecutor(
                     address=htex_address,
                     label=definition.name(),
-                    working_dir=str(Path(path_internal) / label),
+                    working_dir=str(Path(path_internal) / definition.name()),
                     cores_per_worker=1,
-                    provider=provider,
+                    provider=definition.parsl_provider,
                     )
         else:
             if use_work_queue:
@@ -155,7 +151,7 @@ def generate_parsl_config(
                 worker_options.append('--parent-death')
                 executor = MyWorkQueueExecutor(
                     label=definition.name(),
-                    working_dir=str(Path(path_internal) / label),
+                    working_dir=str(Path(path_internal) / definition.name()),
                     provider=definition.parsl_provider,
                     shared_fs=True,
                     autocategory=False,
@@ -167,7 +163,7 @@ def generate_parsl_config(
                 executor = HighThroughputExecutor(
                         address=htex_address,
                         label=definition.name(),
-                        working_dir=str(Path(path_internal) / label),
+                        working_dir=str(Path(path_internal) / definition.name()),
                         cores_per_worker=definition.cores_per_worker,
                         provider=definition.parsl_provider,
                         )
