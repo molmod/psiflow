@@ -369,19 +369,3 @@ class HybridCP2KReference(CP2KReference):
             'dftd3',
             'tcg_data',
             ]
-
-
-@typeguard.typechecked
-class MP2CP2KReference(HybridCP2KReference):
-    required_files = [
-            'basis_ccgrb',
-            'basis_ri',
-            'basis_admm',
-            'potential',
-            'tcg_data',
-            ]
-
-
-@typeguard.typechecked
-class DoubleHybridCP2KReference(MP2CP2KReference):
-    pass # no extra files required

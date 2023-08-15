@@ -41,9 +41,6 @@ class BaseLearning:
     atomic_energies: dict[str, Union[float, AppFuture]] = field(default_factory=lambda: {})
     train_from_scratch: bool = True
     mix_training_validation: bool = True
-    temperature_ramp: Optional[tuple[float, float]] = None # (Tmin, Tmax)
-    error_thresholds_for_reset: tuple[float, float] = (10, 200)
-    niterations: int = 10
     identifier: int = 0
 
     def __post_init__(self) -> None: # save self in output folder
@@ -182,22 +179,26 @@ class BaseLearning:
                 data = initial_data
         return data
 
-    def set_temperature(self, walkers: list[BaseWalker], iteration: int):
-        if self.temperature_ramp is not None:
-            temperatures = 1 / np.linspace(
-                    1 / self.temperature_ramp[0],
-                    1 / self.temperature_ramp[1],
-                    self.niterations,
-                    )
-            T = temperatures[iteration]
-            for walker in walkers:
-                if hasattr(walker, 'temperature'):
-                    walker.temperature = T
-
 
 @typeguard.typechecked
 @dataclass
 class SequentialLearning(BaseLearning):
+    initial_temperature: float = 100
+    final_temperature: float = 600
+    niterations: int = 10
+    error_thresholds_for_reset: tuple[float, float] = (10, 200)
+
+    def update_walkers(self, walkers: list[BaseWalker]):
+        delta_beta = (1 / self.initial_temperature - 1 / self.final_temperature)
+        delta_beta /= self.niterations
+        for i, walker in enumerate(walkers):
+            if not walker.is_reset().result():
+                if hasattr(walker, 'temperature'):
+                    T = 1 / (1 / walker.temperature - delta_beta)
+                    if (T > 0) and (T < self.final_temperature):
+                        walker.temperature = T
+                    else: # reached max temp
+                        walker.temperature = self.final_temperature
 
     def run(
             self,
@@ -212,10 +213,13 @@ class SequentialLearning(BaseLearning):
                 walkers,
                 initial_data,
                 )
+        # override initial temperature in walkers
+        for walker in walkers:
+            if hasattr(walker, 'temperature'):
+                walker.temperature = self.initial_temperature
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
-            self.set_temperature(walkers, i)
             new_data, self.identifier = sample_with_model(
                     model,
                     reference,
@@ -239,12 +243,15 @@ class SequentialLearning(BaseLearning):
                     data_train=data_train,
                     data_valid=data_valid,
                     )
+            self.update_walkers(walkers)
             if self.metrics is not None:
                 self.metrics.save(self.path_output / str(i), model, data)
         return data
 
 
-class IncrementalLearning:
+@typeguard.typechecked
+@dataclass
+class IncrementalLearning(BaseLearning):
     pass
 
 

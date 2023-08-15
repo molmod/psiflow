@@ -93,6 +93,8 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             train_from_scratch=True,
             train_valid_split=0.8,
             niterations=1,
+            initial_temperature=100,
+            final_temperature=600,
             )
     walkers = BiasedDynamicWalker.multiply(
             5,
@@ -100,6 +102,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             bias=bias,
             steps=10,
             step=1,
+            temperature=300,
             )
     data = learning.run(model, reference, walkers)
     psiflow.wait()
@@ -107,6 +110,16 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     assert len(model.atomic_energies) > 0
     assert (path_output / 'pretraining').is_dir()
     assert data.length().result() == 55
+    for walker in walkers:
+        if walker.is_reset().result():
+            assert walker.temperature == 100
+        else:
+            assert walker.temperature == 600
+
+    walkers[0].reset()
+    walkers[0].temperature = 100
+    learning.update_walkers(walkers)
+    assert walkers[0].temperature == 100
 
     # should notice that this energy is different from the one with which
     # the model was initialized
