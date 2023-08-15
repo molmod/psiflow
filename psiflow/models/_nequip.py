@@ -337,11 +337,10 @@ class NequIPModel(BaseModel):
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(use_formation_energy, inputs=[], outputs=[]):
+        def evaluate_wrapped(inputs=[], outputs=[]):
             return evaluate_unwrapped(
                     model_device,
                     model_ncores,
-                    use_formation_energy,
                     cls.load_calculator,
                     inputs=inputs,
                     outputs=outputs,
@@ -359,27 +358,6 @@ class NequIPModel(BaseModel):
                 model_path=path_model,
                 device=device,
                 )
-
-    @property
-    def use_formation_energy(self) -> bool:
-        energy_key = None
-        for key, value in self.config_raw['dataset_key_mapping'].items():
-            if value == 'total_energy':
-                energy_key = key
-        assert energy_key is not None, ('could not determine which key to use for extracting'
-                ' the total energy from the XYZ header of a configuration')
-        return key == 'formation_energy'
-
-    @use_formation_energy.setter
-    def use_formation_energy(self, arg) -> None:
-        assert self.model_future is None
-        for key in list(self.config_raw['dataset_key_mapping'].keys()):
-            if 'energy' in key:
-                self.config_raw['dataset_key_mapping'].pop(key)
-        if arg: # use formation_energy
-            self.config_raw['dataset_key_mapping']['formation_energy'] = 'total_energy'
-        else: # switch to total energy
-            self.config_raw['dataset_key_mapping']['energy'] = 'total_energy'
 
     @property
     def seed(self) -> int:

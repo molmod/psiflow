@@ -7,10 +7,9 @@ from ase import Atoms
 from ase.io import read, write
 from ase.io.extxyz import write_extxyz
 
+import psiflow
 from psiflow.data import FlowAtoms, Dataset, NullState
 from psiflow.utils import get_index_element_mask, is_reduced
-
-from tests.conftest import generate_emt_cu_data # explicit import for regular function
 
 
 def test_flow_atoms(context, dataset, tmp_path):
@@ -102,17 +101,21 @@ def test_dataset_slice(dataset):
     assert not np.all(equal)
 
 
-def test_dataset_from_xyz(context, tmp_path):
-    data = generate_emt_cu_data(20, 0.1)
+def test_dataset_from_xyz(context, tmp_path, dataset):
     path_xyz = tmp_path / 'data.xyz'
-    with open(path_xyz, 'w') as f:
-        write_extxyz(f, data)
-    dataset = Dataset.load(path_xyz)
+    dataset.save(path_xyz)
+    psiflow.wait()
+    loaded = Dataset.load(path_xyz)
+    data = read(path_xyz, index=':')
 
     for i in range(20):
         assert np.allclose(
-                data[i].get_positions(),
                 dataset[i].result().get_positions(),
+                loaded[i].result().get_positions(),
+                )
+        assert np.allclose(
+                dataset[i].result().get_positions(),
+                data[i].get_positions(),
                 )
 
 
@@ -204,9 +207,7 @@ def test_data_elements(context, dataset):
 
 
 def test_data_reset(context, dataset):
-    assert tuple(dataset.energy_labels().result()) == ('energy',)
     dataset = dataset.reset()
-    assert tuple(dataset.energy_labels().result()) == tuple()
     assert not 'energy' in dataset[0].result().info
 
 
@@ -247,3 +248,27 @@ def test_identifier(context, dataset):
         s = dataset[i].result()
         if not s == NullState:
             assert s.info['identifier'] >= 10
+
+
+def test_data_offset(context, dataset):
+    atomic_energies = {
+            'H': 34,
+            'Cu': 12,
+            }
+    data = dataset.subtract_offset(**atomic_energies)
+    data_ = data.add_offset(**atomic_energies)
+    natoms = len(dataset[0].result())
+    offset = (natoms - 1) * atomic_energies['Cu'] + atomic_energies['H']
+    for i in range(dataset.length().result()):
+        assert np.allclose(
+                data[i].result().info['energy'],
+                dataset[i].result().info['energy'] - offset,
+                )
+        assert np.allclose( # unchanged
+                data[i].result().arrays['forces'],
+                dataset[i].result().arrays['forces'],
+                )
+        assert np.allclose(
+                data_[i].result().info['energy'],
+                dataset[i].result().info['energy'],
+                )

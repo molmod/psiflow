@@ -402,53 +402,6 @@ def test_cp2k_atomic_energies(cp2k_reference, dataset):
     assert abs(energy.result() - (-13.6)) < 1e-1
 
 
-def test_dataset_formation_energy(context, dataset):
-    reference = EMTReference()
-    nstates = dataset.length().result()
-    energies = [dataset[i].result().info['energy'] for i in range(nstates)]
-    dataset_ = dataset.set_formation_energy(
-            H=reference.compute_atomic_energy('H', box_size=8),
-            Cu=reference.compute_atomic_energy('Cu', box_size=8),
-            )
-    assert 'atomic_energy_H' in dataset_[0].result().info
-    assert 'atomic_energy_Cu' in dataset_[0].result().info
-    assert 'formation_energy' in dataset_.energy_labels().result()
-    formation = [dataset_[i].result().info['formation_energy'] for i in range(nstates)]
-
-    energy_Cu = reference.compute_atomic_energy('Cu', box_size=8).result()
-    assert dataset_[0].result().info['atomic_energy_Cu'] == energy_Cu
-    energy_H = reference.compute_atomic_energy('H', box_size=8).result()
-    assert energy_Cu != 0
-    assert energy_H  != 0
-    assert np.allclose(
-            formation[0],
-            energies[0] - 3 * energy_Cu - energy_H,
-            )
-    data = dataset_.get(indices=[0, 1, 2])
-    assert 'formation_energy' in data[0].result().info
-
-    dataset__ = dataset.set_formation_energy(
-            H=29,
-            Cu=reference.compute_atomic_energy('Cu', box_size=8),
-            )
-    assert np.allclose( # will check absolute energies
-            Dataset.get_errors(dataset__, dataset, properties=['energy']).result()[:, 0],
-            np.zeros(dataset.length().result()),
-            )
-    assert not np.allclose( # will check formation energies
-            Dataset.get_errors(dataset__, dataset_, properties=['energy']).result()[:, 0],
-            np.zeros(dataset.length().result()),
-            )
-    dataset__ = dataset.set_formation_energy(
-            H=reference.compute_atomic_energy('H', box_size=8),
-            Cu=reference.compute_atomic_energy('Cu', box_size=8),
-            )
-    assert np.allclose( # will check formation energies; now OK
-            Dataset.get_errors(dataset__, dataset_, properties=['energy']).result()[:, 0],
-            np.zeros(dataset.length().result()),
-            )
-
-
 @pytest.fixture
 def nwchem_reference(context):
     calculator_kwargs = {
@@ -486,5 +439,3 @@ def test_nwchem_success(nwchem_reference):
 
     energy_h2 = nwchem_reference.evaluate(dataset)
     assert nwchem_reference.compute_atomic_energy('H').result() < 0
-    energy_h2 = energy_h2.set_formation_energy(H=nwchem_reference.compute_atomic_energy('H'))
-    binding_energy = energy_h2[0].result().info['formation_energy']

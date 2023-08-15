@@ -60,7 +60,7 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     model = NequIPModel(nequip_config)
     model.initialize(training)
     with pytest.raises(AssertionError):
-        model.use_formation_energy = True # cannot change this after initialization
+        model.add_atomic_energy('H', 1) # cannot change this after initialization
     errors0 = Dataset.get_errors(validation, model.evaluate(validation))
     model.train(training, validation)
     model.model_future.result()
@@ -104,25 +104,45 @@ def test_nequip_seed(context, nequip_config):
     assert model.seed == 112
 
 
-def test_nequip_formation(context, nequip_config, dataset):
+def test_nequip_offset(context, nequip_config, dataset):
     config = NequIPConfig(**nequip_config)
-    config.dataset_key_mapping['formation_energy'] = 'total_energy'
     model = NequIPModel(config)
-    assert model.use_formation_energy
-    model.use_formation_energy = False
-    assert not model.use_formation_energy
-    model.use_formation_energy = True
+    model.initialize(dataset[:2])
+    with pytest.raises(AssertionError):
+        model.add_atomic_energy('H', 1) # cannot change this after initialization
+    assert not model.do_offset
+    errors = Dataset.get_errors(
+            dataset,
+            model.evaluate(dataset),
+            properties=['energy'],
+            )
+    assert np.mean(errors.result()) < 1e3 # in meV/atom
 
     reference = EMTReference()
-    dataset = dataset.set_formation_energy(
-            H=reference.compute_atomic_energy('H'),
-            Cu=reference.compute_atomic_energy('Cu'),
+    atomic_energies = {
+            'H': 3e2,
+            'Cu': reference.compute_atomic_energy('Cu', box_size=6), # future
+            }
+    errors_ = Dataset.get_errors(
+            dataset.subtract_offset(**atomic_energies),
+            model.evaluate(dataset),
             )
-    assert 'formation_energy' in dataset.energy_labels().result()
+    assert np.mean(errors_.result()) > 1e3 # in meV/atom
+    model.reset()
+    for element, energy in atomic_energies.items():
+        model.add_atomic_energy(element, energy)
+    assert model.do_offset
     model.initialize(dataset[:2])
-    model.train(dataset[:2], dataset[2:4]) # test shitty hack in train script
-    dataset = dataset.reset()
-    assert 'formation_energy' in model.evaluate(dataset[:2].reset()).energy_labels().result()
+    errors_same = Dataset.get_errors(
+            dataset,
+            model.evaluate(dataset),
+            properties=['energy'],
+            )
+    assert np.allclose(
+            errors_same.result(),
+            errors.result(),
+            atol=1e-1,
+            )
 
 
 def test_allegro_init(context, allegro_config, dataset):
@@ -261,6 +281,8 @@ def test_mace_train(context, mace_config, dataset, tmp_path):
 
 def test_mace_save_load(context, mace_config, dataset, tmp_path):
     model = MACEModel(mace_config)
+    model.add_atomic_energy('H', 3)
+    model.add_atomic_energy('Cu', 4)
     future_raw, _, _ = model.save(tmp_path)
     assert not future_raw.done() # do not wait for result by default
     assert _ is None
@@ -295,28 +317,51 @@ def test_mace_seed(context, mace_config):
     assert model.seed == 112
 
 
-def test_mace_formation(context, mace_config, dataset):
+def test_mace_offset(context, mace_config, dataset, tmp_path):
     config = MACEConfig(**mace_config)
     model = MACEModel(config)
     model.initialize(dataset[:2])
     with pytest.raises(AssertionError):
-        model.use_formation_energy = True
+        model.add_atomic_energy('H', 1) # cannot change this after initialization
+    assert not model.do_offset
+    errors = Dataset.get_errors(
+            dataset,
+            model.evaluate(dataset),
+            properties=['energy'],
+            )
+    assert np.mean(errors.result()) < 1e3 # in meV/atom
 
     reference = EMTReference()
-    dataset = dataset.set_formation_energy(
-            H=reference.compute_atomic_energy('H'),
-            Cu=reference.compute_atomic_energy('Cu'),
+    atomic_energies = {
+            'H': 3e2,
+            'Cu': reference.compute_atomic_energy('Cu', box_size=6), # future
+            }
+    errors_ = Dataset.get_errors(
+            dataset.subtract_offset(**atomic_energies),
+            model.evaluate(dataset),
             )
-    assert 'formation_energy' in dataset.energy_labels().result()
+    assert np.mean(errors_.result()) > 1e3 # in meV/atom
     model.reset()
-    model.use_formation_energy = True
+    for element, energy in atomic_energies.items():
+        model.add_atomic_energy(element, energy)
+    assert model.do_offset
     model.initialize(dataset[:2])
-    assert 'formation_energy' in model.evaluate(dataset[:2].reset()).energy_labels().result()
+    errors_same = Dataset.get_errors(
+            dataset,
+            model.evaluate(dataset),
+            properties=['energy'],
+            )
+    assert np.allclose(
+            errors_same.result(),
+            errors.result(),
+            atol=1e-1,
+            )
+    model.save(tmp_path)
+    psiflow.wait()
+    model = load_model(tmp_path)
+    assert model.atomic_energies['H'] == atomic_energies['H']
+    assert model.atomic_energies['Cu'] == atomic_energies['Cu'].result()
 
-    config = MACEConfig(**mace_config)
-    config.energy_key = 'formation_energy'
-    model = MACEModel(config)
-    assert model.use_formation_energy
 
 
 def test_model_evaluate(context, mace_config, dataset):

@@ -127,7 +127,11 @@ unpack_i = python_app(_unpack_i, executors=['Default'])
 
 
 @typeguard.typechecked
-def _save_yaml(input_dict: Dict, outputs: List[File] = []) -> None:
+def _save_yaml(
+        input_dict: Dict,
+        outputs: List[File] = [],
+        **extra_keys: Any,
+        ) -> None:
     import yaml
     def _make_dict_safe(arg):
         # walks through dict and converts numpy types to python natives
@@ -139,6 +143,9 @@ def _save_yaml(input_dict: Dict, outputs: List[File] = []) -> None:
             else:
                 pass
         return arg
+    for key, value in extra_keys.items():
+        assert key not in input_dict
+        input_dict[key] = value
     input_dict = _make_dict_safe(input_dict)
     with open(outputs[0], 'w') as f:
         yaml.dump(input_dict, f, default_flow_style=False)
@@ -227,13 +234,8 @@ def compute_error(
     if not np.any(mask):
         return np.nan
     if 'energy' in properties:
-        formation = all(['formation_energy' in a.info.keys() for a in [atoms_0, atoms_1]])
-        if formation:
-            energy_key = 'formation_energy'
-        else:
-            energy_key = 'energy'
-        assert energy_key in atoms_0.info.keys()
-        assert energy_key in atoms_1.info.keys()
+        assert 'energy' in atoms_0.info.keys()
+        assert 'energy' in atoms_1.info.keys()
     if 'forces' in properties:
         assert 'forces' in atoms_0.arrays.keys()
         assert 'forces' in atoms_1.arrays.keys()
@@ -242,8 +244,8 @@ def compute_error(
         assert 'stress' in atoms_1.info.keys()
     for j, property_ in enumerate(properties):
         if property_ == 'energy':
-            array_0 = np.array([atoms_0.info[energy_key]]).reshape((1, 1))
-            array_1 = np.array([atoms_1.info[energy_key]]).reshape((1, 1))
+            array_0 = np.array([atoms_0.info['energy']]).reshape((1, 1))
+            array_1 = np.array([atoms_1.info['energy']]).reshape((1, 1))
             array_0 /= len(atoms_0) # per atom energy error
             array_1 /= len(atoms_1)
             array_0 *= 1000 # in meV/atom

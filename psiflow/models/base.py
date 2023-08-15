@@ -28,7 +28,6 @@ logger.setLevel(logging.INFO)
 def evaluate_dataset(
         device: str,
         ncores: int,
-        use_formation_energy: bool,
         load_calculator: Callable,
         inputs: List[File] = [],
         outputs: List[File] = [],
@@ -54,12 +53,7 @@ def evaluate_dataset(
             except Exception as e:
                 print(e)
                 stress = np.zeros((3, 3))
-            if use_formation_energy:
-                atoms.info['formation_energy'] = energy
-                atoms.info.pop('energy', None)
-            else:
-                atoms.info['energy'] = energy
-                atoms.info.pop('formation_energy', None)
+            atoms.info['energy'] = energy
             atoms.info['stress'] = stress
             atoms.arrays['forces'] = forces
             atoms.calc = None
@@ -78,7 +72,6 @@ def evaluate_batched(
     context = psiflow.context()
     if (batch_size is None) or (batch_size >= length):
         future = context.apps(model.__class__, 'evaluate')(
-                model.use_formation_energy,
                 inputs=[dataset.data_future, model.deploy_future],
                 outputs=[outputs[0]],
                 )
@@ -116,6 +109,8 @@ class BaseModel:
         self.model_future  = None
         self.deploy_future = None
 
+        self.atomic_energies = {}
+
         # double-check whether required definitions are present
         assert len(psiflow.context()[self.__class__]) == 2
         try: # initialize apps in context
@@ -123,20 +118,48 @@ class BaseModel:
         except AssertionError: # apps already initialized; do nothing
             pass
 
+    def add_atomic_energy(self, element: str, energy: Union[float, AppFuture]) -> None:
+        assert self.model_future is None, ('cannot add atomic energies after model has '
+                'been initialized; reset model, add energy, and reinitialize')
+        if element in self.atomic_energies:
+            if isinstance(energy, AppFuture):
+                energy = energy.result()
+            if isinstance(self.atomic_energies[element], AppFuture):
+                existing = self.atomic_energies[element].result()
+            assert energy == existing, ('model already has atomic energy '
+                        'for element {} ({}), which is different from {}'
+                        ''.format(element, existing, energy))
+        self.atomic_energies[element] = energy
+
     def train(self, training: Dataset, validation: Dataset) -> None:
         log_train(training.length(), validation.length())
+        inputs = [self.model_future]
+        if self.do_offset:
+            inputs += [
+                    training.subtract_offset(**self.atomic_energies).data_future,
+                    validation.subtract_offset(**self.atomic_energies).data_future,
+                    ]
+        else:
+            inputs += [
+                    training.data_future,
+                    validation.data_future,
+                    ]
         self.model_future, self.deploy_future = psiflow.context().apps(self.__class__, 'train')(
                 self.config_future,
-                inputs=[self.model_future, training.data_future, validation.data_future],
+                inputs=inputs,
                 )
 
     def initialize(self, dataset: Dataset) -> None:
         """Initializes the model based on a dataset"""
         assert self.config_future is None
         assert self.model_future is None
+        if self.do_offset:
+            inputs = [dataset.subtract_offset(**self.atomic_energies).data_future]
+        else:
+            inputs = [dataset.data_future]
         f, model_f, deploy_f = psiflow.context().apps(self.__class__, 'initialize')( # to initialized config
                 self.config_raw,
-                inputs=[dataset.data_future],
+                inputs=inputs,
                 )
         self.config_future = f
         self.model_future  = model_f    # DataFuture
@@ -151,7 +174,10 @@ class BaseModel:
                 batch_size,
                 outputs=[psiflow.context().new_file('data_', '.xyz')],
                 )
-        return Dataset(None, data_future=future.outputs[0])
+        if self.do_offset:
+            return Dataset(None, data_future=future.outputs[0]).add_offset(**self.atomic_energies)
+        else:
+            return Dataset(None, data_future=future.outputs[0])
 
     def reset(self) -> None:
         self.config_future = None
@@ -166,9 +192,11 @@ class BaseModel:
         path = resolve_and_check(Path(path))
         path.mkdir(exist_ok=True)
         path_config_raw = path / (self.__class__.__name__ + '.yaml')
+        atomic_energies = {'atomic_energies_' + key: value for key, value in self.atomic_energies.items()}
         future_raw = save_yaml(
-                self.config_raw,
+                deepcopy(self.config_raw),
                 outputs=[File(str(path_config_raw))],
+                **atomic_energies,
                 ).outputs[0]
         if self.config_future is not None:
             path_config   = path / 'config_after_init.yaml'
@@ -200,6 +228,8 @@ class BaseModel:
     def copy(self) -> BaseModel:
         context = psiflow.context()
         model = self.__class__(self.config_raw)
+        for element, energy in self.atomic_energies.items():
+            model.add_atomic_energy(element, energy)
         if self.config_future is not None:
             model.config_future = copy_app_future(self.config_future)
             model.model_future = copy_data_future(
@@ -213,13 +243,9 @@ class BaseModel:
         return model
 
     @property
-    def use_formation_energy(self) -> bool:
-        raise NotImplementedError
-
-    @use_formation_energy.setter
-    def use_formation_energy(self, arg) -> None:
-        raise NotImplementedError
-
+    def do_offset(self) -> bool:
+        return len(self.atomic_energies) > 0
+    
     @property
     def seed(self) -> int:
         raise NotImplementedError

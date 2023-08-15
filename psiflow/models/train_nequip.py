@@ -143,7 +143,6 @@ def main():
         write(path_valid, atoms)
         config['validation_dataset_file_name'] = path_valid
 
-    # hacky; remove 'energy' label when training on 'formation_energy'
     # put chemical symbols in config
     from ase.data import chemical_symbols
     from ase.io.extxyz import read_extxyz, write_extxyz
@@ -153,21 +152,9 @@ def main():
     _all = [set(a.numbers) for a in data]
     numbers = sorted(list(set(b for a in _all for b in a)))
     config['chemical_symbols'] = [chemical_symbols[n] for n in numbers]
-    if 'formation_energy' in config['dataset_key_mapping'].keys():
-        for atoms in data:
-            atoms.info['energy'] = atoms.info['formation_energy']
-            atoms.calc = None
-        with open(config['dataset_file_name'], 'w') as f:
-            write_extxyz(f, data)
     with open(config['validation_dataset_file_name'], 'r') as f:
         data = list(read_extxyz(f, index=slice(None)))
         nvalid = len(data)
-    if 'formation_energy' in config['dataset_key_mapping'].keys():
-        for atoms in data:
-            atoms.info['energy'] = atoms.info['formation_energy']
-            atoms.calc = None
-        with open(config['validation_dataset_file_name'], 'w') as f:
-            write_extxyz(f, data)
     config['n_train'] = ntrain
     config['n_val'] = nvalid
 

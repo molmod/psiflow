@@ -185,6 +185,8 @@ def write_dataset(
         _data = states
     else:
         _data = inputs
+    for atoms in _data:
+        atoms.calc = None
     with open(outputs[0], 'w') as f:
         write_extxyz(f, _data)
     if return_data:
@@ -299,8 +301,6 @@ def compute_errors(
         for atoms_1 in data_1:
             if 'energy' in atoms_1.info.keys():
                 atoms_1.info['energy'] = 0.0
-            if 'formation_energy' in atoms_1.info.keys():
-                atoms_1.info['formation_energy'] = 0.0
             if 'stress' in atoms_1.info.keys(): # ASE copy fails for info attrs!
                 atoms_1.info['stress'] = np.zeros((3, 3))
             if 'forces' in atoms_1.arrays.keys():
@@ -338,46 +338,41 @@ app_compute_errors = python_app(compute_errors, executors=['Default'])
 
 
 @typeguard.typechecked
-def insert_formation_energy(
-        elements: list[str],
-        inputs: list[Union[File, float]] = [],
+def apply_offset(
+        subtract: bool,
+        inputs: list[File] = [],
         outputs: list[File] = [],
+        **atomic_energies: float,
         ) -> None:
     import numpy as np
-    from ase.data import atomic_numbers
+    from ase.data import atomic_numbers, chemical_symbols
     from ase.io.extxyz import write_extxyz
-    assert len(inputs) == len(elements) + 1
+    from psiflow.data import NullState, write_dataset
+    assert len(inputs) == 1
+    assert len(outputs) == 1
     data = read_dataset(slice(None), inputs=[inputs[0]])
-    numbers = [atomic_numbers[e] for e in elements]
+    numbers = [atomic_numbers[e] for e in atomic_energies.keys()]
+    all_numbers = [n for atoms in data for n in set(atoms.numbers)]
+    for n in all_numbers:
+        assert n in numbers
     for atoms in data:
-        reference = 0
-        indices = []
+        if atoms == NullState:
+            continue
         natoms = len(atoms)
+        energy = atoms.info['energy']
         for i, number in enumerate(numbers):
             natoms_per_number = np.sum(atoms.numbers == number)
             if natoms_per_number == 0:
                 continue
-            element = elements[i]
-            energy = inputs[1 + i]
-            label = 'atomic_energy_{}'.format(element)
-            if label in atoms.info.keys():
-                assert np.allclose(energy, atoms.info[label]), (
-                        'attempting to insert atomic energy {} for '
-                        'element {} into dataset but another value '
-                        'was already present: {}'.format(
-                            energy,
-                            element,
-                            atoms.info[label],
-                            ))
-            else:
-                atoms.info[label] = energy
-            reference += natoms_per_number * energy
+            element = chemical_symbols[number]
+            multiplier = -1 if subtract else 1
+            energy += multiplier * natoms_per_number * atomic_energies[element]
             natoms -= natoms_per_number
         assert natoms == 0 # all atoms accounted for
-        atoms.info['formation_energy'] = atoms.info['energy'] - reference
-    with open(outputs[0], 'w') as f:
-        write_extxyz(f, data)
-app_insert_formation_energy = python_app(insert_formation_energy, executors=['Default'])
+        assert not atoms.info['energy'] == energy # energy needs to have changed!
+        atoms.info['energy'] = energy
+    write_dataset(data, outputs=[outputs[0]])
+app_apply_offset = python_app(apply_offset, executors=['Default'])
 
 
 @typeguard.typechecked
@@ -387,27 +382,6 @@ def get_elements(inputs=[]) -> set[str]:
     return set([e for atoms in data for e in atoms.elements])
 app_get_elements = python_app(get_elements, executors=['Default'])
 
-
-@typeguard.typechecked
-def get_info_keys(inputs=[]) -> list[str]:
-    data = read_dataset(slice(None), inputs=[inputs[0]])
-    labels = list(data[0].info.keys())
-    for atoms in data:
-        for label in list(labels):
-            if not label in atoms.info:
-                labels.remove(label)
-    return labels
-app_get_info_keys = python_app(get_info_keys, executors=['Default'])
-
-
-@typeguard.typechecked
-def get_energy_labels(info_keys) -> list[str]:
-    labels = []
-    for key in info_keys:
-        if 'energy' in key:
-            labels.append(key)
-    return labels
-app_get_energy_labels = python_app(get_energy_labels, executors=['Default'])
 
 @typeguard.typechecked
 def assign_identifiers(
@@ -486,12 +460,6 @@ class Dataset:
                     outputs=[context.new_file('data_', '.xyz')],
                     ).outputs[0] # ensure type(data_future) == DataFuture
 
-    def info_keys(self) -> AppFuture:
-        return app_get_info_keys(inputs=[self.data_future])
-
-    def energy_labels(self) -> AppFuture:
-        return app_get_energy_labels(self.info_keys())
-
     def length(self) -> AppFuture:
         return app_length_dataset(inputs=[self.data_future])
 
@@ -569,16 +537,23 @@ class Dataset:
     def log(self, name):
         logger.info('dataset {} contains {} states'.format(name, self.length().result()))
 
-    def set_formation_energy(self, **atomic_energies) -> Dataset:
-        context = psiflow.context()
-        elements = list(atomic_energies.keys())
-        energies = [atomic_energies[e] for e in elements]
-        data_future = app_insert_formation_energy(
-                elements,
-                inputs=[self.data_future] + energies,
-                outputs=[context.new_file('data_', '.xyz')],
+    def subtract_offset(self, **atomic_energies: Union[float, AppFuture]) -> Dataset:
+        data_future = app_apply_offset(
+                True,
+                **atomic_energies,
+                inputs=[self.data_future],
+                outputs=[psiflow.context().new_file('data_', '.xyz')],
                 ).outputs[0]
-        return Dataset(None, data_future)
+        return Dataset(None, data_future=data_future)
+
+    def add_offset(self, **atomic_energies) -> Dataset:
+        data_future = app_apply_offset(
+                False,
+                inputs=[self.data_future],
+                outputs=[psiflow.context().new_file('data_', '.xyz')],
+                **atomic_energies,
+                ).outputs[0]
+        return Dataset(None, data_future=data_future)
 
     def elements(self):
         return app_get_elements(inputs=[self.data_future])

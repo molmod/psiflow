@@ -271,11 +271,10 @@ class MACEModel(BaseModel):
                 executors=[model_label],
                 cache=False,
                 )
-        def evaluate_wrapped(use_formation_energy, inputs=[], outputs=[]):
+        def evaluate_wrapped(inputs=[], outputs=[]):
             return evaluate_unwrapped(
                     model_device,
                     model_ncores,
-                    use_formation_energy,
                     cls.load_calculator,
                     inputs=inputs,
                     outputs=outputs,
@@ -296,18 +295,6 @@ class MACEModel(BaseModel):
                 default_dtype='float32',
                 )
 
-    @property
-    def use_formation_energy(self) -> bool:
-        return self.config_raw['energy_key'] == 'formation_energy'
-
-    @use_formation_energy.setter
-    def use_formation_energy(self, arg) -> None:
-        assert self.model_future is None
-        if arg: # use formation_energy
-            self.config_raw['energy_key'] = 'formation_energy'
-        else: # switch to total energy
-            self.config_raw['energy_key'] = 'energy'
-    
     @property
     def seed(self) -> int:
         return self.config_raw['seed']

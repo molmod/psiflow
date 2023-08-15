@@ -2,6 +2,8 @@ from typing import Union
 import typeguard
 from pathlib import Path
 
+from ase.data import chemical_symbols
+
 import psiflow
 from psiflow.utils import resolve_and_check
 
@@ -32,6 +34,10 @@ def load_model(path: Union[Path, str]) -> BaseModel:
     with open(path_config_raw, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
     model = model_cls(config)
+    for element in chemical_symbols:
+        energy = model.config_raw.pop('atomic_energies_' + element, None)
+        if energy is not None:
+            model.add_atomic_energy(element, energy)
     path_config = path / 'config_after_init.yaml'
     path_model  = path / 'model_undeployed.pth'
     path_deploy = path / 'model_deployed.pth'

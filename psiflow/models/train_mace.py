@@ -62,6 +62,7 @@ def main():
     if not args.init_only:
         config.device = 'cuda' # hardcode GPU training
     config.default_dtype = 'float32'
+    config.r_max = float(config.r_max)
 
     # BUG IN MACE!
     # even if swa is set to False, swa_start could accidentally start saving
@@ -616,18 +617,18 @@ def train(args, path_model, init_only) -> None:
             swa=swa_eval,
             device=device,
         )
-        model.to(device)
         logging.info(f"Loaded model from epoch {epoch}")
-
         model_path = Path(args.model_dir) / 'mace.model'
         logging.info(f"Saving model to {model_path}")
         #if args.save_cpu:
         assert args.save_cpu
-        torch.save(model.to('cpu'), model_path)
+        model.to('cpu')
+        torch.save(model, model_path)
 
         logging.info("Computing metrics for training, validation, and test sets")
         for param in model.parameters():
             param.requires_grad = False
+        model.to(device)
         table = create_error_table(
             table_type=args.error_table,
             all_collections=all_collections,

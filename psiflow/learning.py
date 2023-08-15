@@ -1,11 +1,13 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union
 import typeguard
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Optional
 from pathlib import Path
 import yaml
 import logging
+
+from ase.data import chemical_symbols
 
 import parsl
 from parsl.app.app import join_app
@@ -36,9 +38,7 @@ class BaseLearning:
     pretraining_amplitude_pos: float = 0.05
     pretraining_amplitude_box: float = 0.05
     metrics: Optional[Metrics] = None
-    use_formation_energy: bool = True
-    atomic_energies: Optional[dict[str, float]] = None
-    atomic_energies_box_size: Optional[float] = None
+    atomic_energies: dict[str, Union[float, AppFuture]] = field(default_factory=lambda: {})
     train_from_scratch: bool = True
     mix_training_validation: bool = True
     temperature_ramp: Optional[tuple[float, float]] = None # (Tmin, Tmax)
@@ -50,7 +50,11 @@ class BaseLearning:
         self.path_output = resolve_and_check(Path(self.path_output))
         if not self.path_output.is_dir():
             self.path_output.mkdir()
+        atomic_energies = self.atomic_energies
+        self.atomic_energies = {} # avoid errors in asdict
         config = asdict(self)
+        self.atomic_energies = atomic_energies
+        #config['atomic_energies'] = atomic_energies
         config['path_output'] = str(self.path_output) # yaml requires str
         config.pop('metrics')
         if self.metrics is not None:
@@ -58,42 +62,10 @@ class BaseLearning:
         path_config = self.path_output / (self.__class__.__name__ + '.yaml')
         if path_config.is_file():
             logger.warning('overriding learning config file {}'.format(path_config))
-        save_yaml(config, outputs=[File(str(path_config))]).result()
+        save_yaml(config, **atomic_energies, outputs=[File(str(path_config))]).result()
 
     def output_exists(self, name):
         return (self.path_output / name).is_dir()
-
-    def compute_atomic_energies(self, reference, data):
-        @join_app
-        def log_and_save_energies(path_learning, elements, *energies):
-            logger.info('atomic energies:')
-            for element, energy in zip(elements, energies):
-                logger.info('\t{}: {} eV'.format(element, energy))
-                if energy > 0:
-                    logger.critical('\tatomic energy for element {} is {} but '
-                            'should be negative'.format(element, energy))
-                if energy == 1e10: # magic number to indicate SCF failed
-                    raise ValueError('atomic energy calculation for element {}'
-                            ' failed.'.format(element))
-            with open(path_learning, 'r') as f:
-                config = yaml.load(f, Loader=yaml.FullLoader)
-            config['atomic_energies'] = {el: float(en) for el, en in zip(elements, energies)}
-            return save_yaml(config, outputs=[File(str(path_learning))])
-
-        if self.atomic_energies is None:
-            logger.info('computing energies of isolated atoms:')
-            self.atomic_energies = {}
-            for element in data.elements().result():
-                energy = reference.compute_atomic_energy(
-                        element,
-                        self.atomic_energies_box_size,
-                        )
-                self.atomic_energies[element] = energy
-        log_and_save_energies(
-                self.path_output / (self.__class__.__name__ + '.yaml'),
-                list(self.atomic_energies.keys()),
-                *list(self.atomic_energies.values()),
-                )
 
     def run_pretraining(
             self,
@@ -112,6 +84,13 @@ class BaseLearning:
                 amplitude_box=amplitude_box,
                 )
         states = [w.propagate().state for w in walkers_]
+
+        # double check whether atomic energies are present before
+        # doing reference evaluations
+        if model.do_offset:
+            for element in Dataset(states).elements().result():
+                assert element in model.atomic_energies
+
         for i in range(nstates):
             index = i % len(walkers)
             walker = walkers[index]
@@ -123,6 +102,7 @@ class BaseLearning:
                 states[i] = with_cv_inserted[0]
             else:
                 pass
+        states = [reference.evaluate(s) for s in states]
         data = Dataset(states).labeled()
         self.identifier = data.assign_identifiers(self.identifier)
         data_train, data_valid = data.split(self.train_valid_split)
@@ -140,7 +120,7 @@ class BaseLearning:
             self.metrics.save(
                     self.path_output / 'pretraining',
                     model=model,
-                    data=data,
+                    dataset=data,
                     )
         return data
 
@@ -167,26 +147,22 @@ class BaseLearning:
         """
         if self.metrics is not None:
             self.metrics.insert_name(model)
-        if self.use_formation_energy:
-            if not model.use_formation_energy and (model.model_future is not None):
-                raise ValueError('model was initialized to train on absolute energies'
-                                 ' but learning config is set to train on formation '
-                                 'energy. ')
-            if model.model_future is None:
-                model.use_formation_energy = True
-            logger.warning('model is trained on *formation* energy!')
-            if initial_data is not None:
-                self.compute_atomic_energies(reference, initial_data)
-            else:
-                self.compute_atomic_energies(
-                        reference,
-                        Dataset([w.state for w in walkers]),
-                        )
+        if len(self.atomic_energies) > 0:
+            for element, energy in self.atomic_energies.items():
+                model.add_atomic_energy(element, energy)
+            logger.info('model contains atomic energy offsets')
         else:
-            logger.warning('model is trained on *total* energy!')
+            if len(model.atomic_energies) > 0:
+                logger.warning('adding atomic energies from model into {}'.format(
+                    self.__class__.__name__))
+                ae = {e.result() if isinstance(AppFuture, e) else e for e in model.atomic_energies.values()}
+                self.atomic_energies = ae
         if initial_data is not None:
             initial_data = initial_data.labeled()
             self.identifier = initial_data.assign_identifiers()
+            if model.do_offset:
+                for element in initial_data.elements().result():
+                    assert element in model.atomic_energies
         if model.model_future is None:
             if initial_data is None: # pretrain on random perturbations
                 data = self.run_pretraining(
@@ -288,6 +264,12 @@ def load_learning(path_output: Union[Path, str]):
             break
     with open(path_learning, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
+    atomic_energies = {}
+    for element in chemical_symbols:
+        energy = config.pop('atomic_energies_' + element, None)
+        if energy is not None:
+            atomic_energies[element] = energy
+    config['atomic_energies'] = atomic_energies
     config['path_output'] = str(path_output)
     if 'Metrics' in config.keys():
         metrics = Metrics(**config.pop('Metrics'))

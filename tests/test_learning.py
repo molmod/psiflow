@@ -54,8 +54,6 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             metrics=metrics,
             pretraining_nstates=50,
             train_from_scratch=True,
-            atomic_energies_box_size=8,
-            use_formation_energy=False,
             train_valid_split=0.8,
             niterations=1,
             )
@@ -83,13 +81,16 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     metrics = Metrics('pytest', 'test_sequential_cv')
     path_output = tmp_path / 'output_'
     path_output.mkdir()
+    atomic_energies = {
+            'H': reference.compute_atomic_energy('H', 5),
+            'Cu': reference.compute_atomic_energy('Cu', 5),
+            }
     learning = SequentialLearning(
             path_output=path_output,
             metrics=metrics,
             pretraining_nstates=50,
-            atomic_energies_box_size=8,
+            atomic_energies=atomic_energies,
             train_from_scratch=True,
-            use_formation_energy=True,
             train_valid_split=0.8,
             niterations=1,
             )
@@ -100,9 +101,16 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
             steps=10,
             step=1,
             )
-    data = learning.initialize_run(model, reference, walkers)
-    #assert model.use_formation_energy
-    #assert 'formation_energy' in data.energy_labels().result()
-    #assert 'formation_energy' in model.evaluate(data).energy_labels().result()
-    #assert (path_output / 'pretraining').is_dir()
-    #assert data.length().result() == 55
+    data = learning.run(model, reference, walkers)
+    psiflow.wait()
+    assert model.do_offset
+    assert len(model.atomic_energies) > 0
+    assert (path_output / 'pretraining').is_dir()
+    assert data.length().result() == 55
+
+    # should notice that this energy is different from the one with which
+    # the model was initialized
+    learning.atomic_energies['H'] = 1000
+    with pytest.raises(AssertionError):
+        data = learning.run(model, reference, walkers) 
+        data.data_future.result()
