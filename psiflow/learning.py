@@ -252,7 +252,19 @@ class SequentialLearning(BaseLearning):
 @typeguard.typechecked
 @dataclass
 class IncrementalLearning(BaseLearning):
-    pass
+    cv_name: str
+    cv_min: float
+    cv_max: float
+    cv_step: float
+
+    def update_walkers(self, walkers: list[BaseWalker]):
+        resets = [w.is_reset().result() for w in walkers]
+        if any(resets):
+            return None
+        else:
+            for walker in walkers: # may not all contain bias
+                if hasattr(walker, 'bias'):
+                    walker.bias.adjust_restraint(
 
 
 @typeguard.typechecked

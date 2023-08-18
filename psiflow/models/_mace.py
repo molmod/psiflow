@@ -216,7 +216,7 @@ class MACEModel(BaseModel):
         training_walltime = training.max_walltime
         training_ncores   = training.cores_per_worker
         if isinstance(get_active_executor(training_label), WorkQueueExecutor):
-            training_resource_specification = execution.generate_parsl_resource_specification()
+            training_resource_specification = training.generate_parsl_resource_specification()
         else:
             training_resource_specification = {}
         model_label  = evaluation.name()

@@ -203,7 +203,7 @@ class NWChemReference(BaseReference):
         ncores      = definition.cores_per_worker
         walltime    = definition.max_walltime
         if isinstance(get_active_executor(label), WorkQueueExecutor):
-            resource_specification = execution.generate_parsl_resource_specification()
+            resource_specification = definition.generate_parsl_resource_specification()
         else:
             resource_specification = {}
 

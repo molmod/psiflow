@@ -40,12 +40,12 @@ class ExecutionDefinition:
         resource_specification = {}
         resource_specification['cores'] = self.cores_per_worker
         resource_specification['disk'] = 1000
-        memory = 2000 * self.ncores
+        memory = 2000 * self.cores_per_worker
         resource_specification['memory'] = int(memory)
-        if self.gpu:
-            resource_specification['gpus'] = 1
+        #if self.gpu:
+        #    resource_specification['gpus'] = 1
         if hasattr(self.parsl_provider, 'walltime'):
-            walltime_hhmmss = provider.walltime.split(':')
+            walltime_hhmmss = self.parsl_provider.walltime.split(':')
             assert len(walltime_hhmmss) == 3
             walltime = 0
             walltime += 60 * float(walltime_hhmmss[0])
@@ -141,12 +141,18 @@ def generate_parsl_config(
                     )
         else:
             if use_work_queue:
-                worker_options = [
-                        '--gpus={}'.format(16 if execution.device == 'cuda' else 0),
-                        '--cores={}'.format(provider.cores_per_node),
-                        ]
-                if definition.max_walltime is not None:
-                    worker_options.append('--wall-time={}'.format(definition.max_walltime))
+                worker_options = []
+                if hasattr(definition.parsl_provider, 'cores_per_node'):
+                    worker_options.append(
+                            '--cores={}'.format(definition.parsl_provider.cores_per_node),
+                            ) # multiple workers per node
+                else:
+                    worker_options.append( # single worker
+                            '--cores={}'.format(definition.cores_per_worker),
+                            )
+                definition.generate_parsl_resource_specification() # populates max_walltime attr
+                if definition.max_walltime is not None: # convert from minutes to seconds
+                    worker_options.append('--wall-time={}'.format(definition.max_walltime * 60))
                 worker_options.append('--timeout={}'.format(wq_timeout))
                 worker_options.append('--parent-death')
                 executor = MyWorkQueueExecutor(
@@ -157,6 +163,7 @@ def generate_parsl_config(
                     autocategory=False,
                     port=0,
                     max_retries=0,
+                    coprocess=False,
                     worker_options=' '.join(worker_options),
                     )
             else:

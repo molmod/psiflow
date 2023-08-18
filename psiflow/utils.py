@@ -113,7 +113,6 @@ def _copy_app_future(future: Any) -> Any:
 copy_app_future = python_app(_copy_app_future, executors=['Default'])
 
 
-@typeguard.typechecked
 def _pack(*args):
     return args
 pack = python_app(_pack, executors=['Default'])
