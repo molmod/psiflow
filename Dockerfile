@@ -69,7 +69,7 @@ RUN pip install git+https://github.com/mir-group/nequip.git@v0.5.6 --no-deps && 
 RUN pip install git+https://github.com/sef43/openmm-ml.git@develop
 
 ARG GIT_COMMIT_SHA
-RUN pip install git+https://github.com/molmod/psiflow
+RUN pip install git+https://github.com/molmod/psiflow.git@develop
 RUN pip cache purge
 
 ENV OMPI_MCA_plm_rsh_agent=
