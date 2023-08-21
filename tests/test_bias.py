@@ -182,6 +182,10 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills
 """
     bias   = PlumedBias(plumed_input, data={})
     values = bias.evaluate(dataset).result()
+    assert bias.get_restraint('CV') == (1, 150)
+    assert bias.get_restraint('CVbla') == (0, 150)
+    with pytest.raises(AssertionError):
+        bias.get_restraint('ajlsdkfj')
     bias.adjust_restraint('CV', kappa=2, center=150)
     assert bias.plumed_input == """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
@@ -285,3 +289,26 @@ RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
     assert np.all(np.isnan(values[5, 0]))
     assert np.allclose(values[6, 0], dataset[1].result().get_volume() * 8)
 
+
+def test_moving_restraint(context, dataset):
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
+"""
+    bias = PlumedBias(plumed_input, data={})
+    bias.adjust_moving_restraint('CV', steps=2000, kappas=None, centers=(100, 150))
+    line = 'MOVINGRESTRAINT ARG=CV STEP0=0 AT0=100 KAPPA0=1 STEP1=2000 AT1=150 KAPPA1=1'
+    assert line in bias.plumed_input
+    steps, kappas, centers = bias.get_moving_restraint('CV')
+    assert steps == 2000
+    assert kappas == (1, 1)
+    assert centers == (100, 150)
+
+    with pytest.raises(AssertionError):
+        plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+MOVINGRESTRAINT ARG=CV STEP0=100 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
+"""
+        bias = PlumedBias(plumed_input)

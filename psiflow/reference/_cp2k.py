@@ -29,7 +29,7 @@ def insert_filepaths_in_input(
         cp2k_input: str,
         files: dict[str, Union[str, Path, File]]) -> str:
     from pymatgen.io.cp2k.inputs import Cp2kInput, Keyword, KeywordList
-    inp = Cp2kInput.from_string(cp2k_input)
+    inp = Cp2kInput.from_str(cp2k_input)
     # merge basis set files into list
     basis = []
     for name in list(files.keys()):
@@ -78,7 +78,7 @@ def insert_filepaths_in_input(
 def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
     from ase.data import chemical_symbols
     from pymatgen.io.cp2k.inputs import Cp2kInput
-    inp = Cp2kInput.from_string(cp2k_input)
+    inp = Cp2kInput.from_str(cp2k_input)
     if not 'SUBSYS' in inp['FORCE_EVAL'].subsections.keys():
         raise ValueError('No subsystem present in cp2k input: {}'.format(cp2k_input))
     try:
@@ -137,7 +137,7 @@ def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
 def regularize_input(cp2k_input: str) -> str:
     """Ensures forces and stress are printed; removes topology/cell info"""
     from pymatgen.io.cp2k.inputs import Cp2kInput
-    inp = Cp2kInput.from_string(cp2k_input)
+    inp = Cp2kInput.from_str(cp2k_input)
     inp.update({'FORCE_EVAL': {'SUBSYS': {'CELL': {}}}})
     inp.update({'FORCE_EVAL': {'SUBSYS': {'TOPOLOGY': {}}}})
     inp.update({'FORCE_EVAL': {'SUBSYS': {'COORD': {}}}})
@@ -152,7 +152,7 @@ def regularize_input(cp2k_input: str) -> str:
 @typeguard.typechecked
 def set_global_section(cp2k_input: str) -> str:
     from pymatgen.io.cp2k.inputs import Cp2kInput, Global
-    inp = Cp2kInput.from_string(cp2k_input)
+    inp = Cp2kInput.from_str(cp2k_input)
     inp.subsections['GLOBAL'] = Global(project_name='cp2k_project')
     inp.update({'GLOBAL': {'PREFERRED_DIAG_LIBRARY': 'SL'}})
     # remove useless keyword from pymatgen's default GLOBAL section
@@ -283,7 +283,7 @@ class CP2KReference(BaseReference):
             if mult - 1 > number:
                 continue # max S = 2 * (N * 1/2) + 1
             config = {'UKS': 'TRUE', 'MULTIPLICITY': mult}
-            inp = Cp2kInput.from_string(self.cp2k_input)
+            inp = Cp2kInput.from_str(self.cp2k_input)
             inp.update({'FORCE_EVAL': {'DFT': {'UKS': config['UKS']}}})
             inp.update({'FORCE_EVAL': {'DFT': {'MULTIPLICITY': config['MULTIPLICITY']}}})
             inp.update({'FORCE_EVAL': {'DFT': {'XC': {'VDW_POTENTIAL': {}}}}}) # disable d3

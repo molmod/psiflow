@@ -24,7 +24,14 @@ from psiflow.data import read_dataset, write_dataset, Dataset, FlowAtoms
 logger = logging.getLogger(__name__) # logging per module
 
 
-PLUMED_BIAS_KEYWORDS = ['METAD', 'RESTRAINT', 'EXTERNAL', 'UPPER_WALLS', 'LOWER_WALLS']
+PLUMED_BIAS_KEYWORDS = [
+        'METAD',
+        'RESTRAINT',
+        'MOVINGRESTRAINT',
+        'EXTERNAL',
+        'UPPER_WALLS',
+        'LOWER_WALLS',
+        ]
 
 
 @typeguard.typechecked
@@ -171,6 +178,8 @@ def evaluate_bias(
     if len(dataset) > 1: # counter weird behavior
         part_plumed.plumed.cmd('update') # flush last
     values[:, :-1] = np.loadtxt(colvar_log).reshape(-1, len(variables) + 1)[:, 1:]
+    if 'MOVINGRESTRAINT' in plumed_input:
+        values[:, -1] = 0.0 # bias has no meaning
     os.unlink(plumed_log)
     os.unlink(colvar_log)
     os.unlink(path_input)
@@ -357,6 +366,8 @@ class PlumedBias:
             logger.info('removing *all* print and flush statements '
                     'in the input to avoid generating additional (untracked) '
                     'files')
+        if 'MOVINGRESTRAINT' in plumed_input:
+            assert 'STEP0=0' in plumed_input
         plumed_input = remove_comments_printflush(plumed_input)
         components, variables = parse_plumed_input(plumed_input)
         assert len(variables) > 0
@@ -454,12 +465,47 @@ class PlumedBias:
             new_futures = None
         return PlumedBias(self.plumed_input, data=new_futures)
 
+    def adjust_moving_restraint(
+            self,
+            variable: str,
+            steps: Optional[int],
+            kappas: Optional[tuple[float, float]],
+            centers: Optional[tuple[float, float]],
+            ) -> None:
+        plumed_input = str(self.plumed_input)
+        lines = plumed_input.split('\n')
+        found = False
+        for i, line in enumerate(lines):
+            if 'MOVINGRESTRAINT' in line.split():
+                if 'ARG={}'.format(variable) in line.split():
+                    assert not found
+                    line_ = line
+                    if kappas is not None:
+                        for j in range(2):
+                            line_before = line_.split('KAPPA{}='.format(j))[0]
+                            line_after  = line_.split('KAPPA{}='.format(j))[1].split()[1:]
+                            line_ = line_before + 'KAPPA{}={} '.format(j, kappas[j]) + ' '.join(line_after)
+                    if centers is not None:
+                        for j in range(2):
+                            line_before = line_.split('AT{}='.format(j))[0]
+                            line_after  = line_.split('AT{}='.format(j))[1].split()[1:]
+                            line_ = line_before + 'AT{}={} '.format(j, centers[j]) + ' '.join(line_after)
+                    if steps is not None:
+                        line_before = line_.split('STEP1=')[0]
+                        line_after  = line_.split('STEP1=')[1].split()[1:]
+                        line_ = line_before + 'STEP1={} '.format(steps) + ' '.join(line_after)
+                    lines[i] = line_
+                    found = True
+        assert found
+        self.plumed_input = '\n'.join(lines)
+
+
     def adjust_restraint(self, variable: str, kappa: Optional[float], center: Optional[float]) -> None:
         plumed_input = str(self.plumed_input)
         lines = plumed_input.split('\n')
         found = False
         for i, line in enumerate(lines):
-            if 'RESTRAINT' in line.split():
+            if 'RESTRAINT' in line.split() and not 'MOVING' in line.split():
                 if 'ARG={}'.format(variable) in line.split():
                     assert not found
                     line_ = line
@@ -475,6 +521,41 @@ class PlumedBias:
                     found = True
         assert found
         self.plumed_input = '\n'.join(lines)
+
+    def get_restraint(self, variable: str) -> tuple[float, float]:
+        plumed_input = str(self.plumed_input)
+        lines = plumed_input.split('\n')
+        found = False
+        for i, line in enumerate(lines):
+            if 'RESTRAINT' in line.split() and not 'MOVING' in line.split():
+                if 'ARG={}'.format(variable) in line.split():
+                    assert not found
+                    kappa  = float(line.split('KAPPA=')[1].split()[0])
+                    center = float(line.split('AT=')[1].split()[0])
+                    found = True
+        assert found
+        return kappa, center
+
+    def get_moving_restraint(self, variable: str) -> tuple[float, tuple, tuple]:
+        plumed_input = str(self.plumed_input)
+        lines = plumed_input.split('\n')
+        found = False
+        for i, line in enumerate(lines):
+            if 'MOVINGRESTRAINT' in line.split():
+                if 'ARG={}'.format(variable) in line.split():
+                    assert not found
+                    kappas  = (
+                            float(line.split('KAPPA0=')[1].split()[0]),
+                            float(line.split('KAPPA1=')[1].split()[0]),
+                            )
+                    centers = (
+                            float(line.split('AT0=')[1].split()[0]),
+                            float(line.split('AT1=')[1].split()[0]),
+                            )
+                    steps = float(line.split('STEP1=')[1].split()[0])
+                    found = True
+        assert found
+        return steps, kappas, centers
 
     def reset(self, condition: Union[bool, AppFuture] = None):
         if condition is None:

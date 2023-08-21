@@ -383,3 +383,30 @@ restraint: RESTRAINT ARG=CV AT=15 KAPPA=100
     assert walkers[0].state.result().get_volume() == volume_min
     assert walkers[1].state.result().get_volume() == volume_max
     assert walkers[0].bias.plumed_input != walkers[1].bias.plumed_input
+
+
+def test_moving_restraint_walker(context, dataset, mace_config):
+    model = MACEModel(mace_config)
+    model.initialize(dataset[:3])
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
+"""
+    bias = PlumedBias(plumed_input)
+    values = bias.evaluate(dataset).result()
+    assert np.allclose(values[:, -1], 0.0)
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT=150 KAPPA=1
+"""
+    bias_ = PlumedBias(plumed_input)
+    assert np.allclose(
+            values[:, 0],
+            bias_.evaluate(dataset).result()[:, 0],
+            )
+
+    walker = BiasedDynamicWalker(dataset[0], bias=bias, steps=30)
+    metadata = walker.propagate(model=model)
+    assert not walker.is_reset().result()

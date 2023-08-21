@@ -252,26 +252,86 @@ class SequentialLearning(BaseLearning):
 @typeguard.typechecked
 @dataclass
 class IncrementalLearning(BaseLearning):
-    pass
-    #cv_name: str
-    #cv_min: float
-    #cv_max: float
-    #cv_step: float
+    cv_name: Optional[str] = None # have to be kwargs
+    cv_min: Optional[float] = None
+    cv_max: Optional[float] = None
+    cv_delta: Optional[float] = None
+    niterations: int = 10
+    error_thresholds_for_reset: tuple[float, float] = (10, 200)
 
-    #def update_walkers(self, walkers: list[BaseWalker]):
-    #    resets = [w.is_reset().result() for w in walkers]
-    #    if any(resets):
-    #        return None
-    #    else:
-    #        for walker in walkers: # may not all contain bias
-    #            if not hasattr(walker, 'bias'):
-    #                continue
-    #            if not self.cv_name in walker.bias.variables:
-    #                continue
-    #            walker.bias.adjust_restraint(
-    #                    self.cv_name,
-    #                    kappa=None, # don't change this
+    def update_walkers(self, walkers: list[BaseWalker]):
+        for walker in walkers: # may not all contain bias
+            if not hasattr(walker, 'bias'):
+                continue
+            if walker.is_reset().result():
+                continue
+            if not self.cv_name in walker.bias.variables:
+                continue
+            assert 'MOVINGRESTRAINT' in walker.bias.keys
+            _, kappas, centers = walker.bias.get_moving_restraint(self.cv_name)
+            steps = walker.steps
+            new_centers = (
+                    centers[1],
+                    centers[1] + self.cv_delta,
+                    )
+            if new_centers[1] <= self.cv_max:
+                pass
+            else:
+                new_centers = (self.cv_min, self.cv_min + self.cv_delta)
+            walker.bias.adjust_moving_restraint(
+                    self.cv_name,
+                    steps=steps,
+                    kappas=None, # don't change this
+                    centers=new_centers,
+                    )
 
+    def run(
+            self,
+            model: BaseModel,
+            reference: BaseReference,
+            walkers: list[BaseWalker],
+            initial_data: Optional[Dataset] = None,
+            ) -> Dataset:
+        assert self.cv_name is not None
+        assert self.cv_min is not None
+        assert self.cv_max is not None
+        assert self.cv_delta is not None
+        data = self.initialize_run(
+                model,
+                reference,
+                walkers,
+                initial_data,
+                )
+        for i in range(self.niterations):
+            if self.output_exists(str(i)):
+                continue # skip iterations in case of restarted run
+            new_data, self.identifier = sample_with_model(
+                    model,
+                    reference,
+                    walkers,
+                    self.identifier,
+                    self.error_thresholds_for_reset,
+                    self.metrics,
+                    )
+            data = data + new_data
+            data_train, data_valid = data.split(self.train_valid_split)
+            if self.train_from_scratch:
+                logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
+                model.reset()
+                model.initialize(data_train)
+            model.train(data_train, data_valid)
+            save_state(
+                    self.path_output,
+                    str(i),
+                    model=model,
+                    walkers=walkers,
+                    data_train=data_train,
+                    data_valid=data_valid,
+                    )
+            self.update_walkers(walkers)
+            if self.metrics is not None:
+                self.metrics.save(self.path_output / str(i), model, data)
+        return data
 
 
 @typeguard.typechecked

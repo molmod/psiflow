@@ -5,7 +5,8 @@ import psiflow
 from psiflow.reference import EMTReference
 from psiflow.walkers import RandomWalker, PlumedBias, BiasedDynamicWalker
 from psiflow.models import MACEModel
-from psiflow.learning import SequentialLearning, load_learning
+from psiflow.learning import SequentialLearning, load_learning, \
+        IncrementalLearning
 from psiflow.metrics import Metrics
 
 
@@ -127,3 +128,55 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     with pytest.raises(AssertionError):
         data = learning.run(model, reference, walkers) 
         data.data_future.result()
+
+
+def test_incremental_learning(context, tmp_path, mace_config, dataset):
+    model = MACEModel(mace_config)
+    model.initialize(dataset[:2])
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
+"""
+    bias = PlumedBias(plumed_input)
+    walkers = BiasedDynamicWalker.multiply(
+            5,
+            dataset,
+            bias=bias,
+            steps=10,
+            step=1,
+            temperature=300,
+            )
+    reference = EMTReference()
+    with pytest.raises(AssertionError):
+        learning = IncrementalLearning(
+                tmp_path,
+                )
+        learning.run(
+                model,
+                reference,
+                walkers,
+                )
+    learning = IncrementalLearning(
+            tmp_path,
+            cv_name='CV',
+            cv_min=140,
+            cv_max=200,
+            cv_delta=60,
+            niterations=1,
+            error_thresholds_for_reset=(1e9, 1e12), # never reset
+            )
+    learning.run(
+            model,
+            reference,
+            walkers,
+            )
+    psiflow.wait()
+    for walker in walkers:
+        assert not walker.is_reset().result()
+        steps, kappas, centers = walker.bias.get_moving_restraint(variable='CV')
+        assert steps == 10
+        assert centers[1] == learning.cv_max
+
+
+

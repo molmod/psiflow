@@ -223,8 +223,8 @@ def test_cp2k_insert_filepaths(fake_cp2k_input):
     &END SUBSYS
 &END FORCE_EVAL
 """
-    target = Cp2kInput.from_string(target_input)
-    sample = Cp2kInput.from_string(insert_filepaths_in_input(fake_cp2k_input, filepaths))
+    target = Cp2kInput.from_str(target_input)
+    sample = Cp2kInput.from_str(insert_filepaths_in_input(fake_cp2k_input, filepaths))
     assert str(target) == str(sample)
 
 
