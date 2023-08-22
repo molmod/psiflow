@@ -227,6 +227,7 @@ def _to_wandb(
         dataset_log: Optional[dict],
         ):
     import os
+    import tempfile
     import wandb
     import plotly.express as px
     figures = {}
@@ -267,7 +268,8 @@ def _to_wandb(
                             figure.update_layout(yaxis_title='forces RMSE [meV/atom]')
                         figures[title] = figure
     os.environ['WANDB_SILENT'] = 'True'
-    wandb.init(id=wandb_id, resume='must')
+    path_wandb = Path(tempfile.mkdtemp())
+    wandb.init(id=wandb_id, resume='must', dir=path_wandb)
     wandb.log(figures)
     wandb.finish()
 to_wandb = python_app(_to_wandb, executors=['Default'])
