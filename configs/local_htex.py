@@ -6,11 +6,11 @@ from psiflow.execution import Default, ModelTraining, ModelEvaluation, \
 from psiflow.parsl_utils import ContainerizedLauncher
 
 
-containerize = False
+containerize = True
 if containerize:
     launcher = ContainerizedLauncher(
-            uri='docker://svandenhaute/psiflow:1.0.1-rocm5.2',
-            enable_gpu=False,
+            uri='docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+            enable_gpu=True,
             )
 else:
     launcher = SimpleLauncher()
@@ -34,7 +34,7 @@ reference_evaluation = ReferenceEvaluation(
         parsl_provider=LocalProvider(launcher=launcher),
         cores_per_worker=2,
         max_walltime=1.5,
-        mpi_command=lambda x: f'mpirun -np {x}',
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork',
         )
 definitions = [
         default,

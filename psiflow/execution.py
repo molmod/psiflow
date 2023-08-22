@@ -13,7 +13,8 @@ import importlib
 import atexit
 
 import parsl
-from parsl.executors import HighThroughputExecutor
+from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
+from parsl.providers import LocalProvider
 from parsl.providers.base import ExecutionProvider
 from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
@@ -102,14 +103,71 @@ def get_psiflow_config_from_file(
         path_config: Union[Path, str],
         path_internal: Union[Path, str],
         ) -> tuple[Config, list]:
-    path_config = Path(path_config)
-    assert path_config.is_file(), 'cannot find psiflow config at {}'.format(path_config)
-    # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
-    spec = importlib.util.spec_from_file_location('module.name', path_config)
-    psiflow_config_module = importlib.util.module_from_spec(spec)
-    sys.modules['module.name'] = psiflow_config_module
-    spec.loader.exec_module(psiflow_config_module)
-    return psiflow_config_module.get_config(path_internal)
+    if not path_config == '':
+        path_config = Path(path_config)
+        assert path_config.is_file(), 'cannot find psiflow config at {}'.format(path_config)
+        # see https://stackoverflow.com/questions/67631/how-can-i-import-a-module-dynamically-given-the-full-path
+        spec = importlib.util.spec_from_file_location('module.name', path_config)
+        psiflow_config_module = importlib.util.module_from_spec(spec)
+        sys.modules['module.name'] = psiflow_config_module
+        spec.loader.exec_module(psiflow_config_module)
+        return psiflow_config_module.get_config(path_internal)
+    else:
+        path_internal = Path.cwd() / '.psiflow_internal'
+        if path_internal.exists():
+            shutil.rmtree(path_internal)
+        path_internal.mkdir()
+        default = Default(
+                parsl_provider=LocalProvider(), # unused
+                )
+        model_evaluation = ModelEvaluation(
+                parsl_provider=LocalProvider(),
+                cores_per_worker=1,
+                max_walltime=1e9, # infinite
+                gpu=False,
+                simulation_engine='openmm',
+                )
+        model_training = ModelTraining(
+                parsl_provider=LocalProvider(),
+                gpu=True,
+                max_walltime=1e9,
+                )
+        reference_evaluation = ReferenceEvaluation(
+                parsl_provider=LocalProvider(),
+                cores_per_worker=1,
+                max_walltime=1e9,
+                mpi_command=lambda x: f'mpirun -np {x}',
+                )
+        definitions = [
+                default,
+                model_evaluation,
+                model_training,
+                reference_evaluation,
+                ]
+        executors = [
+                ThreadPoolExecutor(
+                    label='Default',
+                    max_threads=default.cores_per_worker,
+                    working_dir=str(path_internal),
+                    ),
+                ThreadPoolExecutor(
+                    label='ModelTraining',
+                    max_threads=model_training.cores_per_worker,
+                    working_dir=str(path_internal),
+                    ),
+                ThreadPoolExecutor(
+                    label='ModelEvaluation',
+                    max_threads=model_evaluation.cores_per_worker,
+                    working_dir=str(path_internal),
+                    ),
+                ThreadPoolExecutor(
+                    label='ReferenceEvaluation',
+                    max_threads=reference_evaluation.cores_per_worker,
+                    working_dir=str(path_internal),
+                    ),
+                ]
+        config = Config(executors, run_dir=str(path_internal), usage_tracking=True, app_cache=False)
+        return config, definitions
 
 
 @typeguard.typechecked
@@ -268,19 +326,21 @@ class ExecutionContextLoader:
             ) -> ExecutionContext:
         if cls._context is not None:
             raise RuntimeError('ExecutionContext has already been loaded')
-        # convert all paths into absolute paths as this is necssary when using
-        # WQ executor with shared_fs=True
-        if path_config is None:
+        if path_config is None: # assume all options are given via command line
             parser = argparse.ArgumentParser()
             parser.add_argument('--psiflow-config', default='', type=str)
             parser.add_argument('--path-internal', default='psiflow_internal', type=str)
             parser.add_argument('--psiflow-log-level', default='INFO', type=str)
             parser.add_argument('--parsl-log-level', default='INFO', type=str)
             args = parser.parse_args()
+
             path_config = args.psiflow_config
             path_internal = args.path_internal
             psiflow_log_level = args.psiflow_log_level
             parsl_log_level = args.parsl_log_level
+
+        # convert all paths into absolute paths as this is necessary when using
+        # WQ executor with shared_fs=True
         path_internal = Path(path_internal).resolve()
         config, definitions = get_psiflow_config_from_file(
                 path_config,

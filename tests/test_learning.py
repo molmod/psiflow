@@ -177,6 +177,3 @@ MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
         steps, kappas, centers = walker.bias.get_moving_restraint(variable='CV')
         assert steps == 10
         assert centers[1] == learning.cv_max
-
-
-

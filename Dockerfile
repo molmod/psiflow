@@ -5,11 +5,6 @@ FROM mambaorg/micromamba:1.4.2 as micromamba
 FROM svandenhaute/cp2k:2023.1
 #FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
-RUN apt -y install gfortran mpi-default-bin mpi-default-dev ssh
-RUN curl -LJO https://github.com/nwchemgit/nwchem/releases/download/v7.2.0-release/nwchem-data_7.2.0-2_all.ubuntu_jammy.deb \
-    && curl -LJO https://github.com/nwchemgit/nwchem/releases/download/v7.2.0-release/nwchem_7.2.0-2_amd64.ubuntu_jammy.deb \
-    && dpkg -i nwchem*7.2.0*jammy*.deb
-
 USER root
 
 # if your image defaults to a non-root user, then you may want to make the
@@ -59,13 +54,11 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
 RUN pip install cython==0.29.36 matscipy prettytable && \
     pip install git+https://github.com/molmod/molmod && \
     pip install git+https://github.com/molmod/yaff && \
-    pip install e3nn==0.4.4 && \
-    pip install git+https://github.com/acesuit/MACE.git@55f7411
-RUN pip install numpy ase tqdm e3nn>=0.4.4 pyyaml \
-    torch-runstats>=0.2.0 torch-ema>=0.3.0 \
-    mdtraj tables
-RUN pip install git+https://github.com/mir-group/nequip.git@v0.5.6 --no-deps && \
-    pip install git+https://github.com/mir-group/allegro
+    pip install e3nn==0.4.4
+RUN pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0' mdtraj tables
+RUN pip install git+https://github.com/acesuit/MACE.git@55f7411
+RUN pip install git+https://github.com/mir-group/nequip.git@develop --no-deps && \
+    pip install git+https://github.com/mir-group/allegro --no-deps
 RUN pip install git+https://github.com/sef43/openmm-ml.git@develop
 
 ARG GIT_COMMIT_SHA

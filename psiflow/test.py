@@ -7,8 +7,7 @@ from pathlib import Path
 from parsl.app.app import python_app
 
 import psiflow
-from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
-        ReferenceEvaluationExecution
+from psiflow.execution import ReferenceEvaluation
 
 
 def check_models():
@@ -104,7 +103,7 @@ def check_walkers():
     return report
 
 
-def check_reference(mpi_command, cp2k_command):
+def check_reference(mpi_command):
     import subprocess
     report = '\tpymatgen:\t\t'
     try:
@@ -114,7 +113,7 @@ def check_reference(mpi_command, cp2k_command):
         report += 'module not found'
     report += '\n'
     report += '\tCP2K executable:\t'
-    report += subprocess.run(['which', cp2k_command], capture_output=True, text=True).stdout
+    report += subprocess.run(['which', 'cp2k.psmp'], capture_output=True, text=True).stdout
     report += '\n'
     report += '\tMPI  executable:\t'
     report += subprocess.run(['which', mpi_command], capture_output=True, text=True).stdout
@@ -129,34 +128,23 @@ def main():
     if path_tmp.is_dir():
         shutil.rmtree(path_tmp)
     Path(path_tmp).mkdir()
-    context = psiflow.load(
-            path_config,
-            path_tmp,
-            )
+    context = psiflow.load(path_config, path_tmp)
     executors = {}
-    for cls_, definitions in context.definitions.items():
-        for definition in definitions:
-            executor = definition.executor
-            if executor not in executors.keys():
-                executors[executor] = []
-            executors[executor].append(definition)
-    for executor, definitions in executors.items():
-        print('EXECUTOR "{}":'.format(executor))
-        for definition in set(definitions):
-            apps    = []
-            if not type(definition) == ReferenceEvaluationExecution:
-                app = python_app(check_torch, executors=[definition.executor])
-                apps.append(app)
-                app = python_app(check_models, executors=[definition.executor])
-                apps.append(app)
-                app = python_app(check_walkers, executors=[definition.executor])
-                apps.append(app)
-                reports = [app().result() for app in apps]
-                for report in reports:
-                    print(report)
-            else:
-                app = python_app(check_reference, executors=[definition.executor])
-                mpi_command  = definition.mpi_command(1234).split(' ')[0]
-                cp2k_command = definition.cp2k_exec
-                print(app(mpi_command, cp2k_command).result())
+    for definition in context.definitions:
+        print('EXECUTOR "{}":'.format(definition.name()))
+        apps    = []
+        if not type(definition) == ReferenceEvaluation:
+            app = python_app(check_torch, executors=[definition.name()])
+            apps.append(app)
+            app = python_app(check_models, executors=[definition.name()])
+            apps.append(app)
+            app = python_app(check_walkers, executors=[definition.name()])
+            apps.append(app)
+            reports = [app().result() for app in apps]
+            for report in reports:
+                print(report)
+        else:
+            app = python_app(check_reference, executors=[definition.name()])
+            mpi_command  = definition.mpi_command(1234).split(' ')[0]
+            print(app(mpi_command).result())
 
