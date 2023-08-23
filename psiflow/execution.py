@@ -185,8 +185,6 @@ def generate_parsl_config(
         parsl_initialize_logging: bool = True,
         htex_address: Optional[str] = None,
         ) -> Config:
-    if htex_address is None: # determine address for htex
-        htex_address = '127.0.0.1'
     labels = [d.name()  for d in definitions]
     assert len(labels) == len(set(labels)), 'labels must be unique, but found {}'.format(labels)
     executors = []
