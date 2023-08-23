@@ -193,7 +193,7 @@ class DynamicWalker(BaseWalker):
             start: int = 0,
             temperature: Optional[float] = 300,
             pressure: Optional[float] = None,
-            temperature_reset_quantile: float = 0.01, # bounds at 0.005 and 0.995
+            temperature_reset_quantile: float = 0.0, # no reset by default
             force_threshold: float = 1e6, # no threshold by default
             **kwargs,
             ) -> None:

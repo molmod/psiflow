@@ -206,7 +206,7 @@ def test_optimization_walker(context, dataset, mace_config):
     model.initialize(training)
     model.train(training, validate)
 
-    walker = OptimizationWalker(dataset[0], optimize_cell=False, fmax=1e-2)
+    walker = OptimizationWalker(dataset[0], optimize_cell=False, fmax=1e-1)
     metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
     assert trajectory.length().result() > 1
     assert np.all(np.abs(metadata.state.result().positions - dataset[0].result().positions) < 1.0)
@@ -216,6 +216,7 @@ def test_optimization_walker(context, dataset, mace_config):
     assert not metadata.reset.result()
     walker.fmax = 1e-3
     metadata = walker.propagate(model=model)
+    assert not walker.is_reset().result()
     assert not np.all(np.abs(metadata.state.result().positions - dataset[0].result().positions) < 0.001) # moved again
     assert walker.counter.result() > counter # more steps in total
 

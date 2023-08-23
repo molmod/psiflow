@@ -11,6 +11,7 @@ import os
 import sys
 import importlib
 import atexit
+import shutil
 
 import parsl
 from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
@@ -113,28 +114,29 @@ def get_psiflow_config_from_file(
         spec.loader.exec_module(psiflow_config_module)
         return psiflow_config_module.get_config(path_internal)
     else:
-        path_internal = Path.cwd() / '.psiflow_internal'
         if path_internal.exists():
             shutil.rmtree(path_internal)
         path_internal.mkdir()
         default = Default(
+                cores_per_worker=4,
                 parsl_provider=LocalProvider(), # unused
                 )
         model_evaluation = ModelEvaluation(
                 parsl_provider=LocalProvider(),
-                cores_per_worker=1,
+                cores_per_worker=4,
                 max_walltime=1e9, # infinite
                 gpu=False,
                 simulation_engine='openmm',
                 )
         model_training = ModelTraining(
+                cores_per_worker=4,
                 parsl_provider=LocalProvider(),
                 gpu=True,
                 max_walltime=1e9,
                 )
         reference_evaluation = ReferenceEvaluation(
                 parsl_provider=LocalProvider(),
-                cores_per_worker=1,
+                cores_per_worker=4,
                 max_walltime=1e9,
                 mpi_command=lambda x: f'mpirun -np {x}',
                 )
@@ -147,22 +149,22 @@ def get_psiflow_config_from_file(
         executors = [
                 ThreadPoolExecutor(
                     label='Default',
-                    max_threads=default.cores_per_worker,
+                    max_threads=4,
                     working_dir=str(path_internal),
                     ),
                 ThreadPoolExecutor(
                     label='ModelTraining',
-                    max_threads=model_training.cores_per_worker,
+                    max_threads=4,
                     working_dir=str(path_internal),
                     ),
                 ThreadPoolExecutor(
                     label='ModelEvaluation',
-                    max_threads=model_evaluation.cores_per_worker,
+                    max_threads=4,
                     working_dir=str(path_internal),
                     ),
                 ThreadPoolExecutor(
                     label='ReferenceEvaluation',
-                    max_threads=reference_evaluation.cores_per_worker,
+                    max_threads=4,
                     working_dir=str(path_internal),
                     ),
                 ]
@@ -341,7 +343,10 @@ class ExecutionContextLoader:
 
         # convert all paths into absolute paths as this is necessary when using
         # WQ executor with shared_fs=True
-        path_internal = Path(path_internal).resolve()
+        if not path_config == '':
+            path_internal = Path(path_internal).resolve()
+        else:
+            path_internal = Path.cwd() / '.psiflow_internal'
         config, definitions = get_psiflow_config_from_file(
                 path_config,
                 path_internal,
