@@ -38,14 +38,7 @@ class ExecutionDefinition:
     cores_per_worker: int = 1
     max_walltime: Optional[float] = None
 
-    def generate_parsl_resource_specification(self):
-        resource_specification = {}
-        resource_specification['cores'] = self.cores_per_worker
-        resource_specification['disk'] = 1000
-        memory = 2000 * self.cores_per_worker
-        resource_specification['memory'] = int(memory)
-        #if self.gpu:
-        #    resource_specification['gpus'] = 1
+    def __post_init__(self):
         if hasattr(self.parsl_provider, 'walltime'):
             walltime_hhmmss = self.parsl_provider.walltime.split(':')
             assert len(walltime_hhmmss) == 3
@@ -54,7 +47,17 @@ class ExecutionDefinition:
             walltime += float(walltime_hhmmss[1])
             walltime += 1 # whatever seconds are present
             walltime -= 4 # add 4 minutes of slack, e.g. for container downloading
-            self.max_walltime = walltime
+            object.__setattr__(self, 'max_walltime', walltime) # avoid frozen
+
+
+    def generate_parsl_resource_specification(self):
+        resource_specification = {}
+        resource_specification['cores'] = self.cores_per_worker
+        resource_specification['disk'] = 1000
+        memory = 2000 * self.cores_per_worker
+        resource_specification['memory'] = int(memory)
+        #if self.gpu:
+        #    resource_specification['gpus'] = 1
         if self.max_walltime is not None:
             resource_specification['running_time_min'] = self.max_walltime
         return resource_specification
@@ -124,7 +127,6 @@ def get_psiflow_config_from_file(
         model_evaluation = ModelEvaluation(
                 parsl_provider=LocalProvider(),
                 cores_per_worker=4,
-                max_walltime=1e9, # infinite
                 gpu=False,
                 simulation_engine='openmm',
                 )
@@ -132,12 +134,10 @@ def get_psiflow_config_from_file(
                 cores_per_worker=4,
                 parsl_provider=LocalProvider(),
                 gpu=True,
-                max_walltime=1e9,
                 )
         reference_evaluation = ReferenceEvaluation(
                 parsl_provider=LocalProvider(),
                 cores_per_worker=4,
-                max_walltime=1e9,
                 mpi_command=lambda x: f'mpirun -np {x}',
                 )
         definitions = [
