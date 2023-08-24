@@ -73,7 +73,7 @@ def _save_dataset_log(data: dict[str, list], path: Path) -> str:
     pt.float_format = '0.2' # gets converted to %0.2f
     s = pt.get_formatted_string('text', sortby='identifier')
     with open(path, 'w') as f:
-        f.write(s)
+        f.write(s + '\n')
     return s
 save_dataset_log = python_app(_save_dataset_log, executors=['Default'])
 
@@ -107,11 +107,14 @@ def _log_walker(
         if name.startswith('CV'):
             data[name] = metadata['state'].info[name]
 
-    if 'stdout' in metadata['state'].info:
-        data['stdout'] = Path(metadata['state'].info['stdout']).stem
+    if 'stdout' in metadata:
+        data['stdout'] = Path(metadata['stdout']).stem
     else:
         data['stdout'] = None
-
+    #if 'stdout' in metadata['state'].info:
+    #    data['stdout'] = Path(metadata['state'].info['stdout']).stem
+    #else:
+    #    data['stdout'] = None
     return data
 log_walker = python_app(_log_walker, executors=['Default'])
 

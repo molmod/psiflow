@@ -30,7 +30,8 @@ def set_logger( # hacky
     handler.setFormatter(formatter)
     names = [
             'psiflow.data',
-            'psiflow.generate',
+            'psiflow.sampling',
+            'psiflow.metrics',
             'psiflow.execution',
             'psiflow.wandb_utils',
             'psiflow.state',

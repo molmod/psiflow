@@ -14,6 +14,7 @@ from parsl.app.app import join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.utils import save_yaml, copy_app_future
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.models import BaseModel
@@ -242,9 +243,10 @@ class SequentialLearning(BaseLearning):
                     data_train=data_train,
                     data_valid=data_valid,
                     )
-            self.update_walkers(walkers)
             if self.metrics is not None:
                 self.metrics.save(self.path_output / str(i), model, data)
+            psiflow.wait()
+            self.update_walkers(walkers)
         return data
 
 
@@ -327,9 +329,10 @@ class IncrementalLearning(BaseLearning):
                     data_train=data_train,
                     data_valid=data_valid,
                     )
-            self.update_walkers(walkers)
             if self.metrics is not None:
                 self.metrics.save(self.path_output / str(i), model, data)
+            psiflow.wait()
+            self.update_walkers(walkers)
         return data
 
 

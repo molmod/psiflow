@@ -567,7 +567,7 @@ class BiasedDynamicWalker(DynamicWalker):
                         )
                 state = bias.evaluate(Dataset([unpack_i(result, 0)]), as_dataset=True)[0]
                 metadata_args = [state] + [unpack_i(result, i) for i in range(1, 5)]
-                metadata_args.append(future.stdout)
+                metadata_args.append(Path(future.stdout).stem)
                 metadata = Metadata(*metadata_args)
                 return metadata, future.outputs[0]
         else:
