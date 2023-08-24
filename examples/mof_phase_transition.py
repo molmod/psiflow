@@ -76,7 +76,6 @@ def main(path_output):
             train_valid_split=0.9,
             train_from_scratch=True,
             use_formation_energy=True,
-            wandb_logger=wandb_logger,
             metrics=Metrics('MOF_phase_transition', 'examples', 'psiflow'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
             initial_temperature=100,
