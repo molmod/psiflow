@@ -76,6 +76,7 @@ class ModelEvaluation(ExecutionDefinition):
     simulation_engine: str = 'openmm'
 
     def __post_init__(self) -> None: # validate config
+        super().__post_init__()
         assert self.simulation_engine in ['openmm', 'yaff']
 
 
@@ -84,6 +85,7 @@ class ModelEvaluation(ExecutionDefinition):
 class ModelTraining(ExecutionDefinition):
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         assert self.gpu
 
 
