@@ -148,7 +148,7 @@ def main():
         barostat = openmm.MonteCarloFlexibleBarostat(
                 10 * args.pressure,          # to bar
                 args.temperature,
-                scaleMoleculesAsRigid=False, # ensure correct pressure control for materials
+                False,                       # setScaleMoleculesAsRigid; cannot be kwarg
                 )
         system.addForce(barostat)
     simulation.context.reinitialize(preserveState=True)

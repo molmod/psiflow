@@ -285,7 +285,7 @@ class Metrics:
             wandb_project: Optional[str] = None,
             wandb_id: Optional[str] = None,
             ) -> None:
-        self.wandb_name = wandb_group
+        self.wandb_name = wandb_name
         self.wandb_group = wandb_group
         self.wandb_project = wandb_project
         self.wandb_id = None
@@ -354,6 +354,7 @@ class Metrics:
         if len(self.walker_logs) > 0:
             walker_logs = gather_walker_logs(*self.walker_logs)
             save_walker_logs(walker_logs, path / 'walkers.log')
+            self.walker_logs = []
         if model is not None:
             assert dataset is not None
             inputs = [dataset.data_future, model.evaluate(dataset).data_future]

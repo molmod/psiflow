@@ -71,16 +71,16 @@ model_training = ModelTraining(
             )
         )
 reference_evaluation = ReferenceEvaluation(
-        cores_per_worker=32,
+        cores_per_worker=64,
         mpi_command=lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork',
         max_walltime=20,            # singlepoints should finish in less than 20 mins
         parsl_provider=SlurmProvider(
             partition='cpu_milan',
             account='2022_050',
             nodes_per_block=1,
-            cores_per_node=32,     # 1 reference evaluation per SLURM job
+            cores_per_node=64,     # 1 reference evaluation per SLURM job
             init_blocks=0,
-            max_blocks=32,
+            max_blocks=12,
             walltime='12:00:00',
             exclusive=True,
             scheduler_options='#SBATCH --clusters=dodrio\n',
@@ -99,7 +99,9 @@ def get_config(path_internal):
     config = generate_parsl_config(
             path_internal,
             definitions,
-            use_work_queue=True,
-            parsl_max_idletime=20,
+            use_work_queue=False,
+            parsl_max_idletime=10,
+            parsl_retries=1,
+            parsl_strategy='htex_auto_scale',
             )
     return config, definitions
