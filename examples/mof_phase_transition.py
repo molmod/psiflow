@@ -62,6 +62,7 @@ def main(path_output):
     config.r_max = 6.0
     config.hidden_irreps = '32x0e + 32x1o'
     config.batch_size = 4
+    config.patience = 10
     model = MACEModel(config)
 
     model.add_atomic_energy('H', reference.compute_atomic_energy('H', box_size=6))

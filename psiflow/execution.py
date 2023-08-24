@@ -48,6 +48,8 @@ class ExecutionDefinition:
             walltime += 1 # whatever seconds are present
             walltime -= 4 # add 4 minutes of slack, e.g. for container downloading
             object.__setattr__(self, 'max_walltime', walltime) # avoid frozen
+        elif self.max_walltime is None:
+            object.__setattr__(self, 'max_walltime', 1e9) # avoid frozen
 
 
     def generate_parsl_resource_specification(self):
