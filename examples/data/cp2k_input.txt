@@ -49,29 +49,40 @@
    &END DFT
    &SUBSYS
       &KIND H
-         ELEMENT  H
          BASIS_SET TZVP-MOLOPT-PBE-GTH-q1
          POTENTIAL GTH-PBE-q1
       &END KIND
       &KIND O
-         ELEMENT  O
          BASIS_SET TZVP-MOLOPT-PBE-GTH-q6
          POTENTIAL GTH-PBE-q6
       &END KIND
       &KIND Si
-         ELEMENT  Si
          BASIS_SET TZVP-MOLOPT-PBE-GTH-q4
          POTENTIAL GTH-PBE-q4
       &END KIND
       &KIND C
-         ELEMENT  C
          BASIS_SET TZVP-MOLOPT-PBE-GTH-q4
          POTENTIAL GTH-PBE-q4
       &END KIND
       &KIND Al
-         ELEMENT  Al
          BASIS_SET TZVP-MOLOPT-PBE-GTH-q3
          POTENTIAL GTH-PBE-q3
+      &END KIND
+      &KIND P
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q3
+         POTENTIAL GTH-PBE-q3
+      &END KIND
+      &KIND N
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q5
+         POTENTIAL GTH-PBE-q5
+      &END KIND
+      &KIND Pb
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q4
+         POTENTIAL GTH-PBE-q4
+      &END KIND
+      &KIND I
+         BASIS_SET TZVP-MOLOPT-PBE-GTH-q7
+         POTENTIAL GTH-PBE-q7
       &END KIND
    &END SUBSYS
 &END FORCE_EVAL

@@ -56,8 +56,6 @@ class ExecutionDefinition:
         resource_specification['disk'] = 1000
         memory = 2000 * self.cores_per_worker
         resource_specification['memory'] = int(memory)
-        #if self.gpu:
-        #    resource_specification['gpus'] = 1
         if self.max_walltime is not None:
             resource_specification['running_time_min'] = self.max_walltime
         return resource_specification

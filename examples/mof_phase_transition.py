@@ -7,12 +7,12 @@ from ase.io import read
 
 import psiflow
 from psiflow.learning import SequentialLearning, load_learning
-from psiflow.models import NequIPModel, NequIPConfig
+from psiflow.models import MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
-from psiflow.sampling import BiasedDynamicWalker, PlumedBias
-from psiflow.state import load_state        # necessary for restarting a run
-from psiflow.wandb_utils import WandBLogger # takes care of W&B logging
+from psiflow.walkers import BiasedDynamicWalker, PlumedBias
+from psiflow.state import load_state
+from psiflow.metrics import Metrics
 
 
 def get_bias():
@@ -29,16 +29,16 @@ def get_reference():
     """Defines a generic PBE-D3/TZVP reference level of theory
 
     Basis set, pseudopotentials, and D3 correction parameters are obtained from
-    the official CP2K repository, v9.1, and saved in the internal directory of
+    the official CP2K repository, v2023.1, and saved in the internal directory of
     psiflow. The input file is assumed to be available locally.
 
     """
     with open(Path.cwd() / 'data' / 'cp2k_input.txt', 'r') as f:
         cp2k_input = f.read()
     reference = CP2KReference(cp2k_input=cp2k_input)
-    basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH').text
-    dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
-    potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
+    basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v2023.1/data/BASIS_MOLOPT_UZH').text
+    dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v2023.1/data/dftd3.dat').text
+    potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v2023.1/data/POTENTIAL_UZH').text
     cp2k_data = {
             'basis_set': basis,
             'potential': potential,
@@ -51,31 +51,23 @@ def get_reference():
     return reference
 
 
-def get_nequip_model():
-    """Defines a MACE model architecture
-
-    A full list of parameters can be found in the MACE repository, or in the
-    psiflow source code at psiflow.models._nequip.
-
-    """
-    config = NequIPConfig()
-    config.loss_coeffs['total_energy'][0] = 10
-    return NequIPModel(config)
-
-
 def main(path_output):
-    assert not path_output.is_dir()
+    assert not path_output.exists()
     reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
-    model = get_nequip_model()      # NequIP; default model
-    bias  = get_bias()              # simple MTD bias on unit cell volume
-    atoms = read(Path.cwd() / 'data' / 'Al_mil53_train.xyz') # single structure
+    bias      = get_bias()          # simple MTD bias on unit cell volume
+    atoms = read(Path.cwd() / 'data' / 'mof.xyz')
+    atoms.canonical_orientation()   # transform into conventional lower-triangular box
 
-    # set up wandb logging
-    wandb_logger = WandBLogger(
-            wandb_project='psiflow',
-            wandb_group='run_sequential',
-            error_x_axis='CV',  # plot errors against PLUMED variable; 'ARG=CV'
-            )
+    config = MACEConfig()
+    config.r_max = 6.0
+    config.hidden_irreps = '32x0e + 32x1o'
+    config.batch_size = 4
+    model = MACEModel(config)
+
+    model.add_atomic_energy('H', reference.compute_atomic_energy('H', box_size=6))
+    model.add_atomic_energy('O', reference.compute_atomic_energy('O', box_size=6))
+    model.add_atomic_energy('C', reference.compute_atomic_energy('C', box_size=6))
+    model.add_atomic_energy('Al', reference.compute_atomic_energy('Al', box_size=6))
 
     # set learning parameters and do pretraining
     learning = SequentialLearning(
@@ -83,11 +75,12 @@ def main(path_output):
             niterations=10,
             train_valid_split=0.9,
             train_from_scratch=True,
-            pretraining_nstates=50,
-            pretraining_amplitude_pos=0.1,
-            pretraining_amplitude_box=0.05,
             use_formation_energy=True,
             wandb_logger=wandb_logger,
+            metrics=Metrics('MOF_phase_transition', 'examples', 'psiflow'),
+            error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
+            initial_temperature=100,
+            final_temperature=650,
             )
 
     # construct walkers; biased MTD MD in this case
@@ -96,15 +89,14 @@ def main(path_output):
             data_start=Dataset([atoms]),
             bias=bias,
             timestep=0.5,
-            steps=400,
+            steps=1000,
             step=50,
             start=0,
-            temperature=600,
-            pressure=0, # NPT
-            force_threshold=30,
-            initial_temperature=600,
+            temperature=100,
+            temperature_reset_quantile=0.01, # reset if P(temp) < 0.01
+            pressure=0,
             )
-    data_train, data_valid = learning.run(
+    data = learning.run(
             model=model,
             reference=reference,
             walkers=walkers,

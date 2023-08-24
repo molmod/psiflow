@@ -51,7 +51,6 @@ class BaseLearning:
         self.atomic_energies = {} # avoid errors in asdict
         config = asdict(self)
         self.atomic_energies = atomic_energies
-        #config['atomic_energies'] = atomic_energies
         config['path_output'] = str(self.path_output) # yaml requires str
         config.pop('metrics')
         if self.metrics is not None:
