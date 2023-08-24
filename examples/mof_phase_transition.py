@@ -55,7 +55,7 @@ def main(path_output):
     assert not path_output.exists()
     reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
     bias      = get_bias()          # simple MTD bias on unit cell volume
-    atoms = read(Path.cwd() / 'data' / 'mof.xyz')
+    atoms = FlowAtoms.from_atoms(read(Path.cwd() / 'data' / 'mof.xyz'))
     atoms.canonical_orientation()   # transform into conventional lower-triangular box
 
     config = MACEConfig()
