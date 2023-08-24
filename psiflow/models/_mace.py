@@ -224,7 +224,7 @@ class MACEModel(BaseModel):
         model_ncores = evaluation.cores_per_worker
 
         app_initialize = bash_app(initialize, executors=['Default'])
-        app_deploy     = python_app(deploy, executors=['Default'])
+        app_deploy     = python_app(deploy, executors=[training_label])
         def initialize_wrapped(config_raw, inputs=[], outputs=[]):
             assert len(inputs) == 1
             outputs = [
