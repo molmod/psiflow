@@ -151,7 +151,7 @@ class BaseLearning:
             if len(model.atomic_energies) > 0:
                 logger.warning('adding atomic energies from model into {}'.format(
                     self.__class__.__name__))
-                ae = {e.result() if isinstance(AppFuture, e) else e for e in model.atomic_energies.values()}
+                ae = {e.result() if isinstance(e, AppFuture) else e for e in model.atomic_energies.values()}
                 self.atomic_energies = ae
         if initial_data is not None:
             initial_data = initial_data.labeled()
