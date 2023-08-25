@@ -144,10 +144,14 @@ def evaluate_bias(
     from psiflow.data import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     values = np.zeros((len(dataset), len(variables) + 1)) # column 0 for CV, 1 for bias
+    if dataset[0].pbc.all():
+        rvecs = dataset[0].get_cell() * molmod.units.angstrom
+    else:
+        rvecs = None
     system = yaff.System(
             numbers=dataset[0].get_atomic_numbers(),
             pos=dataset[0].get_positions() * molmod.units.angstrom,
-            rvecs=dataset[0].get_cell() * molmod.units.angstrom,
+            rvecs=rvecs,
             )
     try_manual_plumed_linking()
     tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
@@ -171,7 +175,11 @@ def evaluate_bias(
     ff = yaff.pes.ForceField(system, [part_plumed])
     for i, atoms in enumerate(dataset):
         ff.update_pos(atoms.get_positions() * molmod.units.angstrom)
-        ff.update_rvecs(atoms.get_cell() * molmod.units.angstrom)
+        if rvecs is not None:
+            assert atoms.pbc.all()
+            ff.update_rvecs(atoms.get_cell() * molmod.units.angstrom)
+        else:
+            assert not atoms.pbc.all()
         values[i, -1] = ff.compute() / molmod.units.kjmol
         part_plumed.plumed.cmd('update')
         part_plumed.plumedstep = 3 # can be anything except zero; pick a prime

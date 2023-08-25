@@ -22,34 +22,36 @@ def main(path_output):
 
     config = MACEConfig()
     config.r_max = 6.0
-    config.hidden_irreps = '8x0e + 8x1o'
+    config.hidden_irreps = '4x0e + 4x1o'
     config.batch_size = 4
+    config.patience = 4
     model = MACEModel(config)
 
     model.add_atomic_energy('Cu', reference.compute_atomic_energy('Cu', box_size=6))
 
-    # set learning parameters and do pretraining
+    # set learning parameters
     learning = SequentialLearning(
             path_output=path_output,
             niterations=10,
+            pretraining_nstates=90,
             train_valid_split=0.9,
             train_from_scratch=True,
-            metrics=Metrics('copper_EMT', 'examples', 'psiflow'),
+            metrics=Metrics('copper_EMT', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            initial_temperature=100,
+            initial_temperature=400,
             final_temperature=2000,
             )
 
-    # construct walkers; biased MTD MD in this case
+    # construct walkers; straightforward MD in this case
     walkers = DynamicWalker.multiply(
-            30,
+            5,
             data_start=Dataset([atoms]),
             timestep=0.5,
-            steps=1000,
-            step=50,
+            steps=200,
+            step=40,
             start=0,
             temperature=100,
-            temperature_reset_quantile=0.01, # reset if P(temp) < 0.01
+            temperature_reset_quantile=0.30, # reset if P(temp) < 0.1
             pressure=0,
             )
     data = learning.run(

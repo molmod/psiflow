@@ -37,8 +37,8 @@ class BaseLearning:
     train_valid_split: float = 0.9
     pretraining_nstates: int = 50
     pretraining_amplitude_pos: float = 0.05
-    pretraining_amplitude_box: float = 0.05
-    metrics: Optional[Metrics] = None
+    pretraining_amplitude_box: float = 0.0
+    metrics: Optional[Metrics] = Metrics()
     atomic_energies: dict[str, Union[float, AppFuture]] = field(default_factory=lambda: {})
     train_from_scratch: bool = True
     mix_training_validation: bool = True
