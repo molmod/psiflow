@@ -80,9 +80,17 @@ def evaluate_batched(
         data_list = []
         for i in range(nbatches - 1):
             batch = dataset[i * batch_size : (i + 1) * batch_size]
-            data_list.append(model.evaluate(batch))
+            f = context.apps(model.__class__, 'evaluate')(
+                    inputs=[batch.data_future, model.deploy_future],
+                    outputs=[context.new_file('data_', '.xyz')],
+                    )
+            data_list.append(f)
         last = dataset[(nbatches - 1) * batch_size:]
-        data_list.append(model.evaluate(last))
+        f = context.apps(model.__class__, 'evaluate')(
+                inputs=[last.data_future, model.deploy_future],
+                outputs=[context.new_file('data_', '.xyz')],
+                )
+        data_list.append(f)
         future = app_join_dataset(
                 inputs=[d.data_future for d in data_list],
                 outputs=[outputs[0]],
@@ -174,10 +182,11 @@ class BaseModel:
                 batch_size,
                 outputs=[psiflow.context().new_file('data_', '.xyz')],
                 )
+        dataset = Dataset(None, data_future=future.outputs[0])
         if self.do_offset:
-            return Dataset(None, data_future=future.outputs[0]).add_offset(**self.atomic_energies)
+            return dataset.add_offset(**self.atomic_energies)
         else:
-            return Dataset(None, data_future=future.outputs[0])
+            return dataset
 
     def reset(self) -> None:
         self.config_future = None

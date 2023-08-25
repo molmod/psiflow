@@ -119,6 +119,7 @@ class BaseLearning:
                     model=model,
                     dataset=data,
                     )
+        psiflow.wait()
         return data
 
     def initialize_run(

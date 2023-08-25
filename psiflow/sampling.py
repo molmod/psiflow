@@ -166,7 +166,7 @@ def sample_with_model(
         walkers[i].reset(condition)
         s = log_evaluation_model(i, metadatas[i], states[i], errors[i], condition, identifier)
         if metrics is not None:
-            metrics.log_walker(i, metadatas[i], states[i], errors[i], condition, identifier)
+            metrics.log_walker(i, walkers[i], metadatas[i], states[i], errors[i], condition, identifier)
     return Dataset(states).labeled(), identifier
 
 
@@ -282,6 +282,7 @@ def sample_with_committee(
         if metrics is not None:
             metrics.log_walker(
                     i,
+                    walkers[i],
                     metadatas[i],
                     states[i],
                     errors[i],

@@ -272,7 +272,7 @@ def _to_wandb(
                         figures[title] = figure
     os.environ['WANDB_SILENT'] = 'True'
     path_wandb = Path(tempfile.mkdtemp())
-    wandb.init(id=wandb_id, resume='must', dir=path_wandb)
+    wandb.init(id=wandb_id, dir=path_wandb, resume='allow')
     wandb.log(figures)
     wandb.finish()
 to_wandb = python_app(_to_wandb, executors=['Default'])
@@ -283,16 +283,15 @@ class Metrics:
 
     def __init__(
             self,
-            wandb_name: Optional[str] = None,
             wandb_group: Optional[str] = None,
             wandb_project: Optional[str] = None,
             wandb_id: Optional[str] = None,
             ) -> None:
-        self.wandb_name = wandb_name
         self.wandb_group = wandb_group
         self.wandb_project = wandb_project
+        self.wandb_name = 'main'
         self.wandb_id = None
-        if wandb_name is not None:
+        if self.wandb_group is not None:
             os.environ['WANDB_SILENT'] = 'True'
             assert 'WANDB_API_KEY' in os.environ
             if self.wandb_id is None:
@@ -312,19 +311,19 @@ class Metrics:
 
     def as_dict(self):
         return {
-                'wandb_name': self.wandb_name,
                 'wandb_group': self.wandb_group,
                 'wandb_project': self.wandb_project,
                 'wandb_id': self.wandb_id,
                 }
 
     def insert_name(self, model: BaseModel):
-        model.config_raw['wandb_project'] = self.wandb_group
+        model.config_raw['wandb_project'] = self.wandb_project
         model.config_raw['wandb_group'] = self.wandb_group
 
     def log_walker(
             self,
             i,
+            walker,
             metadata,
             state,
             error,
@@ -332,6 +331,10 @@ class Metrics:
             identifier,
             disagreement=None,
             ):
+        # log walker total counter value instead 
+        # of counter from metadata
+        metadata_dict = metadata._asdict()
+        metadata_dict['counter'] = walker.counter
         log = log_walker(
                 i,
                 state,
@@ -339,7 +342,7 @@ class Metrics:
                 condition,
                 identifier,
                 disagreement,
-                **metadata._asdict(),
+                **metadata_dict,
                 )
         self.walker_logs.append(log)
 
@@ -363,5 +366,5 @@ class Metrics:
             inputs = [dataset.data_future, model.evaluate(dataset).data_future]
             dataset_log = log_dataset(inputs=inputs)
             save_dataset_log(dataset_log, path / 'dataset.log')
-        if self.wandb_id is not None:
+        if self.wandb_group is not None:
             f = to_wandb(self.wandb_id, walker_logs, dataset_log)

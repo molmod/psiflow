@@ -39,7 +39,7 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
     assert not np.allclose(dataset[0].result().arrays['forces'], 0.0)
 
     identifier = 4 
-    metrics = Metrics(wandb_name='test_sample_metrics', wandb_project='psiflow')
+    metrics = Metrics(wandb_group='test_sample_metrics', wandb_project='psiflow')
     data, identifier = sample_with_model(
             model,
             reference,
@@ -92,7 +92,7 @@ def test_sample_committee(mace_config, dataset, tmp_path):
     committee.train(dataset[:5], dataset[5:10])
 
     identifier = 0 
-    metrics = Metrics(wandb_name='test_sample_committee', wandb_project='psiflow')
+    metrics = Metrics(wandb_group='test_sample_committee', wandb_project='psiflow')
     data, identifier = sample_with_committee(
             committee,
             reference,
