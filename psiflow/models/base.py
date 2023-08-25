@@ -92,7 +92,7 @@ def evaluate_batched(
                 )
         data_list.append(f)
         future = app_join_dataset(
-                inputs=[d.data_future for d in data_list],
+                inputs=[d.outputs[0] for d in data_list],
                 outputs=[outputs[0]],
                 )
     return future

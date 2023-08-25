@@ -354,7 +354,8 @@ def apply_offset(
     numbers = [atomic_numbers[e] for e in atomic_energies.keys()]
     all_numbers = [n for atoms in data for n in set(atoms.numbers)]
     for n in all_numbers:
-        assert n in numbers
+        if n != 0: # from NullState
+            assert n in numbers
     for atoms in data:
         if atoms == NullState:
             continue
@@ -547,6 +548,7 @@ class Dataset:
         return Dataset(None, data_future=data_future)
 
     def add_offset(self, **atomic_energies) -> Dataset:
+        assert len(atomic_energies) > 0
         data_future = app_apply_offset(
                 False,
                 inputs=[self.data_future],

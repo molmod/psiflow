@@ -47,7 +47,7 @@ def _save_walker_logs(data: dict[str, list], path: Path) -> str:
     pt.float_format = '0.2' # gets converted to %0.2f
     s = pt.get_formatted_string('text', sortby='walker_index')
     with open(path, 'w') as f:
-        f.write(s)
+        f.write(s + '\n')
     return s
 save_walker_logs = python_app(_save_walker_logs, executors=['Default'])
 
@@ -226,6 +226,7 @@ def fix_plotly_layout(figure):
 @typeguard.typechecked
 def _to_wandb(
         wandb_id: str,
+        wandb_project: str,
         walker_logs: Optional[dict],
         dataset_log: Optional[dict],
         ):
@@ -272,7 +273,8 @@ def _to_wandb(
                         figures[title] = figure
     os.environ['WANDB_SILENT'] = 'True'
     path_wandb = Path(tempfile.mkdtemp())
-    wandb.init(id=wandb_id, dir=path_wandb, resume='allow')
+    # id is only unique per project
+    wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume='allow')
     wandb.log(figures)
     wandb.finish()
 to_wandb = python_app(_to_wandb, executors=['Default'])
@@ -367,4 +369,4 @@ class Metrics:
             dataset_log = log_dataset(inputs=inputs)
             save_dataset_log(dataset_log, path / 'dataset.log')
         if self.wandb_group is not None:
-            f = to_wandb(self.wandb_id, walker_logs, dataset_log)
+            f = to_wandb(self.wandb_id, self.wandb_project, walker_logs, dataset_log)
