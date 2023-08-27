@@ -76,7 +76,7 @@ def main(path_output):
             niterations=10,
             train_valid_split=0.9,
             train_from_scratch=True,
-            metrics=Metrics('MOF_phase_transition', 'examples', 'psiflow'),
+            metrics=Metrics('MOF_phase_transition', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
             initial_temperature=100,
             final_temperature=650,

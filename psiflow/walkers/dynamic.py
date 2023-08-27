@@ -298,7 +298,7 @@ class DynamicWalker(BaseWalker):
                         plumed_input='',
                         inputs=inputs,
                         outputs=outputs,
-                        walltime=(walltime * 60),
+                        walltime=min(walltime * 60, 1e9), # 20s slack
                         stdout=parsl.AUTO_LOGNAME, # output redirected to this file
                         stderr=parsl.AUTO_LOGNAME, # error redirected to this file
                         parsl_resource_specification=resource_spec,
@@ -344,7 +344,7 @@ class DynamicWalker(BaseWalker):
                         plumed_input='',
                         inputs=inputs,
                         outputs=outputs,
-                        walltime=(walltime * 60),
+                        walltime=min(walltime * 60, 1e9), # 20s slack
                         stdout=parsl.AUTO_LOGNAME, # output redirected to this file
                         stderr=parsl.AUTO_LOGNAME, # error redirected to this file
                         parsl_resource_specification=resource_spec,
@@ -503,7 +503,7 @@ class BiasedDynamicWalker(DynamicWalker):
                         plumed_input=bias.prepare_input(),
                         inputs=inputs,
                         outputs=outputs,
-                        walltime=(walltime * 60), # 20s slack
+                        walltime=min(walltime * 60, 1e9), # 20s slack
                         stdout=parsl.AUTO_LOGNAME, # output redirected to this file
                         stderr=parsl.AUTO_LOGNAME, # error redirected to this file
                         parsl_resource_specification=resource_spec,
@@ -555,7 +555,7 @@ class BiasedDynamicWalker(DynamicWalker):
                         plumed_input=bias.prepare_input(),
                         inputs=inputs,
                         outputs=outputs,
-                        walltime=(walltime * 60), # 20s slack
+                        walltime=min(walltime * 60, 1e9), # 20s slack
                         stdout=parsl.AUTO_LOGNAME, # output redirected to this file
                         stderr=parsl.AUTO_LOGNAME, # error redirected to this file
                         parsl_resource_specification=resource_spec,
