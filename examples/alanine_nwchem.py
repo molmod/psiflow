@@ -7,7 +7,7 @@ from psiflow.data import Dataset, FlowAtoms
 from psiflow.reference import NWChemReference
 from psiflow.walkers import PlumedBias, BiasedDynamicWalker, \
         DynamicWalker
-from psiflow.models import MACEModel, MACEConfig
+from psiflow.models import NequIPModel, NequIPConfig
 from psiflow.metrics import Metrics
 from psiflow.learning import SequentialLearning
 
@@ -46,13 +46,15 @@ def main(path_output):
     reference = get_reference()
     bias      = get_bias()
 
-    config = MACEConfig()
-    config.r_max = 5.0
-    config.hidden_irreps = '16x0e + 16x1o'
-    config.MLP_irreps = '8x0e'
+    config = NequIPConfig()
+    config.r_max = 4.0
+    config.num_features = 16
+    config.invariant_layers = 1
+    config.invariant_neurons = 32
     config.batch_size = 4
-    config.patience = 8
-    model = MACEModel(config)
+    config.loss_coeffs['total_energy'][0] = 50
+    config.early_stopping_patiences['validation_loss'] = 8
+    model = NequIPModel(config)
 
     model.add_atomic_energy('H', reference.compute_atomic_energy('H'))
     model.add_atomic_energy('C', reference.compute_atomic_energy('C'))

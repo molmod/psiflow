@@ -78,8 +78,6 @@ def main(path_output):
             train_from_scratch=True,
             metrics=Metrics('MOF_phase_transition', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            initial_temperature=100,
-            final_temperature=650,
             cv_name='CV',
             cv_start=5000,
             cv_stop=3000,

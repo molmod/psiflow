@@ -82,9 +82,12 @@ class ForcePartASE(yaff.pes.ForcePart):
             forces = self.atoms.get_forces()
             gpos[:] = -forces * molmod.units.electronvolt / molmod.units.angstrom
         if vtens is not None:
-            stress = self.atoms.get_stress(voigt=False)
-            volume = np.linalg.det(self.atoms.get_cell())
-            vtens[:] = volume * stress * molmod.units.electronvolt
+            if self.atoms.pbc.all():
+                stress = self.atoms.get_stress(voigt=False)
+                volume = np.linalg.det(self.atoms.get_cell())
+                vtens[:] = volume * stress * molmod.units.electronvolt
+            else:
+                vtens[:] = 0.0
         return energy
 
 
