@@ -4,6 +4,7 @@ import typeguard
 from dataclasses import dataclass, asdict, field
 from typing import Optional
 from pathlib import Path
+import numpy as np
 import yaml
 import logging
 
