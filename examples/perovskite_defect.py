@@ -7,6 +7,7 @@ import psiflow
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.walkers import BiasedDynamicWalker, PlumedBias
 from psiflow.models import MACEConfig, MACEModel
+from psiflow.committee import Committee
 from psiflow.learning import CommitteeLearning
 from psiflow.reference import CP2KReference
 from psiflow.metrics import Metrics
