@@ -198,6 +198,28 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     metadata = walker.propagate(model=model)
     assert not metadata.reset.result()
 
+    walker.reset()
+    walker.pressure = 0
+    walker.temperature = 500
+    walker.steps = 9 # takes 10 steps to attempt unit cell change
+    walker.propagate(model=model)
+    assert np.allclose(
+            walker.state0.result().get_volume(),
+            walker.state.result().get_volume(),
+            )
+    walker.steps = 1000
+    walker.temperature_reset_quantile = 0.0
+    walker.propagate(model=model)
+    assert not walker.is_reset().result()
+    assert not np.allclose(
+            walker.state0.result().get_positions(),
+            walker.state.result().get_positions(),
+            )
+    assert not np.allclose(
+            walker.state0.result().get_volume(),
+            walker.state.result().get_volume(),
+            )
+
 
 def test_optimization_walker(context, dataset, mace_config):
     training = dataset[:15]

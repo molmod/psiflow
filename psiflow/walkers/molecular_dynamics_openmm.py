@@ -145,9 +145,11 @@ def main():
     else:
         print('sampling at constant pressure ...')
         assert args.temperature is not None
+        assert atoms.pbc.all()
         barostat = openmm.MonteCarloFlexibleBarostat(
                 10 * args.pressure,          # to bar
                 args.temperature,
+                10,
                 False,                       # setScaleMoleculesAsRigid; cannot be kwarg
                 )
         system.addForce(barostat)

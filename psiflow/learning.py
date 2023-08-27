@@ -25,7 +25,8 @@ from psiflow.walkers import BaseWalker, RandomWalker, \
         BiasedDynamicWalker
 from psiflow.state import save_state, load_state
 from psiflow.metrics import Metrics
-from psiflow.sampling import sample_with_model
+from psiflow.sampling import sample_with_model, \
+        sample_with_committee
 from psiflow.utils import resolve_and_check
 
 
