@@ -40,6 +40,10 @@ def get_reference():
     """
     with open(Path.cwd() / 'data' / 'cp2k_input.txt', 'r') as f:
         cp2k_input = f.read()
+    # set UKS to True and add CHARGE 1
+    cp2k_input = cp2k_input.split('\n')
+    cp2k_input.insert(5, '      CHARGE 1')
+    cp2k_input = '\n'.join(cp2k_input)
     reference = CP2KReference(cp2k_input=cp2k_input)
     basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v2023.1/data/BASIS_MOLOPT_UZH').text
     dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v2023.1/data/dftd3.dat').text
