@@ -253,6 +253,7 @@ class SequentialLearning(BaseLearning):
 
 
 @typeguard.typechecked
+@dataclass
 class CommitteeLearning(SequentialLearning):
     nstates_per_iteration: int = 0
 

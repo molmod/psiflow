@@ -85,7 +85,7 @@ def main(path_output):
             error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
             initial_temperature=300,
             final_temperature=1000,
-            nstates_per_iteration=50
+            nstates_per_iteration=50,
             )
 
     # construct walkers; biased MTD MD in this case
