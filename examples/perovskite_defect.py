@@ -1,4 +1,5 @@
 from pathlib import Path
+import requests
 
 from ase.io import read
 
@@ -96,7 +97,7 @@ def main(path_output):
             step=50,
             start=0,
             temperature=100,
-            temperature_reset_quantile=0.02, # reset if P(temp) < 0.01
+            temperature_reset_quantile=0.01, # reset if P(temp) < 0.01
             pressure=0,
             )
     data = learning.run(
