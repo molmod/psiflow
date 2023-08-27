@@ -1,27 +1,29 @@
-import requests
-import logging
 from pathlib import Path
-import numpy as np
 
 from ase.io import read
 
 import psiflow
-from psiflow.learning import IncrementalLearning, load_learning
-from psiflow.models import MACEModel, MACEConfig
-from psiflow.reference import CP2KReference
-from psiflow.data import FlowAtoms, Dataset
+from psiflow.data import Dataset, FlowAtoms
 from psiflow.walkers import BiasedDynamicWalker, PlumedBias
-from psiflow.state import load_state
-from psiflow.metrics import Metrics
+from psiflow.models import MACEConfig, MACEModel
+from psiflow.learning import CommitteeLearning
+from psiflow.reference import CP2KReference
 
 
 def get_bias():
-    """Defines the metadynamics parameters based on a plumed input script"""
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-MOVINGRESTRAINT ARG=CV STEP0=0 AT0=5000 KAPPA0=0.1 STEP1=2000 AT1=4500 KAPPA1=0.1
-"""
+
+c1: COM ATOMS=60,44
+c2: COM ATOMS=60,56
+
+d1: DISTANCE ATOMS=c1,108
+d2: DISTANCE ATOMS=c2,108
+
+CV: MATHEVAL ARG=d1,d2 FUNC=(x-y) PERIODIC=NO
+
+METAD ARG=CV SIGMA=0.5 HEIGHT=2 PACE=100 LABEL=metad FILE=HILLS
+""" 
     return PlumedBias(plumed_input)
 
 
@@ -55,46 +57,46 @@ def main(path_output):
     assert not path_output.exists()
     reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
     bias      = get_bias()          # simple MTD bias on unit cell volume
-    atoms = FlowAtoms.from_atoms(read(Path.cwd() / 'data' / 'mof.xyz'))
+    atoms = FlowAtoms.from_atoms(read(Path.cwd() / 'data' / 'perovskite_defect.xyz'))
     atoms.canonical_orientation()   # transform into conventional lower-triangular box
 
     config = MACEConfig()
-    config.r_max = 6.0
-    config.hidden_irreps = '32x0e + 32x1o'
+    config.r_max = 7.0
+    config.hidden_irreps = '16x0e + 16x1o'
     config.batch_size = 4
     config.patience = 10
+    config.energy_weight = 100
     model = MACEModel(config)
 
     model.add_atomic_energy('H', reference.compute_atomic_energy('H', box_size=6))
-    model.add_atomic_energy('O', reference.compute_atomic_energy('O', box_size=6))
     model.add_atomic_energy('C', reference.compute_atomic_energy('C', box_size=6))
-    model.add_atomic_energy('Al', reference.compute_atomic_energy('Al', box_size=6))
+    model.add_atomic_energy('N', reference.compute_atomic_energy('N', box_size=6))
+    model.add_atomic_energy('I', reference.compute_atomic_energy('I', box_size=6))
+    model.add_atomic_energy('Pb', reference.compute_atomic_energy('Pb', box_size=6))
 
     # set learning parameters and do pretraining
-    learning = IncrementalLearning(
+    learning = CommitteeLearning(
             path_output=path_output,
             niterations=10,
             train_valid_split=0.9,
-            train_from_scratch=True,
-            metrics=Metrics('MOF_phase_transition', 'psiflow_examples'),
-            error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            cv_name='CV',
-            cv_start=5000,
-            cv_stop=3000,
-            cv_delta=250,
+            metrics=Metrics('perovskite_defect', 'psiflow_examples'),
+            error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
+            initial_temperature=300,
+            final_temperature=1000,
+            nstates_per_iteration=50
             )
 
     # construct walkers; biased MTD MD in this case
     walkers = BiasedDynamicWalker.multiply(
-            50,
+            100,
             data_start=Dataset([atoms]),
             bias=bias,
             timestep=0.5,
-            steps=10000,
+            steps=1000,
             step=50,
             start=0,
             temperature=100,
-            temperature_reset_quantile=0.001, # reset if P(temp) < 0.01
+            temperature_reset_quantile=0.02, # reset if P(temp) < 0.01
             pressure=0,
             )
     data = learning.run(
@@ -104,20 +106,7 @@ def main(path_output):
             )
 
 
-def restart(path_output):
-    reference = get_reference()
-    learning  = load_learning(path_output)
-    model, walkers, data_train, data_valid = load_state(path_output, '5')
-    data_train, data_valid = learning.run(
-            model=model,
-            reference=reference,
-            walkers=walkers,
-            initial_data=data_train + data_valid,
-            )
-
-
 if __name__ == '__main__':
     psiflow.load()
     path_output = Path.cwd() / 'output' # stores learning results
     main(path_output)
-    #restart(path_output)

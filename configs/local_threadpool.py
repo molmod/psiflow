@@ -12,7 +12,7 @@ model_evaluation = ModelEvaluation(
         parsl_provider=LocalProvider(),
         cores_per_worker=2,
         max_walltime=1,
-        simulation_engine='yaff',
+        simulation_engine='openmm',
         )
 model_training = ModelTraining(
         parsl_provider=LocalProvider(),

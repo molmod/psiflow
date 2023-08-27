@@ -115,10 +115,10 @@ def main():
                 energy_to_kJ_per_mol=eV_to_kJ_per_mol,
                 )
         system = potential.createSystem(topology, device=args.device)
-
+    system.addForce(openmm.CMMotionRemover())
     if args.temperature is not None:
         temperature = args.temperature * unit.kelvin
-        integrator = openmm.LangevinIntegrator(temperature, 1.0/unit.picoseconds, args.timestep * unit.femtosecond)
+        integrator = openmm.LangevinMiddleIntegrator(temperature, 1.0/unit.picoseconds, args.timestep * unit.femtosecond)
         velocities = get_velocities_at_temperature(args.temperature, atoms.get_masses())
     else:
         integrator = openmm.VerletIntegrator(args.timestep * unit.femtosecond)
