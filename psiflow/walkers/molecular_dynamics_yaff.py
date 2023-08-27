@@ -77,7 +77,7 @@ def main():
         load_calculator = AllegroModel.load_calculator
     else:
         raise ValueError
-    atoms.calc = load_calculator(args.model, args.device, 'float32')
+    atoms.calc = load_calculator(args.model, args.device)
     forcefield = create_forcefield(atoms, args.force_threshold)
 
     loghook  = yaff.VerletScreenLog(step=args.step, start=0)
