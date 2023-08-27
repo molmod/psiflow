@@ -6,7 +6,7 @@ import numpy as np
 from ase.io import read
 
 import psiflow
-from psiflow.learning import SequentialLearning, load_learning
+from psiflow.learning import IncrementalLearning, load_learning
 from psiflow.models import MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
@@ -20,7 +20,7 @@ def get_bias():
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
-METAD ARG=CV SIGMA=200 HEIGHT=5 PACE=100 LABEL=metad FILE=test_hills
+MOVINGRESTRAINT ARG=CV STEP0=0 AT0=5000 KAPPA0=0.1 STEP1=2000 AT1=4500 KAPPA1=0.1
 """
     return PlumedBias(plumed_input)
 
@@ -71,7 +71,7 @@ def main(path_output):
     model.add_atomic_energy('Al', reference.compute_atomic_energy('Al', box_size=6))
 
     # set learning parameters and do pretraining
-    learning = SequentialLearning(
+    learning = IncrementalLearning(
             path_output=path_output,
             niterations=10,
             train_valid_split=0.9,
@@ -80,6 +80,10 @@ def main(path_output):
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
             initial_temperature=100,
             final_temperature=650,
+            cv_name='CV',
+            cv_start=5000,
+            cv_stop=3000,
+            cv_delta=500,
             )
 
     # construct walkers; biased MTD MD in this case

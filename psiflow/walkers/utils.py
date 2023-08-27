@@ -75,7 +75,8 @@ class ForcePartASE(yaff.pes.ForcePart):
 
     def _internal_compute(self, gpos=None, vtens=None):
         self.atoms.set_positions(self.system.pos / molmod.units.angstrom)
-        self.atoms.set_cell(Cell(self.system.cell._get_rvecs() / molmod.units.angstrom))
+        if self.atoms.pbc.all():
+            self.atoms.set_cell(Cell(self.system.cell._get_rvecs() / molmod.units.angstrom))
         energy = self.atoms.get_potential_energy() * molmod.units.electronvolt
         if gpos is not None:
             forces = self.atoms.get_forces()
@@ -114,10 +115,14 @@ class ForceField(yaff.pes.ForceField):
 
 def create_forcefield(atoms, force_threshold):
     """Creates force field from ASE atoms instance"""
+    if atoms.pbc.all():
+        rvecs = atoms.get_cell() * molmod.units.angstrom
+    else:
+        rvecs = None
     system = yaff.System(
             numbers=atoms.get_atomic_numbers(),
             pos=atoms.get_positions() * molmod.units.angstrom,
-            rvecs=atoms.get_cell() * molmod.units.angstrom,
+            rvecs=rvecs,
             )
     system.set_standard_masses()
     part_ase = ForcePartASE(system, atoms)
@@ -132,11 +137,15 @@ class DataHook(yaff.VerletHook):
         self.data = []
 
     def init(self, iterative):
+        if iterative.ff.system.cell.nvec > 0:
+            cell = iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom
+        else:
+            cell = None
         self.atoms = Atoms(
                 numbers=iterative.ff.system.numbers.copy(),
                 positions=iterative.ff.system.pos / molmod.units.angstrom,
-                cell=iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom,
-                pbc=True,
+                cell=cell,
+                pbc=cell is not None,
                 )
 
     def pre(self, iterative):
@@ -147,7 +156,8 @@ class DataHook(yaff.VerletHook):
 
     def __call__(self, iterative):
         self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
-        self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
+        if self.atoms.pbc.all():
+            self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
         self.data.append(self.atoms.copy())
 
 
@@ -161,11 +171,15 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
         self.temperatures = []
 
     def init(self, iterative):
+        if iterative.ff.system.cell.nvec > 0:
+            cell = iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom
+        else:
+            cell = None
         self.atoms = Atoms(
                 numbers=iterative.ff.system.numbers.copy(),
                 positions=iterative.ff.system.pos / molmod.units.angstrom,
-                cell=iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom,
-                pbc=True,
+                cell=cell,
+                pbc=cell is not None,
                 )
 
     def pre(self, iterative):
@@ -177,7 +191,8 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
     def __call__(self, iterative):
         if iterative.counter > 0: # first write is manual
             self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
-            self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
+            if self.atoms.pbc.all():
+                self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
             write(self.path_xyz, self.atoms, append=True)
             self.nwrites += 1
             self.temperatures.append(iterative.temp)

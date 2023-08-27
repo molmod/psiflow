@@ -160,8 +160,8 @@ MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
     learning = IncrementalLearning(
             tmp_path,
             cv_name='CV',
-            cv_min=140,
-            cv_max=200,
+            cv_start=140,
+            cv_stop=200,
             cv_delta=60,
             niterations=1,
             error_thresholds_for_reset=(1e9, 1e12), # never reset

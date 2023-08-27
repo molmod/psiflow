@@ -38,7 +38,7 @@ def molecular_dynamics_yaff(
         plumed_input: str = '',
         inputs: list[File] = [],
         outputs: list[File] = [],
-        walltime: float = 1e9, # infinite by default
+        walltime: float = 1e6, # infinite by default
         stdout: str = '',
         stderr: str = '',
         parsl_resource_specification: Optional[dict] = None,
@@ -115,7 +115,7 @@ def molecular_dynamics_openmm(
         plumed_input: str = '',
         inputs: list[File] = [],
         outputs: list[File] = [],
-        walltime: float = 1e9, # infinite by default
+        walltime: float = 1e6, # infinite by default
         stdout: str = '',
         stderr: str = '',
         parsl_resource_specification: Optional[dict] = None,

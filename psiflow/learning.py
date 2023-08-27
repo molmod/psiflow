@@ -18,6 +18,7 @@ import psiflow
 from psiflow.utils import save_yaml, copy_app_future
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.models import BaseModel
+from psiflow.committee import Committee
 from psiflow.reference import BaseReference
 from psiflow.walkers import BaseWalker, RandomWalker, \
         BiasedDynamicWalker
@@ -252,11 +253,66 @@ class SequentialLearning(BaseLearning):
 
 
 @typeguard.typechecked
+class CommitteeLearning(SequentialLearning):
+    nstates_per_iteration: int = 0
+
+    def run(
+            self,
+            committee: Committee,
+            reference: BaseReference,
+            walkers: list[BaseWalker],
+            initial_data: Optional[Dataset] = None,
+            ) -> Dataset:
+        assert self.nstates_per_iteration <= len(walkers)
+        assert self.nstates_per_iteration > 0
+        data = self.initialize_run(
+                committee.models[0],
+                reference,
+                walkers,
+                initial_data,
+                )
+        # override initial temperature in walkers
+        for walker in walkers:
+            if hasattr(walker, 'temperature'):
+                walker.temperature = self.initial_temperature
+        for i in range(self.niterations):
+            if self.output_exists(str(i)):
+                continue # skip iterations in case of restarted run
+            new_data, self.identifier = sample_with_committee(
+                    committee,
+                    reference,
+                    walkers,
+                    self.identifier,
+                    self.nstates_per_iteration,
+                    self.error_thresholds_for_reset,
+                    self.metrics,
+                    )
+            data = data + new_data
+            data_train, data_valid = data.split(self.train_valid_split)
+            committee.train(data_train, data_valid)
+            save_state(
+                    self.path_output,
+                    str(i),
+                    model=committee.models[0],
+                    walkers=walkers,
+                    data_train=data_train,
+                    data_valid=data_valid,
+                    )
+            if self.metrics is not None:
+                self.metrics.save(self.path_output / str(i), committee.models[0], data)
+            committee.save(self.path_output / str(i) / 'committee')
+            psiflow.wait()
+            self.update_walkers(walkers)
+        return data
+
+
+
+@typeguard.typechecked
 @dataclass
 class IncrementalLearning(BaseLearning):
     cv_name: Optional[str] = None # have to be kwargs
-    cv_min: Optional[float] = None
-    cv_max: Optional[float] = None
+    cv_start: Optional[float] = None
+    cv_stop: Optional[float] = None
     cv_delta: Optional[float] = None
     niterations: int = 10
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
@@ -276,10 +332,11 @@ class IncrementalLearning(BaseLearning):
                     centers[1],
                     centers[1] + self.cv_delta,
                     )
-            if new_centers[1] <= self.cv_max:
+            if np.sign(self.cv_max - new_centers[1]) == np.sign(self.cv_delta):
                 pass
-            else:
-                new_centers = (self.cv_min, self.cv_min + self.cv_delta)
+            else: # start over
+                new_centers = (self.cv_start, self.cv_start + self.cv_delta)
+                walker.reset()
             walker.bias.adjust_moving_restraint(
                     self.cv_name,
                     steps=steps,
@@ -295,8 +352,8 @@ class IncrementalLearning(BaseLearning):
             initial_data: Optional[Dataset] = None,
             ) -> Dataset:
         assert self.cv_name is not None
-        assert self.cv_min is not None
-        assert self.cv_max is not None
+        assert self.cv_start is not None
+        assert self.cv_stop is not None
         assert self.cv_delta is not None
         data = self.initialize_run(
                 model,
@@ -343,6 +400,7 @@ def load_learning(path_output: Union[Path, str]):
     assert path_output.is_dir()
     classes = [
             SequentialLearning,
+            CommitteeLearning,
             IncrementalLearning,
             None,
             ]

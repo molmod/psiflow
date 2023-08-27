@@ -172,7 +172,8 @@ def main():
     atoms.calc = None
     if len(datahook.data) > 0:
         atoms.set_positions(datahook.data[-1].get_positions())
-        atoms.set_cell(datahook.data[-1].get_cell())
+        if atoms.pbc.all():
+            atoms.set_cell(datahook.data[-1].get_cell())
     else:
         datahook.data.append(initial)
 

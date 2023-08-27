@@ -141,18 +141,16 @@ def nwchem_singlepoint_post(
     try:
         results = io.read(inputs[0], format='nwchem-out')
         atoms.info['energy'] = results.calc.results['energy']
+        with open(atoms.reference_stderr, 'r') as f:
+            content = f.read()
+        if 'dft gradient' in content:
+            atoms.arrays['forces'] = results.calc.results['forces']
+        else:
+            atoms.arrays['forces'] = None
         atoms.reference_status = True
     except Exception as e:
         print(e)
         atoms.reference_status = False
-    try: # OK if no forces present
-        atoms.arrays['forces'] = results.calc.results['forces']
-    except KeyError: # when only energies were requested
-        with open(atoms.reference_stderr, 'r') as f:
-            content = f.read()
-        assert 'task' in content
-        assert not 'dft gradient' in content
-        atoms.arrays['forces'] = None
     return atoms
 
 
