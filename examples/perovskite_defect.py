@@ -75,6 +75,7 @@ def main(path_output):
     model.add_atomic_energy('N', reference.compute_atomic_energy('N', box_size=6))
     model.add_atomic_energy('I', reference.compute_atomic_energy('I', box_size=6))
     model.add_atomic_energy('Pb', reference.compute_atomic_energy('Pb', box_size=6))
+    committee = Committee([model.copy() for i in range(4)])
 
     # set learning parameters and do pretraining
     learning = CommitteeLearning(
@@ -102,7 +103,7 @@ def main(path_output):
             pressure=0,
             )
     data = learning.run(
-            model=model,
+            committee=committee,
             reference=reference,
             walkers=walkers,
             )
