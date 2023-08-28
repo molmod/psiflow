@@ -111,8 +111,6 @@ def main(path_output):
             )
 
     # continue with committee learning
-    model.reset()
-    committee = Committee([model.copy() for i in range(4)])
     learning = CommitteeLearning(
             path_output=path_output / 'learn_committee',
             niterations=5,
@@ -123,8 +121,10 @@ def main(path_output):
             final_temperature=1200,
             nstates_per_iteration=50,
             )
+    model.reset()
+    committee = Committee([model.copy() for i in range(4)])
     data = learning.run(
-            committee=committee
+            committee=committee,
             reference=reference,
             walkers=walkers,
             initial_data=data,
