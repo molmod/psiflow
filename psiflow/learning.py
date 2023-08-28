@@ -49,8 +49,7 @@ class BaseLearning:
 
     def __post_init__(self) -> None: # save self in output folder
         self.path_output = resolve_and_check(Path(self.path_output))
-        if not self.path_output.is_dir():
-            self.path_output.mkdir()
+        self.path_output.mkdir(parents=True, exist_ok=True)
         atomic_energies = self.atomic_energies
         self.atomic_energies = {} # avoid errors in asdict
         config = asdict(self)
