@@ -47,7 +47,7 @@ In a containerized setup, all that is needed is a simple Python environment with
 Parsl (including the [cctools](https://github.com/cooperative-computing-lab/cctools) module) and psiflow:
 
 ```
-micromamba create -n psiflow_env ndcctools=7.5.2 -c conda-forge -y python=3.9
+micromamba create -n psiflow_env ndcctools=7.6.1 -c conda-forge -y python=3.9
 micromamba activate psiflow_env
 pip install git+https://github.com/molmod/psiflow
 ```
