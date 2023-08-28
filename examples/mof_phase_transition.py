@@ -20,7 +20,7 @@ def get_bias():
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
-MOVINGRESTRAINT ARG=CV STEP0=0 AT0=5000 KAPPA0=0.001 STEP1=2000 AT1=4500 KAPPA1=0.001
+MOVINGRESTRAINT ARG=CV STEP0=0 AT0=5000 KAPPA0=0.1 STEP1=2000 AT1=4500 KAPPA1=0.1
 """
     return PlumedBias(plumed_input)
 
@@ -94,7 +94,7 @@ def main(path_output):
             step=50,
             start=0,
             temperature=300,
-            temperature_reset_quantile=0.001, # reset if P(temp) < 0.01
+            temperature_reset_quantile=1e-4, # reset if P(temp) < 0.01
             pressure=0,
             )
     data = learning.run(
