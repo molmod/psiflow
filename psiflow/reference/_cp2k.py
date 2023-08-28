@@ -285,6 +285,7 @@ class CP2KReference(BaseReference):
             config = {'UKS': 'TRUE', 'MULTIPLICITY': mult}
             inp = Cp2kInput.from_str(self.cp2k_input)
             inp.update({'FORCE_EVAL': {'DFT': {'UKS': config['UKS']}}})
+            inp.update({'FORCE_EVAL': {'DFT': {'CHARGE': 0}}}) # do not apply charge for formation energies
             inp.update({'FORCE_EVAL': {'DFT': {'MULTIPLICITY': config['MULTIPLICITY']}}})
             inp.update({'FORCE_EVAL': {'DFT': {'XC': {'VDW_POTENTIAL': {}}}}}) # disable d3
             inp.update({'FORCE_EVAL': {'DFT': {'SCF': {'OT': {'MINIMIZER': 'CG'}}}}}) # use more robust CG
