@@ -60,19 +60,19 @@ and as such, all of the required software and libraries are automatically access
 Psiflow provides two nearly identical containers; one for AMD GPUs and one for Nvidia GPUs. They differ only in the specific version of `torch`
 that was included:
 
-- for NVIDIA GPUs and CUDA >=11.3 : `oras://ghcr.io/molmod/psiflow:1.0.0-cuda11.3`; includes `torch 1.11.0+cu113`
-- for AMD GPUs and ROCm 5.2       : `oras://ghcr.io/molmod/psiflow:1.0.0-rocm5.2`; includes `torch 1.13.0+rocm5.2`
+- for NVIDIA GPUs and CUDA >=11.3 : `oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8`; includes `torch 1.13.1+cu112` from `conda-forge`
+- for AMD GPUs and ROCm 5.2       : (not yet available)
 
-Apart from that, these containers come with CP2K 2023.1, PLUMED 2.7.2, NequIP 0.5.4, and MACE 0.1.0, in addition to a bunch
-of other psiflow dependencies such as e.g. Numpy, ASE, and Pymatgen; check out the psiflow Dockerfiles for more information.
+Apart from that, these containers come with CP2K 2023.1, PLUMED 2.9, OpenMM 8.0, NequIP 0.5.6, and MACE 0.2.0, in addition to a bunch
+of other psiflow dependencies such as e.g. Numpy, ASE, and Pymatgen; check out the psiflow [Dockerfile](https://github.com/molmod/psiflow/tree/main/Dockerfile) for more information.
 
 
 __NOTES:__
 1. container files are several GBs in size. On most clusters, the default cache location is somwehere in your `$HOME` directory, which might not be desirable. To change this
 to some other location, add the following lines to your `.bashrc`:
 
-        export APPTAINER_CACHEDIR=/dodrio/scratch/users/vsc42527/2022_050/apptainer_cache
-        export APPTAINER_TMPDIR=/dodrio/scratch/users/vsc42527/2022_050/apptainer_cache
+        export APPTAINER_CACHEDIR=/some/dir/on/local/scratch/apptainer_cache
+        export APPTAINER_TMPDIR=/some/dir/on/local/scratch/apptainer_cache
 
     If your compute resources use SingularityCE instead of Apptainer, replace 'APPTAINER' with 'SINGULARITY' in the environment variable names. Lastly, to ensure psiflow can communicate its data to         [W&B](https://wandb.ai), add 
     
@@ -81,21 +81,24 @@ to some other location, add the following lines to your `.bashrc`:
     to your `.bashrc` as well.
 
 2. If you cannot setup either Apptainer or Singularity on your compute resources, you may always choose to install all of psiflow's dependencies yourself. For most cases, a simple micromamba environment will suffice:
-        
-        micromamba create -p ./psiflow_env ndcctools=7.5.2 cp2k plumed -c conda-forge -y python=3.9
-        micromamba activate ./psiflow_env
-        pip install git+https://github.com/molmod/psiflow
 
-        pip install cython matscipy prettytable plumed
-        pip install git+https://github.com/molmod/molmod.git@f59506594b49f7a8545aef0ae6fb378e361eda80
-        pip install git+https://github.com/molmod/yaff.git@422570c89e3c44b29db3714a3b8a205279f7b713
+        export CONDA_OVERRIDE_CUDA="11.8"
+        micromamba create -n psiflow_env -c conda-forge python=3.9 pip ndcctools=7.6.1 openmm-plumed openmm-torch pytorch=1.13.1=cuda* cp2k nwchem py-plumed
+        micromamba activate psiflow_env
+   
+        pip install cython==0.29.36 matscipy prettytable
+        pip install git+https://github.com/molmod/molmod
+        pip install git+https://github.com/molmod/yaff
         pip install e3nn==0.4.4
-        pip install git+https://github.com/mir-group/nequip.git@v0.5.6
-        pip install git+https://github.com/mir-group/allegro.git --no-deps
-        pip install --force git+https://git@github.com/ACEsuit/MACE.git@d520abac437648dafbec0f6e203ec720afa16cf7 --no-deps
+        pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0' mdtraj tables
 
-        pip uninstall torch -y && pip install --force torch==1.11.0 --index-url https://download.pytorch.org/whl/cu113
+        pip install git+https://github.com/acesuit/MACE.git@55f7411
+        pip install git+https://github.com/mir-group/nequip.git@develop --no-deps
+        pip install git+https://github.com/mir-group/allegro --no-deps
+        pip install git+https://github.com/sef43/openmm-ml.git@develop
 
+        pip install git+https://github.com/molmod/psiflow
+       
         # dev dependencies
         pip install pytest coverage coveralls
         
