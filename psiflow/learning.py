@@ -268,13 +268,9 @@ class CommitteeLearning(SequentialLearning):
             ) -> Dataset:
         assert self.nstates_per_iteration <= len(walkers)
         assert self.nstates_per_iteration > 0
-        data = self.initialize_run(
-                committee.models[0],
-                reference,
-                walkers,
-                initial_data,
-                )
-        # override initial temperature in walkers
+        assert initial_data is not None
+        data = initial_data
+        committee.train(*data.shuffle().split(0.9)) # initial training
         for walker in walkers:
             if hasattr(walker, 'temperature'):
                 walker.temperature = self.initial_temperature

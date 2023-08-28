@@ -18,9 +18,9 @@ from psiflow.committee import Committee
 
 
 def main(path_output):
-    path_sequential = path_output / 'sequential' 
+    path_sequential = path_output / 'learn_sequential' 
     path_sequential.mkdir(parents=True)
-    path_committee = path_output / 'committee' 
+    path_committee = path_output / 'learn_committee' 
     path_committee.mkdir(parents=True)
 
     reference = EMTReference()     # CP2K; PBE-D3(BJ); TZVP
@@ -78,7 +78,6 @@ def main(path_output):
             nstates_per_iteration=3,
             )
     committee = Committee([model.copy() for i in range(2)])
-    committee.train(*data.shuffle().split(0.9))
     data = learning.run(
             committee=committee,
             reference=reference,

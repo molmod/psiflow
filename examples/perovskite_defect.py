@@ -8,7 +8,7 @@ from psiflow.data import Dataset, FlowAtoms
 from psiflow.walkers import BiasedDynamicWalker, PlumedBias
 from psiflow.models import MACEConfig, MACEModel
 from psiflow.committee import Committee
-from psiflow.learning import CommitteeLearning
+from psiflow.learning import CommitteeLearning, SequentialLearning
 from psiflow.reference import CP2KReference
 from psiflow.metrics import Metrics
 
@@ -80,21 +80,7 @@ def main(path_output):
     model.add_atomic_energy('N', reference.compute_atomic_energy('N', box_size=6))
     model.add_atomic_energy('I', reference.compute_atomic_energy('I', box_size=6))
     model.add_atomic_energy('Pb', reference.compute_atomic_energy('Pb', box_size=6))
-    committee = Committee([model.copy() for i in range(4)])
 
-    # set learning parameters and do pretraining
-    learning = CommitteeLearning(
-            path_output=path_output,
-            niterations=10,
-            train_valid_split=0.9,
-            metrics=Metrics('perovskite_defect', 'psiflow_examples'),
-            error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
-            initial_temperature=300,
-            final_temperature=1000,
-            nstates_per_iteration=50,
-            )
-
-    # construct walkers; biased MTD MD in this case
     walkers = BiasedDynamicWalker.multiply(
             100,
             data_start=Dataset([atoms]),
@@ -104,13 +90,44 @@ def main(path_output):
             step=50,
             start=0,
             temperature=100,
-            temperature_reset_quantile=0.01, # reset if P(temp) < 0.01
+            temperature_reset_quantile=1e-3, # reset if P(temp) < 0.01
             pressure=0,
             )
+    metrics = Metrics('perovskite_defect', 'psiflow_examples')
+
+    learning = SequentialLearning(
+            path_output=path_output / 'learn_sequential',
+            niterations=2,
+            train_valid_split=0.9,
+            metrics=metrics,
+            error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
+            initial_temperature=200,
+            final_temperature=400,
+            )
     data = learning.run(
-            committee=committee,
+            model=model,
             reference=reference,
             walkers=walkers,
+            )
+
+    # continue with committee learning
+    model.reset()
+    committee = Committee([model.copy() for i in range(4)])
+    learning = CommitteeLearning(
+            path_output=path_output / 'learn_committee',
+            niterations=5,
+            train_valid_split=0.9,
+            metrics=metrics,
+            error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
+            initial_temperature=600,
+            final_temperature=1200,
+            nstates_per_iteration=50,
+            )
+    data = learning.run(
+            committee=committee
+            reference=reference,
+            walkers=walkers,
+            initial_data=data,
             )
 
 

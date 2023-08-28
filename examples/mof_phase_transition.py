@@ -20,7 +20,7 @@ def get_bias():
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
-MOVINGRESTRAINT ARG=CV STEP0=0 AT0=5000 KAPPA0=0.1 STEP1=2000 AT1=4500 KAPPA1=0.1
+MOVINGRESTRAINT ARG=CV STEP0=0 AT0=5250 KAPPA0=0.1 STEP1=5000 AT1=5000 KAPPA1=0.1
 """
     return PlumedBias(plumed_input)
 
@@ -79,9 +79,9 @@ def main(path_output):
             metrics=Metrics('MOF_phase_transition', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
             cv_name='CV',
-            cv_start=5000,
+            cv_start=5250,
             cv_stop=3000,
-            cv_delta=250,
+            cv_delta=-250,
             )
 
     # construct walkers; biased MTD MD in this case

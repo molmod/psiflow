@@ -225,7 +225,7 @@ def log_evaluation_committee(
                 s += '\tevaluation successful; state received unique id {}'.format(identifier - 1)
                 s += '\n'
                 if condition:
-                    s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (above threshold)\n\twalker reset'.format(*errors)
+                    s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (above threshold)'.format(*errors)
                     s += '\n\twalker reset'
                 else:
                     s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (below threshold)'.format(*errors)

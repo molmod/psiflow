@@ -125,6 +125,8 @@ class Committee:
             path: Union[Path, str],
             require_done: bool = True,
             ):
+        path = Path(path)
+        path.mkdir(exist_ok=True, parents=True)
         for i, model in enumerate(self.models):
             model.save(path / str(i), require_done)
 
