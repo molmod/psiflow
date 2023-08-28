@@ -6,17 +6,23 @@ import numpy as np
 from ase.build import bulk, make_supercell
 
 import psiflow
-from psiflow.learning import SequentialLearning, load_learning
+from psiflow.learning import SequentialLearning, load_learning, \
+        CommitteeLearning
 from psiflow.models import MACEModel, MACEConfig
 from psiflow.reference import EMTReference
 from psiflow.data import FlowAtoms, Dataset
 from psiflow.walkers import DynamicWalker, PlumedBias
 from psiflow.state import load_state
 from psiflow.metrics import Metrics
+from psiflow.committee import Committee
 
 
 def main(path_output):
-    assert not path_output.exists()
+    path_sequential = path_output / 'sequential' 
+    path_sequential.mkdir(parents=True)
+    path_committee = path_output / 'committee' 
+    path_committee.mkdir(parents=True)
+
     reference = EMTReference()     # CP2K; PBE-D3(BJ); TZVP
     atoms     = make_supercell(bulk('Cu', 'fcc', a=3.6, cubic=True), 3 * np.eye(3))
 
@@ -31,9 +37,9 @@ def main(path_output):
 
     # set learning parameters
     learning = SequentialLearning(
-            path_output=path_output,
-            niterations=10,
-            pretraining_nstates=90,
+            path_output=path_sequential,
+            niterations=1,
+            pretraining_nstates=50,
             train_valid_split=0.9,
             train_from_scratch=True,
             metrics=Metrics('copper_EMT', 'psiflow_examples'),
@@ -58,6 +64,26 @@ def main(path_output):
             model=model,
             reference=reference,
             walkers=walkers,
+            )
+    model.reset()
+
+    # continue with committee learning
+    learning = CommitteeLearning(
+            path_committee,
+            niterations=3,
+            metrics=Metrics('copper_EMT', 'psiflow_examples'),
+            error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
+            initial_temperature=400,
+            final_temperature=2000,
+            nstates_per_iteration=3,
+            )
+    committee = Committee([model.copy() for i in range(2)])
+    committee.train(*data.shuffle().split(0.9))
+    data = learning.run(
+            committee=committee,
+            reference=reference,
+            walkers=walkers,
+            initial_data=data,
             )
 
 

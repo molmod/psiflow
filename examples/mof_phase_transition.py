@@ -90,7 +90,7 @@ def main(path_output):
             data_start=Dataset([atoms]),
             bias=bias,
             timestep=0.5,
-            steps=2500,
+            steps=5000,
             step=50,
             start=0,
             temperature=300,

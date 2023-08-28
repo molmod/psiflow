@@ -1,6 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
 import typeguard
 from typing import Optional, Union, Any
+from pathlib import Path
 import numpy as np
 import yaml
 
