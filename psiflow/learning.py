@@ -335,7 +335,7 @@ class IncrementalLearning(BaseLearning):
                     centers[1],
                     centers[1] + self.cv_delta,
                     )
-            if np.sign(self.cv_max - new_centers[1]) == np.sign(self.cv_delta):
+            if np.sign(self.cv_stop - new_centers[1]) == np.sign(self.cv_delta):
                 pass
             else: # start over
                 new_centers = (self.cv_start, self.cv_start + self.cv_delta)
