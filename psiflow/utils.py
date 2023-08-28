@@ -41,7 +41,9 @@ def set_logger( # hacky
             'psiflow.models._mace',
             'psiflow.models._nequip',
             'psiflow.reference._cp2k',
+            'psiflow.reference._nwchem',
             'psiflow.walkers.bias',
+            'psiflow.walkers.dynamic',
             ]
     for name in names:
         logger = logging.getLogger(name)
