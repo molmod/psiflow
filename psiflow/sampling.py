@@ -222,13 +222,10 @@ def log_evaluation_committee(
             else:
                 assert errors[0] is not None
                 assert errors[1] is not None
-                s += '\tevaluation successful; state received unique id {}'.format(identifier - 1)
-                s += '\n'
+                s += '\tevaluation successful; state received unique id {}\n'.format(identifier - 1)
+                s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A\n'.format(*errors)
                 if condition:
-                    s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (above threshold)'.format(*errors)
-                    s += '\n\twalker reset'
-                else:
-                    s += '\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (below threshold)'.format(*errors)
+                    s += '\twalker reset'
         else:
             s += ' (low)\n\tevaluation skipped'  # state not selected
             assert errors[0] is None
