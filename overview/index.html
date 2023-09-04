@@ -460,6 +460,9 @@ A <code>Dataset</code> instance mimics the behavior of a list of ASE <code>Atoms
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">data_train</span>  <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;train.xyz&#39;</span><span class="p">)</span>         <span class="c1"># create a psiflow Dataset from a file</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">data_subset</span> <span class="o">=</span> <span class="n">data_train</span><span class="p">[:</span><span class="mi">10</span><span class="p">]</span>                   <span class="c1"># create a new Dataset instance with the first 10 states</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">data_train</span>  <span class="o">=</span> <span class="n">data_subset</span> <span class="o">+</span> <span class="n">data_train</span><span class="p">[</span><span class="mi">10</span><span class="p">:]</span>     <span class="c1"># combining two datasets is easy</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">data</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;lots_of_data.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">train</span><span class="p">,</span> <span class="n">valid</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shuffle</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="mf">0.9</span><span class="p">)</span>        <span class="c1"># shuffle structures and partition into train/valid sets</span>
 </code></pre></div>
 The main difference between a psiflow <code>Dataset</code> instance and an actual Python <code>list</code> of
 <code>Atoms</code> is that a <code>Dataset</code> can represent data <strong>that will be generated in the future</strong>.</p>
@@ -554,21 +557,20 @@ used to train models and evaluate errors.
 <a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>            <span class="c1"># this will calculate the scale/shifts, and average number of neighbors</span>
 <a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span><span class="p">)</span>     <span class="c1"># train using supplied datasets</span>
 <a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>
-<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">&#39;./&#39;</span><span class="p">)</span>        <span class="c1"># save initialized config, undeployed model to current working directory!</span>
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="n">model</span><span class="o">.</span><span class="n">deploy</span><span class="p">()</span>          <span class="c1"># prepare for inference, e.g. test error evaluation or molecular dynamics</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">&#39;./&#39;</span><span class="p">)</span>        <span class="c1"># saves initialized config and model to current working directory!</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>
 <a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>
-<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>
-<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="c1"># evaluate test error</span>
-<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="n">data_test</span>       <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;test.xyz&#39;</span><span class="p">)</span>      <span class="c1"># test data; contains QM reference energy/forces/stress</span>
-<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="n">data_test_model</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_test</span><span class="p">)</span>     <span class="c1"># same test data, but with predicted energy/forces/stress</span>
-<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>
-<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="n">errors</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">get_errors</span><span class="p">(</span>        <span class="c1"># static method of Dataset to compute the error between two datasets</span>
-<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>        <span class="n">data_test</span><span class="p">,</span>                  
-<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>        <span class="n">data_test_model</span><span class="p">,</span>                  
-<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>        <span class="n">properties</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;forces&#39;</span><span class="p">],</span>      <span class="c1"># only compute the force error</span>
-<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a>        <span class="n">elements</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="s1">&#39;O&#39;</span><span class="p">],</span>        <span class="c1"># only include carbon or oxygen atoms</span>
-<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>        <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;rmse&#39;</span><span class="p">,</span>              <span class="c1"># use RMSE instead of MAE or MAX</span>
-<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>        <span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                  <span class="c1"># errors is an AppFuture, use .result() to get the actual values!</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="c1"># evaluate test error</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="n">data_test</span>       <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;test.xyz&#39;</span><span class="p">)</span>      <span class="c1"># test data; contains QM reference energy/forces/stress</span>
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="n">data_test_model</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_test</span><span class="p">)</span>     <span class="c1"># same test data, but with predicted energy/forces/stress</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a>
+<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a><span class="n">errors</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">get_errors</span><span class="p">(</span>        <span class="c1"># static method of Dataset to compute the error between two datasets</span>
+<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a>        <span class="n">data_test</span><span class="p">,</span>                  
+<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>        <span class="n">data_test_model</span><span class="p">,</span>                  
+<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>        <span class="n">properties</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;forces&#39;</span><span class="p">],</span>      <span class="c1"># only compute the force error</span>
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>        <span class="n">elements</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="s1">&#39;O&#39;</span><span class="p">],</span>        <span class="c1"># only include carbon or oxygen atoms</span>
+<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a>        <span class="n">metric</span><span class="o">=</span><span class="s1">&#39;rmse&#39;</span><span class="p">,</span>              <span class="c1"># use RMSE instead of MAE or MAX</span>
+<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>        <span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                  <span class="c1"># errors is an AppFuture, use .result() to get the actual values as ndarray</span>
 </code></pre></div>
 Note that depending on how the psiflow execution is configured,
 it is perfectly possible
@@ -576,60 +578,62 @@ that the <code>model.train()</code> command will end up being executed using a G
 whereas model deployment and evaluation of the test error gets
 executed on your local computer.
 See the psiflow <a href="config.md">Configuration</a> page for more information.</p>
+<p>In many cases, it is generally recommended to provide these models with some estimate of the absolute energy of an isolated
+atom for the specific level of theory and basis set considered (and this for each element).
+Instead of having the model learn the <em>absolute</em> total energy of the system, we first subtract the atomic energies in order
+to train the model on the <em>formation</em> energy of the system instead, as this generally improves the generalization performance
+of the model towards unseen stoichiometries.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>model.add_atomic_energy(&#39;H&#39;, -13.7)     # add atomic energy of isolated hydrogen atom
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>model.initialize(some_training_data)
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>model.add_atomic_energy(&#39;O&#39;, -400)      # will raise an exception; model needs to be reinitialized first
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>model.reset()                           # removes current model, but keeps raw config
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>model.add_atomic_energy(&#39;O&#39;, -400)
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>model.initialize(some_training_data)    # OK!
+</code></pre></div>
 <h2 id="molecular-simulation">Molecular simulation</h2>
-<p>Having trained and deployed a model, it is possible to explore the phase space
-of a physical system in order to generate new (and physically relevant) structures. 
+<p>Having trained a model, it is possible to explore the phase space
+of a physical system in order to generate new geometries. 
 Psiflow defines a <code>BaseWalker</code> interface that should be used to implement specific
 phase space exploration algorithms.
-Prominent examples are molecular dynamics (both NVT and NPT), as implemented
-using the <code>DynamicWalker</code> class, and geometry optimizations, as implemented using
-the <code>OptimizationWalker</code> class.</p>
-<p>Molecular dynamics simulations are performed using YAFF, a simple molecular mechanics
-library written in Python. It supports a variety of
-<a href="https://github.com/molmod/yaff/blob/master/yaff/sampling/nvt.py">temperature</a> and
-<a href="https://github.com/molmod/yaff/blob/master/yaff/sampling/npt.py">pressure</a>
-control algorithms.
-By default, psiflow employs stochastic Langevin methods for both temperature
-and pressure control because they typically exhibit a smaller correlation time
-as compared to deterministic methods such as NHC or MTK.
-Geometry optimization is performed using the
-<a href="https://wiki.fysik.dtu.dk/ase/ase/optimize.html#preconditioned-optimizers">preconditioned L-BFGS implementation</a>
-in ASE, as it typically requires less steps than either conventional L-BFGS or
-first-order methods such as CG.
-Note that geometry optimizations require accurate force evaluations and are
-therefore always performed in double precision (<code>float64</code>).
-Because <code>model.deploy()</code> calls in psiflow will deploy both a single and a double
-precision variant of each model, the user will not notice any of this.</p>
-<p>Let us illustrate how the deployed model from the previous example may be used
-to explore the phase of the system under study:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">DynamicWalker</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>      <span class="c1"># initialize walker to first configuration in dataset</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>       <span class="c1"># Verlet timestep</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>         <span class="c1"># number of timesteps to perform</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="n">step</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>           <span class="c1"># frequency with which states are sampled</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>            <span class="c1"># timestep at which sampling is started</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>    <span class="c1"># temperature, in kelvin</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>        <span class="n">pressure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>      <span class="c1"># pressure, in MPa. If None, then simulation is NVT</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>        <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>             <span class="c1"># numpy random seed with which initial Boltzmann velocities are set</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>        <span class="p">)</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
-<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="n">state</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span>   <span class="c1"># actual MD</span>
-<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>                    <span class="c1"># use this model to evaluate forces at every step</span>
-<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>        <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>           <span class="c1"># keep the trajectory, and return it as a Dataset</span>
-<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>        <span class="p">)</span>
+Each walker implements a <code>propagate</code> method which performs the phase space sampling
+using a <code>BaseModel</code> instance and returns the final state in which it 'arrived'.
+Each walker has a <code>counter</code> attribute which defines the number of steps that have
+elapsed between its initial structure and said returned state.</p>
+<p>Let's illustrate this using an important example: molecular dynamics with the <code>DynamicWalker</code>.
+Temperature and pressure control are implemented
+by means of stochastic Langevin dynamics
+because it typically dampens the correlations
+as compared to deterministic time propagation methods such as Nose-Hoover.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">DynamicWalker</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>        <span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>      <span class="c1"># initialize walker to first configuration in dataset</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>        <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>       <span class="c1"># Verlet timestep</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>         <span class="c1"># number of timesteps to perform</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>        <span class="n">step</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>           <span class="c1"># frequency with which states are sampled</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>        <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>            <span class="c1"># timestep at which sampling is started</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>    <span class="c1"># temperature, in kelvin</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>        <span class="n">pressure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>      <span class="c1"># pressure, in MPa. If None, then simulation is NVT</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>        <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>             <span class="c1"># numpy random seed with which initial Boltzmann velocities are set</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>        <span class="p">)</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="c1"># run short MD simulation using some model)</span>
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="n">metadata</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>
+</code></pre></div>
+Propagation of walkers returns a metadata <code>namedtuple</code> which has multiple fields:</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>metadata.state              # parsl AppFuture of a FlowAtoms object which represents the final state 
 </code></pre></div>
 The state that is returned by the propagation is a Future of an ASE <code>Atoms</code>
 that represents the final state of the walker after the simulation.
 If the simulation proceeds without errors, the following assertion
 will evaluate to True:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>assert np.allclose(
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>        state.result().positions,           # state is a Future; use .result() to get actual Atoms
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>        trajectory[-1].result().positions,  # trajectory is a Dataset; use regular indexing and .result()
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>        )
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>assert np.allclose(
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>        state.result().positions,           # state is a Future; use .result() to get actual Atoms
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>        trajectory[-1].result().positions,  # trajectory is a Dataset; use regular indexing and .result()
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>        )
 </code></pre></div></p>
 <div class="admonition note">
 <p class="admonition-title">Parsl 102: Futures are necessary</p>
@@ -645,8 +649,8 @@ This waiting is precisely what is enforced when using <code>.result()</code> on 
 For example, if we would like to find out how many states were actually generated,
 we'd use the <code>dataset.length()</code> function that returns a Future of the length
 of the dataset:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">length</span> <span class="o">=</span> <span class="n">trajectory</span><span class="o">.</span><span class="n">length</span><span class="p">()</span>    <span class="c1"># will execute before the trajectory is actually generated</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">length</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                 <span class="c1"># enforces Python to wait until the MD calculation has finished, and then compute the actual length</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">length</span> <span class="o">=</span> <span class="n">trajectory</span><span class="o">.</span><span class="n">length</span><span class="p">()</span>    <span class="c1"># will execute before the trajectory is actually generated</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">length</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                 <span class="c1"># enforces Python to wait until the MD calculation has finished, and then compute the actual length</span>
 </code></pre></div>
 See <a href="https://parsl.readthedocs.io/en/stable/userguide/futures.html">this page</a> in the Parsl documentation
 for more information on asynchronous execution.</p>
@@ -678,21 +682,28 @@ The <code>multiply()</code> class method provides a convenient way of initializi
 configuration and their random number seed.
 Let us try and generate 10 walkers which are initialized with different
 snapshots from the trajectory obtained before:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">walkers</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>        <span class="mi">10</span><span class="p">,</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>        <span class="n">data_start</span><span class="o">=</span><span class="n">trajectory</span><span class="p">,</span>              <span class="c1"># walker i initialized to trajectory[i]</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>        <span class="p">)</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">walker</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">walkers</span><span class="p">):</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="k">assert</span> <span class="n">walker</span><span class="o">.</span><span class="n">seed</span> <span class="o">==</span> <span class="n">i</span>                 <span class="c1"># unique seed for each walker</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">states</span> <span class="o">=</span> <span class="p">[]</span>                                 <span class="c1"># keep track of &#39;Future&#39; states</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="k">for</span> <span class="n">walker</span> <span class="ow">in</span> <span class="n">walkers</span><span class="p">:</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="n">state</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>   <span class="c1"># proceeds in parallel!</span>
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="n">states</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="n">data</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">states</span><span class="p">)</span>                      <span class="c1"># put them in a Dataset</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">walkers</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>        <span class="mi">10</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>        <span class="n">data_start</span><span class="o">=</span><span class="n">trajectory</span><span class="p">,</span>              <span class="c1"># walker i initialized to trajectory[i]</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="p">)</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">walker</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">walkers</span><span class="p">):</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>    <span class="k">assert</span> <span class="n">walker</span><span class="o">.</span><span class="n">seed</span> <span class="o">==</span> <span class="n">i</span>                 <span class="c1"># unique seed for each walker</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">states</span> <span class="o">=</span> <span class="p">[]</span>                                 <span class="c1"># keep track of &#39;Future&#39; states</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="k">for</span> <span class="n">walker</span> <span class="ow">in</span> <span class="n">walkers</span><span class="p">:</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>    <span class="n">state</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>   <span class="c1"># proceeds in parallel!</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>    <span class="n">states</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="n">data</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">states</span><span class="p">)</span>                      <span class="c1"># put them in a Dataset</span>
 </code></pre></div>
+<p>Geometry optimization is performed using the
+<a href="https://wiki.fysik.dtu.dk/ase/ase/optimize.html#preconditioned-optimizers">preconditioned L-BFGS implementation</a>
+in ASE, as it typically requires less steps than either conventional L-BFGS or
+first-order methods such as CG.
+Note that geometry optimizations in psiflow will not 
+reduce the total residual force on the system beyond about 0.01 eV/A
+because all model evaluations are performed in single precision (<code>float32</code>),.</p>
 <h2 id="bias-potentials-and-enhanced-sampling">Bias potentials and enhanced sampling</h2>
 <p>In the vast majority of molecular dynamics simulations of realistic systems,
 it is beneficial to modify the equilibrium Boltzmann distribution with bias potentials
@@ -716,18 +727,18 @@ their file path in the input string is essentially irrelevant.
 To apply this bias in a simulation, we employ the <code>BiasedDynamicWalker</code>; it is
 almost identical to the <code>DynamicWalker</code> except that it accepts an additional
 (mandatory) <code>bias</code> keyword argument during initialization:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">BiasedDynamicWalker</span><span class="p">,</span> <span class="n">PlumedBias</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="s2">CV: VOLUME</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="s2">METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=10 LABEL=metad FILE=dummy</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">)</span>        <span class="c1"># a new hills file is generated</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">BiasedDynamicWalker</span><span class="p">(</span><span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>    <span class="c1"># initialize dynamic walker with bias</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="n">state</span>  <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>                                        <span class="c1"># performs biased MD</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">BiasedDynamicWalker</span><span class="p">,</span> <span class="n">PlumedBias</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="s2">CV: VOLUME</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="s2">METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=10 LABEL=metad FILE=dummy</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">)</span>        <span class="c1"># a new hills file is generated</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">BiasedDynamicWalker</span><span class="p">(</span><span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>    <span class="c1"># initialize dynamic walker with bias</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="n">state</span>  <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>                                        <span class="c1"># performs biased MD</span>
 </code></pre></div>
 Note that the bias instance will retain the hills that were generated during walker
 propagation.
@@ -738,47 +749,47 @@ on <code>Dataset</code> instances using the <code>bias.evaluate()</code> method.
 The returned object is a Parsl <code>Future</code> that represents an <code>ndarray</code> of shape <code>(nstates, 2)</code>.
 The first column represents the value of the collective variable for each state,
 and the second column contains the bias energy.</p>
-<p><div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">values</span> <span class="o">=</span> <span class="n">bias</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">)</span>       <span class="c1"># compute the collective variable &#39;CV&#39; and bias energy</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">data_train</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>  <span class="c1"># each snapshot is evaluated separately</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>                             <span class="c1"># CV and bias per snapshot, in PLUMED units!</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>                 <span class="c1"># bias energy from added hills</span>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">values</span> <span class="o">=</span> <span class="n">bias</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">)</span>       <span class="c1"># compute the collective variable &#39;CV&#39; and bias energy</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">data_train</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>  <span class="c1"># each snapshot is evaluated separately</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>                             <span class="c1"># CV and bias per snapshot, in PLUMED units!</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>                 <span class="c1"># bias energy from added hills</span>
 </code></pre></div>
 As another example, let's consider the same collective variable but now with
 a harmonic bias potential applied to it.
 Because sampling with and manipulation of harmonic bias potentials is ubiquitous
 in free energy calculations, psiflow provides specific functionalities for this
 particular case.
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="s2">CV: VOLUME</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="s2">RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">BiasedDynamicWalker</span><span class="p">(</span><span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bias</span><span class="o">=</span><span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">))</span>  <span class="c1"># walker with harmonic bias</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="n">state</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>                                           
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="c1"># change bias center and width</span>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="n">walker</span><span class="o">.</span><span class="n">bias</span><span class="o">.</span><span class="n">adjust_restraint</span><span class="p">(</span><span class="n">variable</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">,</span> <span class="n">kappa</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="n">state_</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>     
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="c1"># if the system had enough time to equilibrate with the bias, then the following should hold</span>
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="k">assert</span> <span class="n">state</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">state_</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="s2">CV: VOLUME</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="s2">RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">BiasedDynamicWalker</span><span class="p">(</span><span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bias</span><span class="o">=</span><span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">))</span>  <span class="c1"># walker with harmonic bias</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="n">state</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>                                           
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="c1"># change bias center and width</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="n">walker</span><span class="o">.</span><span class="n">bias</span><span class="o">.</span><span class="n">adjust_restraint</span><span class="p">(</span><span class="n">variable</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">,</span> <span class="n">kappa</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="n">state_</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>     
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="c1"># if the system had enough time to equilibrate with the bias, then the following should hold</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="k">assert</span> <span class="n">state</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">state_</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span>
 </code></pre></div>
 Finally, psiflow also explicitly supports the use of numerical bias potentials
 as defined on a grid:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="kn">from</span> <span class="nn">psiflow.sampling.bias</span> <span class="kn">import</span> <span class="n">generate_external_grid</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">bias_function</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mi">150</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>    <span class="c1"># Gaussian hill at CV=150</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="n">grid_values</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">300</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span>                    <span class="c1"># CV values for numerical grid</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="n">grid</span> <span class="o">=</span> <span class="n">generate_external_grid</span><span class="p">(</span>      <span class="c1"># generate contents of PLUMED grid file</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>        <span class="n">bias_function</span><span class="p">,</span>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>        <span class="n">grid_values</span><span class="p">,</span>                
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>        <span class="s1">&#39;CV&#39;</span><span class="p">,</span>                       <span class="c1"># use ARG=CV in the EXTERNAL action</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>        <span class="n">periodic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>             <span class="c1"># periodicity of CV</span>
-<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>        <span class="p">)</span>
-<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;EXTERNAL&#39;</span><span class="p">:</span> <span class="n">grid</span><span class="p">})</span>   <span class="c1"># pass grid file as external dependency</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span> <span class="nn">psiflow.sampling.bias</span> <span class="kn">import</span> <span class="n">generate_external_grid</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="n">bias_function</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mi">150</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>    <span class="c1"># Gaussian hill at CV=150</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">grid_values</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">300</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span>                    <span class="c1"># CV values for numerical grid</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="n">grid</span> <span class="o">=</span> <span class="n">generate_external_grid</span><span class="p">(</span>      <span class="c1"># generate contents of PLUMED grid file</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>        <span class="n">bias_function</span><span class="p">,</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>        <span class="n">grid_values</span><span class="p">,</span>                
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>        <span class="s1">&#39;CV&#39;</span><span class="p">,</span>                       <span class="c1"># use ARG=CV in the EXTERNAL action</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>        <span class="n">periodic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>             <span class="c1"># periodicity of CV</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>        <span class="p">)</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;EXTERNAL&#39;</span><span class="p">:</span> <span class="n">grid</span><span class="p">})</span>   <span class="c1"># pass grid file as external dependency</span>
 </code></pre></div>
 Note that metadynamics hills files cannot be shared between walkers 
 (as is the case in multiple walker metadynamics) as this would
@@ -802,25 +813,25 @@ though VASP and ORCA will be added in the near future.</p>
 single <code>FlowAtoms</code> instance, and performs the single-point calculations.
 Depending on which argument it receives, it returns either a future or a <code>Dataset</code>
 which contain the QM energy, forces, and stress. </p>
-<p><div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">_</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>    <span class="c1"># trajectory of states</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="n">labeled</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">trajectory</span><span class="p">)</span>  <span class="c1"># massively parallel evaluation (returns new Dataset with results)   </span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="p">,</span> <span class="n">Dataset</span><span class="p">)</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">])</span> <span class="c1"># cp2k potential energy!</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="n">labeled</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">trajectory</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>     <span class="c1"># evaluates single state (returns a FlowAtoms future)</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="p">,</span> <span class="n">AppFuture</span><span class="p">)</span>
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">(),</span> <span class="n">FlowAtoms</span><span class="p">)</span>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">])</span>          <span class="c1"># will print the same energy</span>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">_</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>    <span class="c1"># trajectory of states</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">labeled</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">trajectory</span><span class="p">)</span>  <span class="c1"># massively parallel evaluation (returns new Dataset with results)   </span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="p">,</span> <span class="n">Dataset</span><span class="p">)</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">])</span> <span class="c1"># cp2k potential energy!</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="n">labeled</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">trajectory</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>     <span class="c1"># evaluates single state (returns a FlowAtoms future)</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="p">,</span> <span class="n">AppFuture</span><span class="p">)</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">(),</span> <span class="n">FlowAtoms</span><span class="p">)</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">])</span>          <span class="c1"># will print the same energy</span>
 </code></pre></div>
 The output and error logs that were generated during the actual evaluation
 are automatically stored in case they need to checked for errors or unexpected
 behavior.
 Their location in the file system is kept track of using additional attributes
 provided by the <code>FlowAtoms</code> class:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">assert</span> <span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_status</span>    <span class="c1"># True, because state is successfully evaluated</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_stdout</span><span class="p">)</span>    <span class="c1"># e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stdout</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_stderr</span><span class="p">)</span>    <span class="c1"># e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stderr</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">assert</span> <span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_status</span>    <span class="c1"># True, because state is successfully evaluated</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_stdout</span><span class="p">)</span>    <span class="c1"># e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stdout</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_stderr</span><span class="p">)</span>    <span class="c1"># e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stderr</span>
 </code></pre></div>
 <h3 id="cp2k">CP2K</h3>
 <p>The <code>CP2KReference</code> expects a traditional CP2K
@@ -829,20 +840,20 @@ provided by the <code>FlowAtoms</code> class:</p>
 it should only contain the FORCE_EVAL section.
 Additional input files which define the basis sets, pseudopotentials, and
 dispersion correction parameters have to be added to the calculator after initialization.
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">CP2KReference</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="n">cp2k_input</span> <span class="o">=</span> <span class="k">with</span> <span class="n">file</span><span class="p">(</span><span class="s1">&#39;cp2k_input.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="n">reference</span>  <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="p">)</span>
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># register additional input files with the following mapping</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="c1"># if the corresponding keyword in the CP2K input file is X, use Y as key here:</span>
-<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="c1"># X: BASIS_SET_FILE_NAME    -&gt;   Y: basis_set</span>
-<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="c1"># X: POTENTIAL_FILE_NAME    -&gt;   Y: potential</span>
-<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="c1"># X: PARAMETER_FILE_NAME    -&gt;   Y: dftd3</span>
-<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;basis_set&#39;</span><span class="p">,</span> <span class="s1">&#39;BASIS_MOLOPT_UZH&#39;</span><span class="p">)</span>
-<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;potential&#39;</span><span class="p">,</span> <span class="s1">&#39;POTENTIAL_UZH&#39;</span><span class="p">)</span>
-<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;dftd3&#39;</span><span class="p">,</span> <span class="s1">&#39;dftd3.dat&#39;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">CP2KReference</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="n">cp2k_input</span> <span class="o">=</span> <span class="k">with</span> <span class="n">file</span><span class="p">(</span><span class="s1">&#39;cp2k_input.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="n">reference</span>  <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="p">)</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># register additional input files with the following mapping</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="c1"># if the corresponding keyword in the CP2K input file is X, use Y as key here:</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="c1"># X: BASIS_SET_FILE_NAME    -&gt;   Y: basis_set</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="c1"># X: POTENTIAL_FILE_NAME    -&gt;   Y: potential</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="c1"># X: PARAMETER_FILE_NAME    -&gt;   Y: dftd3</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;basis_set&#39;</span><span class="p">,</span> <span class="s1">&#39;BASIS_MOLOPT_UZH&#39;</span><span class="p">)</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;potential&#39;</span><span class="p">,</span> <span class="s1">&#39;POTENTIAL_UZH&#39;</span><span class="p">)</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;dftd3&#39;</span><span class="p">,</span> <span class="s1">&#39;dftd3.dat&#39;</span><span class="p">)</span>
 </code></pre></div></p>
 <!---
 ## Generators
@@ -854,15 +865,15 @@ using a reference level of theory. In psiflow terms, this
 means that a `BaseWalker` will be propagated using a `PlumedBias` and a `BaseModel`,
 and the final state that is obtained will be passed to the `BaseReference`
 instance after which it may be included in training/validation datasets.
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span> <span class="nn">ase.io</span> <span class="kn">import</span> <span class="n">read</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">start</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="s1">&#39;atoms.xyz&#39;</span><span class="p">)</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="n">bias</span>   <span class="o">=</span> <span class="kc">None</span>       <span class="c1"># or PlumedBias(plumed_input)</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
-<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="n">state</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span> <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="n">final</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span> <span class="nn">ase.io</span> <span class="kn">import</span> <span class="n">read</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="n">start</span> <span class="o">=</span> <span class="n">read</span><span class="p">(</span><span class="s1">&#39;atoms.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="n">bias</span>   <span class="o">=</span> <span class="kc">None</span>       <span class="c1"># or PlumedBias(plumed_input)</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="n">state</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span> <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="n">final</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
 </code></pre></div>
 However, there are few additional considerations
 that come into play when generating data with imperfect interaction potentials:
@@ -900,20 +911,20 @@ To accomodate all of this, psiflow makes use of a `Generator` class which
 groups the walker and bias into a single object, along with the retry policy.
 The above code block would look like this when implemented using a generator:
 
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span> <span class="nn">psiflow.generator</span> <span class="kn">import</span> <span class="n">Generator</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="kn">from</span> <span class="nn">psiflow.checks</span> <span class="kn">import</span> <span class="n">InteratomicDistanceCheck</span>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="n">generator</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">(</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>        <span class="s1">&#39;simple&#39;</span><span class="p">,</span>               <span class="c1"># name to use when logging status of this generator</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>        <span class="n">walker</span><span class="p">,</span>                 <span class="c1"># e.g. DynamicWalker</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>        <span class="n">bias</span><span class="p">,</span>                   <span class="c1"># PlumedBias or None</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>        <span class="n">nretries_sampling</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>    <span class="c1"># walker.propagate() will be called at most thrice</span>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>        <span class="n">nretries_reference</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>   <span class="c1"># reference.evaluate() will be called precisely once</span>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>        <span class="p">)</span>
-<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="n">checks</span> <span class="o">=</span> <span class="p">[</span><span class="n">InteratomicDistanceCheck</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)]</span>  <span class="c1"># reject state if d(atom1, atom2) &lt; 0.5 A for any two atoms</span>
-<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="n">state</span> <span class="o">=</span> <span class="n">generator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span> <span class="n">checks</span><span class="o">=</span><span class="n">checks</span><span class="p">)</span>  <span class="c1"># retries are handled internally</span>
-<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a>
-<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="k">assert</span> <span class="n">state</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_status</span>              <span class="c1"># is already evaluated by the generator</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span> <span class="nn">psiflow.generator</span> <span class="kn">import</span> <span class="n">Generator</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="kn">from</span> <span class="nn">psiflow.checks</span> <span class="kn">import</span> <span class="n">InteratomicDistanceCheck</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">generator</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">(</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>        <span class="s1">&#39;simple&#39;</span><span class="p">,</span>               <span class="c1"># name to use when logging status of this generator</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>        <span class="n">walker</span><span class="p">,</span>                 <span class="c1"># e.g. DynamicWalker</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>        <span class="n">bias</span><span class="p">,</span>                   <span class="c1"># PlumedBias or None</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>        <span class="n">nretries_sampling</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>    <span class="c1"># walker.propagate() will be called at most thrice</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>        <span class="n">nretries_reference</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>   <span class="c1"># reference.evaluate() will be called precisely once</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>        <span class="p">)</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="n">checks</span> <span class="o">=</span> <span class="p">[</span><span class="n">InteratomicDistanceCheck</span><span class="p">(</span><span class="n">threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)]</span>  <span class="c1"># reject state if d(atom1, atom2) &lt; 0.5 A for any two atoms</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="n">state</span> <span class="o">=</span> <span class="n">generator</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span> <span class="n">checks</span><span class="o">=</span><span class="n">checks</span><span class="p">)</span>  <span class="c1"># retries are handled internally</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="k">assert</span> <span class="n">state</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_status</span>              <span class="c1"># is already evaluated by the generator</span>
 </code></pre></div>
 
 In online learning, a common scenario is to generate data using
@@ -922,11 +933,11 @@ simply initialized in a different way (either with a different seed or a differe
 Psiflow provides a simple way to _multiply_ a generator in order to obtain a list
 of generators, all of which identical except for the random number seed
 (and possibly the initial configuration).
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">generators</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">(</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">walker</span><span class="p">,</span> <span class="n">bias</span><span class="p">)</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="c1"># same initial configuration, different seed</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">generators</span><span class="p">)</span> <span class="o">==</span> <span class="nb">list</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">initial_states</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;initial_states.xyz&#39;</span><span class="p">)</span>         <span class="c1"># different initial configuration, different seed</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="n">generators</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">(</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">walker</span><span class="p">,</span> <span class="n">bias</span><span class="p">)</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">initialize_using</span><span class="o">=</span><span class="n">initial_states</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="n">generators</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">(</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">walker</span><span class="p">,</span> <span class="n">bias</span><span class="p">)</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="c1"># same initial configuration, different seed</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">generators</span><span class="p">)</span> <span class="o">==</span> <span class="nb">list</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="n">initial_states</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;initial_states.xyz&#39;</span><span class="p">)</span>         <span class="c1"># different initial configuration, different seed</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="n">generators</span> <span class="o">=</span> <span class="n">Generator</span><span class="p">(</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">walker</span><span class="p">,</span> <span class="n">bias</span><span class="p">)</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="n">initialize_using</span><span class="o">=</span><span class="n">initial_states</span><span class="p">)</span>
 </code></pre></div>
 --->
 
@@ -943,41 +954,41 @@ is interleaved with short model training steps as to update
 the knowledge in the model with the states that were sampled by the walkers
 and evaluated with the chosen reference level of theory.
 Take a look at the following example:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span> <span class="nn">psiflow.learning</span> <span class="kn">import</span> <span class="n">SequentialLearning</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">data_train</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;initial_train.xyz&#39;</span><span class="p">)</span>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="n">data_valid</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;initial_valid.xyz&#39;</span><span class="p">)</span>
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>
-<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="n">walkers</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span>     <span class="c1"># initializes 30 walkers, with different initial configuration and seed</span>
-<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>        <span class="mi">30</span><span class="p">,</span>
-<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>        <span class="n">data_train</span><span class="p">,</span>                   <span class="c1"># Dataset which provides initial configurations</span>
-<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>        <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
-<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span>
-<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>        <span class="n">step</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
-<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>        <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
-<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>        <span class="n">pressure</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="c1"># NPT</span>
-<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>        <span class="n">force_threshold</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>        <span class="n">initial_temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
-<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>        <span class="p">)</span>
-<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a>
-<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a><span class="n">learning</span> <span class="o">=</span> <span class="n">SequentialLearning</span><span class="p">(</span>              <span class="c1"># implements sequential learning</span>
-<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a>        <span class="n">path_output</span><span class="o">=</span><span class="n">path_output</span><span class="p">,</span>            <span class="c1"># folder in which consecutive models and data should be saved</span>
-<a id="__codelineno-19-22" name="__codelineno-19-22" href="#__codelineno-19-22"></a>        <span class="n">niterations</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>                     <span class="c1"># number of (generate, train) iterations</span>
-<a id="__codelineno-19-23" name="__codelineno-19-23" href="#__codelineno-19-23"></a>        <span class="n">train_from_scratch</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>            <span class="c1"># whether to train with reinitialized weights in each iteration</span>
-<a id="__codelineno-19-24" name="__codelineno-19-24" href="#__codelineno-19-24"></a>        <span class="n">train_valid_split</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>              <span class="c1"># partitioning of generated states into training and validation</span>
-<a id="__codelineno-19-25" name="__codelineno-19-25" href="#__codelineno-19-25"></a>        <span class="p">)</span>
-<a id="__codelineno-19-26" name="__codelineno-19-26" href="#__codelineno-19-26"></a>
-<a id="__codelineno-19-27" name="__codelineno-19-27" href="#__codelineno-19-27"></a><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-<a id="__codelineno-19-28" name="__codelineno-19-28" href="#__codelineno-19-28"></a>        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>                                <span class="c1"># initial model</span>
-<a id="__codelineno-19-29" name="__codelineno-19-29" href="#__codelineno-19-29"></a>        <span class="n">reference</span><span class="o">=</span><span class="n">reference</span><span class="p">,</span>                        <span class="c1"># reference level of theory</span>
-<a id="__codelineno-19-30" name="__codelineno-19-30" href="#__codelineno-19-30"></a>        <span class="n">walkers</span><span class="o">=</span><span class="n">walkers</span><span class="p">,</span>                            <span class="c1"># list of walkers</span>
-<a id="__codelineno-19-31" name="__codelineno-19-31" href="#__codelineno-19-31"></a>        <span class="p">)</span>
-<a id="__codelineno-19-32" name="__codelineno-19-32" href="#__codelineno-19-32"></a>
-<a id="__codelineno-19-33" name="__codelineno-19-33" href="#__codelineno-19-33"></a><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">path_output</span><span class="p">)</span>                 <span class="c1"># save new model separately</span>
-<a id="__codelineno-19-34" name="__codelineno-19-34" href="#__codelineno-19-34"></a><span class="n">data_train</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">&#39;final_train.xyz&#39;</span><span class="p">)</span>      <span class="c1"># save final training data</span>
-<a id="__codelineno-19-35" name="__codelineno-19-35" href="#__codelineno-19-35"></a><span class="n">data_valid</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">&#39;final_valid.xyz&#39;</span><span class="p">)</span>      <span class="c1"># save final validation data</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kn">from</span> <span class="nn">psiflow.learning</span> <span class="kn">import</span> <span class="n">SequentialLearning</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="n">data_train</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;initial_train.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="n">data_valid</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;initial_valid.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="n">walkers</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span>     <span class="c1"># initializes 30 walkers, with different initial configuration and seed</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>        <span class="mi">30</span><span class="p">,</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>        <span class="n">data_train</span><span class="p">,</span>                   <span class="c1"># Dataset which provides initial configurations</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>        <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span>
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a>        <span class="n">step</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a>        <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
+<a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a>        <span class="n">pressure</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="c1"># NPT</span>
+<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>        <span class="n">force_threshold</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a>        <span class="n">initial_temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
+<a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a>        <span class="p">)</span>
+<a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a>
+<a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a><span class="n">learning</span> <span class="o">=</span> <span class="n">SequentialLearning</span><span class="p">(</span>              <span class="c1"># implements sequential learning</span>
+<a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a>        <span class="n">path_output</span><span class="o">=</span><span class="n">path_output</span><span class="p">,</span>            <span class="c1"># folder in which consecutive models and data should be saved</span>
+<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a>        <span class="n">niterations</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>                     <span class="c1"># number of (generate, train) iterations</span>
+<a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a>        <span class="n">train_from_scratch</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>            <span class="c1"># whether to train with reinitialized weights in each iteration</span>
+<a id="__codelineno-21-24" name="__codelineno-21-24" href="#__codelineno-21-24"></a>        <span class="n">train_valid_split</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>              <span class="c1"># partitioning of generated states into training and validation</span>
+<a id="__codelineno-21-25" name="__codelineno-21-25" href="#__codelineno-21-25"></a>        <span class="p">)</span>
+<a id="__codelineno-21-26" name="__codelineno-21-26" href="#__codelineno-21-26"></a>
+<a id="__codelineno-21-27" name="__codelineno-21-27" href="#__codelineno-21-27"></a><span class="n">data_train</span><span class="p">,</span> <span class="n">data_valid</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="__codelineno-21-28" name="__codelineno-21-28" href="#__codelineno-21-28"></a>        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>                                <span class="c1"># initial model</span>
+<a id="__codelineno-21-29" name="__codelineno-21-29" href="#__codelineno-21-29"></a>        <span class="n">reference</span><span class="o">=</span><span class="n">reference</span><span class="p">,</span>                        <span class="c1"># reference level of theory</span>
+<a id="__codelineno-21-30" name="__codelineno-21-30" href="#__codelineno-21-30"></a>        <span class="n">walkers</span><span class="o">=</span><span class="n">walkers</span><span class="p">,</span>                            <span class="c1"># list of walkers</span>
+<a id="__codelineno-21-31" name="__codelineno-21-31" href="#__codelineno-21-31"></a>        <span class="p">)</span>
+<a id="__codelineno-21-32" name="__codelineno-21-32" href="#__codelineno-21-32"></a>
+<a id="__codelineno-21-33" name="__codelineno-21-33" href="#__codelineno-21-33"></a><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">path_output</span><span class="p">)</span>                 <span class="c1"># save new model separately</span>
+<a id="__codelineno-21-34" name="__codelineno-21-34" href="#__codelineno-21-34"></a><span class="n">data_train</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">&#39;final_train.xyz&#39;</span><span class="p">)</span>      <span class="c1"># save final training data</span>
+<a id="__codelineno-21-35" name="__codelineno-21-35" href="#__codelineno-21-35"></a><span class="n">data_valid</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s1">&#39;final_valid.xyz&#39;</span><span class="p">)</span>      <span class="c1"># save final validation data</span>
 </code></pre></div>
 The <code>learning.run()</code> method implements the actual online learning algorithm.
 In this case, it will repeat the following
