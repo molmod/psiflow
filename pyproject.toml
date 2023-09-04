@@ -15,7 +15,7 @@ dependencies = [
     "numpy>=1.22.3",
     "wandb>=0.14.0",
     "pymatgen>=2023.3.23",
-    "parsl==2023.08.07",
+    "parsl==2023.08.28",
     ]
 
 [project.optional-dependencies]
