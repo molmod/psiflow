@@ -60,6 +60,9 @@ data_train  = Dataset.load('train.xyz')         # create a psiflow Dataset from 
 data_subset = data_train[:10]                   # create a new Dataset instance with the first 10 states
 data_train  = data_subset + data_train[10:]     # combining two datasets is easy
 
+data = Dataset.load('lots_of_data.xyz')
+train, valid = data.shuffle().split(0.9)        # shuffle structures and partition into train/valid sets
+
 ```
 The main difference between a psiflow `Dataset` instance and an actual Python `list` of
 `Atoms` is that a `Dataset` can represent data __that will be generated in the future__.
@@ -163,8 +166,7 @@ model = NequIPModel(config)     # create model instance
 model.initialize(data_train)            # this will calculate the scale/shifts, and average number of neighbors
 model.train(data_train, data_valid)     # train using supplied datasets
 
-model.save('./')        # save initialized config, undeployed model to current working directory!
-model.deploy()          # prepare for inference, e.g. test error evaluation or molecular dynamics
+model.save('./')        # saves initialized config and model to current working directory!
 
 
 # evaluate test error
@@ -177,7 +179,7 @@ errors = Dataset.get_errors(        # static method of Dataset to compute the er
         properties=['forces'],      # only compute the force error
         elements=['C', 'O'],        # only include carbon or oxygen atoms
         metric='rmse',              # use RMSE instead of MAE or MAX
-        ).result()                  # errors is an AppFuture, use .result() to get the actual values!
+        ).result()                  # errors is an AppFuture, use .result() to get the actual values as ndarray
 
 ```
 Note that depending on how the psiflow execution is configured,
@@ -187,34 +189,40 @@ whereas model deployment and evaluation of the test error gets
 executed on your local computer.
 See the psiflow [Configuration](config.md) page for more information.
 
+In many cases, it is generally recommended to provide these models with some estimate of the absolute energy of an isolated
+atom for the specific level of theory and basis set considered (and this for each element).
+Instead of having the model learn the *absolute* total energy of the system, we first subtract the atomic energies in order
+to train the model on the *formation* energy of the system instead, as this generally improves the generalization performance
+of the model towards unseen stoichiometries.
+
+```
+model.add_atomic_energy('H', -13.7)     # add atomic energy of isolated hydrogen atom
+model.initialize(some_training_data)
+
+model.add_atomic_energy('O', -400)      # will raise an exception; model needs to be reinitialized first
+model.reset()                           # removes current model, but keeps raw config
+model.add_atomic_energy('O', -400)
+model.initialize(some_training_data)    # OK!
+
+```
+
+
 ## Molecular simulation
-Having trained and deployed a model, it is possible to explore the phase space
-of a physical system in order to generate new (and physically relevant) structures. 
+Having trained a model, it is possible to explore the phase space
+of a physical system in order to generate new geometries. 
 Psiflow defines a `BaseWalker` interface that should be used to implement specific
 phase space exploration algorithms.
-Prominent examples are molecular dynamics (both NVT and NPT), as implemented
-using the `DynamicWalker` class, and geometry optimizations, as implemented using
-the `OptimizationWalker` class.
+Each walker implements a `propagate` method which performs the phase space sampling
+using a `BaseModel` instance and returns the final state in which it 'arrived'.
+Each walker has a `counter` attribute which defines the number of steps that have
+elapsed between its initial structure and said returned state.
 
-Molecular dynamics simulations are performed using YAFF, a simple molecular mechanics
-library written in Python. It supports a variety of
-[temperature](https://github.com/molmod/yaff/blob/master/yaff/sampling/nvt.py) and
-[pressure](https://github.com/molmod/yaff/blob/master/yaff/sampling/npt.py)
-control algorithms.
-By default, psiflow employs stochastic Langevin methods for both temperature
-and pressure control because they typically exhibit a smaller correlation time
-as compared to deterministic methods such as NHC or MTK.
-Geometry optimization is performed using the
-[preconditioned L-BFGS implementation](https://wiki.fysik.dtu.dk/ase/ase/optimize.html#preconditioned-optimizers)
-in ASE, as it typically requires less steps than either conventional L-BFGS or
-first-order methods such as CG.
-Note that geometry optimizations require accurate force evaluations and are
-therefore always performed in double precision (`float64`).
-Because `model.deploy()` calls in psiflow will deploy both a single and a double
-precision variant of each model, the user will not notice any of this.
+Let's illustrate this using an important example: molecular dynamics with the `DynamicWalker`.
+Temperature and pressure control are implemented
+by means of stochastic Langevin dynamics
+because it typically dampens the correlations
+as compared to deterministic time propagation methods such as Nose-Hoover.
 
-Let us illustrate how the deployed model from the previous example may be used
-to explore the phase of the system under study:
 ```py
 import numpy as np
 from psiflow.sampling import DynamicWalker
@@ -231,11 +239,14 @@ walker = DynamicWalker(
         seed=0,             # numpy random seed with which initial Boltzmann velocities are set
         )
 
-state, trajectory = walker.propagate(   # actual MD
-        model=model,                    # use this model to evaluate forces at every step
-        keep_trajectory=True,           # keep the trajectory, and return it as a Dataset
-        )
+# run short MD simulation using some model)
+metadata = walker.propagate(model=model)
 
+```
+Propagation of walkers returns a metadata `namedtuple` which has multiple fields:
+
+```
+metadata.state              # parsl AppFuture of a FlowAtoms object which represents the final state 
 ```
 The state that is returned by the propagation is a Future of an ASE `Atoms`
 that represents the final state of the walker after the simulation.
@@ -315,6 +326,13 @@ data = Dataset(states)                      # put them in a Dataset
 
 ```
 
+Geometry optimization is performed using the
+[preconditioned L-BFGS implementation](https://wiki.fysik.dtu.dk/ase/ase/optimize.html#preconditioned-optimizers)
+in ASE, as it typically requires less steps than either conventional L-BFGS or
+first-order methods such as CG.
+Note that geometry optimizations in psiflow will not 
+reduce the total residual force on the system beyond about 0.01 eV/A
+because all model evaluations are performed in single precision (`float32`),.
 
 ## Bias potentials and enhanced sampling
 In the vast majority of molecular dynamics simulations of realistic systems,
