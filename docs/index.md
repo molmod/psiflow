@@ -65,13 +65,6 @@ As such, we ensure that execution-side details are strictly separated from
 the definition of the computational graph itself.
 For more information, check out the psiflow [Configuration](config.md) page.
 
-!!! note "Psiflow: An Unexpected Journey"
-
-    Psiflow is still in beta, which means that you may encounter the occasional
-    bug.
-    If you do, we encourage you to open an issue or ask a question on the
-    [GitHub repository](https://github.com/svandenhaute/psiflow).
-
 !!! note "Citing psiflow"
 
     Psiflow is developed at the

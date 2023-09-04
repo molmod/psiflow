@@ -10,7 +10,7 @@ to store intermediate and log files of various kinds.
 Below, we will showcase the functionality of psiflow using a number of examples.
 The input files required to execute these examples can be found on the GitHub
 repository, in the
-[data](https://github.com/svandenhaute/psiflow/tree/main/examples/data) folder.
+[data](https://github.com/molmod/psiflow/tree/main/examples/data) folder.
 If you haven't already, be sure to check out the
 psiflow [Overview](overview.md) first!
 
@@ -19,7 +19,7 @@ psiflow [Overview](overview.md) first!
 The following example demonstrates how to use an existing dataset to train an
 interatomic potential, and evaluate its performance based on a short molecular dynamics
 trajectory. Click
-[here](https://github.com/svandenhaute/psiflow/tree/main/examples/run_train_npt.py)
+[here](https://github.com/molmod/psiflow/tree/main/examples/run_train_npt.py)
 for the full example.
 ??? note "import statements and helper functions"
     ```py
@@ -135,7 +135,7 @@ the actual PyTorch model `model_undeployed.pth`.
 The next example demonstrates the most straightforward way of doing
 online learning with psiflow; the `SequentialLearning` class.
 Click
-[here](https://github.com/svandenhaute/psiflow/tree/main/examples/run_sequential_learning.py)
+[here](https://github.com/molmod/psiflow/tree/main/examples/run_sequential_learning.py)
 for the full example.
 
 ??? note "import statements and helper functions"

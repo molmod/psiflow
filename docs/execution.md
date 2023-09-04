@@ -43,7 +43,7 @@ We recommend using
 ```console
 $ micromamba create -p ./psiflow_env ndcctools=7.4.2 -c conda-forge -y python=3.10
 $ micromamba activate ./psiflow_env
-$ pip install git+https://github.com/svandenhaute/psiflow   # installs Parsl + dependencies
+$ pip install git+https://github.com/molmod/psiflow   # installs Parsl + dependencies
 ```
 
 Setting up the **execution side** is technically more challenging because it
@@ -56,8 +56,8 @@ Whether you're executing your calculations on a high-memory node in a cluster
 or using a GPU in google cloud, all that is required is a working [Docker](https://www.docker.com/)
 or [Apptainer/Singularity](https://apptainer.org/) installation and you're good to go.
 During task distribution, psiflow will automatically pull the relevant
-container image from [Docker Hub](https://hub.docker.com/r/svandenhaute/psiflow/tags) or the
-[GitHub Container Registry](https://github.com/svandenhaute/psiflow/pkgs/container/psiflow)
+container image from [Docker Hub](https://hub.docker.com/r/molmod/psiflow/tags) or the
+[GitHub Container Registry](https://github.com/molmod/psiflow/pkgs/container/psiflow)
 and execute its tasks inside the container at bare metal
 performance.
 
@@ -210,8 +210,8 @@ be configured in terms of the minimum and maximum number of jobs it may request
 during the workflow,
 the number of cores, nodes, GPUs, and amount of walltime per job, as well as
 the cluster(s), partition(s), and account(s) to use.
-See the [Hortense](https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_hortense.py)
-and [Stevin](https://github.com/svandenhaute/psiflow/blob/main/configs/vsc_stevin.py)
+See the [Hortense](https://github.com/molmod/psiflow/blob/main/configs/vsc_hortense.py)
+and [Stevin](https://github.com/molmod/psiflow/blob/main/configs/vsc_stevin.py)
 example configurations for more details.
 
 ### 3. Putting it all together: `psiflow.load`

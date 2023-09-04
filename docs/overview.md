@@ -461,7 +461,7 @@ print(labeled.result().reference_stderr)    # e.g. ./psiflow_internal/000/task_l
 ```
 ### CP2K
 The `CP2KReference` expects a traditional CP2K
-[input file](https://github.com/svandenhaute/psiflow/blob/main/examples/data/cp2k_input.txt)
+[input file](https://github.com/molmod/psiflow/blob/main/examples/data/cp2k_input.txt)
 (again represented as a multi-line string in Python, just like the PLUMED input);
 it should only contain the FORCE_EVAL section.
 Additional input files which define the basis sets, pseudopotentials, and
@@ -626,7 +626,7 @@ data_valid.save('final_valid.xyz')      # save final validation data
 ```
 The `learning.run()` method implements the actual online learning algorithm.
 In this case, it will repeat the following
-[sequence](https://github.com/svandenhaute/psiflow/blob/master/psiflow/learning.py#L117)
+[sequence](https://github.com/molmod/psiflow/blob/master/psiflow/learning.py#L117)
 of operations `niterations = 10` times:
 
 1. deploy the model;
