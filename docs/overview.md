@@ -42,7 +42,7 @@ the floating point precision of PyTorch, the minimum walltime to reserve for tra
 are all centralized in an `ExecutionContext`; it ensures
 that the calculations that need to be performed by the building blocks
 are correctly forwarded to the computational resources that the user has provided.
-Check out the [Configuration](config.md) section for more details.
+Check out the [Configuration](execution.md) section for more details.
 In what follows, we assume that a suitable `context` has been initialized.
 --->
 
@@ -62,6 +62,8 @@ data_train  = data_subset + data_train[10:]     # combining two datasets is easy
 
 data = Dataset.load('lots_of_data.xyz')
 train, valid = data.shuffle().split(0.9)        # shuffle structures and partition into train/valid sets
+type(train)                                     # psiflow Dataset
+type(valid)                                     # psiflow Dataset
 
 ```
 The main difference between a psiflow `Dataset` instance and an actual Python `list` of
@@ -161,13 +163,11 @@ config = NequIPConfig()
 config.num_features = 16        # modify NequIP parameters to whatever
 model = NequIPModel(config)     # create model instance
 
-
 # initialize, train, deploy
 model.initialize(data_train)            # this will calculate the scale/shifts, and average number of neighbors
 model.train(data_train, data_valid)     # train using supplied datasets
 
 model.save('./')        # saves initialized config and model to current working directory!
-
 
 # evaluate test error
 data_test       = Dataset.load('test.xyz')      # test data; contains QM reference energy/forces/stress
@@ -187,24 +187,31 @@ it is perfectly possible
 that the `model.train()` command will end up being executed using a GPU on SLURM cluster,
 whereas model deployment and evaluation of the test error gets
 executed on your local computer.
-See the psiflow [Configuration](config.md) page for more information.
+See the psiflow [Configuration](execution.md) page for more information.
 
 In many cases, it is generally recommended to provide these models with some estimate of the absolute energy of an isolated
 atom for the specific level of theory and basis set considered (and this for each element).
-Instead of having the model learn the *absolute* total energy of the system, we first subtract the atomic energies in order
+Instead of having the model learn the *absolute* total energy of the system, we first subtract these atomic energies in order
 to train the model on the *formation* energy of the system instead, as this generally improves the generalization performance
 of the model towards unseen stoichiometries.
 
-```
+```py
 model.add_atomic_energy('H', -13.7)     # add atomic energy of isolated hydrogen atom
 model.initialize(some_training_data)
 
 model.add_atomic_energy('O', -400)      # will raise an exception; model needs to be reinitialized first
 model.reset()                           # removes current model, but keeps raw config
-model.add_atomic_energy('O', -400)
-model.initialize(some_training_data)    # OK!
+model.add_atomic_energy('O', -400)      # OK!
+model.initialize(some_training_data)    # offsets total energy with given atomic energy values per atom
 
 ```
+Whenever atomic energies are available, `BaseModel` instances will automatically offset the potential energy in a (labeled)
+`Dataset` by the sum of the energies of the isolated atoms; the underlying PyTorch network is then initialized/trained
+on the formation energy of the system instead.
+In order to avoid artificially high energy discrepancies between models trained on the formation energy on one hand,
+and reference potential energies as obtained from any `BaseReference`,
+the `evaluate` method will first perform the converse operation, i.e. add the energies of the isolated atoms
+to the model's prediction of the formation energy.
 
 
 ## Molecular simulation
@@ -221,7 +228,10 @@ Let's illustrate this using an important example: molecular dynamics with the `D
 Temperature and pressure control are implemented
 by means of stochastic Langevin dynamics
 because it typically dampens the correlations
-as compared to deterministic time propagation methods such as Nose-Hoover.
+as compared to deterministic time propagation methods based on extended Lagrangians (e.g. Nose-Hoover).
+Propagation of a walker will return a metadata
+[`namedtuple`](https://docs.python.org/3/library/collections.html#collections.namedtuple)
+which has multiple fields, some of which are specific to the type of the walker.
 
 ```py
 import numpy as np
@@ -243,21 +253,40 @@ walker = DynamicWalker(
 metadata = walker.propagate(model=model)
 
 ```
-Propagation of walkers returns a metadata `namedtuple` which has multiple fields:
+
+The following fields are always present in the `metadata` object:
+
+- `metadata.state`: `AppFuture` of a `FlowAtoms` object which represents the final state
+- `metadata.counter`: `AppFuture` of an `int` representing the total number of steps
+that the walker has taken since its initialization (or most recent reset).
+- `metadata.reset`: `AppFuture` of a `bool` which indicates whether the walker was reset
+during or after propagation (e.g. because the temperature diverged too far from its target value).
+
+The dynamic walker in particular has a few additional fields which might be useful:
+
+- `metadata.temperature`: `AppFuture` of a `float` representing the average temperature
+during the simulation
+- `metadata.stdout`: filepath of the output log of the molecular dynamics run
+- `metadata.time`: `AppFuture` of a `float` which represents the total
+elapsed time during propagation.
+
+When doing active learning, we're usually only interested in the final state of each of the walkers
+and whether the average temperature remained within reasonable bounds.
+In that case, the returned `metadata` object contains all the necessary information about
+the propagation.
+However, the actual trajectory that the walker has followed can be optionally returned as
+a `Dataset`:
+
+```py
+metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
+assert trajectory.length().result == (1000 / 100 + 1)   # includes initial and final state
+assert np.allclose(                                     # metadata contains final state
+        metadata.state.result().get_positions(),
+        trajectory[-1].result().get_positions(),
+        )
 
 ```
-metadata.state              # parsl AppFuture of a FlowAtoms object which represents the final state 
-```
-The state that is returned by the propagation is a Future of an ASE `Atoms`
-that represents the final state of the walker after the simulation.
-If the simulation proceeds without errors, the following assertion
-will evaluate to True:
-```
-assert np.allclose(
-        state.result().positions,           # state is a Future; use .result() to get actual Atoms
-        trajectory[-1].result().positions,  # trajectory is a Dataset; use regular indexing and .result()
-        )
-```
+
 !!! note "Parsl 102: Futures are necessary"
     This example should also illustrate why exactly we would represent data using
     Futures in the first place.
@@ -291,11 +320,27 @@ after such unphysical events have occurred because the sampled states
 are either impossible to evaluate with the given reference (e.g. due to SCF
 convergence issues) or do not contain any relevant information on the atomic
 interactions.
-To catch such events, psiflow checks the maximum force that each atom experiences
-in every timestep, and if it exceeds a certain threshold value (40 eV/A by default),
-propagation is halted and the last known state before the threshold was exceeded
-is returned.
-By default, the walker will reset its internal state to the starting configuration
+While there exist a bunch of techniques in literature in order to check for such divergences,
+psiflow takes a pragmatic approach and simply monitors the temperature of the walkers.
+Statistical mechanics provides an exact expression for the distribution of the instantaneous
+temperature of the system as a function of the number of atoms *N* and the temperature
+of the heat bath *T*:
+$$
+3N\frac{T_i}{T} \sim \chi^2(3N)
+$$
+in which the [chi-squared](https://en.wikipedia.org/wiki/Chi-squared_distribution) distribution
+arises because the temperature (i.e. kinetic energy) is essentially equal to the sum of
+the squares of *3N* normally distributed velocity components.
+Based on the inverse cumulative distribution function and a fixed *p*-value, we can
+derive a threshold temperature such that:
+$$
+P\left[T_i > T_{\text{thres}}\right] = 1 - p
+$$
+For example, for a system of 100 atoms in equilibrium at 300 K, we obtain a threshold temperature of 
+about 360 K for p = 10^-2^, and about 400 K for p = 10^-4^. 
+If the final simulation temperature exceeds the threshold at the last step of the MD simulation
+(or model evaluation yielded `NaN` or `ValueError` at any point throughout the propagation),
+the walker will reset its internal state to the starting configuration
 in order to make sure that subsequent propagations again start from a physically
 sensible structure.
 
@@ -320,19 +365,20 @@ for i, walker in enumerate(walkers):
 
 states = []                                 # keep track of 'Future' states
 for walker in walkers:
-    state = walker.propagate(model=model)   # proceeds in parallel!
-    states.append(state)
+    metadata = walker.propagate(model=model)   # proceeds in parallel!
+    states.append(metadata.state)
 data = Dataset(states)                      # put them in a Dataset
 
 ```
 
-Geometry optimization is performed using the
+Besides the dynamic walker, we also implemented an `OptimizationWalker` which
+wraps around ASE's
 [preconditioned L-BFGS implementation](https://wiki.fysik.dtu.dk/ase/ase/optimize.html#preconditioned-optimizers)
-in ASE, as it typically requires less steps than either conventional L-BFGS or
-first-order methods such as CG.
-Note that geometry optimizations in psiflow will not 
-reduce the total residual force on the system beyond about 0.01 eV/A
-because all model evaluations are performed in single precision (`float32`),.
+; this is an efficient optimization algorithm which typically requires less steps than either conventional L-BFGS
+or first-order methods such as conjugate gradient (CG).
+Note that geometry optimizations in psiflow will generally
+not be able to reduce the total residual force on the system beyond about 0.01 eV/A
+because of the relatively limited precision (`float32`) of model evaluation.
 
 ## Bias potentials and enhanced sampling
 In the vast majority of molecular dynamics simulations of realistic systems,
