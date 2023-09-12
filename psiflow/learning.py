@@ -233,6 +233,7 @@ class SequentialLearning(BaseLearning):
                     self.error_thresholds_for_reset,
                     self.metrics,
                     )
+            assert new_data.length().result() > 0, 'no new states were generated!'
             data = data + new_data
             data_train, data_valid = data.split(self.train_valid_split)
             if self.train_from_scratch:
@@ -286,6 +287,7 @@ class CommitteeLearning(SequentialLearning):
                     self.error_thresholds_for_reset,
                     self.metrics,
                     )
+            assert new_data.length().result() > 0, 'no new states were generated!'
             data = data + new_data
             data_train, data_valid = data.split(self.train_valid_split)
             committee.train(data_train, data_valid)
@@ -377,6 +379,7 @@ class IncrementalLearning(BaseLearning):
                     self.error_thresholds_for_reset,
                     self.metrics,
                     )
+            assert new_data.length().result() > 0, 'no new states were generated!'
             data = data + new_data
             data_train, data_valid = data.split(self.train_valid_split)
             if self.train_from_scratch:
