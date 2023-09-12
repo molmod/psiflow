@@ -10,14 +10,12 @@ import openmm
 import openmm.app as app
 import openmm.unit as unit
 from openmmml import MLPotential
-from openmmplumed import PlumedForce
 
 from ase import Atoms
 from ase.io import read, write
 from ase.data import chemical_symbols
 from ase.units import nm, fs
 
-from psiflow.walkers.bias import try_manual_plumed_linking
 from psiflow.walkers.utils import max_temperature, \
         get_velocities_at_temperature
 
@@ -114,11 +112,11 @@ def main():
                 distance_to_nm=A_to_nm, 
                 energy_to_kJ_per_mol=eV_to_kJ_per_mol,
                 )
-        system = potential.createSystem(topology, device=args.device)
+        system = potential.createSystem(topology, device=args.device) # periodic inferred from system
     system.addForce(openmm.CMMotionRemover())
     if args.temperature is not None:
         temperature = args.temperature * unit.kelvin
-        integrator = openmm.LangevinMiddleIntegrator(temperature, 1.0/unit.picoseconds, args.timestep * unit.femtosecond)
+        integrator = openmm.LangevinIntegrator(temperature, 1.0/unit.picoseconds, args.timestep * unit.femtosecond)
         velocities = get_velocities_at_temperature(args.temperature, atoms.get_masses())
     else:
         integrator = openmm.VerletIntegrator(args.timestep * unit.femtosecond)
@@ -135,6 +133,8 @@ def main():
     simulation.context.setVelocities(velocities / nm * (1000 * fs))
 
     if Path('plumed.dat').is_file():
+        from openmmplumed import PlumedForce
+        from psiflow.walkers.bias import try_manual_plumed_linking
         try_manual_plumed_linking()
         with open('plumed.dat', 'r') as f:
             plumed_input = f.read()
@@ -163,7 +163,7 @@ def main():
             coordinates=True,
             time=False,
             cell=True,
-            potentialEnergy=False,
+            potentialEnergy=True,
             temperature=False,
             velocities=True,
             )

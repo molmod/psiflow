@@ -6,7 +6,7 @@ from psiflow.execution import Default, ModelTraining, ModelEvaluation, \
 from psiflow.parsl_utils import ContainerizedLauncher
 
 
-containerize = True
+containerize = False
 if containerize:
     launcher = ContainerizedLauncher(
             uri='docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
@@ -23,7 +23,8 @@ model_evaluation = ModelEvaluation(
         parsl_provider=LocalProvider(launcher=launcher),
         cores_per_worker=2,
         max_walltime=1,
-        simulation_engine='openmm',
+        simulation_engine='yaff',
+        gpu=True,
         )
 model_training = ModelTraining(
         parsl_provider=LocalProvider(launcher=launcher),

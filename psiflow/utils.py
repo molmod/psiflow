@@ -212,7 +212,11 @@ def get_active_executor(label: str) -> ParslExecutor:
 @typeguard.typechecked
 def resolve_and_check(path: Path) -> Path:
     path = path.resolve()
-    if not Path.cwd() in path.parents:
+    if Path.cwd() in path.parents:
+        pass
+    elif path.exists() and Path.cwd().samefile(path):
+        pass
+    else:
         raise ValueError('requested file and/or path at location: {}'
                 '\nwhich is not in the present working directory: {}'
                 '\npsiflow can only load and/or save in its present '

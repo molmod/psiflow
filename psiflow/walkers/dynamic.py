@@ -47,7 +47,10 @@ def molecular_dynamics_yaff(
     command_cd  = 'cd $mytmpdir;'
     command_unbuffer = 'export PYTHONUNBUFFERED=TRUE;'
     command_printenv = 'printenv | grep OMP;'
-    command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
+    if len(plumed_input) > 0:
+        command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
+    else:
+        command_write = 'echo "NO PLUMED INPUT";'
     command_list = [
             command_tmp,
             command_cd,
@@ -124,7 +127,10 @@ def molecular_dynamics_openmm(
     command_cd  = 'cd $mytmpdir;'
     command_unbuffer = 'export PYTHONUNBUFFERED=TRUE;'
     command_printenv = 'printenv | grep OMP;'
-    command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
+    if len(plumed_input) > 0:
+        command_write = 'echo "{}" > plumed.dat;'.format(plumed_input)
+    else:
+        command_write = 'echo "NO PLUMED INPUT";'
     command_list = [
             command_tmp,
             command_cd,

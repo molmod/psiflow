@@ -377,7 +377,7 @@ wraps around ASE's
 ; this is an efficient optimization algorithm which typically requires less steps than either conventional L-BFGS
 or first-order methods such as conjugate gradient (CG).
 Note that geometry optimizations in psiflow will generally
-not be able to reduce the total residual force on the system beyond about 0.01 eV/A
+not be able to reduce the residual forces in the system below about 0.01 eV/A
 because of the relatively limited precision (`float32`) of model evaluation.
 
 ## Bias potentials and enhanced sampling

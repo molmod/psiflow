@@ -46,7 +46,9 @@ def test_dataset_empty(context, tmp_path):
     assert dataset.length().result() == 0
     assert isinstance(dataset.data_future, DataFuture)
     path_xyz = tmp_path / 'test.xyz'
-    dataset.save(path_xyz).result() # ensure the copy is executed before assert
+    dataset.save(path_xyz) # ensure the copy is executed before assert
+    assert not os.path.isfile(path_xyz)
+    psiflow.wait()
     assert os.path.isfile(path_xyz)
     with pytest.raises(ValueError): # cannot save outside cwd
         dataset.save(path_xyz.parents[3] / 'test.xyz')

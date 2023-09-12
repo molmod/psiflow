@@ -77,7 +77,8 @@ def optimize_geometry(
     try:
         optimizer.run(fmax=pars['fmax'])
         nsteps = optimizer.nsteps
-    except AppTimeout:
+    except (AppTimeout, RuntimeError) as error:
+        print(error)
         nsteps = optimizer.nsteps
     except:
         reset = True

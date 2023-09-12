@@ -156,6 +156,8 @@ class BaseLearning:
                 logger.warning('adding atomic energies from model into {}'.format(
                     self.__class__.__name__))
                 ae = {e.result() if isinstance(e, AppFuture) else e for e in model.atomic_energies.values()}
+                for element, energy in ae.items():
+                    assert energy < 1e10, 'atomic energy calculation for element {} failed!'.format(element)
                 self.atomic_energies = ae
         if initial_data is not None:
             initial_data = initial_data.labeled()
@@ -191,10 +193,12 @@ class SequentialLearning(BaseLearning):
     niterations: int = 10
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
 
-    def update_walkers(self, walkers: list[BaseWalker]):
+    def update_walkers(self, walkers: list[BaseWalker], initialize=False):
         delta_beta = (1 / self.initial_temperature - 1 / self.final_temperature)
         delta_beta /= self.niterations
         for i, walker in enumerate(walkers):
+            if initialize and hasattr(walker, 'temperature'):
+                walker.temperature = self.initial_temperature
             if not walker.is_reset().result():
                 if hasattr(walker, 'temperature'):
                     T = 1 / (1 / walker.temperature - delta_beta)
@@ -216,13 +220,11 @@ class SequentialLearning(BaseLearning):
                 walkers,
                 initial_data,
                 )
-        # override initial temperature in walkers
-        for walker in walkers:
-            if hasattr(walker, 'temperature'):
-                walker.temperature = self.initial_temperature
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
+            if i == 0:
+                self.update_walkers(walkers, initialize=True)
             new_data, self.identifier = sample_with_model(
                     model,
                     reference,
@@ -270,12 +272,11 @@ class CommitteeLearning(SequentialLearning):
         assert initial_data is not None
         data = initial_data
         committee.train(*data.shuffle().split(0.9)) # initial training
-        for walker in walkers:
-            if hasattr(walker, 'temperature'):
-                walker.temperature = self.initial_temperature
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
+            if i == 0:
+                self.update_walkers(walkers, initialize=True)
             new_data, self.identifier = sample_with_committee(
                     committee,
                     reference,
@@ -315,26 +316,30 @@ class IncrementalLearning(BaseLearning):
     niterations: int = 10
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
 
-    def update_walkers(self, walkers: list[BaseWalker]):
+    def update_walkers(self, walkers: list[BaseWalker], initialize=False):
         for walker in walkers: # may not all contain bias
             if not hasattr(walker, 'bias'):
-                continue
-            if walker.is_reset().result():
                 continue
             if not self.cv_name in walker.bias.variables:
                 continue
             assert 'MOVINGRESTRAINT' in walker.bias.keys
             _, kappas, centers = walker.bias.get_moving_restraint(self.cv_name)
             steps = walker.steps
-            new_centers = (
-                    centers[1],
-                    centers[1] + self.cv_delta,
-                    )
-            if np.sign(self.cv_stop - new_centers[1]) == np.sign(self.cv_delta):
-                pass
-            else: # start over
+            if initialize:
                 new_centers = (self.cv_start, self.cv_start + self.cv_delta)
-                walker.reset()
+            else:
+                if walker.is_reset().result():
+                    continue
+                new_centers = (
+                        centers[1],
+                        centers[1] + self.cv_delta,
+                        )
+                check_interval = (self.cv_stop - new_centers[1]) * np.sign(self.cv_delta) >= 0
+                if check_interval:
+                    pass
+                else: # start over
+                    new_centers = (self.cv_start, self.cv_start + self.cv_delta)
+                    walker.reset()
             walker.bias.adjust_moving_restraint(
                     self.cv_name,
                     steps=steps,
@@ -362,6 +367,8 @@ class IncrementalLearning(BaseLearning):
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
+            if i == 0:
+                self.update_walkers(walkers, initialize=True)
             new_data, self.identifier = sample_with_model(
                     model,
                     reference,

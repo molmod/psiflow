@@ -503,7 +503,7 @@ class Dataset:
     def save(
             self,
             path_dataset: Union[Path, str],
-            require_done: bool = True,
+            require_done: bool = False,
             ) -> AppFuture:
         path_dataset = resolve_and_check(Path(path_dataset))
         future = copy_data_future(

@@ -162,18 +162,18 @@ MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
             cv_name='CV',
             cv_start=140,
             cv_stop=200,
-            cv_delta=60,
+            cv_delta=30,
             niterations=1,
             error_thresholds_for_reset=(1e9, 1e12), # never reset
             )
-    learning.run(
+    data = learning.run(
             model,
             reference,
             walkers,
             )
-    psiflow.wait()
-    for walker in walkers:
+    assert data.length().result() == len(walkers) # perform 1 iteration
+    for i, walker in enumerate(walkers):
         assert not walker.is_reset().result()
         steps, kappas, centers = walker.bias.get_moving_restraint(variable='CV')
         assert steps == 10
-        assert centers[1] == learning.cv_max
+        assert centers[1] == learning.cv_stop

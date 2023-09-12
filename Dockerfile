@@ -59,7 +59,7 @@ RUN pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0'
 RUN pip install git+https://github.com/acesuit/MACE.git@55f7411 && \
     pip install git+https://github.com/mir-group/nequip.git@develop --no-deps && \
     pip install git+https://github.com/mir-group/allegro --no-deps && \
-    pip install git+https://github.com/sef43/openmm-ml.git@develop
+    pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
 
 ARG GIT_COMMIT_SHA
 RUN pip install git+https://github.com/molmod/psiflow.git@develop
