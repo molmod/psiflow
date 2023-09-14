@@ -384,3 +384,27 @@ def reduce_box_vectors(rvecs):
     rvecs[2, :] = rvecs[2, :] - rvecs[1, :] * np.round(rvecs[2, 1] / rvecs[1, 1])
     rvecs[2, :] = rvecs[2, :] - rvecs[0, :] * np.round(rvecs[2, 0] / rvecs[0, 0])
     rvecs[1, :] = rvecs[1, :] - rvecs[0, :] * np.round(rvecs[1, 0] / rvecs[0, 0])
+
+
+@typeguard.typechecked
+def _check_distances(state: FlowAtoms, threshold: float):
+    import numpy
+    from ase.geometry.geometry import find_mic
+    if state == NullState:
+        return NullState
+    nrows  = int(len(state) * (len(state) - 1) / 2)
+    deltas = np.zeros((nrows, 3))
+    count  = 0
+    for i in range(len(state) - 1):
+        for j in range(i + 1, len(state)):
+            deltas[count] = state.positions[i] - state.positions[j]
+            count += 1
+    assert count == nrows
+    if state.pbc.all():
+        deltas, _ = find_mic(deltas, state.cell)
+    check = np.all(np.linalg.norm(deltas, axis=1) > threshold)
+    if check:
+        return state
+    else:
+        return NullState
+check_distances = python_app(_check_distances, executors=['Default'])

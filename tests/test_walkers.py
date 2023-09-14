@@ -193,6 +193,19 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
             walker.state.result().positions,
             )
 
+    # test distance reset
+    walker.steps = 20
+    walker.step  = 5
+    walker.temperature_reset_quantile = 0.0
+    walker.distance_threshold = 5.0 # always resets
+    metadata = walker.propagate(model=model)
+    assert walker.is_reset().result()
+    assert np.allclose(
+            walker.state0.result().positions,
+            walker.state.result().positions,
+            )
+    walker.distance_threshold = 0.5 # revert back to default
+
     walker.temperature = None # NVE
     walker.force_threshold = 40
     metadata = walker.propagate(model=model)

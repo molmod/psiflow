@@ -73,6 +73,7 @@ def molecular_dynamics_yaff(
             'pressure',
             'force_threshold',
             'temperature_reset_quantile',
+            'distance_threshold',
             ]
     for key in parameters_to_pass:
         if pars[key] is not None:
@@ -153,6 +154,7 @@ def molecular_dynamics_openmm(
             'pressure',
             'force_threshold',
             'temperature_reset_quantile',
+            'distance_threshold',
             ]
     for key in parameters_to_pass:
         if pars[key] is not None:
@@ -200,6 +202,7 @@ class DynamicWalker(BaseWalker):
             temperature: Optional[float] = 300,
             pressure: Optional[float] = None,
             temperature_reset_quantile: float = 0.0, # no reset by default
+            distance_threshold: float = 0.5,
             force_threshold: float = 1e6, # no threshold by default
             **kwargs,
             ) -> None:
@@ -212,6 +215,7 @@ class DynamicWalker(BaseWalker):
         self.pressure = pressure
         self.force_threshold = force_threshold
         self.temperature_reset_quantile = temperature_reset_quantile
+        self.distance_threshold = distance_threshold
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -224,6 +228,7 @@ class DynamicWalker(BaseWalker):
         parameters['pressure'] = self.pressure
         parameters['force_threshold'] = self.force_threshold
         parameters['temperature_reset_quantile'] = self.temperature_reset_quantile
+        parameters['distance_threshold'] = self.distance_threshold
         return parameters
 
     def _propagate(self, model, keep_trajectory, file):

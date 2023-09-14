@@ -15,6 +15,7 @@ from ase import Atoms
 from ase.io import read, write
 from ase.data import chemical_symbols
 from ase.units import nm, fs
+from ase.geometry.geometry import find_mic
 
 from psiflow.walkers.utils import max_temperature, \
         get_velocities_at_temperature
@@ -35,6 +36,7 @@ def main():
     parser.add_argument('--pressure', default=None, type=float)
     parser.add_argument('--force_threshold', default=None, type=float)
     parser.add_argument('--temperature_reset_quantile', default=None, type=float)
+    parser.add_argument('--distance_threshold', default=None, type=float)
 
     parser.add_argument('--model-cls', default=None, type=str) # model name
     parser.add_argument('--model', default=None, type=str) # model name
@@ -116,7 +118,7 @@ def main():
     system.addForce(openmm.CMMotionRemover())
     if args.temperature is not None:
         temperature = args.temperature * unit.kelvin
-        integrator = openmm.LangevinIntegrator(temperature, 1.0/unit.picoseconds, args.timestep * unit.femtosecond)
+        integrator = openmm.LangevinMiddleIntegrator(temperature, 1.0/unit.picoseconds, args.timestep * unit.femtosecond)
         velocities = get_velocities_at_temperature(args.temperature, atoms.get_masses())
     else:
         integrator = openmm.VerletIntegrator(args.timestep * unit.femtosecond)
@@ -215,6 +217,25 @@ def main():
     print('kinetic energy: ', ekin)
     print('temperature: ', T)
 
+    print('check whether all interatomic distances > {}'.format(args.distance_threshold))
+    state = trajectory[-1]
+    nrows = int(len(state) * (len(state) - 1) / 2)
+    deltas = np.zeros((nrows, 3))
+    count = 0
+    for i in range(len(state) - 1):
+        for j in range(i + 1, len(state)):
+            deltas[count] = state.positions[i] - state.positions[j]
+            count += 1
+    assert count == nrows
+    if state.pbc.all():
+        deltas, _ = find_mic(deltas, state.cell)
+    distances = np.linalg.norm(deltas, axis=1)
+    check = np.all(distances > args.distance_threshold)
+    if check:
+        print('\tOK')
+    else:
+        print('\tunsafe! Found d = {} A'.format(np.min(distances)))
+        
     if (args.temperature_reset_quantile > 0) and (args.temperature is not None):
         T_max = max_temperature(
                 args.temperature,

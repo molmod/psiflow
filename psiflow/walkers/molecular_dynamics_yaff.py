@@ -8,6 +8,7 @@ import yaff
 import molmod
 from ase.io import read, write
 from ase.io.extxyz import write_extxyz
+from ase.geometry.geometry import find_mic
 
 from psiflow.walkers.utils import ForcePartASE, DataHook, \
         create_forcefield, ForceThresholdExceededException, ForcePartPlumed, \
@@ -31,6 +32,7 @@ def main():
     parser.add_argument('--pressure', default=None, type=float)
     parser.add_argument('--force_threshold', default=None, type=float)
     parser.add_argument('--temperature_reset_quantile', default=None, type=float)
+    parser.add_argument('--distance_threshold', default=None, type=float)
 
     parser.add_argument('--model-cls', default=None, type=str) # model name
     parser.add_argument('--model', default=None, type=str) # model name
@@ -187,6 +189,26 @@ def main():
         if not args.keep_trajectory:
             os.path.remove(args.trajectory)
             write(args.trajectory, read(args.atoms))
+
+    if counter > 0:
+        print('check whether all interatomic distances > {}'.format(args.distance_threshold))
+        state = atoms
+        nrows = int(len(state) * (len(state) - 1) / 2)
+        deltas = np.zeros((nrows, 3))
+        count = 0
+        for i in range(len(state) - 1):
+            for j in range(i + 1, len(state)):
+                deltas[count] = state.positions[i] - state.positions[j]
+                count += 1
+        assert count == nrows
+        if state.pbc.all():
+            deltas, _ = find_mic(deltas, state.cell)
+        distances = np.linalg.norm(deltas, axis=1)
+        check = np.all(distances > args.distance_threshold)
+        if check:
+            print('\tOK')
+        else:
+            print('\tunsafe! Found d = {} A'.format(np.min(distances)))
 
     # perform temperature check
     T = verlet.temp
