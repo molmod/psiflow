@@ -155,7 +155,7 @@ class BaseLearning:
             if len(model.atomic_energies) > 0:
                 logger.warning('adding atomic energies from model into {}'.format(
                     self.__class__.__name__))
-                ae = {e.result() if isinstance(e, AppFuture) else e for e in model.atomic_energies.values()}
+                ae = {s: e.result() if isinstance(e, AppFuture) else e for s, e in model.atomic_energies.items()}
                 for element, energy in ae.items():
                     assert energy < 1e10, 'atomic energy calculation for element {} failed!'.format(element)
                 self.atomic_energies = ae

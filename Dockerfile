@@ -62,7 +62,7 @@ RUN pip install git+https://github.com/acesuit/MACE.git@55f7411 && \
     pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
 
 ARG GIT_COMMIT_SHA
-RUN pip install git+https://github.com/molmod/psiflow.git@develop
+RUN pip install git+https://github.com/molmod/psiflow
 RUN pip cache purge
 
 ENV OMPI_MCA_plm_rsh_agent=
