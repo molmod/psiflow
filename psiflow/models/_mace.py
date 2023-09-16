@@ -190,6 +190,7 @@ def deploy(
         outputs: List[File] = [],
         ) -> None:
     import torch
+    # model always stored on CPU after training
     model = torch.load(inputs[0].filepath, map_location='cpu')
     model.to(device=torch.device(device), dtype=torch.float32)
     torch.save(model, outputs[0].filepath)
@@ -205,6 +206,7 @@ class MACEModel(BaseModel):
             config = dict(config)
         assert not config['swa'], 'usage of SWA is currently not supported'
         assert config['model_dtype'] == 'float32', 'dtype is enforced to float32'
+        assert config['save_cpu'] # assert model is saved to CPU after training
         config['device'] = 'cpu' # guarantee consistent initialization
         super().__init__(config)
 
@@ -224,7 +226,7 @@ class MACEModel(BaseModel):
         model_ncores = evaluation.cores_per_worker
 
         app_initialize = bash_app(initialize, executors=['Default'])
-        app_deploy     = python_app(deploy, executors=[training_label])
+        app_deploy     = python_app(deploy, executors=[model_label])
         def initialize_wrapped(config_raw, inputs=[], outputs=[]):
             assert len(inputs) == 1
             outputs = [

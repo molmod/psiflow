@@ -363,7 +363,6 @@ def test_mace_offset(context, mace_config, dataset, tmp_path):
     assert model.atomic_energies['Cu'] == atomic_energies['Cu'].result()
 
 
-
 def test_model_evaluate(context, mace_config, dataset):
     model = MACEModel(mace_config)
     model.initialize(dataset[:1])

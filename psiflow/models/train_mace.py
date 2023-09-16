@@ -620,10 +620,7 @@ def train(args, path_model, init_only) -> None:
         logging.info(f"Loaded model from epoch {epoch}")
         model_path = Path(args.model_dir) / 'mace.model'
         logging.info(f"Saving model to {model_path}")
-        #if args.save_cpu:
-        assert args.save_cpu
-        model.to('cpu')
-        torch.save(model, model_path)
+        torch.save(model.to('cpu'), model_path)
 
         logging.info("Computing metrics for training, validation, and test sets")
         for param in model.parameters():
