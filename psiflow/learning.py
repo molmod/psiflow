@@ -195,7 +195,7 @@ class SequentialLearning(BaseLearning):
 
     def update_walkers(self, walkers: list[BaseWalker], initialize=False):
         delta_beta = (1 / self.initial_temperature - 1 / self.final_temperature)
-        delta_beta /= self.niterations
+        delta_beta /= self.niterations - 1
         for i, walker in enumerate(walkers):
             if initialize and hasattr(walker, 'temperature'):
                 walker.temperature = self.initial_temperature
