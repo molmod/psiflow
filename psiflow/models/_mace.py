@@ -207,6 +207,7 @@ class MACEModel(BaseModel):
         assert not config['swa'], 'usage of SWA is currently not supported'
         assert config['model_dtype'] == 'float32', 'dtype is enforced to float32'
         assert config['save_cpu'] # assert model is saved to CPU after training
+        assert not 'hidden_irreps' in config.keys() # old MACE API
         config['device'] = 'cpu' # guarantee consistent initialization
         super().__init__(config)
 

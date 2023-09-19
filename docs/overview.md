@@ -338,7 +338,7 @@ P\left[T_i > T_{\text{thres}}\right] = 1 - p
 $$
 For example, for a system of 100 atoms in equilibrium at 300 K, we obtain a threshold temperature of 
 about 360 K for p = 10^-2^, and about 400 K for p = 10^-4^. 
-If the final simulation temperature exceeds the threshold at the last step of the MD simulation
+If the temperature at the last step of the MD simulation exceeds this threshold
 (or model evaluation yielded `NaN` or `ValueError` at any point throughout the propagation),
 the walker will reset its internal state to the starting configuration
 in order to make sure that subsequent propagations again start from a physically
@@ -385,13 +385,11 @@ In the vast majority of molecular dynamics simulations of realistic systems,
 it is beneficial to modify the equilibrium Boltzmann distribution with bias potentials
 or advanced sampling schemes as to increase the sampling efficiency and reduce
 redundancy within the trajectory.
-The [PLUMED](https://plumed.org) library provides the user with various choices of enhanced sampling
-techniques; the user specifies the input parameters in a PLUMED input file
-and passes it into a molecular dynamics engine (e.g. OpenMM, GROMACS, or LAMMPS).
-Similarly, in psiflow, the contents of the PLUMED input file can be directly
-converted into a `PlumedBias` instance in order to apply PLUMED's enhanced
-sampling magic to dynamic simulations or evaluate collective variables (and
-bias energy) across a dataset of atomic configurations.
+In psiflow, this is achieved by interfacing the dynamic walkers
+with the [PLUMED](https://plumed.org) library, which provides the user with various choices of enhanced sampling
+techniques.
+This allows users to apply bias potentials along specific collective variables or evaluate the bias energy
+across a dataset of atomic configurations.
 
 In the following example, we define the PLUMED input as a multi-line string in
 Python. We consider the particular case of applying a metadynamics bias to
@@ -415,8 +413,8 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=10 LABEL=metad FILE=dummy
 """
 bias = PlumedBias(plumed_input)        # a new hills file is generated
 
-walker = BiasedDynamicWalker(data_train[0], bias=bias, timestep=0.5)    # initialize dynamic walker with bias
-state  = walker.propagate(model)                                        # performs biased MD
+walker   = BiasedDynamicWalker(data_train[0], bias=bias, timestep=0.5)  # initialize dynamic walker with bias
+metadata = walker.propagate(model)                                      # performs biased MD
 
 ```
 Note that the bias instance will retain the hills that were generated during walker
@@ -425,7 +423,7 @@ Often, we want to investigate what the final bias energy looks like as a
 function of the collective variable.
 To facilitate this, psiflow provides the ability to evaluate `PlumedBias` objects
 on `Dataset` instances using the `bias.evaluate()` method.
-The returned object is a Parsl `Future` that represents an `ndarray` of shape `(nstates, 2)`.
+The returned object is a Parsl `Future` that represents an `ndarray` of shape `(nstates, ncolvars + 1)`.
 The first column represents the value of the collective variable for each state,
 and the second column contains the bias energy.
 
@@ -448,11 +446,11 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint
 """
 walker = BiasedDynamicWalker(data_train[0], bias=PlumedBias(plumed_input))  # walker with harmonic bias
-state = walker.propagate(model=model)                                           
+state = walker.propagate(model=model).state
 
 # change bias center and width
 walker.bias.adjust_restraint(variable='CV', kappa=2, center=200)
-state_ = walker.propagate(model)     
+state_ = walker.propagate(model).state
 
 # if the system had enough time to equilibrate with the bias, then the following should hold
 assert state.result().get_volume() < state_.result().get_volume()
@@ -523,6 +521,12 @@ assert labeled.result().reference_status    # True, because state is successfull
 print(labeled.result().reference_stdout)    # e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stdout
 print(labeled.result().reference_stderr)    # e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stderr
 ```
+Reference instances provide a convenient interface of computing the absolute energy of an isolated atom:
+```py
+energy_H = reference.compute_atomic_energy('H', box_size=5)
+energy_H.result()   # about -13.7 eV
+```
+
 ### CP2K
 The `CP2KReference` expects a traditional CP2K
 [input file](https://github.com/molmod/psiflow/blob/main/examples/data/cp2k_input.txt)
@@ -547,102 +551,81 @@ reference.add_file('potential', 'POTENTIAL_UZH')
 reference.add_file('dftd3', 'dftd3.dat')
 ```
 
-<!---
-## Generators
-In online learning, data generation proceeds by taking an intermediate model
-(and optionally, a bias potential)
-and using it in a phase space sampling algorithm in order to generate
-a new structure starting from some existing structure, which is then evaluated
-using a reference level of theory. In psiflow terms, this 
-means that a `BaseWalker` will be propagated using a `PlumedBias` and a `BaseModel`,
-and the final state that is obtained will be passed to the `BaseReference`
-instance after which it may be included in training/validation datasets.
+### NWChem
+For nonperiodic systems, psiflow provides an interface with [NWChem](https://nwchemgit.github.io/Home.html),
+which implements a plethora of DFT and post-HF methods for both periodic and nonperiodic systems.
+The `NWChemReference` class essentially wraps around the ASE calculator, and is similarly easy to use:
 ```py
-from ase.io import read
-
-start = read('atoms.xyz')
-
-walker = DynamicWalker(state, steps=100, temperature=300)
-bias   = None       # or PlumedBias(plumed_input)
-
-state = walker.propagate(model=model, bias=bias, keep_trajectory=False)
-final = reference.evaluate(state)
+calculator_kwargs = {
+        'basis': {e: '3-21g' for e in ['H', 'C', 'O', 'N']},
+        'dft': {
+            'xc': 'pw91lda',
+            'mult': 1,
+            'convergence': {
+                'energy': 1e-6,
+                'density': 1e-6,
+                'gradient': 1e-6,
+                },
+            },
+        }
+reference = NWChemReference(**calculator_kwargs)
 
 ```
-However, there are few additional considerations
-that come into play when generating data with imperfect interaction potentials:
-
-- __imposing physical constraints__: interatomic potentials such as MACE or NequIP
-tend to produce unphysical states when they are not yet sufficiently trained.
-For example, it is sometimes possible that two atoms essentially collide
-onto each other during molecular dynamics; i.e. that the interatomic distance
-becomes far smaller than what is physically reasonable.
-It is not desirable to waste computational
-time on evaluating those states at the DFT level or including them during training,
-and psiflow gives the user the ability to define __checks__ which are applied to
-the sampled data in order to include or exclude samples according to some set of rules.
-If the check passes, the state is evaluated using the 
-reference; if not, the walker is reset and sampling is retried with a different
-configuration of initial velocities.
-An example of such a check is the `InteratomicDistanceCheck`,
-which, as the name suggests, computes all interatomic
-distances and demands that they are all larger than some minimum threshold.
-Another example is the `DiscrepancyCheck`, which evaluates the sampled configuration
-using a set of models, and only accepts the state if the predictions are sufficiently
-different (as to avoid including redundant samples in the training data).
-This approach in literature is known as query-by-committee.
-- __retry handling__: even when imposing additional constraints on the sampled states,
-unexpected behavior is bound to occur.
-The SCF cycles in the reference evaluation may fail to converge for some particular
-configuration,
-a specific worker is running on faulty hardware, or a metadynamics bias potential may have become too aggressive due to 
-which the force threshold is systematically exceeded.
-Generators allow to specify a number of retries both for sampling and for
-the reference evaluation to avoid having to restart the entire workflow when
-unexpected but insignificant failures occur.
-
-To accomodate all of this, psiflow makes use of a `Generator` class which
-groups the walker and bias into a single object, along with the retry policy.
-The above code block would look like this when implemented using a generator:
-
-```py
-from psiflow.generator import Generator
-from psiflow.checks import InteratomicDistanceCheck
-
-generator = Generator(
-        'simple',               # name to use when logging status of this generator
-        walker,                 # e.g. DynamicWalker
-        bias,                   # PlumedBias or None
-        nretries_sampling=2,    # walker.propagate() will be called at most thrice
-        nretries_reference=0,   # reference.evaluate() will be called precisely once
-        )
-checks = [InteratomicDistanceCheck(threshold=0.5)]  # reject state if d(atom1, atom2) < 0.5 A for any two atoms
-state = generator(model, reference, checks=checks)  # retries are handled internally
-
-assert state.result().reference_status              # is already evaluated by the generator
-```
-
-In online learning, a common scenario is to generate data using
-many different molecular dynamics simulations; all of which with more or less the same parameters but
-simply initialized in a different way (either with a different seed or a different starting configuration).
-Psiflow provides a simple way to _multiply_ a generator in order to obtain a list
-of generators, all of which identical except for the random number seed
-(and possibly the initial configuration).
-```py
-generators = Generator('simple', walker, bias).multiply(10) # same initial configuration, different seed
-assert type(generators) == list
-
-initial_states = Dataset.load('initial_states.xyz')         # different initial configuration, different seed
-generators = Generator('simple', walker, bias).multiply(10, initialize_using=initial_states)
-```
---->
 
 ## Learning algorithms
-The endgame of psiflow is to allow for seamless development and scalable
+The endgame of psiflow is to allow for the seamless development and scalable
 execution of online learning algorithms for interatomic
 potentials.
-The `BaseLearning` class provides an example interface based on which such
-algorithms may be implemented.
+The `BaseLearning` class provides an interface based on which such
+algorithms can be implemented, and it has the following characteristics:
+
+- __an output folder__: used for storing intermediate models, (labeled) datasets, walkers, and reported metrics.
+- __dataset identifier__: to facilitate logging and/or debugging of the active learning progress,
+each successfully labeled state is immediately given a unique identifier (an integer). 
+This is necessary in order to keep track of which molecular dynamics log or DFT evaluation log
+belongs to which state, especially when data is shuffled in each iteration. The identifier is stored
+in the `info` dict of each of the `FlowAtoms` instances, and is therefore also human-readable in the
+dataset XYZ files.
+- __metrics__: the `Metrics` helper class is used to compute and save various error metrics and
+other relevant diagnostics during online learning. Examples are per-element validation RMSEs
+or collective variables of the sampled data:
+```title='dataset.log'
++------------+--------+--------+-------+----------+----------+----------+----------+-----------+
+| identifier | e_rmse | f_rmse |    CV | f_rmse_H | f_rmse_C | f_rmse_N | f_rmse_I | f_rmse_Pb |
++------------+--------+--------+-------+----------+----------+----------+----------+-----------+
+|          0 |   0.23 |  32.15 | -4.54 |    23.82 |    47.04 |    37.72 |    27.97 |     46.47 |
+|          1 |   0.27 |  31.72 | -4.45 |    23.13 |    43.52 |    34.12 |    28.43 |     52.42 |
+|          2 |   0.45 |  33.60 | -4.49 |    27.02 |    44.40 |    40.34 |    27.77 |     48.51 |
+|          3 |   0.39 |  33.02 | -4.44 |    26.52 |    50.11 |    36.97 |    27.50 |     45.21 |
+|          4 |   0.36 |  31.75 | -4.47 |    25.15 |    41.36 |    37.35 |    27.10 |     47.16 |
+|          5 |   0.35 |  34.00 | -4.41 |    28.04 |    43.99 |    39.52 |    28.56 |     49.31 |
+...
+```
+or the (a posteriori) error of individual walkers and other relevant information:
+```title='walkers.log'
++--------------+---------+----------+--------+--------------+-------------+------------+-------+--------+-------------------------------------+
+| walker_index | counter | is_reset | f_rmse | disagreement | temperature | identifier |    CV | e_rmse |                              stdout |
++--------------+---------+----------+--------+--------------+-------------+------------+-------+--------+-------------------------------------+
+|            0 |    1000 |    False |  47.33 |         None |      135.79 |        150 | -4.61 |   4.04 | task_7028_molecular_dynamics_openmm |
+|            1 |    1000 |    False |  50.69 |         None |      142.89 |        151 | -4.39 |   4.11 | task_7046_molecular_dynamics_openmm |
+|            2 |    1000 |    False |  46.34 |         None |      140.72 |        152 | -4.61 |   4.07 | task_7064_molecular_dynamics_openmm |
+|            3 |    1000 |    False |  43.71 |         None |      136.12 |        153 | -4.45 |   4.24 | task_7082_molecular_dynamics_openmm |
+...
+```
+Although optional, it also provides a convenient
+[Weights & Biases](https://wandb.ai) interface for easier navigation and interpretation of all of the metrics.
+- **`learning.run()`**: performs the actual active learning. 
+- __(optional) pretraining__: pretraining is used to bootstrap active learning runs, in order to 
+make the model familiar with bonds in the system and ensure that it doesn't go too crazy during
+sampling in the first few iterations. During pretraining, a minimal set of configurations is generated by applying
+random perturbations to the atomic positions and/or unit cell vectors (typically about 0.05 A in magnitude).
+These configurations are then evaluated using the provided `BaseReference` instance after which the obtained
+data is split into training and validation in order to pretrain the model.
+When `learning.run()` is called, it decides whether or not to perform pretraining based on the state of
+the model as well as 
+
+### Sequential Learning
+
 Within the space of online learning, the most trivial approach is represented
 using the `SequentialLearning` class.
 In sequential learning, the data generation (as performed by a set of walkers)
@@ -706,3 +689,6 @@ folders (named `0`, `1`, ... `9`) in which the model and datasets are logged as 
 as the entire state of the walkers (i.e. start and stop configuration,
 and state of the bias potentials if present).
 Additional features are demonstrated in the [Examples](examples.md).
+
+### Incremental Learning
+### Committee Learning
