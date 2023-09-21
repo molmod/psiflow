@@ -51,7 +51,6 @@ class ExecutionDefinition:
         elif self.max_walltime is None:
             object.__setattr__(self, 'max_walltime', 1e9) # avoid frozen
 
-
     def generate_parsl_resource_specification(self):
         resource_specification = {}
         resource_specification['cores'] = self.cores_per_worker

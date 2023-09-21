@@ -18,7 +18,7 @@ To achieve this, psiflow implements the following high-level abstractions:
 - one or more **phase space sampling** algorithms (e.g. biased NPT, geometry optimization)
 - a reference **level of theory** (e.g. PBE-D3(BJ) + TZVP)
 
-These three components are used to implement **online learning**[^1] algorithms,
+These three components are used to implement **online learning** algorithms,
 which essentially interleave phase space sampling with
 quantum mechanical energy evaluations and model training.
 In this way, the entire (relevant part of the) phase space of the system(s)
@@ -75,8 +75,6 @@ For more information, check out the psiflow [Configuration](config.md) page.
     _Sander Vandenhaute et al._,
     [npj Computational Materials](https://www.nature.com/articles/s41524-023-00969-x),
     __9__, 19 __(2023)__
-
-[^1]: Otherwise known as active learning, incremental learning, on-the-fly learning.
 
 
 ---
