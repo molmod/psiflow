@@ -28,7 +28,8 @@ def main(path_output):
 
     config = MACEConfig()
     config.r_max = 6.0
-    config.hidden_irreps = '4x0e + 4x1o'
+    config.num_channels = 4
+    config.max_L = 1
     config.batch_size = 4
     config.patience = 4
     model = MACEModel(config)

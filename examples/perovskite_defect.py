@@ -69,7 +69,8 @@ def main(path_output):
 
     config = MACEConfig()
     config.r_max = 7.0
-    config.hidden_irreps = '16x0e + 16x1o'
+    config.num_channels = 16
+    config.max_L = 1
     config.batch_size = 4
     config.patience = 10
     config.energy_weight = 100

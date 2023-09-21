@@ -6,7 +6,7 @@ import numpy as np
 from ase.io import read
 
 import psiflow
-from psiflow.learning import IncrementalLearning, load_learning
+from psiflow.learning import SequentialLearning, load_learning
 from psiflow.models import MACEModel, MACEConfig
 from psiflow.reference import CP2KReference
 from psiflow.data import FlowAtoms, Dataset
@@ -16,11 +16,15 @@ from psiflow.metrics import Metrics
 
 
 def get_bias():
-    """Defines the metadynamics parameters based on a plumed input script"""
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-MOVINGRESTRAINT ARG=CV STEP0=0 AT0=5250 KAPPA0=0.1 STEP1=5000 AT1=5000 KAPPA1=0.1
+
+coord1: COORDINATION GROUPA=109 GROUPB=88 R_0=1.4
+coord2: COORDINATION GROUPA=109 GROUPB=53 R_0=1.4
+CV: MATHEVAL ARG=coord1,coord2 FUNC=x-y PERIODIC=NO
+cv2: MATHEVAL ARG=coord1,coord2 FUNC=x+y PERIODIC=NO
+lwall: LOWER_WALLS ARG=cv2 AT=0.65 KAPPA=5000.0
+METAD ARG=CV SIGMA=0.2 HEIGHT=5 PACE=100
 """
     return PlumedBias(plumed_input)
 
@@ -53,9 +57,10 @@ def get_reference():
 
 def main(path_output):
     assert not path_output.exists()
-    reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
+    reference = get_reference()
+    bias      = get_bias()
 
-    atoms = FlowAtoms.from_atoms(read(Path.cwd() / 'data' / 'mof.xyz'))
+    atoms = FlowAtoms.from_atoms(read(Path.cwd() / 'data' / 'zeolite_proton.xyz'))
     atoms.canonical_orientation()   # transform into conventional lower-triangular box
 
     config = MACEConfig()
@@ -68,24 +73,22 @@ def main(path_output):
 
     model.add_atomic_energy('H', reference.compute_atomic_energy('H', box_size=6))
     model.add_atomic_energy('O', reference.compute_atomic_energy('O', box_size=6))
-    model.add_atomic_energy('C', reference.compute_atomic_energy('C', box_size=6))
+    model.add_atomic_energy('Si', reference.compute_atomic_energy('Si', box_size=6))
     model.add_atomic_energy('Al', reference.compute_atomic_energy('Al', box_size=6))
 
-    # set learning parameters
-    learning = IncrementalLearning(
+    # set learning parameters and do pretraining
+    learning = SequentialLearning(
             path_output=path_output,
             niterations=10,
             train_valid_split=0.9,
             train_from_scratch=True,
-            metrics=Metrics('MOF_phase_transition', 'psiflow_examples'),
+            metrics=Metrics('zeolite_reaction', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            cv_name='CV',
-            cv_start=5250,
-            cv_stop=3000,
-            cv_delta=-250,
+            initial_temperature=300,
+            final_temperature=1000,
             )
 
-    bias    = get_bias()
+    # construct walkers; biased MTD MD in this case
     walkers = BiasedDynamicWalker.multiply(
             50,
             data_start=Dataset([atoms]),
@@ -119,6 +122,5 @@ def restart(path_output):
 
 if __name__ == '__main__':
     psiflow.load()
-    path_output = Path.cwd() / 'output' # stores learning results
-    main(path_output)
-    #restart(path_output)
+    main(Path.cwd() / 'output')
+    psiflow.wait()
