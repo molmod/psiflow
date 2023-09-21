@@ -30,7 +30,7 @@ simulations that can be executed in parallel in a single job;
 The execution parameters in the configuration script are strictly and deliberately kept separate
 from the main Python script that defines the workflow, in line with Parsl's philosophy *write once, run anywhere*.
 To execute the zeolite reaction example not on your local computer, but on remote compute resources
-(e.g. the Frontier exascale system at OLCF), you can __pass the relevant psiflow configuration
+(e.g. the Frontier exascale system at OLCF), you simply have to __pass the relevant psiflow configuration
 file as an argument__:
 
 ```console
@@ -80,10 +80,72 @@ mpi_command = lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork'
 Typically, this requires only a few cores and a few GBs of memory.
 
 ## Configuration
-Having introduced the execution definitions, we can now construct 
+Let's illustrate how the execution definitions can be used to construct a psiflow configuration file.
+Essentially, such files consist of a single `get_config()` method which should return a Parsl `Config` object
+as well as a list of psiflow `ExecutionDefinition` instances as discussed above.
+For simplicity, let us assume for now that all of the required compute resources are available locally,
+which means we can use parsl's `LocalProvider` in the various definitions:
+```py title="local_htex.py"
+from parsl.providers import LocalProvider
+
+from psiflow.execution import Default, ModelTraining, ModelEvaluation, \
+        ReferenceEvaluation, generate_parsl_config
+
+
+default = Default()                         # subclass of ExecutionDefinition
+model_evaluation = ModelEvaluation(         # subclass of ExecutionDefinition
+        parsl_provider=LocalProvider(),
+        cores_per_worker=2,
+        max_walltime=30,                    # in minutes!
+        simulation_engine='openmm',         # or yaff; openmm is faster
+        gpu=True,                       
+        )
+model_training = ModelTraining(             # subclass of ExecutionDefinition
+        parsl_provider=LocalProvider(),     # or SlurmProvider / GoogleCloudProvider / ...
+        gpu=True,
+        max_walltime=10,                
+        )
+reference_evaluation = ReferenceEvaluation( # subclass of ExecutionDefinition
+        parsl_provider=LocalProvider(),
+        cores_per_worker=6,
+        max_walltime=60,                    # kill after this amount of time, in minutes
+        mpi_command=lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork',
+        )
+definitions = [
+        default,
+        model_evaluation,
+        model_training,
+        reference_evaluation,
+        ]
+
+
+def get_config(path_internal):
+    config = generate_parsl_config(
+            path_internal,
+            definitions,
+            use_work_queue=False,           # can improve the scheduling of jobs but also slows down
+            parsl_max_idletime=20,
+            parsl_retries=1,                # retry at least once in case the error happened randomly
+            )
+    return config, definitions
+
+```
+These definitions imply that:
+
+- molecular dynamics will be performed using the OpenMM engine, one two cores and one GPU,
+and will be gracefully killed after 30 minutes;
+- model training is allowed to run for a maximum of 10 minutes;
+- reference QM evaluations will be performed using 6 cores per singlepoint, and with a specific MPI command.
+If a singlepoint takes longer than 60 minutes, it is killed. No energy labels will be stored in the state,
+and the corresponding FlowAtoms instance will have `reference_status = False`.
+
+The `get_config()` method takes a single argument (a cache directory shared by all compute resources) and builds a
+Parsl `Config` based on the provided definitions and a few additional parameters, such the maximum number of retries
+that Parsl may attempt for a specific task
+(which can be useful e.g. when the cluster you're using contains a few faulty nodes).
+
 
 ## Setup
-### Containerized
 The location where the above commands are executed will be referred to as the
 **submission side**; this will typically be a local workstation or a login/compute node of a cluster.
 Because all nontrivial calculations are forwarded to the appropriate compute
@@ -101,6 +163,8 @@ $ pip install git+https://github.com/molmod/psiflow   # installs Parsl + depende
 ```
 Setting up the **execution side** is technically more challenging because it
 needs to have working installations of (parallelized) CP2K, PLUMED, and GPU-enabled PyTorch.
+
+### Containerized
 To alleviate users from having to go through all of the installation
 shenanigans, psiflow provides all-inclusive containers which bundle all of its
 dependencies into a portable entity --
