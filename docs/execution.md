@@ -3,12 +3,12 @@ complex computational graphs that consist of
 QM evaluations, model training, and a variety of phase space sampling algorithms, among others.
 If your Python environment contains the required dependencies, you can execute any of the learning examples just like that:
 ```console
-python zeolite_reaction.py
+$ python zeolite_reaction.py
 ```
-Model training, molecular dynamics, and reference evaluations will all proceed in separate subprocesses of the main
-Python script.
-However, this approach is not very useful because the execution of an average 'psiflow graph' requires different resources
-depending on the specific task at hand.
+Model training, molecular dynamics, and reference evaluations will all get executed in separate processes; the main
+Python script only used to resolve the computational directed acyclic graph (DAG) of tasks.
+However, local execution is rather limiting because the evaluation of an average learning workflow requires
+large amounts of several different computational resources.
 For example, QM calculations typically require nodes with a large core count (64 or even 128)
 and with sufficient memory, whereas model training and evaluation require one or more powerful
 GPUs.
@@ -37,7 +37,7 @@ file as an argument__:
   $ python my_workflow.py --psiflow-config frontier.py      # executes exact same workflow on Frontier
 ```
 
-The following sections will explain in more detail how psiflow can be configured to run on arbitrarily large resources.
+The following sections will explain in more detail how remote execution is configured.
 
 
 !!! note "Parsl execution"
@@ -76,7 +76,7 @@ Its default value is the following `lambda` expression (for MPICH):
 ```py
 mpi_command = lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork'
 ```
-4. __default execution__: this determines where the lightweight/administrative operations get executed.
+4. __default execution__: this determines where the lightweight/administrative operations get executed (dataset copying, basic numpy operations, ...).
 Typically, this requires only a few cores and a few GBs of memory.
 
 ## Configuration
@@ -146,8 +146,8 @@ that Parsl may attempt for a specific task
 
 
 ## Setup
-The location where the above commands are executed will be referred to as the
-**submission side**; this will typically be a local workstation or a login/compute node of a cluster.
+The main Python script will typically be executed on a local workstation or a login/compute node of a cluster;
+this will be referred to as the **submission side**.
 Because all nontrivial calculations are forwarded to the appropriate compute
 resources as specified in the configuration script (see below), the submission side does
 not actually do any work, and it is therefore trivial to set up. 
@@ -177,190 +177,124 @@ container image from the
 [GitHub Container Registry](https://github.com/molmod/psiflow/pkgs/container/psiflow)
 and execute its tasks inside the container at approximately bare metal
 performance.
-Containerized execution is of course optional; users are free to provide their own environments
-in which psiflow tasks need to execute in case they want full control over the specific
-versions of each of the pieces of software.
 
-### Manual
+Containerized execution is possible locally, but is particularly useful when combined with
+remote execution.
+As an example of this, consider the following configuration:
 
-## 1. Configure __how__ everything gets executed
-The first part of `config.py` will determine _how_ all calculations will be performed.
-This includes the number of cores to use when executing a singlepoint calculation
-and the MPI/OpenMP configuration, whether to perform model inference on CPU or GPU,
-the maximum amount of compute time to allow for model training and/or inference, etc.
-These parameters may be set in psiflow using the `Execution` dataclasses:
-`ModelEvaluationExecution`, `ModelTrainingExecution`, and `ReferenceEvaluationExecution`.
-Each dataclass defines a particular aspect of the execution of a workflow (
-respectively, the model inference, model training, and QM evaluation).
-Aside from the execution parameters, each `Execution` also defines the
-Parsl [executor](https://parsl.readthedocs.io/en/stable/userguide/execution.html#executors)
-that will be set up by psiflow for executing that particular operation.
-In most cases, it is recommended to create a separate Parsl executor for each
-definition.
+```py title="vsc_hortense.py"
+from parsl.providers import SlurmProvider
+from parsl.launchers import SimpleLauncher
 
-```py
-from psiflow.execution import ModelEvaluationExecution, ModelTrainingExecution, \
-        ReferenceEvaluationExecution
-from psiflow.models import MACEModel, NequIPModel, AllegroModel
-from psiflow.reference import CP2KReference
+from psiflow.execution import Default, ModelTraining, ModelEvaluation, \
+        ReferenceEvaluation, generate_parsl_config
+from psiflow.parsl_utils import ContainerizedLauncher
 
 
-model_evaluate = ModelEvaluationExecution(          # defines model inference (e.g. for walker propagation)
-        executor='model',                           # a Parsl executor with label 'model' will be created
-        device='cpu',                               # evaluate models on the CPU (instead of a GPU)
-        ncores=1,                                   # use only one core per simulation
-        dtype='float32',                            # precision when evaluating the network (32/64)
-        walltime=30,                                # ensure a walltime of two minutes per dynamic walker 
+# The ContainerizedLauncher is a subclass of Parsl Launchers, which simply
+# wraps all commands to be executed inside a container.
+# The ORAS containers are downloaded from Github -- though it's best to cache
+# them beforehand (e.g. by executing 'apptainer exec <uri> pwd').
+launcher_cpu = ContainerizedLauncher(
+        'docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+        apptainer_or_singularity='apptainer',
         )
-model_training = ModelTrainingExecution(            # model training is forced to be executed on GPU!
-        executor='training',
-        ncores=4,                                   # how many CPUs to use (typically #ncores / #ngpus)
-        walltime=3,                                 # max walltime in minutes,
+launcher_gpu = ContainerizedLauncher(
+        'docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+        apptainer_or_singularity='apptainer',
+        enable_gpu=True,            # binds GPU in container
         )
-reference_evaluate = ReferenceEvaluationExecution(  # defines how the reference calculations are performed
-        executor='reference',
-        device='cpu',                               # only CPU is supported for QM at the moment
-        ncores=32,                                  # number of cores to use per calculation
-        omp_num_threads=1,                          # parallelization (mpi_num_proc = ncores / omp_num_threads)
-        mpi_command=lambda x: f'mpirun -np {x}',    # mpirun command; this is cluster-dependent sometimes
-        cp2k_exec='cp2k.psmp',                      # specific CP2K executable; is sometimes cp2k.popt
-        walltime=30, # in minutes                   # max walltime in minutes per singlepoint
+
+default = Default(
+        cores_per_worker=4,         # 8 / 4 = 2 workers per slurm job
+        parsl_provider=SlurmProvider(
+            partition='cpu_rome',
+            account='2022_050',
+            nodes_per_block=1,      # each block fits on (less than) one node
+            cores_per_node=8,       # number of cores per slurm job
+            init_blocks=1,          # initialize a block at the start of the workflow
+            min_blocks=1,           # always keep at least one block open
+            max_blocks=1,           # do not use more than one block
+            walltime='72:00:00',    # walltime per block
+            exclusive=False,
+            scheduler_options='#SBATCH --clusters=dodrio\n', # specify the cluster
+            launcher=launcher_cpu,  # no GPU needed
+            )
         )
-```
-Next, we associate, for all `BaseModel` and `BaseReference` subclasses of interest,
-the necessary execution definitions.
-
-```py
-definitions = {
-        MACEModel: [model_evaluate, model_training],
-        NequIPModel: [model_evaluate, model_training],
-        AllegroModel: [model_evaluate, model_training],
-        CP2KReference: [reference_evaluate],
-        }
-```
-!!! note
-    Definitions can be registered in the dictionary __per model__ and __per reference__ level of theory.
-    This would allow to set execution of NequIP inference on a GPU but MACE 
-    inference on a CPU, for example.
-
-Until here, we have completely specified *how* all operations within psiflow
-should be executed. This part of the configuration file is therefore relatively
-transferable between different configurations (at least if the hardware is
-similar).
-
-### 2. Configure __where__ everything gets executed
-The second part of the configuration file specifies _where_ all the execution resources are coming
-from. Psiflow (and Parsl) need to know whether they're supposed to request
-a GPU in Google Cloud or submit a SLURM jobscript to a GPU cluster, for example.
-In particular, this means that the executor labels (stored as attributes in the
-execution definitions from the first part) need to be associated with
-particular **resource providers**. Resource providers can be anything, from
-your local workstation, the cluster at your university, to an array of VM instances in
-Google Cloud.
-These resources can be defined in the configuration file using any of the
-following Parsl `ExecutionProvider` subclasses:
-
-- `AWSProvider`
-- `CobaltProvider`
-- `CondorProvider`
-- `GoogleCloudProvider`
-- `GridEngineProvider`
-- `LocalProvider`
-- `LSFProvider`
-- `GridEngineProvider`
-- `SlurmProvider`
-- `TorqueProvider`
-- `KubernetesProvider`
-- `PBSProProvider`
-
-For each of the executor labels used in the first part, we need to define which
-provider that executor should use.
-The easiest option is to set psiflow to only use resources on the local
-computer (i.e. your own CPU, GPU, memory, and disk space) using the
-`LocalProvider`:
-```py
-from parsl.providers import LocalProvider
+model_evaluation = ModelEvaluation(
+        cores_per_worker=12,        # ncores per GPU
+        max_walltime=None,          # kill gracefully before end of slurm job
+        simulation_engine='openmm',
+        gpu=True,
+        parsl_provider=SlurmProvider(
+            partition='gpu_rome_a100',
+            account='2023_006',
+            nodes_per_block=1,
+            cores_per_node=12,
+            init_blocks=0,
+            max_blocks=32,
+            walltime='12:00:00',
+            exclusive=False,
+            scheduler_options='#SBATCH --gpus=1\n#SBATCH --clusters=dodrio', # ask for a GPU!
+            launcher=launcher_gpu,  # binds GPU in container!
+            )
+        )
+model_training = ModelTraining(
+        cores_per_worker=12,
+        gpu=True,
+        max_walltime=None,          # kill gracefully before end of slurm job
+        parsl_provider=SlurmProvider(
+            partition='gpu_rome_a100',
+            account='2023_006',
+            nodes_per_block=1,
+            cores_per_node=12,
+            init_blocks=0,
+            max_blocks=4,
+            walltime='12:00:00',
+            exclusive=False,
+            scheduler_options='#SBATCH --gpus=1\n#SBATCH --clusters=dodrio',
+            launcher=launcher_gpu,
+            )
+        )
+reference_evaluation = ReferenceEvaluation(
+        cores_per_worker=64,
+        max_walltime=20,            # singlepoints should finish in less than 20 mins
+        parsl_provider=SlurmProvider(
+            partition='cpu_milan',
+            account='2022_050',
+            nodes_per_block=1,
+            cores_per_node=64,      # 1 reference evaluation per SLURM job
+            init_blocks=0,
+            max_blocks=12,
+            walltime='12:00:00',
+            exclusive=True,
+            scheduler_options='#SBATCH --clusters=dodrio\n',
+            launcher=launcher_cpu,
+            )
+        )
 
 
-providers = {
-        'default': LocalProvider(),     # resources for all pre- and post-processing
-        'model': LocalProvider(),       # resources for the 'model' executor (i.e. model evaluation)
-        'training': LocalProvider(),    # resources for the 'training' executor (i.e. model training)
-        'reference': LocalProvider(),   # resources for the 'reference' executor (i.e. for QM singlepoints)
-        }
-```
-Note that in addition to `model`, `training`, and `reference`, it is also
-necessary to define a (simple) provider for the `default` executor,
-which takes care of all administrative tasks (copying data, reading and writing XYZ files, ... ).
-
-Once each executor label is assigned to a particular provider of your choice,
-the `get_config` function can be used to combine the definitions and providers
-into a [fully-fledged Parsl `Config`](https://parsl.readthedocs.io/en/stable/userguide/configuring.html).
-It offers some additional customizability
-in terms of how calculations are scheduled, whether caching is enabled, and how
-to deal with errors during the workflow.
-
-```py
-from psiflow.execution import generate_parsl_config
-
-
-def get_config(path_parsl_internal):
-    config = generate_parsl_config(     # psiflow internal method to parse definitions and providers
-            path_parsl_internal,        # directory in which psiflow and parsl may cache intermediate files
+def get_config(path_internal):
+    definitions = [
+            default,
+            model_evaluation,
+            model_training,
+            reference_evaluation,
+            ]
+    config = generate_parsl_config(
+            path_internal,
             definitions,
-            providers,
-            use_work_queue=True,        # Parsl-specific parameter which specifies the Executor class
+            use_work_queue=False,
+            parsl_max_idletime=10,
+            parsl_retries=1,
             )
     return config, definitions
 ```
-Example configurations for local execution can be found on the GitHub repository.
-In the same directory, you'll find configuration files for the
-[Flemish supercomputers](https://vlaams-supercomputing-centrum-vscdocumentation.readthedocs-hosted.com/en/latest/gent/tier1_hortense.html)
-in Belgium, which have the typical SLURM/Lmod/EasyBuild setup as found
-in many other European HPCs.
-Naturally, these configurations rely on one or more `SlurmProvider` instances
-which provide the computational resources,
-as opposed to the `LocalProvider` shown here. A `SlurmProvider` may
-be configured in terms of the minimum and maximum number of jobs it may request
-during the workflow,
-the number of cores, nodes, GPUs, and amount of walltime per job, as well as
-the cluster(s), partition(s), and account(s) to use.
-See the [Hortense](https://github.com/molmod/psiflow/blob/main/configs/vsc_hortense.py)
-and [Stevin](https://github.com/molmod/psiflow/blob/main/configs/vsc_stevin.py)
-example configurations for more details.
+Check out the [configs](https://github.com/molmod/psiflow/tree/main/configs) directory for more example configurations.
 
-### 3. Putting it all together: `psiflow.load`
-The execution configuration as determined by a `config.py` is to be loaded
-into psiflow in order to start workflow execution.
-The first step in any psiflow script is therefore to call `psiflow.load`:
-it will generate a local cache directory for output
-logs and intermediate files, and create a global `ExecutionContext` object.
-The `BaseModel`, `BaseReference`, and `BaseWalker` subclasses
-will use the information in the execution context to create and store
-Parsl apps with the desired execution configuration.
-End users do not need to worry about the internal organization of psiflow;
-all they need to make sure is that they provide a valid configuration
-file when calling the main script and begin with a `psiflow.load()` call.
-Internally, `psiflow.load()` will parse the command line arguments, read
-the configuration script, and load the Parsl `Config` instance such that
-the workflow can begin.
-
-```console
-    $ python my_workflow.py --psiflow-config lumi.py
-```
-
-
-
-```py title='my_workflow.py'
-import psiflow
-
-
-def my_scientific_breakthrough():
-    ...
-
-
-if __name__ == '__main__':
-    psiflow.load()
-    my_scientific_breakthrough()
-```
-
+### Manual
+Containerized execution is of course optional; users are free to provide their own environments
+in which psiflow tasks need to execute in case they want full control over the specific
+versions of each of the pieces of software.
+Parsl providers typically have an optional `worker_init` argument which can be used to 
+activate specific Python environments or execute `module load` commands.
