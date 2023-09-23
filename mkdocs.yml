@@ -20,7 +20,9 @@ theme:
     - toc.follow
 
 nav:
-  - Overview: index.md
+  - Introduction: index.md
+  - Learning algorithms: learning.md
+  - Installation: installation.md
   - Execution: execution.md
 
 plugins:
@@ -30,6 +32,7 @@ plugins:
     
 repo_url: https://github.com/molmod/psiflow
 markdown_extensions:
+  - tables
   - md_in_html
   - admonition
   - footnotes
@@ -46,6 +49,10 @@ markdown_extensions:
   - pymdownx.tilde
   - pymdownx.arithmatex:
       generic: true
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
 
 extra_javascript:
   - javascripts/mathjax.js

@@ -249,6 +249,18 @@ def generate_parsl_config(
 
 @typeguard.typechecked
 class ExecutionContext:
+    """
+    Psiflow centralizes all execution-level configuration options using an ExecutionContext.
+    It forwards infrastructure-specific options within Parsl, such as the
+    requested number of nodes per SLURM job or the specific Google Cloud instance to be use,
+    to training, sampling, and QM evaluation operations to ensure they proceed as requested.
+    Effectively, the ExecutionContext hides all details of the execution infrastructure and
+    exposes simple and platform-agnostic resources which may be used by training, sampling,
+    and QM evaluation apps. As such, we ensure that execution-side details are strictly
+    separated from the definition of the computational graph itself.
+    For more information, check out the psiflow documentation regarding execution.
+
+    """
 
     def __init__(
             self,

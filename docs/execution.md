@@ -13,10 +13,10 @@ For example, QM calculations typically require nodes with a large core count (64
 and with sufficient memory, whereas model training and evaluation require one or more powerful
 GPUs.
 Because a single computer can never provide the computing power that is required to
-execute such workflows, psiflow is intrinsically built to support distributed
-and asynchronous execution across a large variety of resources (including most HPC and cloud infrastructure).
+execute such workflows, psiflow is intrinsically built to support **distributed
+and asynchronous execution** across a large variety of resources (including most HPC and cloud infrastructure).
 This means that while the entire online learning workflow is defined in a single Python script,
-its execution is automatically performed on tens, hundreds, or even thousands of nodes.
+its execution is automatically offloaded to tens, hundreds, or even thousands of nodes.
 Configuration of the execution resources is done using a single Python script; `config.py`.
 It specifies the following parameters (among others)
 
@@ -72,7 +72,7 @@ is always performed on GPU (and in `float32`) anyway.
 3. __reference evaluation__: this determines how and where QM evaluations are performed. Because most (if not all) QM engines
 rely on MPI (and sometimes OpenMP) to parallelize over multiple cores, it is possible to specify your own MPI command here.
 It should be a function with a single argument, which returns (as string) the MPI command to use when executing a QM evaluation.
-Its default value is the following `lambda` expression (for MPICH):
+Its default value is the following `lambda` expression (for MPICH as included in the container):
 ```py
 mpi_command = lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork'
 ```
@@ -83,6 +83,7 @@ Typically, this requires only a few cores and a few GBs of memory.
 Let's illustrate how the execution definitions can be used to construct a psiflow configuration file.
 Essentially, such files consist of a single `get_config()` method which should return a Parsl `Config` object
 as well as a list of psiflow `ExecutionDefinition` instances as discussed above.
+### Local
 For simplicity, let us assume for now that all of the required compute resources are available locally,
 which means we can use parsl's `LocalProvider` in the various definitions:
 ```py title="local_htex.py"
@@ -145,41 +146,12 @@ that Parsl may attempt for a specific task
 (which can be useful e.g. when the cluster you're using contains a few faulty nodes).
 
 
-## Setup
-The main Python script will typically be executed on a local workstation or a login/compute node of a cluster;
-this will be referred to as the **submission side**.
-Because all nontrivial calculations are forwarded to the appropriate compute
-resources as specified in the configuration script (see below), the submission side does
-not actually do any work, and it is therefore trivial to set up. 
-All that is required is a Python environment in which Parsl and psiflow are
-available (and, optionally, `ndcctools` for better scheduling).
-We recommend using
-[micromamba](https://mamba.readthedocs.io/en/latest/installation.html#micromamba)
--- a blazingly fast `conda` replacement -- to set this up:
-```console
-$ micromamba create -p ./psiflow_env ndcctools=7.6.1 -c conda-forge -y python=3.9
-$ micromamba activate ./psiflow_env
-$ pip install git+https://github.com/molmod/psiflow   # installs Parsl + dependencies
-```
-Setting up the **execution side** is technically more challenging because it
-needs to have working installations of (parallelized) CP2K, PLUMED, and GPU-enabled PyTorch.
+### Remote (HPC/Cloud)
 
-### Containerized
-To alleviate users from having to go through all of the installation
-shenanigans, psiflow provides all-inclusive containers which bundle all of its
-dependencies into a portable entity --
-a container image!
-Whether you're executing your calculations on a high-memory node in a cluster
-or using a GPU in google cloud, all that is required is a working [Docker](https://www.docker.com/)
-or [Apptainer/Singularity](https://apptainer.org/) installation and you're good to go.
-During task distribution, psiflow will automatically pull the relevant
-container image from the
-[GitHub Container Registry](https://github.com/molmod/psiflow/pkgs/container/psiflow)
-and execute its tasks inside the container at approximately bare metal
-performance.
-
-Containerized execution is possible locally, but is particularly useful when combined with
-remote execution.
+As mentioned before, psiflow is designed to support remote execution on vast amounts of
+compute resources.
+This is particularly convenient in a containerized fashion, since this alleviates the
+need to install all of its dependencies on each of the compute resources.
 As an example of this, consider the following configuration:
 
 ```py title="vsc_hortense.py"
@@ -292,9 +264,8 @@ def get_config(path_internal):
 ```
 Check out the [configs](https://github.com/molmod/psiflow/tree/main/configs) directory for more example configurations.
 
-### Manual
-Containerized execution is of course optional; users are free to provide their own environments
-in which psiflow tasks need to execute in case they want full control over the specific
-versions of each of the pieces of software.
-Parsl providers typically have an optional `worker_init` argument which can be used to 
+For people who chose to install psiflow and its dependencies [manually](installation.md#manual),
+there's no need to define custom Parsl Launchers.
+Instead, they need to care that all manually installed packages can be found by each of the workers;
+this is possible using the `worker_init` argument of Parsl providers, which can be used to 
 activate specific Python environments or execute `module load` commands.
