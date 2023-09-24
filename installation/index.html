@@ -1,0 +1,590 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../learning/">
+      
+      
+        <link rel="next" href="../execution/">
+      
+      <link rel="icon" href="../icon.svg">
+      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.1.21">
+    
+    
+      
+        <title>Installation - psiflow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.eebd395e.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ecc896b0.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#installation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="psiflow" class="md-header__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            psiflow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Installation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/molmod/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="psiflow" class="md-nav__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    psiflow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/molmod/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Introduction
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../learning/" class="md-nav__link">
+        Learning algorithms
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Installation
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Installation
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#containerized" class="md-nav__link">
+    Containerized
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manual" class="md-nav__link">
+    Manual
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../execution/" class="md-nav__link">
+        Execution
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="installation">Installation</h1>
+<p>Psiflow is designed as an end-to-end framework for developing interatomic potentials. As such, it has a number of dependencies
+which should be available in order to be able to perform all steps in the workflow. The following table groups 
+the main dependencies according to how they are used in psiflow:</p>
+<p><center></p>
+<table>
+<thead>
+<tr>
+<th>category</th>
+<th>name</th>
+<th>version</th>
+<th style="text-align: center;">uses GPU</th>
+<th style="text-align: center;">uses MPI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>QM evaluation</strong></td>
+<td>CP2K</td>
+<td>2023.1</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+</tr>
+<tr>
+<td></td>
+<td>NWChem</td>
+<td>7.2</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+</tr>
+<tr>
+<td><strong>trainable potentials</strong></td>
+<td>MACE</td>
+<td>0.2.0</td>
+<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>NequIP</td>
+<td>0.5.6</td>
+<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>Allegro</td>
+<td>0.2.0</td>
+<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td><strong>molecular dynamics</strong></td>
+<td>OpenMM</td>
+<td>8.0</td>
+<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>PLUMED</td>
+<td>2.9.0</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>YAFF</td>
+<td>1.6.0</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td><strong>miscellaneous</strong></td>
+<td>Parsl</td>
+<td>2023.8.28</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>e3nn</td>
+<td>0.4.4</td>
+<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>PyTorch</td>
+<td>1.13.1</td>
+<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>ASE</td>
+<td>3.22.1</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>Pymatgen</td>
+<td>2023.8.10</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>wandb</td>
+<td>0.15.8</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr>
+<td></td>
+<td>Python</td>
+<td>3.9</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+</tbody>
+</table>
+<p></center></p>
+<h2 id="containerized">Containerized</h2>
+<p>To alleviate users from having to go through all of the installation
+shenanigans, psiflow provides a convenient portable entity which bundles all of the above
+dependencies -- a container image!
+Whether you're executing your calculations on a high-memory node in a cluster
+or using a GPU from a Google Cloud instance, all that is required is a working
+container engine and you're good to go.
+The vast majority of HPCs and cloud computing providers support containerized execution,
+using engines like <a href="https://apptainer.org/">Apptainer/Singularity</a>,
+<a href="https://docs.nersc.gov/development/shifter/how-to-use/">Shifter</a>,
+or <a href="https://www.docker.com/">Docker</a>.
+These engines are also very easily installed on your local workstation, which facilitates
+local debugging.</p>
+<p>Besides a container engine, it's necessary to install a standalone Python environment
+which needs to take care of possible job submissions and input/output writing.
+Since the actual calculations are performed inside the container, the standalone
+Python environment requires barely anything, and is straightforward to install
+using <code>micromamba</code> -- a blazingly fast drop-in replacement for <code>conda</code>:</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">$ </span>micromamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>psiflow_env<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>-y<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.9<span class="w"> </span><span class="nv">ndcctools</span><span class="o">=</span><span class="m">7</span>.6.1<span class="w"> </span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">$ </span>micromamba<span class="w"> </span>activate<span class="w"> </span>psiflow_env
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/molmod/psiflow
+</code></pre></div>
+That's it! Before running actual calculations, it is still necessary to set up Parsl
+to use the compute resources you have at your disposal -- whether it's a local GPU,
+a SLURM cluster, or a cloud computing provider; check out the
+<a href="../execution/">Execution</a> page for more details.</p>
+<div class="admonition note">
+<p class="admonition-title">Containers 101</p>
+<p>Apptainer -- now the most widely used container system for HPCs -- is part of the
+Linux Foundation and can be installed on Ubuntu using:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>apptainer
+</code></pre></div>
+<p>Psiflow's containers are hosted on the GitHub Container Registry (GHCR).
+To download and run commands in them, simply execute:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp"># </span>show<span class="w"> </span>available<span class="w"> </span>pip<span class="w"> </span>packages
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="gp">$ </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow_2.0.0-cuda11.8.sif<span class="w"> </span>/usr/local/bin/entry.sh<span class="w"> </span>pip<span class="w"> </span>list
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="gp"># </span>inspect<span class="w"> </span>cp2k<span class="w"> </span>version
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="gp">$ </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow_2.0.0-cuda11.8.sif<span class="w"> </span>/usr/local/bin/entry.sh<span class="w"> </span>cp2k.pmsp<span class="w"> </span>--version
+</code></pre></div></p>
+<p>Internally, Apptainer will store the container in a local cache directory such that it does not have to
+redownload it every time a command gets executed. Usually, it's a good idea to manually change the location 
+of these cache directories since they can end up clogging your <code>$HOME$</code> directory quite quickly.
+To do this, simply put the following lines in your <code>.bashrc</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="go">export APPTAINER_CACHEDIR=/some/dir/on/local/scratch/apptainer_cache</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">export APPTAINER_TMPDIR=/some/dir/on/local/scratch/apptainer_cache</span>
+</code></pre></div>
+<p>If your compute resources use SingularityCE instead of Apptainer,
+replace 'APPTAINER' with 'SINGULARITY' in the environment variable names.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Weights &amp; Biases</p>
+<p>To ensure psiflow can communicate its data to <a href="https://wandb.ai">W&amp;B</a>, add </p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="go">export WANDB_API_KEY=&lt;your key from wandb.ai/authorize&gt;</span>
+</code></pre></div>
+to your <code>.bashrc</code>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">AMD GPU support</p>
+<p>As the name of the container suggests, GPU acceleration for PyTorch models in OpenMM
+is currently only available for Nvidia GPUs because the compatibility of conda/mamba
+with AMD GPUs (HIP) is not great at the moment. If you really must use AMD GPUs
+in psiflow, you'll have to manually create a separate Python environment with a ROCm-enabled
+PyTorch for training, and the regular containerized setup for CPU-only
+molecular dynamics with OpenMM.</p>
+<p>A ROCm-compatible PyTorch can be installed using the following command:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="go">pip install --force torch==1.13.1 --index-url https://download.pytorch.org/whl/rocm5.2</span>
+</code></pre></div></p>
+</div>
+<h2 id="manual">Manual</h2>
+<p>While a containerized setup guarantees reproducibility and is faster to install,
+a fully manual setup of Psiflow and its dependencies provides the user with full control
+over software versions or compiler flags.
+While this is not really necessary in the vast majority of cases, we mention for completeness
+the following manual setup using <code>micromamba</code>:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="gp">$ </span><span class="nv">CONDA_OVERRIDE_CUDA</span><span class="o">=</span><span class="s2">&quot;11.8&quot;</span><span class="w"> </span>micromamba<span class="w"> </span>create<span class="w"> </span>-p<span class="w"> </span>./psiflow_env<span class="w"> </span>-y<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.9<span class="w"> </span>pip<span class="w"> </span><span class="nv">ndcctools</span><span class="o">=</span><span class="m">7</span>.6.1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span>openmm-plumed<span class="w"> </span>openmm-torch<span class="w"> </span><span class="nv">pytorch</span><span class="o">=</span><span class="m">1</span>.13.1<span class="o">=</span>cuda*<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>nwchem<span class="w"> </span>py-plumed<span class="w"> </span>cp2k<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span>micromamba<span class="w"> </span>clean<span class="w"> </span>-af<span class="w"> </span>--yes
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">cython</span><span class="o">==</span><span class="m">0</span>.29.36<span class="w"> </span>matscipy<span class="w"> </span>prettytable<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/molmod/molmod<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/molmod/yaff<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">e3nn</span><span class="o">==</span><span class="m">0</span>.4.4
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>numpy<span class="w"> </span>ase<span class="w"> </span>tqdm<span class="w"> </span>pyyaml<span class="w"> </span><span class="s1">&#39;torch-runstats&gt;=0.2.0&#39;</span><span class="w"> </span><span class="s1">&#39;torch-ema&gt;=0.3.0&#39;</span><span class="w"> </span>mdtraj<span class="w"> </span>tables
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/acesuit/MACE.git@55f7411<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/mir-group/nequip.git@develop<span class="w"> </span>--no-deps<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/mir-group/allegro<span class="w"> </span>--no-deps<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/svandenhaute/openmm-ml.git@triclinic
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/molmod/psiflow
+</code></pre></div>
+This is mostly a copy-paste from psiflow's <a href="https://github.com/molmod/psiflow/blob/main/Dockerfile">Dockerfile</a>.</p>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.expand", "toc.integrate", "toc.follow"], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.220ee61c.min.js"></script>
+      
+        
+          <script src="../javascripts/mathjax.js"></script>
+        
+      
+        
+          <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
+      
+        
+          <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
+      
+        
+          <script src="../javascripts/katex.js"></script>
+        
+      
+        
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js"></script>
+        
+      
+        
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js"></script>
+        
+      
+    
+  </body>
+</html>
