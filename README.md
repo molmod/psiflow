@@ -37,9 +37,3 @@ This ensures support for a large number of different execution resources,
 including clouds (e.g. Amazon Web Services, Google Cloud),
 clusters (e.g. SLURM, Torque/PBS, HTCondor)
 and even container orchestration systems (e.g. Kubernetes). Visit the [psiflow documentation](https://molmod.github.io/psiflow) for more details.
-
-```
-psiflow-test your_psiflow_config.py
-```
-This will tell you whether all the required libraries are available for each of the execution resources you provided, including their version numbers (and in case of PyTorch, whether it finds any available GPUs).
-After this, you're all set to run any of the provided [examples](https://github.com/molmod/psiflow/tree/main/configs).
