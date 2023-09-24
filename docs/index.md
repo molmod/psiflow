@@ -6,12 +6,10 @@ hide:
 # **psiflow** - interatomic potentials using online learning
 
 Psiflow is a modular and scalable library for developing interatomic potentials.
-It uses Parsl to interface popular trainable interaction potentials with
-quantum chemistry software, and is designed to support computational workflows
-on hundreds or thousands of nodes.
-Psiflow is designed as an end-to-end framework; it can orchestrate all
-computational components between an initial atomic structure and the final
-trained potential.
+It interfaces popular trainable interaction potentials with
+quantum chemistry software and is designed as an end-to-end framework;
+it can orchestrate all computational tasks between an initial atomic structure and
+the final accurate interatomic potential.
 To achieve this, psiflow implements the following high-level abstractions:
 
 - a trainable **interaction potential** (e.g. NequIP or MACE)
@@ -39,18 +37,20 @@ of interest (e.g. using molecular dynamics) in order to generate new
 atomic configurations, which can again be labeled using `BaseReference` etc.
 --->
 
+__Scalable execution__
 
-__Scalable execution using Parsl__
-
-When executing psiflow workflows, individual training, sampling, and
-QM evaluation operations are automatically organized in Parsl `apps`,
-whose execution is fully customizable by the user.
+Psiflow workflows can be executed on large HPCs and/or cloud computing infrastructure.
+The individual QM calculations, model training runs,
+and/or phase space sampling calculations are efficiently executed on
+hundreds or thousands of nodes thanks to
+[Parsl, a parallel and asynchronous execution framework](https://parsl-project.org/).
 For example, you could distribute all CP2K calculations to a local SLURM cluster,
 perform model training on a GPU from a Google Cloud instance, and forward
 the remaining phase space sampling and data processing operations to a single
 workstation in your local network.
 Naturally, Parsl tracks the dependencies between all objects and manages execution of the workflow
 in an asynchronous manner.
+<!---
 Psiflow centralizes all execution-level configuration options using an `ExecutionContext`.
 It forwards infrastructure-specific options within Parsl, such as the requested number of nodes
 per SLURM job or the specific Google Cloud instance to be use, to training,
@@ -61,6 +61,7 @@ used by training, sampling, and QM evaluation apps.
 As such, we ensure that execution-side details are strictly separated from
 the definition of the computational graph itself.
 For more information, check out the psiflow [Configuration](config.md) page.
+--->
 
 !!! note "Citing psiflow"
 
