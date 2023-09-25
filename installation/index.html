@@ -462,10 +462,10 @@ Linux Foundation and can be installed on Ubuntu using:</p>
 <p>Psiflow's containers are hosted on the GitHub Container Registry (GHCR).
 To download and run commands in them, simply execute:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp"># </span>show<span class="w"> </span>available<span class="w"> </span>pip<span class="w"> </span>packages
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="gp">$ </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow_2.0.0-cuda11.8.sif<span class="w"> </span>/usr/local/bin/entry.sh<span class="w"> </span>pip<span class="w"> </span>list
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="gp">$ </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8<span class="w"> </span>/usr/local/bin/entry.sh<span class="w"> </span>pip<span class="w"> </span>list
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="gp"># </span>inspect<span class="w"> </span>cp2k<span class="w"> </span>version
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="gp">$ </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow_2.0.0-cuda11.8.sif<span class="w"> </span>/usr/local/bin/entry.sh<span class="w"> </span>cp2k.pmsp<span class="w"> </span>--version
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="gp">$ </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8<span class="w"> </span>/usr/local/bin/entry.sh<span class="w"> </span>cp2k.pmsp<span class="w"> </span>--version
 </code></pre></div></p>
 <p>Internally, Apptainer will store the container in a local cache directory such that it does not have to
 redownload it every time a command gets executed. Usually, it's a good idea to manually change the location 

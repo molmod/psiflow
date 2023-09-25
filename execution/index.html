@@ -573,7 +573,7 @@ As an example of this, consider the following configuration:</p>
 Check out the <a href="https://github.com/molmod/psiflow/tree/main/configs">configs</a> directory for more example configurations.</p>
 <p>For people who chose to install psiflow and its dependencies <a href="../installation/#manual">manually</a>,
 there's no need to define custom Parsl Launchers.
-Instead, they need to care that all manually installed packages can be found by each of the workers;
+Instead, they need to take care that all manually installed packages can be found by each of the workers;
 this is possible using the <code>worker_init</code> argument of Parsl providers, which can be used to 
 activate specific Python environments or execute <code>module load</code> commands.</p>
 
