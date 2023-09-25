@@ -68,10 +68,10 @@ a SLURM cluster, or a cloud computing provider; check out the
     To download and run commands in them, simply execute:
     ```console
     # show available pip packages
-    $ apptainer exec oras://ghcr.io/molmod/psiflow_2.0.0-cuda11.8.sif /usr/local/bin/entry.sh pip list
+    $ apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh pip list
 
     # inspect cp2k version
-    $ apptainer exec oras://ghcr.io/molmod/psiflow_2.0.0-cuda11.8.sif /usr/local/bin/entry.sh cp2k.pmsp --version
+    $ apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh cp2k.pmsp --version
     ```
 
     Internally, Apptainer will store the container in a local cache directory such that it does not have to
