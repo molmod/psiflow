@@ -211,6 +211,12 @@ class MACEModel(BaseModel):
         config['device'] = 'cpu' # guarantee consistent initialization
         super().__init__(config)
 
+    def deploy(self):
+        self.deploy_future = psiflow.context().apps(self.__class__, 'deploy')(
+                inputs=[self.model_future],
+                outputs=[psiflow.context().new_file('deploy_', '.pth')],
+                ).outputs[0]
+
     @classmethod
     def create_apps(cls) -> None:
         context = psiflow.context()
@@ -227,7 +233,12 @@ class MACEModel(BaseModel):
         model_ncores = evaluation.cores_per_worker
 
         app_initialize = bash_app(initialize, executors=['Default'])
-        app_deploy     = python_app(deploy, executors=[model_label])
+        def wrapped_deploy(inputs=[], outputs=[]):
+            assert len(inputs) == 1
+            assert len(outputs) == 1
+            return deploy(model_device, inputs=inputs, outputs=outputs)
+        app_deploy = python_app(wrapped_deploy, executors=[model_label])
+        context.register_app(cls, 'deploy', app_deploy)
         def initialize_wrapped(config_raw, inputs=[], outputs=[]):
             assert len(inputs) == 1
             outputs = [
@@ -243,7 +254,6 @@ class MACEModel(BaseModel):
                     )
             future = read_yaml(inputs=[init_future.outputs[1]])
             deploy_future = app_deploy(
-                    model_device,
                     inputs=[init_future.outputs[0]],
                     outputs=[context.new_file('deploy_', '.pth')],
                     )
@@ -263,7 +273,6 @@ class MACEModel(BaseModel):
                     parsl_resource_specification=training_resource_specification,
                     )
             deploy_future = app_deploy(
-                    model_device,
                     inputs=[future.outputs[0]],
                     outputs=[context.new_file('deploy_', '.pth')],
                     )

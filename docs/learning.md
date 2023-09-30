@@ -87,6 +87,21 @@ Sequential learning is arguably the most straightforward approach to online lear
 In each iteration, walkers are propagated in phase space using a certain model,
 their newly sampled geometries are quantum mechanically evaluated and added to training and validation sets,
 and the model is finally retrained on all available data.
+
+The following keyword arguments are specific to `SequentialLearning`:
+
+- `niterations: int` : the number of active learning iterations to perform. Each iterations starts with phase space
+sampling, followed by reference evaluation and model training.
+- `temperature_ramp: Optional[tuple[float]] = None`: whether to gradually increase the temperature of the walkers 
+in subsequent iterations. If not `None`, this keyword argument expects a tuple of floats: (initial T, final T).
+If this is `None`, then the temperature of the walkers is left as-is. 
+- `error_thresholds_for_reset: tuple[float, float] = (10, 200)` : (new in v2.0.0) determines the (energy, force)
+error thresholds for resetting walkers, in meV/atom and meV/angstrom.
+After propagation and QM evaluation, the obtained energy and forces are
+compared with the model's predicted energy and forces during propagation. A high error implies that the walker
+was exploring phase space with a model that was very inaccurate, which makes it very likely that the sampled states
+are not very physical. In that case, it makes sense to reset the walker to its initial configuration.
+
 Psiflow implements this approach using a `SequentialLearning` class with the following `run()` function:
 
 ```py
@@ -175,7 +190,8 @@ energies or whether pretraining needs to be performed etc.
     2. `model.train()` is called on the total dataset, which includes the newly sampled
     states.
     3. All objects (walkers, datasets, model) are saved in the output folder after
-    training such that the run can be restarted from here. Walker temperatures
+    training such that the run can be restarted from here.
+    If the temperature ramp is enabled, this is also the point where walker temperatures
     are increased towards $T_{\textsf{final}}$ in preparation for the next iteration.
 
 - after completing all iterations, the function completes by returning the final dataset.
@@ -279,8 +295,7 @@ def main(path_output):
             train_from_scratch=True,
             metrics=Metrics('zeolite_reaction', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # (meV/atom, meV/angstrom)
-            initial_temperature=300,
-            final_temperature=1000,
+            temperature_ramp=(300, 1000) # logarithmic increase from 300 K to 1000 K
             )
 
     # construct walkers; biased MTD in this case
@@ -392,6 +407,11 @@ to force a transition between the closed and open pore phases of MIL-53(Al).
     """
         return PlumedBias(plumed_input)
     ```
+    When using incremental learning, the bias potential needs to be a `MOVINGRESTRAINT` kind
+    of potential. While its centers will automatically be incremented by the algorithm from
+    initial to final CV value, it's important to set `STEP0=0` and `STEP1=nsteps`, where `nsteps`
+    is the number of steps that the walker will make in each propagation (i.e. `walker.steps`).
+
 
 The main function looks more or less the same as the one from the previous example, 
 the only difference being the learning class and the contents of the PLUMED input file.

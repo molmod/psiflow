@@ -84,8 +84,7 @@ def main(path_output):
             train_from_scratch=True,
             metrics=Metrics('zeolite_reaction', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            initial_temperature=300,
-            final_temperature=1000,
+            temperature_ramp=(300, 1000),
             )
 
     # construct walkers; biased MTD MD in this case

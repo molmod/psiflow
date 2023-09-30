@@ -82,7 +82,6 @@ a SLURM cluster, or a cloud computing provider; check out the
     ```console
 
     export APPTAINER_CACHEDIR=/some/dir/on/local/scratch/apptainer_cache
-    export APPTAINER_TMPDIR=/some/dir/on/local/scratch/apptainer_cache
     ```
 
     If your compute resources use SingularityCE instead of Apptainer,

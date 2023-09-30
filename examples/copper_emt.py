@@ -45,8 +45,7 @@ def main(path_output):
             train_from_scratch=True,
             metrics=Metrics('copper_EMT', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            initial_temperature=400,
-            final_temperature=2000,
+            temperature_ramp=(400, 2000),
             )
 
     # construct walkers; straightforward MD in this case
@@ -74,8 +73,7 @@ def main(path_output):
             niterations=3,
             metrics=Metrics('copper_EMT', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            initial_temperature=400,
-            final_temperature=2000,
+            temperature_ramp=(400, 2000),
             nstates_per_iteration=3,
             )
     committee = Committee([model.copy() for i in range(2)])

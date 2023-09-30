@@ -102,8 +102,7 @@ def main(path_output):
             train_valid_split=0.9,
             metrics=metrics,
             error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
-            initial_temperature=200,
-            final_temperature=400,
+            temperature_ramp=(200, 400),
             )
     data = learning.run(
             model=model,
@@ -118,8 +117,7 @@ def main(path_output):
             train_valid_split=0.9,
             metrics=metrics,
             error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
-            initial_temperature=600,
-            final_temperature=1200,
+            temperature_ramp=(600, 1200),
             nstates_per_iteration=50,
             )
     model.reset()

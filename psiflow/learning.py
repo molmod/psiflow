@@ -188,24 +188,30 @@ class BaseLearning:
 @typeguard.typechecked
 @dataclass
 class SequentialLearning(BaseLearning):
-    initial_temperature: float = 100
-    final_temperature: float = 600
+    temperature_ramp: Optional[tuple[float]] = None
     niterations: int = 10
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
 
     def update_walkers(self, walkers: list[BaseWalker], initialize=False):
-        delta_beta = (1 / self.initial_temperature - 1 / self.final_temperature)
-        delta_beta /= self.niterations - 1
-        for i, walker in enumerate(walkers):
-            if initialize and hasattr(walker, 'temperature'):
-                walker.temperature = self.initial_temperature
-            if not walker.is_reset().result():
-                if hasattr(walker, 'temperature'):
-                    T = 1 / (1 / walker.temperature - delta_beta)
-                    if (T > 0) and (T < self.final_temperature):
-                        walker.temperature = T
-                    else: # reached max temp
-                        walker.temperature = self.final_temperature
+        if self.temperature_ramp is None:
+            return 0 # do not update walkers
+        else:
+            T0 = self.temperature_ramp[0]
+            T1 = self.temperature_ramp[1]
+            delta_beta = (1 / T0 - 1 / T1)
+            assert self.niterations > 1, ('temperature ramp requires a nontrivial'
+                    ' number of iterations')
+            delta_beta /= self.niterations - 1
+            for i, walker in enumerate(walkers):
+                if initialize and hasattr(walker, 'temperature'):
+                    walker.temperature = T0
+                if not walker.is_reset().result():
+                    if hasattr(walker, 'temperature'):
+                        beta = (1 / walker.temperature - delta_beta)
+                        if (beta > 0) and (1 / beta < T1):
+                            walker.temperature = 1 / beta
+                        else: # reached max temp
+                            walker.temperature = T1
 
     def run(
             self,

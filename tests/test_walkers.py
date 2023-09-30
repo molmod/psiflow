@@ -8,6 +8,7 @@ from parsl.dataflow.futures import AppFuture
 from ase import Atoms
 from ase.units import kB
 
+import psiflow
 from psiflow.models import NequIPModel, MACEModel
 from psiflow.walkers import BaseWalker, RandomWalker, DynamicWalker, \
         OptimizationWalker, BiasedDynamicWalker, PlumedBias, load_walker
@@ -185,7 +186,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     # test temperature reset
     walker.steps           = 20
     walker.step            = 5
-    walker.temperature_reset_quantile = 1.0 # always resets
+    walker.temperature_threshold = -100 # always resets
     metadata = walker.propagate(model=model)
     assert walker.is_reset().result()
     assert np.allclose(
@@ -196,7 +197,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     # test distance reset
     walker.steps = 20
     walker.step  = 5
-    walker.temperature_reset_quantile = 0.0
+    walker.temperature_threshold = 10000 # never resets
     walker.distance_threshold = 5.0 # always resets
     metadata = walker.propagate(model=model)
     assert walker.is_reset().result()
@@ -216,12 +217,18 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     walker.temperature = 500
     walker.steps = 9 # takes 10 steps to attempt unit cell change
     walker.propagate(model=model)
-    assert np.allclose(
-            walker.state0.result().get_volume(),
-            walker.state.result().get_volume(),
-            )
+    if psiflow.context()[MACEModel][0].simulation_engine == 'openmm':
+        assert np.allclose(
+                walker.state0.result().get_volume(),
+                walker.state.result().get_volume(),
+                )
+    else:
+        assert not np.allclose(
+                walker.state0.result().get_volume(),
+                walker.state.result().get_volume(),
+                )
     walker.steps = 1000
-    walker.temperature_reset_quantile = 0.0
+    walker.temperature_threshold = 10000 # never resets
     walker.propagate(model=model)
     assert not walker.is_reset().result()
     assert not np.allclose(

@@ -111,10 +111,6 @@ def _log_walker(
         data['stdout'] = Path(metadata['stdout']).stem
     else:
         data['stdout'] = None
-    #if 'stdout' in metadata['state'].info:
-    #    data['stdout'] = Path(metadata['state'].info['stdout']).stem
-    #else:
-    #    data['stdout'] = None
     return data
 log_walker = python_app(_log_walker, executors=['Default'])
 
@@ -168,10 +164,16 @@ def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
     y_axis += ['f_rmse_{}'.format(s) for s in symbols]
 
     # define data array and fill
-    #data = np.zeros((len(dataset0), len(x_axis) + len(y_axis)))
     for key in y_axis:
         data[key] = []
+    data['stdout'] = []
     for i, (atoms0, atoms1) in enumerate(zip(dataset0, dataset1)):
+        stdout = atoms0.info.get('stdout', None)
+        if stdout is not None:
+            stdout = Path(stdout).stem
+        else:
+            stdout = 'NA'
+        data['stdout'].append(stdout)
         data['e_rmse'].append(compute_error(
                 atoms0,
                 atoms1,
@@ -199,7 +201,7 @@ def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
                 mask=mask,
                 properties=['forces'],
                 )[0])
-    assert len(list(data.keys())) == len(x_axis) + len(y_axis)
+    assert len(list(data.keys())) == len(x_axis) + len(y_axis) + 1
     return data
 log_dataset = python_app(_log_dataset, executors=['Default'])
 

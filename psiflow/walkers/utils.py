@@ -291,9 +291,13 @@ def parse_openmm_output(stdout):
     return counter, np.mean(np.array(temperatures)), time
 
 
-def max_temperature(temperature, natoms, quantile) -> tuple[float, float]:
+def max_temperature(temperature: float, natoms: int, quantile: float) -> float:
     ndof = 3 * natoms
     return chi2.ppf(1 - quantile, ndof) * temperature / ndof
+
+
+def max_temperature_std(temperature: float, natoms: int, N: float) -> float:
+    return temperature + N * temperature / np.sqrt(3 * natoms)
 
 
 def get_velocities_at_temperature(temperature, masses):

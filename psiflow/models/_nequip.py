@@ -192,8 +192,6 @@ def initialize(
 @typeguard.typechecked
 def deploy(
         nequip_config: dict,
-        stdout: str = '',
-        stderr: str = '',
         inputs: List[File] = [],
         outputs: List[File] = [],
         ) -> str:
@@ -287,6 +285,7 @@ class NequIPModel(BaseModel):
 
         app_initialize = bash_app(initialize, executors=['Default'])
         app_deploy     = bash_app(deploy, executors=[training_label])
+        context.register_app(cls, 'deploy', app_deploy)
         def initialize_wrapped(config_raw, inputs=[]):
             assert len(inputs) == 1
             outputs = [
@@ -303,8 +302,6 @@ class NequIPModel(BaseModel):
             future = read_yaml(inputs=[init_future.outputs[1]], outputs=[])
             deploy_future = app_deploy(
                     future,
-                    stdout=parsl.AUTO_LOGNAME,
-                    stderr=parsl.AUTO_LOGNAME,
                     inputs=[init_future.outputs[0]],
                     outputs=[context.new_file('deploy_', '.pth')],
                     )
@@ -325,8 +322,6 @@ class NequIPModel(BaseModel):
                     )
             deploy_future = app_deploy(
                     config,
-                    stdout=parsl.AUTO_LOGNAME,
-                    stderr=parsl.AUTO_LOGNAME,
                     inputs=[future.outputs[0]],
                     outputs=[context.new_file('deploy_', '.pth')],
                     )

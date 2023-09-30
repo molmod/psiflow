@@ -47,7 +47,12 @@ class ExecutionDefinition:
             walltime += float(walltime_hhmmss[1])
             walltime += 1 # whatever seconds are present
             walltime -= 4 # add 4 minutes of slack, e.g. for container downloading
-            object.__setattr__(self, 'max_walltime', walltime) # avoid frozen
+            if self.max_walltime is None:
+                object.__setattr__(self, 'max_walltime', walltime) # avoid frozen
+            else: # check whether it doesn't exceeed it
+                assert walltime > self.max_walltime, ('{} walltime must be larger'
+                        ' than max_walltime'.format(
+                            type(self.parsl_provider)))
         elif self.max_walltime is None:
             object.__setattr__(self, 'max_walltime', 1e9) # avoid frozen
 

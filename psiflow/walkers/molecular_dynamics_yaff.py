@@ -12,7 +12,7 @@ from ase.geometry.geometry import find_mic
 
 from psiflow.walkers.utils import ForcePartASE, DataHook, \
         create_forcefield, ForceThresholdExceededException, ForcePartPlumed, \
-        ExtXYZHook, max_temperature
+        ExtXYZHook, max_temperature_std
 from psiflow.walkers.bias import try_manual_plumed_linking
 
 
@@ -31,7 +31,7 @@ def main():
     parser.add_argument('--temperature', default=None, type=float)
     parser.add_argument('--pressure', default=None, type=float)
     parser.add_argument('--force_threshold', default=None, type=float)
-    parser.add_argument('--temperature_reset_quantile', default=None, type=float)
+    parser.add_argument('--temperature_threshold', default=None, type=float)
     parser.add_argument('--distance_threshold', default=None, type=float)
 
     parser.add_argument('--model-cls', default=None, type=str) # model name
@@ -213,11 +213,11 @@ def main():
     # perform temperature check
     T = verlet.temp
     print('temperature: ', T)
-    if (args.temperature_reset_quantile > 0) and (args.temperature is not None):
-        T_max = max_temperature(
+    if (args.temperature_threshold is not None) and (args.temperature is not None):
+        T_max = max_temperature_std(
                 args.temperature,
                 len(atoms),
-                args.temperature_reset_quantile,
+                args.temperature_threshold,
                 )
         print('T_max: {} K'.format(T_max))
         if T < T_max:

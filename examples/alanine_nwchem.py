@@ -64,8 +64,7 @@ def main(path_output):
     learning = SequentialLearning(
             path_output,
             niterations=10,
-            initial_temperature=20,
-            final_temperature=600,
+            temperature_ramp=(20, 600),
             pretraining_nstates = 11,
             pretraining_amplitude_pos = 0.05,
             metrics=Metrics('alanine_nwchem', 'psiflow_examples'),

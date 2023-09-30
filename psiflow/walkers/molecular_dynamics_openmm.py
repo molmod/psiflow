@@ -17,7 +17,7 @@ from ase.data import chemical_symbols
 from ase.units import nm, fs
 from ase.geometry.geometry import find_mic
 
-from psiflow.walkers.utils import max_temperature, \
+from psiflow.walkers.utils import max_temperature_std, \
         get_velocities_at_temperature
 
 def main():
@@ -35,7 +35,7 @@ def main():
     parser.add_argument('--temperature', default=None, type=float)
     parser.add_argument('--pressure', default=None, type=float)
     parser.add_argument('--force_threshold', default=None, type=float)
-    parser.add_argument('--temperature_reset_quantile', default=None, type=float)
+    parser.add_argument('--temperature_threshold', default=None, type=float)
     parser.add_argument('--distance_threshold', default=None, type=float)
 
     parser.add_argument('--model-cls', default=None, type=str) # model name
@@ -236,11 +236,11 @@ def main():
     else:
         print('\tunsafe! Found d = {} A'.format(np.min(distances)))
         
-    if (args.temperature_reset_quantile > 0) and (args.temperature is not None):
-        T_max = max_temperature(
+    if (args.temperature_threshold is not None) and (args.temperature is not None):
+        T_max = max_temperature_std(
                 args.temperature,
                 len(atoms),
-                args.temperature_reset_quantile,
+                args.temperature_threshold,
                 )
         print('T_max: {} K'.format(T_max))
         if T < T_max:

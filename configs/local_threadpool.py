@@ -13,7 +13,7 @@ model_evaluation = ModelEvaluation(
         cores_per_worker=2,
         max_walltime=1,
         simulation_engine='openmm',
-        gpu=True,
+        gpu=False,
         )
 model_training = ModelTraining(
         parsl_provider=LocalProvider(),
