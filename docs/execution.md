@@ -168,11 +168,11 @@ from psiflow.parsl_utils import ContainerizedLauncher
 # The ORAS containers are downloaded from Github -- though it's best to cache
 # them beforehand (e.g. by executing 'apptainer exec <uri> pwd').
 launcher_cpu = ContainerizedLauncher(
-        'docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
         apptainer_or_singularity='apptainer',
         )
 launcher_gpu = ContainerizedLauncher(
-        'docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
         apptainer_or_singularity='apptainer',
         enable_gpu=True,            # binds GPU in container
         )

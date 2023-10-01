@@ -168,7 +168,7 @@ def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
         data[key] = []
     data['stdout'] = []
     for i, (atoms0, atoms1) in enumerate(zip(dataset0, dataset1)):
-        stdout = atoms0.info.get('stdout', None)
+        stdout = atoms0.info.get('reference_stdout', None)
         if stdout is not None:
             stdout = Path(stdout).stem
         else:

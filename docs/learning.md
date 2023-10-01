@@ -309,7 +309,7 @@ def main(path_output):
             step=50,
             start=0,
             temperature=300,
-            temperature_reset_quantile=1e-4, # reset if P(temp) < 0.01
+            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
             pressure=0,
             )
     data = learning.run(
@@ -459,7 +459,7 @@ def main(path_output):
             step=50,
             start=0,
             temperature=300,
-            temperature_reset_quantile=1e-4, # reset if P(temp) < 1e-4
+            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
             pressure=0,
             )
     data = learning.run(
@@ -477,6 +477,103 @@ of the transition) corresponds to about 3000 cubic angstrom, i.e. `cv_stop=3000`
 
 
 ### Committee Learning
+Ensemble-based active learning algorithms are quite commonly employed 
+in the development of machine-learned interaction potentials.
+A `Committee` of models with different initializations is trained on the same
+data, and its disagreement on sampled geometries is used to create a subset of
+geometries for which the models' predictions are most divergent (and hence,
+whose inclusion in the dataset would yield the largest benefit).
+In psiflow, these mechanics are implemented using a `Committee`, which 
+wraps around a list of models and takes care of training and disagreement evaluation,
+and the `CommitteeLearning` subclass, which inherits from `SequentialLearning` and
+adds an additional keyword argument:
+ 
+- `nstates_per_iteration: int` : number of sampled states that will be selected
+by the committee for QM evaluation. This should always be significantly smaller
+than the number of walkers for committee learning to yield any benefit.
+
+It differs from sequential learning in the sense that each training step actually
+trains all members of the committee (typically 2 - 8), all of which are initialized
+with different seeds (but are otherwise identical).
+Retraining per iteration is now a strict requirement as it will greatly increase
+the quality of the obtained disagreements.
+Walkers are propagated in phase space using the first member of the committee.
 
 #### Example 3: ion migration
 
+In the following example, we first perform two iterations of regular, sequential
+learning, but then proceed by creating a committee of four members and doing
+committee-based learning for another four iterations.
+
+```py
+
+def main(path_output):
+    assert not path_output.exists()
+    reference = get_reference()     # CP2K; PBE-D3(BJ); TZVP
+    bias      = get_bias()          # simple MTD bias on unit cell volume
+    atoms = FlowAtoms.from_atoms(read(Path.cwd() / 'data' / 'perovskite_defect.xyz'))
+    atoms.canonical_orientation()   # transform into conventional lower-triangular box
+
+    config = MACEConfig()
+    config.r_max = 7.0
+    config.num_channels = 16
+    config.max_L = 1
+    config.batch_size = 4
+    config.patience = 10
+    config.energy_weight = 100
+    model = MACEModel(config)
+
+    model.add_atomic_energy('H', reference.compute_atomic_energy('H', box_size=6))
+    model.add_atomic_energy('C', reference.compute_atomic_energy('C', box_size=6))
+    model.add_atomic_energy('N', reference.compute_atomic_energy('N', box_size=6))
+    model.add_atomic_energy('I', reference.compute_atomic_energy('I', box_size=6))
+    model.add_atomic_energy('Pb', reference.compute_atomic_energy('Pb', box_size=6))
+
+    walkers = BiasedDynamicWalker.multiply(
+            100,
+            data_start=Dataset([atoms]),
+            bias=bias,
+            timestep=0.5,
+            steps=1000,
+            step=50,
+            start=0,
+            temperature=100,
+            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
+            pressure=0,
+            )
+    metrics = Metrics('perovskite_defect', 'psiflow_examples')
+
+    learning = SequentialLearning(
+            path_output=path_output / 'learn_sequential',
+            niterations=2,
+            train_valid_split=0.9,
+            metrics=metrics,
+            error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
+            temperature_ramp=(200, 400),
+            )
+    data = learning.run(
+            model=model,
+            reference=reference,
+            walkers=walkers,
+            )
+
+    # continue with committee learning
+    learning = CommitteeLearning(
+            path_output=path_output / 'learn_committee',
+            niterations=5,
+            train_valid_split=0.9,
+            metrics=metrics,
+            error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
+            temperature_ramp=(600, 1200),
+            nstates_per_iteration=50,
+            )
+    model.reset()
+    committee = Committee([model.copy() for i in range(4)])
+    data = learning.run(
+            committee=committee,
+            reference=reference,
+            walkers=walkers,
+            initial_data=data,
+            )
+```
+The full example is available [here](https://github.com/molmod/psiflow/blob/main/examples/perovskite_defect.py).

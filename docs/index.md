@@ -412,20 +412,24 @@ While there exist a bunch of techniques in literature in order to check for such
 psiflow takes a pragmatic approach and simply monitors the temperature of the walkers.
 Statistical mechanics provides an exact expression for the distribution of the instantaneous
 temperature of the system as a function of the number of atoms *N* and the temperature
-of the heat bath *T*:
+of the heat bath *T* (hit `ctrl+R` if the math does not show up correctly):
 $$
 3N\frac{T_i}{T} \sim \chi^2(3N)
 $$
 in which the [chi-squared](https://en.wikipedia.org/wiki/Chi-squared_distribution) distribution
 arises because the temperature (i.e. kinetic energy) is essentially equal to the sum of
 the squares of *3N* normally distributed velocity components.
-Based on the inverse cumulative distribution function and a fixed *p*-value, we can
-derive a threshold temperature such that:
+Its standard deviation is given by:
 $$
-P\left[T_i > T_{\text{thres}}\right] = 1 - p
+\sigma_T = \frac{T}{\sqrt{3N}}
 $$
-For example, for a system of 100 atoms in equilibrium at 300 K, we obtain a threshold temperature of 
-about 360 K for p = 10^-2^, and about 400 K for p = 10^-4^. 
+Psiflow gives users the ability to put a threshold on the instantaneous temperature
+of the walkers based on $\sigma_T$:
+$$
+T_{\text{max}}(n) = T + n \cdot \sigma_T
+$$
+The allowed number of standard deviations $n$ is
+set using the `temperature_threshold` keyword argument of `DynamicWalker`.
 If the temperature at the last step of the MD simulation exceeds this threshold
 (or model evaluation yielded `NaN` or `ValueError` at any point throughout the propagation),
 the walker will reset its internal state to the starting configuration
