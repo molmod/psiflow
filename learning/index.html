@@ -44,8 +44,6 @@
     
       <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css">
-    
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -652,7 +650,7 @@ psiflow. The input file is assumed to be available locally.</p>
 <a id="__codelineno-6-38" name="__codelineno-6-38" href="#__codelineno-6-38"></a>            <span class="n">step</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
 <a id="__codelineno-6-39" name="__codelineno-6-39" href="#__codelineno-6-39"></a>            <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
 <a id="__codelineno-6-40" name="__codelineno-6-40" href="#__codelineno-6-40"></a>            <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
-<a id="__codelineno-6-41" name="__codelineno-6-41" href="#__codelineno-6-41"></a>            <span class="n">temperature_reset_quantile</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span> <span class="c1"># reset if P(temp) &lt; 0.01</span>
+<a id="__codelineno-6-41" name="__codelineno-6-41" href="#__codelineno-6-41"></a>            <span class="n">temperature_threshold</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="c1"># reset if T &gt; T_0 + 3 * sigma</span>
 <a id="__codelineno-6-42" name="__codelineno-6-42" href="#__codelineno-6-42"></a>            <span class="n">pressure</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
 <a id="__codelineno-6-43" name="__codelineno-6-43" href="#__codelineno-6-43"></a>            <span class="p">)</span>
 <a id="__codelineno-6-44" name="__codelineno-6-44" href="#__codelineno-6-44"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
@@ -797,7 +795,7 @@ the only difference being the learning class and the contents of the PLUMED inpu
 <a id="__codelineno-8-40" name="__codelineno-8-40" href="#__codelineno-8-40"></a>            <span class="n">step</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
 <a id="__codelineno-8-41" name="__codelineno-8-41" href="#__codelineno-8-41"></a>            <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
 <a id="__codelineno-8-42" name="__codelineno-8-42" href="#__codelineno-8-42"></a>            <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
-<a id="__codelineno-8-43" name="__codelineno-8-43" href="#__codelineno-8-43"></a>            <span class="n">temperature_reset_quantile</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span> <span class="c1"># reset if P(temp) &lt; 1e-4</span>
+<a id="__codelineno-8-43" name="__codelineno-8-43" href="#__codelineno-8-43"></a>            <span class="n">temperature_threshold</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="c1"># reset if T &gt; T_0 + 3 * sigma</span>
 <a id="__codelineno-8-44" name="__codelineno-8-44" href="#__codelineno-8-44"></a>            <span class="n">pressure</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
 <a id="__codelineno-8-45" name="__codelineno-8-45" href="#__codelineno-8-45"></a>            <span class="p">)</span>
 <a id="__codelineno-8-46" name="__codelineno-8-46" href="#__codelineno-8-46"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
@@ -813,7 +811,101 @@ initialize the incremental learning run using <code>cv_start=5250</code>. This c
 to the open pore in the figure. The closed pore state (which is the final state
 of the transition) corresponds to about 3000 cubic angstrom, i.e. <code>cv_stop=3000</code>.</p>
 <h3 id="committee-learning">Committee Learning</h3>
+<p>Ensemble-based active learning algorithms are quite commonly employed 
+in the development of machine-learned interaction potentials.
+A <code>Committee</code> of models with different initializations is trained on the same
+data, and its disagreement on sampled geometries is used to create a subset of
+geometries for which the models' predictions are most divergent (and hence,
+whose inclusion in the dataset would yield the largest benefit).
+In psiflow, these mechanics are implemented using a <code>Committee</code>, which 
+wraps around a list of models and takes care of training and disagreement evaluation,
+and the <code>CommitteeLearning</code> subclass, which inherits from <code>SequentialLearning</code> and
+adds an additional keyword argument:</p>
+<ul>
+<li><code>nstates_per_iteration: int</code> : number of sampled states that will be selected
+by the committee for QM evaluation. This should always be significantly smaller
+than the number of walkers for committee learning to yield any benefit.</li>
+</ul>
+<p>It differs from sequential learning in the sense that each training step actually
+trains all members of the committee (typically 2 - 8), all of which are initialized
+with different seeds (but are otherwise identical).
+Retraining per iteration is now a strict requirement as it will greatly increase
+the quality of the obtained disagreements.
+Walkers are propagated in phase space using the first member of the committee.</p>
 <h4 id="example-3-ion-migration">Example 3: ion migration</h4>
+<p>In the following example, we first perform two iterations of regular, sequential
+learning, but then proceed by creating a committee of four members and doing
+committee-based learning for another four iterations.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">def</span> <span class="nf">main</span><span class="p">(</span><span class="n">path_output</span><span class="p">):</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="k">assert</span> <span class="ow">not</span> <span class="n">path_output</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">reference</span> <span class="o">=</span> <span class="n">get_reference</span><span class="p">()</span>     <span class="c1"># CP2K; PBE-D3(BJ); TZVP</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">bias</span>      <span class="o">=</span> <span class="n">get_bias</span><span class="p">()</span>          <span class="c1"># simple MTD bias on unit cell volume</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">atoms</span> <span class="o">=</span> <span class="n">FlowAtoms</span><span class="o">.</span><span class="n">from_atoms</span><span class="p">(</span><span class="n">read</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;data&#39;</span> <span class="o">/</span> <span class="s1">&#39;perovskite_defect.xyz&#39;</span><span class="p">))</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">atoms</span><span class="o">.</span><span class="n">canonical_orientation</span><span class="p">()</span>   <span class="c1"># transform into conventional lower-triangular box</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">MACEConfig</span><span class="p">()</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">config</span><span class="o">.</span><span class="n">r_max</span> <span class="o">=</span> <span class="mf">7.0</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>    <span class="n">config</span><span class="o">.</span><span class="n">num_channels</span> <span class="o">=</span> <span class="mi">16</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="n">config</span><span class="o">.</span><span class="n">max_L</span> <span class="o">=</span> <span class="mi">1</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>    <span class="n">config</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">4</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>    <span class="n">config</span><span class="o">.</span><span class="n">patience</span> <span class="o">=</span> <span class="mi">10</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>    <span class="n">config</span><span class="o">.</span><span class="n">energy_weight</span> <span class="o">=</span> <span class="mi">100</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>    <span class="n">model</span> <span class="o">=</span> <span class="n">MACEModel</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>    <span class="n">model</span><span class="o">.</span><span class="n">add_atomic_energy</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="n">reference</span><span class="o">.</span><span class="n">compute_atomic_energy</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="n">box_size</span><span class="o">=</span><span class="mi">6</span><span class="p">))</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>    <span class="n">model</span><span class="o">.</span><span class="n">add_atomic_energy</span><span class="p">(</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="n">reference</span><span class="o">.</span><span class="n">compute_atomic_energy</span><span class="p">(</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="n">box_size</span><span class="o">=</span><span class="mi">6</span><span class="p">))</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>    <span class="n">model</span><span class="o">.</span><span class="n">add_atomic_energy</span><span class="p">(</span><span class="s1">&#39;N&#39;</span><span class="p">,</span> <span class="n">reference</span><span class="o">.</span><span class="n">compute_atomic_energy</span><span class="p">(</span><span class="s1">&#39;N&#39;</span><span class="p">,</span> <span class="n">box_size</span><span class="o">=</span><span class="mi">6</span><span class="p">))</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>    <span class="n">model</span><span class="o">.</span><span class="n">add_atomic_energy</span><span class="p">(</span><span class="s1">&#39;I&#39;</span><span class="p">,</span> <span class="n">reference</span><span class="o">.</span><span class="n">compute_atomic_energy</span><span class="p">(</span><span class="s1">&#39;I&#39;</span><span class="p">,</span> <span class="n">box_size</span><span class="o">=</span><span class="mi">6</span><span class="p">))</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>    <span class="n">model</span><span class="o">.</span><span class="n">add_atomic_energy</span><span class="p">(</span><span class="s1">&#39;Pb&#39;</span><span class="p">,</span> <span class="n">reference</span><span class="o">.</span><span class="n">compute_atomic_energy</span><span class="p">(</span><span class="s1">&#39;Pb&#39;</span><span class="p">,</span> <span class="n">box_size</span><span class="o">=</span><span class="mi">6</span><span class="p">))</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a>    <span class="n">walkers</span> <span class="o">=</span> <span class="n">BiasedDynamicWalker</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span>
+<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a>            <span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a>            <span class="n">data_start</span><span class="o">=</span><span class="n">Dataset</span><span class="p">([</span><span class="n">atoms</span><span class="p">]),</span>
+<a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a>            <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span>
+<a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a>            <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+<a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a>            <span class="n">steps</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+<a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a>            <span class="n">step</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a>            <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a>            <span class="n">temperature</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+<a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a>            <span class="n">temperature_threshold</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="c1"># reset if T &gt; T_0 + 3 * sigma</span>
+<a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a>            <span class="n">pressure</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a>            <span class="p">)</span>
+<a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a>    <span class="n">metrics</span> <span class="o">=</span> <span class="n">Metrics</span><span class="p">(</span><span class="s1">&#39;perovskite_defect&#39;</span><span class="p">,</span> <span class="s1">&#39;psiflow_examples&#39;</span><span class="p">)</span>
+<a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a>
+<a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a>    <span class="n">learning</span> <span class="o">=</span> <span class="n">SequentialLearning</span><span class="p">(</span>
+<a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a>            <span class="n">path_output</span><span class="o">=</span><span class="n">path_output</span> <span class="o">/</span> <span class="s1">&#39;learn_sequential&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a>            <span class="n">niterations</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-9-40" name="__codelineno-9-40" href="#__codelineno-9-40"></a>            <span class="n">train_valid_split</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>
+<a id="__codelineno-9-41" name="__codelineno-9-41" href="#__codelineno-9-41"></a>            <span class="n">metrics</span><span class="o">=</span><span class="n">metrics</span><span class="p">,</span>
+<a id="__codelineno-9-42" name="__codelineno-9-42" href="#__codelineno-9-42"></a>            <span class="n">error_thresholds_for_reset</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">),</span> <span class="c1"># in meV/atom, meV/angstrom</span>
+<a id="__codelineno-9-43" name="__codelineno-9-43" href="#__codelineno-9-43"></a>            <span class="n">temperature_ramp</span><span class="o">=</span><span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="mi">400</span><span class="p">),</span>
+<a id="__codelineno-9-44" name="__codelineno-9-44" href="#__codelineno-9-44"></a>            <span class="p">)</span>
+<a id="__codelineno-9-45" name="__codelineno-9-45" href="#__codelineno-9-45"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="__codelineno-9-46" name="__codelineno-9-46" href="#__codelineno-9-46"></a>            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-9-47" name="__codelineno-9-47" href="#__codelineno-9-47"></a>            <span class="n">reference</span><span class="o">=</span><span class="n">reference</span><span class="p">,</span>
+<a id="__codelineno-9-48" name="__codelineno-9-48" href="#__codelineno-9-48"></a>            <span class="n">walkers</span><span class="o">=</span><span class="n">walkers</span><span class="p">,</span>
+<a id="__codelineno-9-49" name="__codelineno-9-49" href="#__codelineno-9-49"></a>            <span class="p">)</span>
+<a id="__codelineno-9-50" name="__codelineno-9-50" href="#__codelineno-9-50"></a>
+<a id="__codelineno-9-51" name="__codelineno-9-51" href="#__codelineno-9-51"></a>    <span class="c1"># continue with committee learning</span>
+<a id="__codelineno-9-52" name="__codelineno-9-52" href="#__codelineno-9-52"></a>    <span class="n">learning</span> <span class="o">=</span> <span class="n">CommitteeLearning</span><span class="p">(</span>
+<a id="__codelineno-9-53" name="__codelineno-9-53" href="#__codelineno-9-53"></a>            <span class="n">path_output</span><span class="o">=</span><span class="n">path_output</span> <span class="o">/</span> <span class="s1">&#39;learn_committee&#39;</span><span class="p">,</span>
+<a id="__codelineno-9-54" name="__codelineno-9-54" href="#__codelineno-9-54"></a>            <span class="n">niterations</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-9-55" name="__codelineno-9-55" href="#__codelineno-9-55"></a>            <span class="n">train_valid_split</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>
+<a id="__codelineno-9-56" name="__codelineno-9-56" href="#__codelineno-9-56"></a>            <span class="n">metrics</span><span class="o">=</span><span class="n">metrics</span><span class="p">,</span>
+<a id="__codelineno-9-57" name="__codelineno-9-57" href="#__codelineno-9-57"></a>            <span class="n">error_thresholds_for_reset</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">),</span> <span class="c1"># in meV/atom, meV/angstrom</span>
+<a id="__codelineno-9-58" name="__codelineno-9-58" href="#__codelineno-9-58"></a>            <span class="n">temperature_ramp</span><span class="o">=</span><span class="p">(</span><span class="mi">600</span><span class="p">,</span> <span class="mi">1200</span><span class="p">),</span>
+<a id="__codelineno-9-59" name="__codelineno-9-59" href="#__codelineno-9-59"></a>            <span class="n">nstates_per_iteration</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-9-60" name="__codelineno-9-60" href="#__codelineno-9-60"></a>            <span class="p">)</span>
+<a id="__codelineno-9-61" name="__codelineno-9-61" href="#__codelineno-9-61"></a>    <span class="n">model</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<a id="__codelineno-9-62" name="__codelineno-9-62" href="#__codelineno-9-62"></a>    <span class="n">committee</span> <span class="o">=</span> <span class="n">Committee</span><span class="p">([</span><span class="n">model</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)])</span>
+<a id="__codelineno-9-63" name="__codelineno-9-63" href="#__codelineno-9-63"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="__codelineno-9-64" name="__codelineno-9-64" href="#__codelineno-9-64"></a>            <span class="n">committee</span><span class="o">=</span><span class="n">committee</span><span class="p">,</span>
+<a id="__codelineno-9-65" name="__codelineno-9-65" href="#__codelineno-9-65"></a>            <span class="n">reference</span><span class="o">=</span><span class="n">reference</span><span class="p">,</span>
+<a id="__codelineno-9-66" name="__codelineno-9-66" href="#__codelineno-9-66"></a>            <span class="n">walkers</span><span class="o">=</span><span class="n">walkers</span><span class="p">,</span>
+<a id="__codelineno-9-67" name="__codelineno-9-67" href="#__codelineno-9-67"></a>            <span class="n">initial_data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+<a id="__codelineno-9-68" name="__codelineno-9-68" href="#__codelineno-9-68"></a>            <span class="p">)</span>
+</code></pre></div>
+The full example is available <a href="https://github.com/molmod/psiflow/blob/main/examples/perovskite_defect.py">here</a>.</p>
 
 
 
@@ -866,18 +958,6 @@ of the transition) corresponds to about 3000 cubic angstrom, i.e. <code>cv_stop=
       
         
           <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-        
-      
-        
-          <script src="../javascripts/katex.js"></script>
-        
-      
-        
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js"></script>
-        
-      
-        
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js"></script>
         
       
     

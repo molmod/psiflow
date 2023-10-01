@@ -42,8 +42,6 @@
     
       <link rel="stylesheet" href="assets/_mkdocstrings.css">
     
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.css">
-    
     <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -722,20 +720,24 @@ While there exist a bunch of techniques in literature in order to check for such
 psiflow takes a pragmatic approach and simply monitors the temperature of the walkers.
 Statistical mechanics provides an exact expression for the distribution of the instantaneous
 temperature of the system as a function of the number of atoms <em>N</em> and the temperature
-of the heat bath <em>T</em>:
+of the heat bath <em>T</em> (hit <code>ctrl+R</code> if the math does not show up correctly):
 $$
 3N\frac{T_i}{T} \sim \chi^2(3N)
 $$
 in which the <a href="https://en.wikipedia.org/wiki/Chi-squared_distribution">chi-squared</a> distribution
 arises because the temperature (i.e. kinetic energy) is essentially equal to the sum of
 the squares of <em>3N</em> normally distributed velocity components.
-Based on the inverse cumulative distribution function and a fixed <em>p</em>-value, we can
-derive a threshold temperature such that:
+Its standard deviation is given by:
 $$
-P\left[T_i &gt; T_{\text{thres}}\right] = 1 - p
+\sigma_T = \frac{T}{\sqrt{3N}}
 $$
-For example, for a system of 100 atoms in equilibrium at 300 K, we obtain a threshold temperature of 
-about 360 K for p = 10<sup>-2</sup>, and about 400 K for p = 10<sup>-4</sup>. 
+Psiflow gives users the ability to put a threshold on the instantaneous temperature
+of the walkers based on <span class="arithmatex">\(\sigma_T\)</span>:
+$$
+T_{\text{max}}(n) = T + n \cdot \sigma_T
+$$
+The allowed number of standard deviations <span class="arithmatex">\(n\)</span> is
+set using the <code>temperature_threshold</code> keyword argument of <code>DynamicWalker</code>.
 If the temperature at the last step of the MD simulation exceeds this threshold
 (or model evaluation yielded <code>NaN</code> or <code>ValueError</code> at any point throughout the propagation),
 the walker will reset its internal state to the starting configuration
@@ -1016,18 +1018,6 @@ The <code>NWChemReference</code> class essentially wraps around the ASE calculat
       
         
           <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-        
-      
-        
-          <script src="javascripts/katex.js"></script>
-        
-      
-        
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js"></script>
-        
-      
-        
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js"></script>
         
       
     
