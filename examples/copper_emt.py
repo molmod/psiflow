@@ -57,7 +57,7 @@ def main(path_output):
             step=40,
             start=0,
             temperature=100,
-            temperature_reset_quantile=0.30, # reset if P(temp) < 0.1
+            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
             pressure=0,
             )
     data = learning.run(

@@ -78,7 +78,7 @@ def main(path_output):
             timestep=0.5,
             steps=20,
             step=1,
-            temperature_reset_quantile=0.10, # reset if P(temp) < 0.1
+            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
             )
     walkers_mtd = BiasedDynamicWalker.multiply(
             5,
@@ -87,7 +87,7 @@ def main(path_output):
             timestep=0.5,
             steps=30,
             step=1,
-            temperature_reset_quantile=0.10, # reset if P(temp) < 0.1
+            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
             )
     data = learning.run(
             model=model,
