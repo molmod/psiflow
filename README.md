@@ -7,8 +7,6 @@
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
 [![Citation Badge](https://api.juleskreuer.eu/citation-badge.php?doi=10.1038/s41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
-UDPATE (Aug 30, 2023): we're preparing v2.0.0 directly on the main branch. The current docs do not yet reflect these changes and will be updated within the next two weeks.
-To adapt your current scripts, it's best to base yourself on any of the [new examples](https://github.com/molmod/psiflow/tree/main/examples) instead.
 
 # Interatomic potentials using online learning
 
