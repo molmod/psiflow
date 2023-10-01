@@ -472,7 +472,6 @@ redownload it every time a command gets executed. Usually, it's a good idea to m
 of these cache directories since they can end up clogging your <code>$HOME$</code> directory quite quickly.
 To do this, simply put the following lines in your <code>.bashrc</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="go">export APPTAINER_CACHEDIR=/some/dir/on/local/scratch/apptainer_cache</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">export APPTAINER_TMPDIR=/some/dir/on/local/scratch/apptainer_cache</span>
 </code></pre></div>
 <p>If your compute resources use SingularityCE instead of Apptainer,
 replace 'APPTAINER' with 'SINGULARITY' in the environment variable names.</p>

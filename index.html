@@ -792,6 +792,11 @@ with the <a href="https://plumed.org">PLUMED</a> library, which provides the use
 techniques.
 This allows users to apply bias potentials along specific collective variables or evaluate the bias energy
 across a dataset of atomic configurations.</p>
+<div class="admonition note">
+<p class="admonition-title">Variable names in PLUMED input files</p>
+<p>For convenience, psiflow assumes that all collective variables in the PLUMED file have a name
+that starts with <code>CV</code>; <code>CV1</code>, <code>CV_1</code>, <code>CV_first</code>, or <code>CV</code> are all valid names while <code>cv1</code>, <code>colvar1</code> are not.</p>
+</div>
 <p>In the following example, we define the PLUMED input as a multi-line string in
 Python. We consider the particular case of applying a metadynamics bias to
 a collective variable - in this case the unit cell volume.
