@@ -7,12 +7,12 @@ from psiflow.parsl_utils import ContainerizedLauncher
 
 
 launcher_cpu = ContainerizedLauncher(
-        'docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
         apptainer_or_singularity='apptainer',
         enable_gpu=False,
         )
 launcher_gpu = ContainerizedLauncher(
-        'docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
         apptainer_or_singularity='apptainer',
         enable_gpu=True,
         )

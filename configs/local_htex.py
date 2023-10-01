@@ -9,7 +9,7 @@ from psiflow.parsl_utils import ContainerizedLauncher
 containerize = False
 if containerize:
     launcher = ContainerizedLauncher(
-            uri='docker://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+            uri='oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
             enable_gpu=True,
             )
 else:

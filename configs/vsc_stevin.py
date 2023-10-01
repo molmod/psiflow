@@ -7,12 +7,12 @@ from psiflow.parsl_utils import ContainerizedLauncher
 
 
 launcher_cpu = ContainerizedLauncher(
-        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
         apptainer_or_singularity='apptainer',
         enable_gpu=False,
         )
 launcher_gpu = ContainerizedLauncher(
-        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8',
+        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
         apptainer_or_singularity='apptainer',
         enable_gpu=True,
         )
@@ -66,8 +66,6 @@ reference_evaluation = ReferenceEvaluation(
         cores_per_worker=32,
         max_walltime=20,            # singlepoints should finish in less than 20 mins
         parsl_provider=SlurmProvider(
-            partition='cpu_milan',
-            account='2022_050',
             nodes_per_block=1,
             cores_per_node=32,      # 1 reference evaluation per SLURM job
             init_blocks=0,

@@ -53,7 +53,7 @@ def main(path_output):
     config.invariant_neurons = 32
     config.batch_size = 4
     config.loss_coeffs['total_energy'][0] = 50
-    config.early_stopping_patiences['validation_loss'] = 8
+    config.early_stopping_patiences['validation_loss'] = 16
     model = NequIPModel(config)
 
     model.add_atomic_energy('H', reference.compute_atomic_energy('H'))
@@ -65,15 +65,16 @@ def main(path_output):
             path_output,
             niterations=10,
             temperature_ramp=(20, 600),
-            pretraining_nstates = 11,
-            pretraining_amplitude_pos = 0.05,
+            pretraining_nstates=50,
+            pretraining_amplitude_pos=0.05,
             metrics=Metrics('alanine_nwchem', 'psiflow_examples'),
             error_thresholds_for_reset=(5, 100),
+            temperature_ramp=(100, 1000),
             )
 
     # construct walkers; mix metadynamics with regular MD
     walkers_md = DynamicWalker.multiply(
-            5,
+            20,
             data_start=Dataset([atoms]),
             timestep=0.5,
             steps=20,
@@ -81,7 +82,7 @@ def main(path_output):
             temperature_threshold=3, # reset if T > T_0 + 3 * sigma
             )
     walkers_mtd = BiasedDynamicWalker.multiply(
-            5,
+            20,
             data_start=Dataset([atoms]),
             bias=bias,
             timestep=0.5,
@@ -89,6 +90,9 @@ def main(path_output):
             step=1,
             temperature_threshold=3, # reset if T > T_0 + 3 * sigma
             )
+
+    # this is mostly a toy script to test code paths rather
+    # than an actually working example
     data = learning.run(
             model=model,
             reference=reference,
