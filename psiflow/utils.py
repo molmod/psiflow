@@ -408,3 +408,17 @@ def _check_distances(state: FlowAtoms, threshold: float):
     else:
         return NullState
 check_distances = python_app(_check_distances, executors=['Default'])
+
+
+@typeguard.typechecked
+def apply_temperature_ramp(T_min, T_max, nsteps, current_temperature):
+    assert T_max > T_min
+    if nsteps > 1:
+        delta_beta = (1 / T_min - 1 / T_max) / (nsteps - 1)
+        next_beta = 1 / current_temperature - delta_beta
+        if (next_beta > 0) and (next_beta > 1 / T_max):
+            return 1 / next_beta
+        else:
+            return T_max
+    else:
+        return T_max

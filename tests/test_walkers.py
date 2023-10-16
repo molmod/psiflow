@@ -186,7 +186,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     # test temperature reset
     walker.steps           = 20
     walker.step            = 5
-    walker.temperature_threshold = -100 # always resets
+    walker.max_excess_temperature = -10000 # always resets
     metadata = walker.propagate(model=model)
     assert walker.is_reset().result()
     assert np.allclose(
@@ -197,7 +197,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     # test distance reset
     walker.steps = 20
     walker.step  = 5
-    walker.temperature_threshold = 10000 # never resets
+    walker.max_excess_temperature = 100000 # never resets
     walker.distance_threshold = 5.0 # always resets
     metadata = walker.propagate(model=model)
     assert walker.is_reset().result()
@@ -228,7 +228,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
                 walker.state.result().get_volume(),
                 )
     walker.steps = 1000
-    walker.temperature_threshold = 10000 # never resets
+    walker.max_excess_temperature = 100000 # never resets
     walker.propagate(model=model)
     assert not walker.is_reset().result()
     assert not np.allclose(

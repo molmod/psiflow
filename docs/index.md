@@ -409,7 +409,11 @@ are either impossible to evaluate with the given reference (e.g. due to SCF
 convergence issues) or do not contain any relevant information on the atomic
 interactions.
 While there exist a bunch of techniques in literature in order to check for such divergences,
-psiflow takes a pragmatic approach and simply monitors the temperature of the walkers.
+psiflow takes a pragmatic approach and puts a ceiling value on the allowed temperature
+using the `max_excess_temperature` keyword argument.
+If, at the end of a simulation, the instantaneous temperature deviates from the nominal 
+heat bath temperature by more than $T_{\text{excess}}$, the simulation is considered unsafe,
+and the walker is reset.
 Statistical mechanics provides an exact expression for the distribution of the instantaneous
 temperature of the system as a function of the number of atoms *N* and the temperature
 of the heat bath *T* (hit `ctrl+R` if the math does not show up correctly):
@@ -423,18 +427,10 @@ Its standard deviation is given by:
 $$
 \sigma_T = \frac{T}{\sqrt{3N}}
 $$
-Psiflow gives users the ability to put a threshold on the instantaneous temperature
-of the walkers based on $\sigma_T$:
-$$
-T_{\text{max}}(n) = T + n \cdot \sigma_T
-$$
-The allowed number of standard deviations $n$ is
-set using the `temperature_threshold` keyword argument of `DynamicWalker`.
-If the temperature at the last step of the MD simulation exceeds this threshold
-(or model evaluation yielded `NaN` or `ValueError` at any point throughout the propagation),
-the walker will reset its internal state to the starting configuration
-in order to make sure that subsequent propagations again start from a physically
-sensible structure.
+This means that for very small systems and/or very high temperatures, the system's instantaneous
+temperature is expected to deviate quite a bit from its average value.
+In those cases, it's important to set the allowed excess temperature sufficiently high (e.g. 300 K)
+in order to avoid resetting walkers unnecessarily.
 
 In practical scenarios, phase space exploration is often performed in a massively
 parallel manner, i.e. with multiple walkers.
@@ -535,7 +531,7 @@ The first column represents the value of the collective variable for each state,
 and the second column contains the bias energy.
 
 ```py
-values = bias.evaluate(data_train, variable='CV')       # compute the collective variable 'CV' and bias energy
+values = bias.evaluate(data_train)       # compute the collective variable 'CV' and bias energy
 
 assert values.result().shape[0] == data_train.length().result()  # each snapshot is evaluated separately
 assert values.result().shape[1] == 2                             # CV and bias per snapshot, in PLUMED units!

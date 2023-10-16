@@ -1,3 +1,11 @@
+"""
+psiflow: a modular and scalable library for developing interatomic potentials
+         using online learning.
+
+Copyright 2022-2023 Ghent University
+Author(s): Sander Vandenhaute
+
+"""
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union
 import typeguard
@@ -27,7 +35,8 @@ from psiflow.state import save_state, load_state
 from psiflow.metrics import Metrics
 from psiflow.sampling import sample_with_model, \
         sample_with_committee
-from psiflow.utils import resolve_and_check
+from psiflow.utils import resolve_and_check, \
+        apply_temperature_ramp
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -193,25 +202,18 @@ class SequentialLearning(BaseLearning):
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
 
     def update_walkers(self, walkers: list[BaseWalker], initialize=False):
-        if self.temperature_ramp is None:
-            return 0 # do not update walkers
-        else:
-            T0 = self.temperature_ramp[0]
-            T1 = self.temperature_ramp[1]
-            delta_beta = (1 / T0 - 1 / T1)
-            assert self.niterations > 1, ('temperature ramp requires a nontrivial'
-                    ' number of iterations')
-            delta_beta /= self.niterations - 1
-            for i, walker in enumerate(walkers):
-                if initialize and hasattr(walker, 'temperature'):
-                    walker.temperature = T0
-                if not walker.is_reset().result():
-                    if hasattr(walker, 'temperature'):
-                        beta = (1 / walker.temperature - delta_beta)
-                        if (beta > 0) and (1 / beta < T1):
-                            walker.temperature = 1 / beta
-                        else: # reached max temp
-                            walker.temperature = T1
+        if self.temperature_ramp is not None:
+            for walker in walkers:
+                if hasattr(walker, 'temperature'):
+                    if initialize:
+                        temperature = self.temperature_ramp[0] # initial temperature
+                    else:
+                        temperature = apply_temperature_ramp(
+                                *self.temperature_ramp,
+                                walker.temperature,
+                                )
+                    if not walker.is_reset().result():
+                        walker.temperature = temperature
 
     def run(
             self,
@@ -229,8 +231,7 @@ class SequentialLearning(BaseLearning):
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
-            if i == 0:
-                self.update_walkers(walkers, initialize=True)
+            self.update_walkers(walkers, initialize=(i == 0))
             new_data, self.identifier = sample_with_model(
                     model,
                     reference,
@@ -258,7 +259,6 @@ class SequentialLearning(BaseLearning):
             if self.metrics is not None:
                 self.metrics.save(self.path_output / str(i), model, data)
             psiflow.wait()
-            self.update_walkers(walkers)
         return data
 
 
@@ -282,8 +282,7 @@ class CommitteeLearning(SequentialLearning):
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
-            if i == 0:
-                self.update_walkers(walkers, initialize=True)
+            self.update_walkers(walkers, initialize=(i == 0))
             new_data, self.identifier = sample_with_committee(
                     committee,
                     reference,
@@ -309,9 +308,7 @@ class CommitteeLearning(SequentialLearning):
                 self.metrics.save(self.path_output / str(i), committee.models[0], data)
             committee.save(self.path_output / str(i) / 'committee')
             psiflow.wait()
-            self.update_walkers(walkers)
         return data
-
 
 
 @typeguard.typechecked
@@ -375,8 +372,7 @@ class IncrementalLearning(BaseLearning):
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue # skip iterations in case of restarted run
-            if i == 0:
-                self.update_walkers(walkers, initialize=True)
+            self.update_walkers(walkers, initialize=(i == 0))
             new_data, self.identifier = sample_with_model(
                     model,
                     reference,
@@ -404,7 +400,6 @@ class IncrementalLearning(BaseLearning):
             if self.metrics is not None:
                 self.metrics.save(self.path_output / str(i), model, data)
             psiflow.wait()
-            self.update_walkers(walkers)
         return data
 
 

@@ -8,6 +8,7 @@ from psiflow.models import MACEModel
 from psiflow.learning import SequentialLearning, load_learning, \
         IncrementalLearning
 from psiflow.metrics import Metrics
+from psiflow.utils import apply_temperature_ramp
 
 
 def test_learning_save_load(context, tmp_path):
@@ -165,3 +166,15 @@ MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
         steps, kappas, centers = walker.bias.get_moving_restraint(variable='CV')
         assert steps == 10
         assert centers[1] == learning.cv_stop
+
+
+def test_temperature_ramp(context):
+    assert apply_temperature_ramp(100, 300, 1, 100) == 300
+    assert apply_temperature_ramp(100, 500, 3, 550) == 500
+    T = 100
+    for i in range(3):
+        T = apply_temperature_ramp(100, 500, 5, T)
+    assert T == 1 / (1 / 100 - 3 * (1 / 100 - 1 / 500) / 4)
+    assert not T == 500
+    T = apply_temperature_ramp(100, 500, 5, T)
+    assert T == 500

@@ -72,7 +72,7 @@ def molecular_dynamics_yaff(
             'temperature',
             'pressure',
             'force_threshold',
-            'temperature_threshold',
+            'max_excess_temperature',
             'distance_threshold',
             ]
     for key in parameters_to_pass:
@@ -153,7 +153,7 @@ def molecular_dynamics_openmm(
             'temperature',
             'pressure',
             'force_threshold',
-            'temperature_threshold',
+            'max_excess_temperature',
             'distance_threshold',
             ]
     for key in parameters_to_pass:
@@ -201,7 +201,7 @@ class DynamicWalker(BaseWalker):
             start: int = 0,
             temperature: Optional[float] = 300,
             pressure: Optional[float] = None,
-            temperature_threshold: float = 1e6, # no reset by default
+            max_excess_temperature: float = 1e6, # no reset by default
             distance_threshold: float = 0.5,
             force_threshold: float = 1e6, # no threshold by default
             **kwargs,
@@ -214,7 +214,7 @@ class DynamicWalker(BaseWalker):
         self.temperature = temperature
         self.pressure = pressure
         self.force_threshold = force_threshold
-        self.temperature_threshold = temperature_threshold
+        self.max_excess_temperature = max_excess_temperature
         self.distance_threshold = distance_threshold
 
     @property
@@ -227,7 +227,7 @@ class DynamicWalker(BaseWalker):
         parameters['temperature'] = self.temperature
         parameters['pressure'] = self.pressure
         parameters['force_threshold'] = self.force_threshold
-        parameters['temperature_threshold'] = self.temperature_threshold
+        parameters['max_excess_temperature'] = self.max_excess_temperature
         parameters['distance_threshold'] = self.distance_threshold
         return parameters
 
