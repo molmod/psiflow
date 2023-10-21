@@ -32,9 +32,11 @@ from torch_ema import ExponentialMovingAverage
 import mace
 from mace import data, modules, tools
 from mace.tools import torch_geometric
-from mace.tools.scripts_utils import create_error_table, get_dataset_from_xyz, \
-        LRScheduler
-
+from mace.tools.scripts_utils import (
+    create_error_table,
+    get_dataset_from_xyz,
+    LRScheduler,
+)
 
 
 def main():
@@ -43,13 +45,23 @@ def main():
     import yaml
     import argparse
     from psiflow.models import MACEConfig
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', help='path to initialized config', default='', type=str)
-    parser.add_argument('--model', help='path to undeployed model', default='', type=str)
-    parser.add_argument('--init_only', help='only perform initialization', default=False, action='store_true')
+    parser.add_argument(
+        "--config", help="path to initialized config", default="", type=str
+    )
+    parser.add_argument(
+        "--model", help="path to undeployed model", default="", type=str
+    )
+    parser.add_argument(
+        "--init_only",
+        help="only perform initialization",
+        default=False,
+        action="store_true",
+    )
     args = parser.parse_args()
 
-    with open(args.config, 'r') as f:
+    with open(args.config, "r") as f:
         config_dict = yaml.load(f, Loader=yaml.FullLoader)
     config = MACEConfig(**config_dict)
     assert config.train_file is not None
@@ -58,25 +70,25 @@ def main():
     else:
         assert config.valid_file is None
     if not args.init_only:
-        config.device = 'cuda' # hardcode GPU training
-    config.default_dtype = 'float32'
+        config.device = "cuda"  # hardcode GPU training
+    config.default_dtype = "float32"
     config.r_max = float(config.r_max)
 
     # BUG IN MACE!
     # even if swa is set to False, swa_start could accidentally start saving
     # checkpoints with the '_swa' prefix if the model with lowest validation
     # error happens at an epoch > swa_start. Set swa_start to None to avoid this
-    #if not config.swa:
+    # if not config.swa:
     #    config.start_swa = None
-    #else:
+    # else:
     #    raise NotImplementedError
 
     # create working directories in current tmpdir
-    config.log_dir = os.path.join(os.getcwd(), 'log')
-    config.model_dir = os.path.join(os.getcwd(), 'model')
-    config.results_dir = os.path.join(os.getcwd(), 'results')
-    config.downloads_dir = os.path.join(os.getcwd(), 'downloads')
-    config.checkpoints_dir = os.path.join(os.getcwd(), 'checkpoints')
+    config.log_dir = os.path.join(os.getcwd(), "log")
+    config.model_dir = os.path.join(os.getcwd(), "model")
+    config.results_dir = os.path.join(os.getcwd(), "results")
+    config.downloads_dir = os.path.join(os.getcwd(), "downloads")
+    config.checkpoints_dir = os.path.join(os.getcwd(), "checkpoints")
     os.mkdir(config.log_dir)
     os.mkdir(config.model_dir)
     os.mkdir(config.results_dir)
@@ -87,6 +99,7 @@ def main():
 
 def train(args, path_model, init_only) -> None:
     import signal
+
     class TimeoutException(Exception):
         pass
 
@@ -94,7 +107,7 @@ def train(args, path_model, init_only) -> None:
         raise TimeoutException
 
     signal.signal(signal.SIGTERM, timeout_handler)
-    #signal.alarm(running_time)
+    # signal.alarm(running_time)
 
     tag = tools.get_tag(name=args.name, seed=args.seed)
 
@@ -201,7 +214,9 @@ def train(args, path_model, init_only) -> None:
 
     train_loader = torch_geometric.dataloader.DataLoader(
         dataset=[
-            data.AtomicData.from_config(config, z_table=z_table, cutoff=float(args.r_max))
+            data.AtomicData.from_config(
+                config, z_table=z_table, cutoff=float(args.r_max)
+            )
             for config in collections.train
         ],
         batch_size=args.batch_size,
@@ -211,7 +226,9 @@ def train(args, path_model, init_only) -> None:
     if not init_only:
         valid_loader = torch_geometric.dataloader.DataLoader(
             dataset=[
-                data.AtomicData.from_config(config, z_table=z_table, cutoff=float(args.r_max))
+                data.AtomicData.from_config(
+                    config, z_table=z_table, cutoff=float(args.r_max)
+                )
                 for config in collections.valid
             ],
             batch_size=args.valid_batch_size,
@@ -405,22 +422,23 @@ def train(args, path_model, init_only) -> None:
 
     if init_only:
         import yaml
-        assert path_model == 'None'
-        torch.save(model.to('cpu'), 'undeployed.pth')
+
+        assert path_model == "None"
+        torch.save(model.to("cpu"), "undeployed.pth")
 
         # save E0s in config and overwrite local config.yaml
-        args.compute_avg_num_neighbors = False # value already set
+        args.compute_avg_num_neighbors = False  # value already set
         args.E0s = str(atomic_energies_dict)
-        args.log_dir = ''
-        args.model_dir = ''
-        args.results_dir = ''
-        args.downloads_dir = ''
-        args.checkpoints_dir = ''
-        with open('config.yaml', 'w') as f:
+        args.log_dir = ""
+        args.model_dir = ""
+        args.results_dir = ""
+        args.downloads_dir = ""
+        args.checkpoints_dir = ""
+        with open("config.yaml", "w") as f:
             yaml.dump(asdict(args), f, default_flow_style=False)
         return 0
     else:
-        state_dict = torch.load(path_model, map_location='cpu').state_dict()
+        state_dict = torch.load(path_model, map_location="cpu").state_dict()
         model.load_state_dict(state_dict)
         model = model.to(device)
 
@@ -535,7 +553,7 @@ def train(args, path_model, init_only) -> None:
     )
 
     start_epoch = 0
-    #if args.restart_latest:
+    # if args.restart_latest:
     #    try:
     #        opt_start_epoch = checkpoint_handler.load_latest(
     #            state=tools.CheckpointState(model, optimizer, lr_scheduler),
@@ -599,7 +617,7 @@ def train(args, path_model, init_only) -> None:
             log_wandb=args.wandb,
         )
     except TimeoutException:
-        logging.info('received SIGTERM!')
+        logging.info("received SIGTERM!")
         pass
 
     # Evaluation on test datasets
@@ -616,9 +634,9 @@ def train(args, path_model, init_only) -> None:
             device=device,
         )
         logging.info(f"Loaded model from epoch {epoch}")
-        model_path = Path(args.model_dir) / 'mace.model'
+        model_path = Path(args.model_dir) / "mace.model"
         logging.info(f"Saving model to {model_path}")
-        torch.save(model.to('cpu'), model_path)
+        torch.save(model.to("cpu"), model_path)
 
         logging.info("Computing metrics for training, validation, and test sets")
         for param in model.parameters():
@@ -639,8 +657,7 @@ def train(args, path_model, init_only) -> None:
         logging.info("\n" + str(table))
 
         # Save entire model
-        #if swa_eval:
-            #model_path = Path(args.checkpoints_dir) / (tag + "_swa.model")
-        #else:
+        # if swa_eval:
+        # model_path = Path(args.checkpoints_dir) / (tag + "_swa.model")
+        # else:
     logging.info("Done")
-

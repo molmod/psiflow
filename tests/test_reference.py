@@ -15,16 +15,14 @@ from ase.units import Pascal
 
 import psiflow
 from psiflow.data import FlowAtoms, NullState
-from psiflow.reference import EMTReference, CP2KReference, \
-        NWChemReference
-from psiflow.reference._cp2k import insert_filepaths_in_input, \
-        insert_atoms_in_input
+from psiflow.reference import EMTReference, CP2KReference, NWChemReference
+from psiflow.reference._cp2k import insert_filepaths_in_input, insert_atoms_in_input
 from psiflow.data import Dataset
 
 
 @pytest.fixture
 def fake_cp2k_input():
-    return  """
+    return """
 &FORCE_EVAL
    METHOD Quickstep
    STRESS_TENSOR ANALYTICAL
@@ -57,14 +55,20 @@ def fake_cp2k_input():
 
 @pytest.fixture
 def cp2k_data():
-    basis     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH').text
-    dftd3     = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat').text
-    potential = requests.get('https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH').text
+    basis = requests.get(
+        "https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/BASIS_MOLOPT_UZH"
+    ).text
+    dftd3 = requests.get(
+        "https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/dftd3.dat"
+    ).text
+    potential = requests.get(
+        "https://raw.githubusercontent.com/cp2k/cp2k/v9.1.0/data/POTENTIAL_UZH"
+    ).text
     return {
-            'basis_set': basis,
-            'potential': potential,
-            'dftd3': dftd3,
-            }
+        "basis_set": basis,
+        "potential": potential,
+        "dftd3": dftd3,
+    }
 
 
 @pytest.fixture
@@ -161,7 +165,7 @@ def cp2k_input():
 def cp2k_reference(context, cp2k_input, cp2k_data, tmp_path):
     reference = CP2KReference(cp2k_input=cp2k_input)
     for key, value in cp2k_data.items():
-        with open(tmp_path / key, 'w') as f:
+        with open(tmp_path / key, "w") as f:
             f.write(value)
         reference.add_file(key, tmp_path / key)
     return reference
@@ -188,11 +192,11 @@ def test_reference_emt(context, dataset, tmp_path):
 
 def test_cp2k_insert_filepaths(fake_cp2k_input):
     filepaths = {
-            'basis_set': 'basisset0',
-            'basis_giggle': 'basisset1',
-            'potential': 'potential',
-            'dftd3': 'parameter',
-            }
+        "basis_set": "basisset0",
+        "basis_giggle": "basisset1",
+        "potential": "potential",
+        "dftd3": "parameter",
+    }
     target_input = """
 &FORCE_EVAL
    METHOD Quickstep
@@ -229,60 +233,63 @@ def test_cp2k_insert_filepaths(fake_cp2k_input):
 
 
 def test_cp2k_success(context, cp2k_reference):
-    atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
-            numbers=np.ones(2),
-            cell=5 * np.eye(3),
-            positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-            pbc=True,
-            )
+    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+        numbers=np.ones(2),
+        cell=5 * np.eye(3),
+        positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
+        pbc=True,
+    )
     dataset = Dataset([atoms])
     evaluated = cp2k_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status == True
     assert Path(evaluated.result().reference_stdout).is_file()
     assert Path(evaluated.result().reference_stderr).is_file()
-    assert 'energy' in evaluated.result().info.keys()
-    assert 'stress' in evaluated.result().info.keys()
-    assert 'forces' in evaluated.result().arrays.keys()
+    assert "energy" in evaluated.result().info.keys()
+    assert "stress" in evaluated.result().info.keys()
+    assert "forces" in evaluated.result().arrays.keys()
     assert np.allclose(
-            -1.165271567241256 / molmod.units.electronvolt,
-            evaluated.result().info['energy'],
-            )
-    forces_reference = np.array([
-            [-0.01215748,    0.00001210,    0.00001210],
-            [ 0.01217855,    0.00001150,    0.00001150]])
+        -1.165271567241256 / molmod.units.electronvolt,
+        evaluated.result().info["energy"],
+    )
+    forces_reference = np.array(
+        [[-0.01215748, 0.00001210, 0.00001210], [0.01217855, 0.00001150, 0.00001150]]
+    )
     forces_reference /= molmod.units.electronvolt
     forces_reference *= molmod.units.angstrom
     assert np.allclose(
-            forces_reference,
-            evaluated.result().arrays['forces'],
-            atol=1e-5,
-            )
-    stress_reference = -1.0 * np.array([
-            [4.81505171868E-01,  4.49529611310E-06,  4.49529611348E-06],
-            [4.49529611310E-06, -9.53484935396E-03,  1.47299106211E-04],
-            [4.49529611348E-06,  1.47299106211E-04, -9.53484935396E-03]])
-    stress_reference *= (1e9 * Pascal)
+        forces_reference,
+        evaluated.result().arrays["forces"],
+        atol=1e-5,
+    )
+    stress_reference = -1.0 * np.array(
+        [
+            [4.81505171868e-01, 4.49529611310e-06, 4.49529611348e-06],
+            [4.49529611310e-06, -9.53484935396e-03, 1.47299106211e-04],
+            [4.49529611348e-06, 1.47299106211e-04, -9.53484935396e-03],
+        ]
+    )
+    stress_reference *= 1e9 * Pascal
     assert np.allclose(
-            stress_reference,
-            evaluated.result().info['stress'],
-            #atol=1e-5,
-            )
+        stress_reference,
+        evaluated.result().info["stress"],
+        # atol=1e-5,
+    )
 
     # check whether NullState evaluates to NullState
     state = cp2k_reference.evaluate(NullState)
     assert state.result() == NullState
 
     # check number of mpi processes
-    with open(evaluated.result().reference_stdout, 'r') as f:
+    with open(evaluated.result().reference_stdout, "r") as f:
         content = f.read()
     context = psiflow.context()
     ncores = context[CP2KReference].cores_per_worker
-    lines = content.split('\n')
+    lines = content.split("\n")
     for line in lines:
-        if 'Total number of message passing processes' in line:
+        if "Total number of message passing processes" in line:
             nprocesses = int(line.split()[-1])
-        if 'Number of threads for this process' in line:
+        if "Number of threads for this process" in line:
             nthreads = int(line.split()[-1])
     assert ncores == nprocesses
     assert 1 == nthreads
@@ -353,89 +360,89 @@ def test_cp2k_failure(context, cp2k_data, tmp_path):
       &END FORCES
    &END PRINT
 &END FORCE_EVAL
-""" # incorrect input file
+"""  # incorrect input file
     reference = CP2KReference(cp2k_input=cp2k_input)
     for key, value in cp2k_data.items():
-        with open(tmp_path / key, 'w') as f:
+        with open(tmp_path / key, "w") as f:
             f.write(value)
         reference.add_file(key, tmp_path / key)
-    atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
-            numbers=np.ones(2),
-            cell=5 * np.eye(3),
-            positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-            pbc=True,
-            )
+    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+        numbers=np.ones(2),
+        cell=5 * np.eye(3),
+        positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
+        pbc=True,
+    )
     evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status == False
-    assert 'energy' not in evaluated.result().info.keys()
-    with open(evaluated.result().reference_stdout, 'r') as f:
+    assert "energy" not in evaluated.result().info.keys()
+    with open(evaluated.result().reference_stdout, "r") as f:
         log = f.read()
-    assert 'ABORT' in log # verify error is captured
-    assert 'requested basis set' in log
+    assert "ABORT" in log  # verify error is captured
+    assert "requested basis set" in log
 
 
 def test_cp2k_timeout(context, cp2k_reference):
-    atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
-            numbers=np.ones(2),
-            cell=20 * np.eye(3), # box way too large
-            positions=np.array([[0, 0, 0], [3, 0, 0]]),
-            pbc=True,
-            )
+    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+        numbers=np.ones(2),
+        cell=20 * np.eye(3),  # box way too large
+        positions=np.array([[0, 0, 0], [3, 0, 0]]),
+        pbc=True,
+    )
     evaluated = cp2k_reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status == False
-    assert 'energy' not in evaluated.result().info.keys()
+    assert "energy" not in evaluated.result().info.keys()
 
 
 def test_emt_atomic_energies(context, dataset):
     reference = EMTReference()
-    for element in ['H', 'Cu']:
-        energy  = reference.compute_atomic_energy(element, box_size=5)
+    for element in ["H", "Cu"]:
+        energy = reference.compute_atomic_energy(element, box_size=5)
         energy_ = reference.compute_atomic_energy(element, box_size=7)
         assert energy.result() < energy_.result()
 
 
 def test_cp2k_atomic_energies(cp2k_reference, dataset):
-    element = 'H'
-    energy  = cp2k_reference.compute_atomic_energy(element, box_size=8)
+    element = "H"
+    energy = cp2k_reference.compute_atomic_energy(element, box_size=8)
     assert abs(energy.result() - (-13.6)) < 1e-1
 
 
 @pytest.fixture
 def nwchem_reference(context):
     calculator_kwargs = {
-            'basis': {'H': 'cc-pvqz'},
-            'dft': {
-                'xc': 'pbe96',
-                'mult': 1,
-                'convergence': {
-                    'energy': 1e-6,
-                    'density': 1e-6,
-                    'gradient': 1e-6,
-                    },
-                'disp': {'vdw': 3},
-                },
-            }
+        "basis": {"H": "cc-pvqz"},
+        "dft": {
+            "xc": "pbe96",
+            "mult": 1,
+            "convergence": {
+                "energy": 1e-6,
+                "density": 1e-6,
+                "gradient": 1e-6,
+            },
+            "disp": {"vdw": 3},
+        },
+    }
     return NWChemReference(**calculator_kwargs)
 
 
 def test_nwchem_success(nwchem_reference):
-    atoms = FlowAtoms( # simple H2 at ~optimized interatomic distance
-            numbers=np.ones(2),
-            positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-            )
+    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+        numbers=np.ones(2),
+        positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
+    )
     dataset = Dataset([atoms])
     evaluated = nwchem_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status == True
     assert Path(evaluated.result().reference_stdout).is_file()
     assert Path(evaluated.result().reference_stderr).is_file()
-    assert 'energy' in evaluated.result().info.keys()
-    assert not 'stress' in evaluated.result().info.keys()
-    assert 'forces' in evaluated.result().arrays.keys()
-    assert evaluated.result().arrays['forces'][0, 0] < 0
-    assert evaluated.result().arrays['forces'][1, 0] > 0
+    assert "energy" in evaluated.result().info.keys()
+    assert not "stress" in evaluated.result().info.keys()
+    assert "forces" in evaluated.result().arrays.keys()
+    assert evaluated.result().arrays["forces"][0, 0] < 0
+    assert evaluated.result().arrays["forces"][1, 0] > 0
 
     energy_h2 = nwchem_reference.evaluate(dataset)
-    assert nwchem_reference.compute_atomic_energy('H').result() < 0
+    assert nwchem_reference.compute_atomic_energy("H").result() < 0

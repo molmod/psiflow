@@ -5,7 +5,7 @@ from psiflow.models import MACEModel
 
 
 def test_committee_mace(context, mace_config, dataset):
-    mace_config['max_num_epochs'] = 1
+    mace_config["max_num_epochs"] = 1
     models = [MACEModel(mace_config) for i in range(4)]
     committee = Committee(models)
     for i, model in enumerate(committee.models):
@@ -17,11 +17,11 @@ def test_committee_mace(context, mace_config, dataset):
 
     extracted, disagreements_ = committee.apply(dataset, 4)
     assert np.allclose(
-            disagreements_.result(),
-            disagreements.result(),
-            )
+        disagreements_.result(),
+        disagreements.result(),
+    )
     assert extracted.length().result() == 4
     assert np.allclose(
-            extracted[0].result().positions,
-            dataset[index_max].result().positions,
-            )
+        extracted[0].result().positions,
+        dataset[index_max].result().positions,
+    )

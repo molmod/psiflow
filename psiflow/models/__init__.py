@@ -18,38 +18,39 @@ def load_model(path: Union[Path, str]) -> BaseModel:
     import yaml
     from parsl.data_provider.files import File
     from psiflow.utils import copy_app_future, copy_data_future
+
     path = resolve_and_check(Path(path))
     assert path.is_dir()
     classes = [
-            NequIPModel,
-            AllegroModel,
-            MACEModel,
-            None,
-            ]
+        NequIPModel,
+        AllegroModel,
+        MACEModel,
+        None,
+    ]
     for model_cls in classes:
         assert model_cls is not None
-        path_config_raw  = path / (model_cls.__name__ + '.yaml')
+        path_config_raw = path / (model_cls.__name__ + ".yaml")
         if path_config_raw.is_file():
             break
-    with open(path_config_raw, 'r') as f:
+    with open(path_config_raw, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
     model = model_cls(config)
     for element in chemical_symbols:
-        energy = model.config_raw.pop('atomic_energies_' + element, None)
+        energy = model.config_raw.pop("atomic_energies_" + element, None)
         if energy is not None:
             model.add_atomic_energy(element, energy)
-    path_config = path / 'config_after_init.yaml'
-    path_model  = path / 'model_undeployed.pth'
-    path_deploy = path / 'model_deployed.pth'
+    path_config = path / "config_after_init.yaml"
+    path_model = path / "model_undeployed.pth"
+    path_deploy = path / "model_deployed.pth"
     if path_model.is_file():
         assert path_config.is_file()
-        #assert path_deploy.is_file()
-        with open(path_config, 'r') as f:
+        # assert path_deploy.is_file()
+        with open(path_config, "r") as f:
             config_init = yaml.load(f, Loader=yaml.FullLoader)
         model.config_future = copy_app_future(config_init)
         model.model_future = copy_data_future(
-                inputs=[File(str(path_model))],
-                outputs=[psiflow.context().new_file('model_', '.pth')],
-                ).outputs[0]
+            inputs=[File(str(path_model))],
+            outputs=[psiflow.context().new_file("model_", ".pth")],
+        ).outputs[0]
         model.deploy()
     return model

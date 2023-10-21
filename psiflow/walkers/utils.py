@@ -17,7 +17,7 @@ class ForcePartPlumed(yaff.external.ForcePartPlumed):
         self.plumed.cmd("setMasses", self.system.masses)
         if self.system.charges is not None:
             self.plumed.cmd("setCharges", self.system.charges)
-        if self.system.cell.nvec>0:
+        if self.system.cell.nvec > 0:
             rvecs = self.system.cell.rvecs.copy()
             self.plumed.cmd("setBox", rvecs)
         # PLUMED always needs arrays to write forces and virial to, so
@@ -31,8 +31,9 @@ class ForcePartPlumed(yaff.external.ForcePartPlumed):
             my_gpos = gpos
         self.plumed.cmd("setForces", my_gpos)
         if vtens is None:
-            my_vtens = np.zeros((3,3))
-        else: my_vtens = vtens
+            my_vtens = np.zeros((3, 3))
+        else:
+            my_vtens = vtens
         self.plumed.cmd("setVirial", my_vtens)
         # Do the actual calculation, without an update; this should
         # only be done at the end of a time step
@@ -42,7 +43,7 @@ class ForcePartPlumed(yaff.external.ForcePartPlumed):
             gpos[:] *= -1.0
         # Retrieve biasing energy
         energy = np.zeros((1,))
-        self.plumed.cmd("getBias",energy)
+        self.plumed.cmd("getBias", energy)
         return energy[0]
 
 
@@ -68,14 +69,16 @@ class ForcePartASE(yaff.pes.ForcePart):
         force_threshold : float [eV/A]
 
         """
-        yaff.pes.ForcePart.__init__(self, 'ase', system)
-        self.system = system # store system to obtain current pos and box
-        self.atoms  = atoms
+        yaff.pes.ForcePart.__init__(self, "ase", system)
+        self.system = system  # store system to obtain current pos and box
+        self.atoms = atoms
 
     def _internal_compute(self, gpos=None, vtens=None):
         self.atoms.set_positions(self.system.pos / molmod.units.angstrom)
         if self.atoms.pbc.all():
-            self.atoms.set_cell(Cell(self.system.cell._get_rvecs() / molmod.units.angstrom))
+            self.atoms.set_cell(
+                Cell(self.system.cell._get_rvecs() / molmod.units.angstrom)
+            )
         energy = self.atoms.get_potential_energy() * molmod.units.electronvolt
         if gpos is not None:
             forces = self.atoms.get_forces()
@@ -98,7 +101,7 @@ class ForceField(yaff.pes.ForceField):
         self.force_threshold = force_threshold
 
     def _internal_compute(self, gpos, vtens):
-        if self.needs_nlist_update: # never necessary?
+        if self.needs_nlist_update:  # never necessary?
             self.nlist.update()
             self.needs_nlist_update = False
         result = sum([part.compute(gpos, vtens) for part in self.parts])
@@ -111,8 +114,8 @@ class ForceField(yaff.pes.ForceField):
         index = np.argmax(np.linalg.norm(forces, axis=1))
         if max_force > self.force_threshold:
             raise ForceThresholdExceededException(
-                    'Max force exceeded: {} eV/A by atom index {}'.format(max_force, index),
-                    )
+                "Max force exceeded: {} eV/A by atom index {}".format(max_force, index),
+            )
 
 
 def create_forcefield(atoms, force_threshold):
@@ -122,17 +125,16 @@ def create_forcefield(atoms, force_threshold):
     else:
         rvecs = None
     system = yaff.System(
-            numbers=atoms.get_atomic_numbers(),
-            pos=atoms.get_positions() * molmod.units.angstrom,
-            rvecs=rvecs,
-            )
+        numbers=atoms.get_atomic_numbers(),
+        pos=atoms.get_positions() * molmod.units.angstrom,
+        rvecs=rvecs,
+    )
     system.set_standard_masses()
     part_ase = ForcePartASE(system, atoms)
     return ForceField(system, [part_ase], force_threshold=force_threshold)
 
 
 class DataHook(yaff.VerletHook):
-
     def __init__(self, start=0, step=1):
         super().__init__(start, step)
         self.atoms = None
@@ -144,11 +146,11 @@ class DataHook(yaff.VerletHook):
         else:
             cell = None
         self.atoms = Atoms(
-                numbers=iterative.ff.system.numbers.copy(),
-                positions=iterative.ff.system.pos / molmod.units.angstrom,
-                cell=cell,
-                pbc=cell is not None,
-                )
+            numbers=iterative.ff.system.numbers.copy(),
+            positions=iterative.ff.system.pos / molmod.units.angstrom,
+            cell=cell,
+            pbc=cell is not None,
+        )
 
     def pre(self, iterative):
         pass
@@ -159,12 +161,13 @@ class DataHook(yaff.VerletHook):
     def __call__(self, iterative):
         self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
         if self.atoms.pbc.all():
-            self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
+            self.atoms.set_cell(
+                iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom
+            )
         self.data.append(self.atoms.copy())
 
 
-class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
-
+class ExtXYZHook(yaff.VerletHook):  # xyz file writer; obsolete
     def __init__(self, path_xyz, start=0, step=1):
         super().__init__(start, step)
         self.path_xyz = path_xyz
@@ -178,11 +181,11 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
         else:
             cell = None
         self.atoms = Atoms(
-                numbers=iterative.ff.system.numbers.copy(),
-                positions=iterative.ff.system.pos / molmod.units.angstrom,
-                cell=cell,
-                pbc=cell is not None,
-                )
+            numbers=iterative.ff.system.numbers.copy(),
+            positions=iterative.ff.system.pos / molmod.units.angstrom,
+            cell=cell,
+            pbc=cell is not None,
+        )
 
     def pre(self, iterative):
         pass
@@ -191,10 +194,12 @@ class ExtXYZHook(yaff.VerletHook): # xyz file writer; obsolete
         pass
 
     def __call__(self, iterative):
-        if iterative.counter > 0: # first write is manual
+        if iterative.counter > 0:  # first write is manual
             self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
             if self.atoms.pbc.all():
-                self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom)
+                self.atoms.set_cell(
+                    iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom
+                )
             write(self.path_xyz, self.atoms, append=True)
             self.nwrites += 1
             self.temperatures.append(iterative.temp)
@@ -253,8 +258,8 @@ def parse_yaff_output(stdout):
     temperatures = []
     counter = 0
     time = 0
-    for line in stdout.split('\n'):
-        if ('VERLET' in line):
+    for line in stdout.split("\n"):
+        if "VERLET" in line:
             try:
                 a = [float(s) for s in line.split()[1:]]
             except ValueError:
@@ -274,10 +279,10 @@ def parse_openmm_output(stdout):
     counter = 0
     time = 0
     start = False
-    for line in stdout.split('\n'):
+    for line in stdout.split("\n"):
         if start:
             try:
-                metrics = [s for s in line.split(',')]
+                metrics = [s for s in line.split(",")]
                 time = float(metrics[-1])
                 counter = int(metrics[0])
                 temperatures.append(float(metrics[2]))
@@ -301,9 +306,10 @@ def max_temperature_std(temperature: float, natoms: int, N: float) -> float:
 
 def get_velocities_at_temperature(temperature, masses):
     from ase.units import kB
-    velocities =  np.random.normal(0, 1, (len(masses), 3))
+
+    velocities = np.random.normal(0, 1, (len(masses), 3))
     velocities *= np.sqrt(kB * temperature / masses).reshape(-1, 1)
-    actual = (velocities ** 2 * masses.reshape(-1, 1)).mean() / kB
+    actual = (velocities**2 * masses.reshape(-1, 1)).mean() / kB
     scale = np.sqrt(temperature / actual)
     velocities *= scale
     return velocities

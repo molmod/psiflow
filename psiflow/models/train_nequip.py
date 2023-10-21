@@ -48,7 +48,7 @@ default_config = dict(
         "RescaleEnergyEtc",
     ],
     dataset_statistics_stride=1,
-    device='cuda',
+    device="cuda",
     default_dtype="float32",
     model_dtype="float32",
     allow_tf32=True,
@@ -79,6 +79,7 @@ default_config = dict(
 def init_n_update(config):
     import wandb
     from wandb.util import json_friendly_val
+
     conf_dict = dict(config)
     # wandb mangles keys (in terms of type) as well, but we can't easily correct that because there are many ambiguous edge cases. (E.g. string "-1" vs int -1 as keys, are they different config keys?)
     if any(not isinstance(k, str) for k in conf_dict.keys()):
@@ -107,11 +108,11 @@ def init_n_update(config):
             if repr(v_new) == repr(v_old):
                 skip = True
         if skip:
-            #logging.info(f"# skipping wandb update {k} from {v_old} to {v_new}")
+            # logging.info(f"# skipping wandb update {k} from {v_old} to {v_new}")
             pass
         else:
             config.update({k: v_new})
-            #logging.info(f"# wandb update {k} from {v_old} to {v_new}")
+            # logging.info(f"# wandb update {k} from {v_old} to {v_new}")
     return config
 
 
@@ -124,37 +125,48 @@ def main():
 
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', help='path to initialized config', default='', type=str)
-    parser.add_argument('--model', help='path to undeployed model', default='', type=str)
-    parser.add_argument('--init_only', help='only perform initialization', default=False, action='store_true')
+    parser.add_argument(
+        "--config", help="path to initialized config", default="", type=str
+    )
+    parser.add_argument(
+        "--model", help="path to undeployed model", default="", type=str
+    )
+    parser.add_argument(
+        "--init_only",
+        help="only perform initialization",
+        default=False,
+        action="store_true",
+    )
     args = parser.parse_args()
 
     config = Config.from_file(args.config, defaults=default_config)
 
-    if args.init_only: # create dummy validation set based on first state of training
-        assert args.model == 'None'
-        atoms = read(config['dataset_file_name'])
-        path_valid = str(Path.cwd() / 'validation_dummy.xyz')
+    if args.init_only:  # create dummy validation set based on first state of training
+        assert args.model == "None"
+        atoms = read(config["dataset_file_name"])
+        path_valid = str(Path.cwd() / "validation_dummy.xyz")
         write(path_valid, atoms)
-        config['validation_dataset_file_name'] = path_valid
+        config["validation_dataset_file_name"] = path_valid
 
     # put chemical symbols in config
     from ase.data import chemical_symbols
     from ase.io.extxyz import read_extxyz
-    with open(config['dataset_file_name'], 'r') as f:
+
+    with open(config["dataset_file_name"], "r") as f:
         data = list(read_extxyz(f, index=slice(None)))
         ntrain = len(data)
     _all = [set(a.numbers) for a in data]
     numbers = sorted(list(set(b for a in _all for b in a)))
-    config['chemical_symbols'] = [chemical_symbols[n] for n in numbers]
-    with open(config['validation_dataset_file_name'], 'r') as f:
+    config["chemical_symbols"] = [chemical_symbols[n] for n in numbers]
+    with open(config["validation_dataset_file_name"], "r") as f:
         data = list(read_extxyz(f, index=slice(None)))
         nvalid = len(data)
-    config['n_train'] = ntrain
-    config['n_val'] = nvalid
+    config["n_train"] = ntrain
+    config["n_val"] = nvalid
 
     import os
-    config['root'] = os.getcwd()
+
+    config["root"] = os.getcwd()
     trainer = fresh_start(config, args.model, args.init_only)
     if not args.init_only:
         trainer.save()
@@ -198,22 +210,24 @@ def fresh_start(config, path_model, init_only):
         validation_dataset = None
 
     # = Train/test split =
-    print('ntrain: {}'.format(trainer.n_train))
-    print('nvalid: {}'.format(trainer.n_val))
+    print("ntrain: {}".format(trainer.n_train))
+    print("nvalid: {}".format(trainer.n_val))
     trainer.set_dataset(dataset, validation_dataset)
 
     model = model_from_config(config, initialize=True, dataset=trainer.dataset_train)
     logging.info("Successfully built the network...")
-    logging.info("psiflow-modification: loading state dict into model; "
-            "setting precision float32; transferring to device cuda")
+    logging.info(
+        "psiflow-modification: loading state dict into model; "
+        "setting precision float32; transferring to device cuda"
+    )
     if not init_only:
-        model.load_state_dict(torch.load(path_model, map_location='cpu'))
-        model.to(device=torch.device('cuda'), dtype=torch.float32)
+        model.load_state_dict(torch.load(path_model, map_location="cpu"))
+        model.to(device=torch.device("cuda"), dtype=torch.float32)
     else:
         nequip_config = Config.as_dict(config)
-        with open('config.yaml', 'w') as f:
+        with open("config.yaml", "w") as f:
             yaml.dump(nequip_config, f, default_flow_style=False)
-        torch.save(model.to('cpu').state_dict(), 'undeployed.pth')
+        torch.save(model.to("cpu").state_dict(), "undeployed.pth")
         return 0
     logging.info("psiflow-modification: success")
 
@@ -221,7 +235,7 @@ def fresh_start(config, path_model, init_only):
     _check_old_keys(config)
 
     # Equivar test
-    #if config.equivariance_test > 0:
+    # if config.equivariance_test > 0:
     #    n_train: int = len(trainer.dataset_train)
     #    assert config.equivariance_test <= n_train
     #    final_model.eval()

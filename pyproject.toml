@@ -32,6 +32,13 @@ docs = [
     "mkdocstrings>=0.19.1",
     "mkdocstrings-python>=0.8.3",
     ]
+dev = [
+    "pre-commit",
+    "black",
+    "flake8",
+    "flake8-bugbear",
+    "flake8-pyproject",
+    ]
 
 
 [project.scripts]
@@ -51,6 +58,12 @@ include = [
     "psiflow.walkers",
     "psiflow.external",
     ]
+
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "E501", "E704"]
+#select = C,E,F,W,B,B950
 
 
 [tool.pytest.ini_options]

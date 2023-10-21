@@ -1,4 +1,4 @@
-from __future__ import annotations # necessary for type-guarding class methods
+from __future__ import annotations  # necessary for type-guarding class methods
 from typing import Optional, Union
 import typeguard
 from dataclasses import dataclass, asdict, field
@@ -19,17 +19,14 @@ from psiflow.data import Dataset
 from psiflow.models import BaseModel
 from psiflow.committee import Committee
 from psiflow.reference import BaseReference
-from psiflow.walkers import BaseWalker, RandomWalker, \
-        BiasedDynamicWalker
+from psiflow.walkers import BaseWalker, RandomWalker, BiasedDynamicWalker
 from psiflow.state import save_state
 from psiflow.metrics import Metrics
-from psiflow.sampling import sample_with_model, \
-        sample_with_committee
-from psiflow.utils import resolve_and_check, \
-        apply_temperature_ramp
+from psiflow.sampling import sample_with_model, sample_with_committee
+from psiflow.utils import resolve_and_check, apply_temperature_ramp
 
 
-logger = logging.getLogger(__name__) # logging per module
+logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
@@ -41,46 +38,48 @@ class BaseLearning:
     pretraining_amplitude_pos: float = 0.05
     pretraining_amplitude_box: float = 0.0
     metrics: Optional[Metrics] = Metrics()
-    atomic_energies: dict[str, Union[float, AppFuture]] = field(default_factory=lambda: {})
+    atomic_energies: dict[str, Union[float, AppFuture]] = field(
+        default_factory=lambda: {}
+    )
     train_from_scratch: bool = True
     mix_training_validation: bool = True
     identifier: int = 0
 
-    def __post_init__(self) -> None: # save self in output folder
+    def __post_init__(self) -> None:  # save self in output folder
         self.path_output = resolve_and_check(Path(self.path_output))
         self.path_output.mkdir(parents=True, exist_ok=True)
         atomic_energies = self.atomic_energies
-        self.atomic_energies = {} # avoid errors in asdict
+        self.atomic_energies = {}  # avoid errors in asdict
         config = asdict(self)
         self.atomic_energies = atomic_energies
-        config['path_output'] = str(self.path_output) # yaml requires str
-        config.pop('metrics')
+        config["path_output"] = str(self.path_output)  # yaml requires str
+        config.pop("metrics")
         if self.metrics is not None:
-            config['Metrics'] = self.metrics.as_dict()
-        path_config = self.path_output / (self.__class__.__name__ + '.yaml')
+            config["Metrics"] = self.metrics.as_dict()
+        path_config = self.path_output / (self.__class__.__name__ + ".yaml")
         if path_config.is_file():
-            logger.warning('overriding learning config file {}'.format(path_config))
+            logger.warning("overriding learning config file {}".format(path_config))
         save_yaml(config, **atomic_energies, outputs=[File(str(path_config))]).result()
 
     def output_exists(self, name):
         return (self.path_output / name).is_dir()
 
     def run_pretraining(
-            self,
-            model: BaseModel,
-            reference: BaseReference,
-            walkers: list[BaseWalker],
-            ) -> Dataset:
+        self,
+        model: BaseModel,
+        reference: BaseReference,
+        walkers: list[BaseWalker],
+    ) -> Dataset:
         nstates = self.pretraining_nstates
         amplitude_pos = self.pretraining_amplitude_pos
         amplitude_box = self.pretraining_amplitude_box
-        logger.info('performing random pretraining')
+        logger.info("performing random pretraining")
         walkers_ = RandomWalker.multiply(
-                nstates,
-                data_start=Dataset([w.state for w in walkers]),
-                amplitude_pos=amplitude_pos,
-                amplitude_box=amplitude_box,
-                )
+            nstates,
+            data_start=Dataset([w.state for w in walkers]),
+            amplitude_pos=amplitude_pos,
+            amplitude_box=amplitude_box,
+        )
         states = [w.propagate().state for w in walkers_]
 
         # double check whether atomic energies are present before
@@ -92,11 +91,11 @@ class BaseLearning:
         for i in range(nstates):
             index = i % len(walkers)
             walker = walkers[index]
-            if isinstance(walker, BiasedDynamicWalker): # evaluate CVs!
+            if isinstance(walker, BiasedDynamicWalker):  # evaluate CVs!
                 with_cv_inserted = walker.bias.evaluate(
-                        Dataset([states[i]]),
-                        as_dataset=True,
-                        )
+                    Dataset([states[i]]),
+                    as_dataset=True,
+                )
                 states[i] = with_cv_inserted[0]
             else:
                 pass
@@ -107,29 +106,29 @@ class BaseLearning:
         model.initialize(data_train)
         model.train(data_train, data_valid)
         save_state(
-                self.path_output,
-                name='pretraining',
-                model=model,
-                walkers=walkers,
-                data_train=data_train,
-                data_valid=data_valid,
-                )
+            self.path_output,
+            name="pretraining",
+            model=model,
+            walkers=walkers,
+            data_train=data_train,
+            data_valid=data_valid,
+        )
         if self.metrics is not None:
             self.metrics.save(
-                    self.path_output / 'pretraining',
-                    model=model,
-                    dataset=data,
-                    )
+                self.path_output / "pretraining",
+                model=model,
+                dataset=data,
+            )
         psiflow.wait()
         return data
 
     def initialize_run(
-            self,
-            model: BaseModel,
-            reference: BaseReference,
-            walkers: list[BaseWalker],
-            initial_data: Optional[Dataset] = None,
-            ) -> Dataset:
+        self,
+        model: BaseModel,
+        reference: BaseReference,
+        walkers: list[BaseWalker],
+        initial_data: Optional[Dataset] = None,
+    ) -> Dataset:
         """
         no initial data, model is None:
             do pretraining based on dataset of random perturbations on walker states
@@ -149,14 +148,24 @@ class BaseLearning:
         if len(self.atomic_energies) > 0:
             for element, energy in self.atomic_energies.items():
                 model.add_atomic_energy(element, energy)
-            logger.info('model contains atomic energy offsets')
+            logger.info("model contains atomic energy offsets")
         else:
             if len(model.atomic_energies) > 0:
-                logger.warning('adding atomic energies from model into {}'.format(
-                    self.__class__.__name__))
-                ae = {s: e.result() if isinstance(e, AppFuture) else e for s, e in model.atomic_energies.items()}
+                logger.warning(
+                    "adding atomic energies from model into {}".format(
+                        self.__class__.__name__
+                    )
+                )
+                ae = {
+                    s: e.result() if isinstance(e, AppFuture) else e
+                    for s, e in model.atomic_energies.items()
+                }
                 for element, energy in ae.items():
-                    assert energy < 1e10, 'atomic energy calculation for element {} failed!'.format(element)
+                    assert (
+                        energy < 1e10
+                    ), "atomic energy calculation for element {} failed!".format(
+                        element
+                    )
                 self.atomic_energies = ae
         if initial_data is not None:
             initial_data = initial_data.labeled()
@@ -165,13 +174,13 @@ class BaseLearning:
                 for element in initial_data.elements().result():
                     assert element in model.atomic_energies
         if model.model_future is None:
-            if initial_data is None: # pretrain on random perturbations
+            if initial_data is None:  # pretrain on random perturbations
                 data = self.run_pretraining(
-                        model,
-                        reference,
-                        walkers,
-                        )
-            else: # pretrain on initial data
+                    model,
+                    reference,
+                    walkers,
+                )
+            else:  # pretrain on initial data
                 data_train, data_valid = initial_data.split(self.train_valid_split)
                 model.initialize(data_train)
                 model.train(data_train, data_valid)
@@ -194,58 +203,60 @@ class SequentialLearning(BaseLearning):
     def update_walkers(self, walkers: list[BaseWalker], initialize=False):
         if self.temperature_ramp is not None:
             for walker in walkers:
-                if hasattr(walker, 'temperature'):
+                if hasattr(walker, "temperature"):
                     if initialize:
-                        temperature = self.temperature_ramp[0] # initial temperature
+                        temperature = self.temperature_ramp[0]  # initial temperature
                     else:
                         temperature = apply_temperature_ramp(
-                                *self.temperature_ramp,
-                                walker.temperature,
-                                )
+                            *self.temperature_ramp,
+                            walker.temperature,
+                        )
                     if not walker.is_reset().result():
                         walker.temperature = temperature
 
     def run(
-            self,
-            model: BaseModel,
-            reference: BaseReference,
-            walkers: list[BaseWalker],
-            initial_data: Optional[Dataset] = None,
-            ) -> Dataset:
+        self,
+        model: BaseModel,
+        reference: BaseReference,
+        walkers: list[BaseWalker],
+        initial_data: Optional[Dataset] = None,
+    ) -> Dataset:
         data = self.initialize_run(
+            model,
+            reference,
+            walkers,
+            initial_data,
+        )
+        for i in range(self.niterations):
+            if self.output_exists(str(i)):
+                continue  # skip iterations in case of restarted run
+            self.update_walkers(walkers, initialize=(i == 0))
+            new_data, self.identifier = sample_with_model(
                 model,
                 reference,
                 walkers,
-                initial_data,
-                )
-        for i in range(self.niterations):
-            if self.output_exists(str(i)):
-                continue # skip iterations in case of restarted run
-            self.update_walkers(walkers, initialize=(i == 0))
-            new_data, self.identifier = sample_with_model(
-                    model,
-                    reference,
-                    walkers,
-                    self.identifier,
-                    self.error_thresholds_for_reset,
-                    self.metrics,
-                    )
-            assert new_data.length().result() > 0, 'no new states were generated!'
+                self.identifier,
+                self.error_thresholds_for_reset,
+                self.metrics,
+            )
+            assert new_data.length().result() > 0, "no new states were generated!"
             data = data + new_data
             data_train, data_valid = data.split(self.train_valid_split)
             if self.train_from_scratch:
-                logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
+                logger.info(
+                    "reinitializing scale/shift/avg_num_neighbors on data_train"
+                )
                 model.reset()
                 model.initialize(data_train)
             model.train(data_train, data_valid)
             save_state(
-                    self.path_output,
-                    str(i),
-                    model=model,
-                    walkers=walkers,
-                    data_train=data_train,
-                    data_valid=data_valid,
-                    )
+                self.path_output,
+                str(i),
+                model=model,
+                walkers=walkers,
+                data_train=data_train,
+                data_valid=data_valid,
+            )
             if self.metrics is not None:
                 self.metrics.save(self.path_output / str(i), model, data)
             psiflow.wait()
@@ -258,45 +269,45 @@ class CommitteeLearning(SequentialLearning):
     nstates_per_iteration: int = 0
 
     def run(
-            self,
-            committee: Committee,
-            reference: BaseReference,
-            walkers: list[BaseWalker],
-            initial_data: Optional[Dataset] = None,
-            ) -> Dataset:
+        self,
+        committee: Committee,
+        reference: BaseReference,
+        walkers: list[BaseWalker],
+        initial_data: Optional[Dataset] = None,
+    ) -> Dataset:
         assert self.nstates_per_iteration <= len(walkers)
         assert self.nstates_per_iteration > 0
         assert initial_data is not None
         data = initial_data
-        committee.train(*data.shuffle().split(0.9)) # initial training
+        committee.train(*data.shuffle().split(0.9))  # initial training
         for i in range(self.niterations):
             if self.output_exists(str(i)):
-                continue # skip iterations in case of restarted run
+                continue  # skip iterations in case of restarted run
             self.update_walkers(walkers, initialize=(i == 0))
             new_data, self.identifier = sample_with_committee(
-                    committee,
-                    reference,
-                    walkers,
-                    self.identifier,
-                    self.nstates_per_iteration,
-                    self.error_thresholds_for_reset,
-                    self.metrics,
-                    )
-            assert new_data.length().result() > 0, 'no new states were generated!'
+                committee,
+                reference,
+                walkers,
+                self.identifier,
+                self.nstates_per_iteration,
+                self.error_thresholds_for_reset,
+                self.metrics,
+            )
+            assert new_data.length().result() > 0, "no new states were generated!"
             data = data + new_data
             data_train, data_valid = data.split(self.train_valid_split)
             committee.train(data_train, data_valid)
             save_state(
-                    self.path_output,
-                    str(i),
-                    model=committee.models[0],
-                    walkers=walkers,
-                    data_train=data_train,
-                    data_valid=data_valid,
-                    )
+                self.path_output,
+                str(i),
+                model=committee.models[0],
+                walkers=walkers,
+                data_train=data_train,
+                data_valid=data_valid,
+            )
             if self.metrics is not None:
                 self.metrics.save(self.path_output / str(i), committee.models[0], data)
-            committee.save(self.path_output / str(i) / 'committee')
+            committee.save(self.path_output / str(i) / "committee")
             psiflow.wait()
         return data
 
@@ -304,7 +315,7 @@ class CommitteeLearning(SequentialLearning):
 @typeguard.typechecked
 @dataclass
 class IncrementalLearning(BaseLearning):
-    cv_name: Optional[str] = None # have to be kwargs
+    cv_name: Optional[str] = None  # have to be kwargs
     cv_start: Optional[float] = None
     cv_stop: Optional[float] = None
     cv_delta: Optional[float] = None
@@ -312,12 +323,12 @@ class IncrementalLearning(BaseLearning):
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
 
     def update_walkers(self, walkers: list[BaseWalker], initialize=False):
-        for walker in walkers: # may not all contain bias
-            if not hasattr(walker, 'bias'):
+        for walker in walkers:  # may not all contain bias
+            if not hasattr(walker, "bias"):
                 continue
             if self.cv_name not in walker.bias.variables:
                 continue
-            assert 'MOVINGRESTRAINT' in walker.bias.keys
+            assert "MOVINGRESTRAINT" in walker.bias.keys
             _, kappas, centers = walker.bias.get_moving_restraint(self.cv_name)
             steps = walker.steps
             if initialize:
@@ -326,67 +337,71 @@ class IncrementalLearning(BaseLearning):
                 if walker.is_reset().result():
                     continue
                 new_centers = (
-                        centers[1],
-                        centers[1] + self.cv_delta,
-                        )
-                check_interval = (self.cv_stop - new_centers[1]) * np.sign(self.cv_delta) >= 0
+                    centers[1],
+                    centers[1] + self.cv_delta,
+                )
+                check_interval = (self.cv_stop - new_centers[1]) * np.sign(
+                    self.cv_delta
+                ) >= 0
                 if check_interval:
                     pass
-                else: # start over
+                else:  # start over
                     new_centers = (self.cv_start, self.cv_start + self.cv_delta)
                     walker.reset()
             walker.bias.adjust_moving_restraint(
-                    self.cv_name,
-                    steps=steps,
-                    kappas=None, # don't change this
-                    centers=new_centers,
-                    )
+                self.cv_name,
+                steps=steps,
+                kappas=None,  # don't change this
+                centers=new_centers,
+            )
 
     def run(
-            self,
-            model: BaseModel,
-            reference: BaseReference,
-            walkers: list[BaseWalker],
-            initial_data: Optional[Dataset] = None,
-            ) -> Dataset:
+        self,
+        model: BaseModel,
+        reference: BaseReference,
+        walkers: list[BaseWalker],
+        initial_data: Optional[Dataset] = None,
+    ) -> Dataset:
         assert self.cv_name is not None
         assert self.cv_start is not None
         assert self.cv_stop is not None
         assert self.cv_delta is not None
         data = self.initialize_run(
+            model,
+            reference,
+            walkers,
+            initial_data,
+        )
+        for i in range(self.niterations):
+            if self.output_exists(str(i)):
+                continue  # skip iterations in case of restarted run
+            self.update_walkers(walkers, initialize=(i == 0))
+            new_data, self.identifier = sample_with_model(
                 model,
                 reference,
                 walkers,
-                initial_data,
-                )
-        for i in range(self.niterations):
-            if self.output_exists(str(i)):
-                continue # skip iterations in case of restarted run
-            self.update_walkers(walkers, initialize=(i == 0))
-            new_data, self.identifier = sample_with_model(
-                    model,
-                    reference,
-                    walkers,
-                    self.identifier,
-                    self.error_thresholds_for_reset,
-                    self.metrics,
-                    )
-            assert new_data.length().result() > 0, 'no new states were generated!'
+                self.identifier,
+                self.error_thresholds_for_reset,
+                self.metrics,
+            )
+            assert new_data.length().result() > 0, "no new states were generated!"
             data = data + new_data
             data_train, data_valid = data.split(self.train_valid_split)
             if self.train_from_scratch:
-                logger.info('reinitializing scale/shift/avg_num_neighbors on data_train')
+                logger.info(
+                    "reinitializing scale/shift/avg_num_neighbors on data_train"
+                )
                 model.reset()
                 model.initialize(data_train)
             model.train(data_train, data_valid)
             save_state(
-                    self.path_output,
-                    str(i),
-                    model=model,
-                    walkers=walkers,
-                    data_train=data_train,
-                    data_valid=data_valid,
-                    )
+                self.path_output,
+                str(i),
+                model=model,
+                walkers=walkers,
+                data_train=data_train,
+                data_valid=data_valid,
+            )
             if self.metrics is not None:
                 self.metrics.save(self.path_output / str(i), model, data)
             psiflow.wait()
@@ -398,27 +413,27 @@ def load_learning(path_output: Union[Path, str]):
     path_output = resolve_and_check(Path(path_output))
     assert path_output.is_dir()
     classes = [
-            SequentialLearning,
-            CommitteeLearning,
-            IncrementalLearning,
-            None,
-            ]
+        SequentialLearning,
+        CommitteeLearning,
+        IncrementalLearning,
+        None,
+    ]
     for learning_cls in classes:
-        assert learning_cls is not None, 'cannot find learning .yaml!'
-        path_learning  = path_output / (learning_cls.__name__ + '.yaml')
+        assert learning_cls is not None, "cannot find learning .yaml!"
+        path_learning = path_output / (learning_cls.__name__ + ".yaml")
         if path_learning.is_file():
             break
-    with open(path_learning, 'r') as f:
+    with open(path_learning, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
     atomic_energies = {}
     for element in chemical_symbols:
-        energy = config.pop('atomic_energies_' + element, None)
+        energy = config.pop("atomic_energies_" + element, None)
         if energy is not None:
             atomic_energies[element] = energy
-    config['atomic_energies'] = atomic_energies
-    config['path_output'] = str(path_output)
-    if 'Metrics' in config.keys():
-        metrics = Metrics(**config.pop('Metrics'))
+    config["atomic_energies"] = atomic_energies
+    config["path_output"] = str(path_output)
+    if "Metrics" in config.keys():
+        metrics = Metrics(**config.pop("Metrics"))
     else:
         metrics = None
     learning = learning_cls(metrics=metrics, **config)

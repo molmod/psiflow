@@ -79,12 +79,18 @@ def _compile_for_deploy(model):
 def main():
     """Entry point for deploy bash app"""
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', help='path to initialized config', default='', type=str)
-    parser.add_argument('--model', help='path to undeployed model', default='', type=str)
-    parser.add_argument('--deployed', help='path to deployed model', default='', type=str)
+    parser.add_argument(
+        "--config", help="path to initialized config", default="", type=str
+    )
+    parser.add_argument(
+        "--model", help="path to undeployed model", default="", type=str
+    )
+    parser.add_argument(
+        "--deployed", help="path to deployed model", default="", type=str
+    )
     args = parser.parse_args()
 
-    logging.basicConfig(level=getattr(logging, 'INFO'))
+    logging.basicConfig(level=getattr(logging, "INFO"))
     state_dict = torch.load(str(args.model), map_location="cpu")
     config = Config.from_file(str(args.config), defaults=default_config)
 
@@ -121,8 +127,7 @@ def main():
 
     metadata[JIT_BAILOUT_KEY] = str(config[JIT_BAILOUT_KEY])
     if (
-        packaging.version.parse(torch.__version__)
-        >= packaging.version.parse("1.11")
+        packaging.version.parse(torch.__version__) >= packaging.version.parse("1.11")
         and JIT_FUSION_STRATEGY in config
     ):
         metadata[JIT_FUSION_STRATEGY] = ";".join(
