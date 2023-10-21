@@ -67,7 +67,7 @@ extend-ignore = ["E203", "E501", "E704"]
 #select = C,E,F,W,B,B950
 
 [tool.isort]
-profile = 'black'
+profile = "black"
 
 [tool.pytest.ini_options]
 log_cli = 0
