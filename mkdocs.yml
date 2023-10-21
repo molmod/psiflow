@@ -1,7 +1,8 @@
 site_name: psiflow
 theme:
   favicon: icon.svg
-  name: material
+  name:
+    material
     #font:
     #  text: overpass
   palette:
@@ -9,6 +10,7 @@ theme:
     accent: teal
   logo: icon.svg
   features:
+    - content.code.copy
     - navigation.instant
     - navigation.tracking
       #- navigation.tabs
