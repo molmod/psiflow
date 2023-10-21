@@ -1,4 +1,3 @@
-from parsl.launchers import SimpleLauncher
 from parsl.providers import SlurmProvider
 
 from psiflow.execution import (Default, ModelEvaluation, ModelTraining,

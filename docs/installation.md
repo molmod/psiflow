@@ -59,11 +59,7 @@ a SLURM cluster, or a cloud computing provider; check out the
 !!! note "Containers 101"
 
     Apptainer -- now the most widely used container system for HPCs -- is part of the
-    Linux Foundation and can be installed on Ubuntu using:
-
-    ```console
-    sudo apt install apptainer
-    ```
+    Linux Foundation. It is easy to set up on most Linux distributions, as explained in the [Apptainer documentation](https://apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages).
 
     Psiflow's containers are hosted on the GitHub Container Registry (GHCR).
     To download and run commands in them, simply execute:

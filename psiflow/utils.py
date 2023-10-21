@@ -9,6 +9,7 @@ import numpy as np
 import typeguard
 from ase.data import atomic_numbers
 from parsl.app.app import python_app
+from psiflow.data import FlowAtoms, NullState
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.executors.base import ParslExecutor
