@@ -1,12 +1,8 @@
-import sys
-from typing import Tuple, Dict, Union, Final, Optional
+from typing import Final, Optional
 import argparse
-import pathlib
 import logging
 import yaml
-import itertools
 import packaging.version
-import warnings
 
 # This is a weird hack to avoid Intel MKL issues on the cluster when this is called as a subprocess of a process that has itself initialized PyTorch.
 # Since numpy gets imported later anyway for dataset stuff, this shouldn't affect performance.
@@ -17,7 +13,6 @@ import torch
 from e3nn.util.jit import script
 
 from nequip.model import model_from_config
-from nequip.data import dataset_from_config
 from nequip.utils import Config
 from nequip.utils.versions import check_code_version, get_current_code_versions
 from nequip.scripts.train import default_config

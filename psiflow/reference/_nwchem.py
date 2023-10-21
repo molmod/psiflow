@@ -1,6 +1,5 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union
-import typeguard
+from typing import Optional
 import logging
 import copy
 
@@ -99,10 +98,7 @@ def nwchem_singlepoint_pre(
         walltime: int = 0,
         parsl_resource_specification: Optional[dict] = None,
         ):
-    import yaml
     import tempfile
-    import shutil
-    from ase import io
     from psiflow.reference._nwchem import write_nwchem_in
     tmp = tempfile.NamedTemporaryFile(delete=False, mode='w+')
     tmp.close()

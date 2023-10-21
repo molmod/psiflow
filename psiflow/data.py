@@ -15,11 +15,9 @@ from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List
 import typeguard
 import os
-import tempfile
 import logging
 import numpy as np
 from pathlib import Path
-from copy import deepcopy
 
 from ase.data import chemical_symbols
 from ase import Atoms
@@ -28,12 +26,10 @@ from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-from parsl.dataflow.memoization import id_for_memo
 
 import psiflow
-from psiflow.utils import copy_data_future, copy_app_future, \
-        resolve_and_check, transform_lower_triangular, \
-        reduce_box_vectors, is_reduced, get_train_valid_indices
+from psiflow.utils import copy_data_future, resolve_and_check, transform_lower_triangular, \
+        reduce_box_vectors, get_train_valid_indices
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -291,7 +287,6 @@ def compute_errors(
         ) -> np.ndarray:
     import numpy as np
     from copy import deepcopy
-    from ase.units import Pascal
     from psiflow.data import read_dataset
     from psiflow.utils import get_index_element_mask, compute_error
     data_0 = read_dataset(slice(None), inputs=[inputs[0]])
@@ -346,7 +341,6 @@ def apply_offset(
         ) -> None:
     import numpy as np
     from ase.data import atomic_numbers, chemical_symbols
-    from ase.io.extxyz import write_extxyz
     from psiflow.data import NullState, write_dataset
     assert len(inputs) == 1
     assert len(outputs) == 1
@@ -378,7 +372,6 @@ app_apply_offset = python_app(apply_offset, executors=['Default'])
 
 @typeguard.typechecked
 def get_elements(inputs=[]) -> set[str]:
-    from ase.data import chemical_symbols
     data = read_dataset(slice(None), inputs=[inputs[0]])
     return set([e for atoms in data for e in atoms.elements])
 app_get_elements = python_app(get_elements, executors=['Default'])
@@ -392,7 +385,6 @@ def assign_identifiers(
         ) -> int:
     from psiflow.data import read_dataset, write_dataset
     from psiflow.sampling import _assign_identifier
-    from psiflow.utils import copy_data_future
     data = read_dataset(slice(None), inputs=[inputs[0]])
     states = []
     if identifier is None: # do not assign but look for max

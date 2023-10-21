@@ -1,9 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, Callable
 import typeguard
-import re
 import os
-import tempfile
 import logging
 import numpy as np
 from pathlib import Path
@@ -17,7 +15,7 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.utils import copy_data_future, save_txt, create_if_empty
+from psiflow.utils import copy_data_future, save_txt
 from psiflow.data import read_dataset, write_dataset, Dataset, FlowAtoms
 
 
@@ -138,8 +136,7 @@ def evaluate_bias(
     import yaff
     yaff.log.set_level(yaff.log.silent)
     import molmod
-    from psiflow.walkers.utils import ForcePartASE, create_forcefield, \
-            ForceThresholdExceededException, ForcePartPlumed
+    from psiflow.walkers.utils import ForcePartPlumed
     from psiflow.walkers.bias import try_manual_plumed_linking
     from psiflow.data import read_dataset
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
@@ -219,7 +216,6 @@ def partitioned_evaluate_bias(
         inputs: list[File] = [],
         ) -> AppFuture:
     import psiflow
-    import numpy as np
     from psiflow.data import write_dataset, read_dataset, \
             NullState
     dataset = read_dataset(slice(None), inputs=[data_future])
@@ -513,7 +509,7 @@ class PlumedBias:
         lines = plumed_input.split('\n')
         found = False
         for i, line in enumerate(lines):
-            if 'RESTRAINT' in line.split() and not 'MOVING' in line.split():
+            if 'RESTRAINT' in line.split() and 'MOVING' not in line.split():
                 if 'ARG={}'.format(variable) in line.split():
                     assert not found
                     line_ = line
@@ -535,7 +531,7 @@ class PlumedBias:
         lines = plumed_input.split('\n')
         found = False
         for i, line in enumerate(lines):
-            if 'RESTRAINT' in line.split() and not 'MOVING' in line.split():
+            if 'RESTRAINT' in line.split() and 'MOVING' not in line.split():
                 if 'ARG={}'.format(variable) in line.split():
                     assert not found
                     kappa  = float(line.split('KAPPA=')[1].split()[0])

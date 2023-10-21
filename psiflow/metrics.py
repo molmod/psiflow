@@ -1,9 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, NamedTuple, Type, Any
-from collections import namedtuple
+from typing import Optional, Union, NamedTuple
 import os
 import logging
-import pandas
 import typeguard
 import wandb
 from pathlib import Path
@@ -14,8 +12,7 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
-from psiflow.models import BaseModel, NequIPModel
-from psiflow.walkers import BaseWalker, DynamicWalker
+from psiflow.models import BaseModel
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -117,7 +114,6 @@ log_walker = python_app(_log_walker, executors=['Default'])
 
 @typeguard.typechecked
 def _gather_walker_logs(*walker_data: dict) -> dict[str, list]:
-    import numpy as np
     data = {}
     columns = list(set([v for wd in walker_data for v in wd.keys()]))
     for key in columns:
@@ -131,7 +127,6 @@ gather_walker_logs = python_app(_gather_walker_logs, executors=['Default'])
 
 @typeguard.typechecked
 def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
-    import pandas
     import numpy as np
     from ase.data import chemical_symbols
     from psiflow.data import read_dataset
