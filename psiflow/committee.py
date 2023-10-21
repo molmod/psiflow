@@ -60,7 +60,9 @@ def _filter_disagreements(disagreements: np.ndarray, nstates: int):
     else:
         indices = np.argsort(disagreements)[-nstates:][::-1]
     return indices
-filter_disagreements = python_app(_filter_disagreements, executors=["Default"]) # fmt: skip
+
+
+filter_disagreements = python_app(_filter_disagreements, executors=["Default"])  # fmt: skip
 
 
 @typeguard.typechecked
