@@ -1,13 +1,9 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Any, Tuple, Dict
 import typeguard
-import pandas
-import os
 import sys
 import logging
-import tempfile
 import numpy as np
-import importlib
 from pathlib import Path
 
 from ase.data import atomic_numbers
@@ -388,7 +384,6 @@ def reduce_box_vectors(rvecs):
 
 @typeguard.typechecked
 def _check_distances(state: FlowAtoms, threshold: float):
-    import numpy
     from ase.geometry.geometry import find_mic
     if state == NullState:
         return NullState

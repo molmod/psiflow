@@ -1,8 +1,6 @@
 import typeguard
 from typing import Optional
 import os
-import math
-import time
 import logging
 from pathlib import Path
 from importlib import metadata # necessary on python 3.9

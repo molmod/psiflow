@@ -1,4 +1,3 @@
-import os
 import molmod
 import yaff
 import numpy as np

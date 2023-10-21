@@ -1,8 +1,7 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List, Any, Dict
+from typing import Optional, Union, List
 import typeguard
 import logging
-import inspect
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 
@@ -14,16 +13,12 @@ except ImportError: # 3.22.1 and below still use Calculator
 import parsl
 from parsl.executors import WorkQueueExecutor
 from parsl.app.app import python_app, bash_app
-from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
-from parsl.dataflow.futures import AppFuture
-from parsl.dataflow.memoization import id_for_memo
 
 import psiflow
 from psiflow.models.base import evaluate_dataset
 from psiflow.models import BaseModel
-from psiflow.data import FlowAtoms, Dataset
-from psiflow.utils import copy_data_future, get_active_executor, \
+from psiflow.utils import get_active_executor, \
         read_yaml
 
 
@@ -222,7 +217,6 @@ def train(
         parsl_resource_specification: dict = None,
         ) -> str:
     import yaml
-    from psiflow.data import read_dataset
     nequip_config['dataset_file_name'] = inputs[1].filepath
     nequip_config['validation_dataset'] = 'ase'
     nequip_config['validation_dataset_file_name'] = inputs[2].filepath

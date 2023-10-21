@@ -1,5 +1,5 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List, Any, Dict
+from typing import Optional, Union, List
 import typeguard
 import logging
 from pathlib import Path
@@ -13,16 +13,12 @@ except ImportError: # 3.22.1 and below still use Calculator
 import parsl
 from parsl.executors import WorkQueueExecutor
 from parsl.app.app import python_app, bash_app
-from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
-from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.models import BaseModel
 from psiflow.models.base import evaluate_dataset
-from psiflow.data import Dataset
-from psiflow.utils import get_active_executor, read_yaml, \
-        copy_data_future
+from psiflow.utils import get_active_executor, read_yaml
 
 
 logger = logging.getLogger(__name__) # logging per module
@@ -207,7 +203,7 @@ class MACEModel(BaseModel):
         assert not config['swa'], 'usage of SWA is currently not supported'
         assert config['model_dtype'] == 'float32', 'dtype is enforced to float32'
         assert config['save_cpu'] # assert model is saved to CPU after training
-        assert not 'hidden_irreps' in config.keys() # old MACE API
+        assert 'hidden_irreps' not in config.keys() # old MACE API
         config['device'] = 'cpu' # guarantee consistent initialization
         super().__init__(config)
 

@@ -18,20 +18,18 @@ import logging
 
 from ase.data import chemical_symbols
 
-import parsl
-from parsl.app.app import join_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.utils import save_yaml, copy_app_future
-from psiflow.data import Dataset, FlowAtoms
+from psiflow.utils import save_yaml
+from psiflow.data import Dataset
 from psiflow.models import BaseModel
 from psiflow.committee import Committee
 from psiflow.reference import BaseReference
 from psiflow.walkers import BaseWalker, RandomWalker, \
         BiasedDynamicWalker
-from psiflow.state import save_state, load_state
+from psiflow.state import save_state
 from psiflow.metrics import Metrics
 from psiflow.sampling import sample_with_model, \
         sample_with_committee
@@ -325,7 +323,7 @@ class IncrementalLearning(BaseLearning):
         for walker in walkers: # may not all contain bias
             if not hasattr(walker, 'bias'):
                 continue
-            if not self.cv_name in walker.bias.variables:
+            if self.cv_name not in walker.bias.variables:
                 continue
             assert 'MOVINGRESTRAINT' in walker.bias.keys
             _, kappas, centers = walker.bias.get_moving_restraint(self.cv_name)

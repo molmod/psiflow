@@ -1,12 +1,11 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List
+from typing import Union
 import typeguard
 import os
 from pathlib import Path
 
-import psiflow
 from psiflow.data import FlowAtoms
-from psiflow.utils import copy_app_future, resolve_and_check
+from psiflow.utils import resolve_and_check
 
 from .base import BaseWalker # import base and bias before walkers
 from .bias import PlumedBias

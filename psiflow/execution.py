@@ -1,13 +1,11 @@
 from __future__ import annotations # necessary for type-guarding class methods
 # see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
-from typing import Optional, Callable, Union, Any, ClassVar, Type
+from typing import Optional, Callable, Union, Type
 import typeguard
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
-from copy import deepcopy
 import argparse
 import logging
-import os
 import sys
 import importlib
 import atexit
@@ -17,7 +15,6 @@ import parsl
 from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
 from parsl.providers import LocalProvider
 from parsl.providers.base import ExecutionProvider
-from parsl.dataflow.memoization import id_for_memo
 from parsl.data_provider.files import File
 from parsl.config import Config
 

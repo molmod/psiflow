@@ -1,7 +1,6 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Callable, Type, Any, Union, NamedTuple
 import typeguard
-from dataclasses import dataclass
 from collections import namedtuple
 
 from ase import Atoms
@@ -13,7 +12,7 @@ from parsl.app.futures import DataFuture
 from parsl.executors import WorkQueueExecutor
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, NullState
+from psiflow.data import FlowAtoms, NullState
 from psiflow.walkers.base import BaseWalker
 from psiflow.models import BaseModel
 from psiflow.utils import unpack_i, get_active_executor
@@ -59,7 +58,7 @@ def optimize_geometry(
     if pars['optimize_cell']: # include cell DOFs in optimization 
         try: # some models do not have stress support; prevent full cell opt!
             stress = atoms.get_stress()
-        except Exception as e:
+        except Exception:
             raise ValueError('cell optimization requires stress support in model')
         dof = ExpCellFilter(atoms, mask=[True] * 6)
     else:

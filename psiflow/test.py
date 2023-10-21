@@ -1,7 +1,5 @@
 import sys
 import shutil
-import tempfile
-import numpy as np
 from pathlib import Path
 
 from parsl.app.app import python_app
