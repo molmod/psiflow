@@ -47,9 +47,9 @@ Python environment requires barely anything, and is straightforward to install
 using `micromamba` -- a blazingly fast drop-in replacement for `conda`:
 
 ```console
-$ micromamba create -n psiflow_env -c conda-forge -y python=3.9 ndcctools=7.6.1 
-$ micromamba activate psiflow_env
-$ pip install git+https://github.com/molmod/psiflow
+micromamba create -n psiflow_env -c conda-forge -y python=3.9 ndcctools=7.6.1 
+micromamba activate psiflow_env
+pip install git+https://github.com/molmod/psiflow
 ```
 That's it! Before running actual calculations, it is still necessary to set up Parsl
 to use the compute resources you have at your disposal -- whether it's a local GPU,
@@ -57,21 +57,23 @@ a SLURM cluster, or a cloud computing provider; check out the
 [Execution](execution.md) page for more details.
 
 !!! note "Containers 101"
+
     Apptainer -- now the most widely used container system for HPCs -- is part of the
     Linux Foundation and can be installed on Ubuntu using:
 
     ```console
-    $ sudo apt install apptainer
+    sudo apt install apptainer
     ```
 
     Psiflow's containers are hosted on the GitHub Container Registry (GHCR).
     To download and run commands in them, simply execute:
+
     ```console
     # show available pip packages
-    $ apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh pip list
+    apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh pip list
 
     # inspect cp2k version
-    $ apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh cp2k.pmsp --version
+    apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh cp2k.pmsp --version
     ```
 
     Internally, Apptainer will store the container in a local cache directory such that it does not have to
@@ -117,20 +119,20 @@ over software versions or compiler flags.
 While this is not really necessary in the vast majority of cases, we mention for completeness
 the following manual setup using `micromamba`:
 ```console
-$ CONDA_OVERRIDE_CUDA="11.8" micromamba create -p ./psiflow_env -y -c conda-forge \
+CONDA_OVERRIDE_CUDA="11.8" micromamba create -p ./psiflow_env -y -c conda-forge \
     python=3.9 pip ndcctools=7.6.1 \
     openmm-plumed openmm-torch pytorch=1.13.1=cuda* \
     nwchem py-plumed cp2k && \
     micromamba clean -af --yes
-$ pip install cython==0.29.36 matscipy prettytable && \
+pip install cython==0.29.36 matscipy prettytable && \
     pip install git+https://github.com/molmod/molmod && \
     pip install git+https://github.com/molmod/yaff && \
     pip install e3nn==0.4.4
-$ pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0' mdtraj tables
-$ pip install git+https://github.com/acesuit/MACE.git@55f7411 && \
+pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0' mdtraj tables
+pip install git+https://github.com/acesuit/MACE.git@55f7411 && \
     pip install git+https://github.com/mir-group/nequip.git@develop --no-deps && \
     pip install git+https://github.com/mir-group/allegro --no-deps && \
     pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
-$ pip install git+https://github.com/molmod/psiflow
+pip install git+https://github.com/molmod/psiflow
 ```
 This is mostly a copy-paste from psiflow's [Dockerfile](https://github.com/molmod/psiflow/blob/main/Dockerfile).

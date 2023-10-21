@@ -1,8 +1,6 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List, Tuple, ClassVar
+from typing import Union
 import typeguard
-from dataclasses import dataclass, field, asdict
-from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 import numpy as np
@@ -17,9 +15,8 @@ from ase.data import atomic_numbers
 
 import psiflow
 from psiflow.data import FlowAtoms, Dataset, read_dataset, app_write_dataset, \
-        get_length_dataset, NullState
-from psiflow.utils import copy_app_future, unpack_i, combine_futures, \
-        resolve_and_check
+        NullState
+from psiflow.utils import copy_app_future, resolve_and_check
 
 
 logger = logging.getLogger(__name__) # logging per module

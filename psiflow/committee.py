@@ -1,6 +1,6 @@
 from __future__ import annotations # necessary for type-guarding class methods
 import typeguard
-from typing import Optional, Union, Any
+from typing import Optional, Union
 from pathlib import Path
 import numpy as np
 import yaml
@@ -21,7 +21,7 @@ def _compute_disagreements(
         outputs: list[File] = [],
         ) -> np.ndarray:
     import numpy as np
-    from psiflow.data import read_dataset, write_dataset
+    from psiflow.data import read_dataset
     data = []
     assert len(inputs) > 0
     for inp in inputs:
@@ -67,7 +67,6 @@ def _extract_highest(
         inputs: list[File] = [],
         outputs: list[File] = [],
         ) -> None:
-    import numpy as np
     from psiflow.data import read_dataset, write_dataset
     from psiflow.committee import _filter_disagreements
     data = read_dataset(slice(None), inputs=[inputs[0]])

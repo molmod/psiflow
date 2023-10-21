@@ -35,8 +35,6 @@ from mace.tools import torch_geometric
 from mace.tools.scripts_utils import create_error_table, get_dataset_from_xyz, \
         LRScheduler
 
-import signal
-import time
 
 
 def main():

@@ -1,6 +1,5 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, List
-from dataclasses import dataclass
+from typing import Union, List
 import typeguard
 
 from ase import Atoms

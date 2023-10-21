@@ -1,13 +1,9 @@
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Any, Tuple, Dict
 import typeguard
-import pandas
-import os
 import sys
 import logging
-import tempfile
 import numpy as np
-import importlib
 from pathlib import Path
 
 from ase.data import atomic_numbers
@@ -388,7 +384,6 @@ def reduce_box_vectors(rvecs):
 
 @typeguard.typechecked
 def _check_distances(state: FlowAtoms, threshold: float):
-    import numpy
     from ase.geometry.geometry import find_mic
     if state == NullState:
         return NullState
@@ -411,7 +406,8 @@ check_distances = python_app(_check_distances, executors=['Default'])
 
 
 @typeguard.typechecked
-def apply_temperature_ramp(T_min, T_max, nsteps, current_temperature):
+def apply_temperature_ramp(T_min: float, T_max: float, nsteps: int,
+                           current_temperature: float) -> float:
     assert T_max > T_min
     if nsteps > 1:
         delta_beta = (1 / T_min - 1 / T_max) / (nsteps - 1)

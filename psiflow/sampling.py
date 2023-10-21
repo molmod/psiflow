@@ -3,7 +3,6 @@ from typing import Optional, Union, NamedTuple
 import typeguard
 import logging
 from typing import Optional, Union
-from collections import OrderedDict
 import numpy as np
 
 from parsl.dataflow.futures import AppFuture
@@ -108,7 +107,6 @@ def _compute_error(
         atoms1: FlowAtoms,
         ) -> tuple[Optional[float], Optional[float]]:
     import numpy as np
-    from psiflow.data import read_dataset
     from psiflow.utils import compute_error
     if not (atoms0 == NullState) and not (atoms1 == NullState):
         if atoms1.reference_status:

@@ -1,10 +1,8 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, Callable, Type, Any, NamedTuple
+from typing import Optional, Union, Type, Any, NamedTuple
 import typeguard
-from copy import deepcopy
 import numpy as np
 from pathlib import Path
-from dataclasses import dataclass, asdict
 from collections import namedtuple
 
 from ase import Atoms
@@ -17,10 +15,9 @@ from parsl.dataflow.futures import AppFuture
 from parsl.executors import WorkQueueExecutor
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, app_join_dataset, \
-        app_write_dataset, NullState
-from psiflow.utils import copy_data_future, unpack_i, get_active_executor, \
-        copy_app_future, pack
+from psiflow.data import Dataset, FlowAtoms, app_write_dataset
+from psiflow.utils import unpack_i, get_active_executor, \
+        copy_app_future
 from psiflow.walkers import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
 

@@ -2,20 +2,17 @@ from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union, List, Callable, Dict, Tuple
 import typeguard
 import logging
-import yaml
-import tempfile
 from copy import deepcopy
 from math import ceil
 from pathlib import Path
 
-import parsl
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.app.app import join_app
 
 import psiflow
-from psiflow.data import Dataset, app_join_dataset, NullState
+from psiflow.data import Dataset, app_join_dataset
 from psiflow.utils import copy_app_future, save_yaml, copy_data_future, \
         resolve_and_check
 

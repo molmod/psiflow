@@ -7,12 +7,11 @@ from pathlib import Path
 import yaff
 import molmod
 from ase.io import read, write
-from ase.io.extxyz import write_extxyz
 from ase.geometry.geometry import find_mic
 
-from psiflow.walkers.utils import ForcePartASE, DataHook, \
+from psiflow.walkers.utils import DataHook, \
         create_forcefield, ForceThresholdExceededException, ForcePartPlumed, \
-        ExtXYZHook, max_temperature_std
+        ExtXYZHook
 from psiflow.walkers.bias import try_manual_plumed_linking
 
 
@@ -124,7 +123,7 @@ def main():
             print('sampling NPT ensemble ...')
             try: # some models do not have stress support; prevent NPT!
                 stress = atoms.get_stress()
-            except Exception as e:
+            except Exception:
                 raise ValueError('NPT requires stress support in model')
             baro = yaff.LangevinBarostat(
                     forcefield,

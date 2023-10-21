@@ -2,7 +2,6 @@ from sys import stdout
 from pathlib import Path
 import numpy as np
 import argparse
-import shutil
 import torch
 
 import mdtraj
@@ -11,14 +10,12 @@ import openmm.app as app
 import openmm.unit as unit
 from openmmml import MLPotential
 
-from ase import Atoms
 from ase.io import read, write
 from ase.data import chemical_symbols
 from ase.units import nm, fs
 from ase.geometry.geometry import find_mic
 
-from psiflow.walkers.utils import max_temperature_std, \
-        get_velocities_at_temperature
+from psiflow.walkers.utils import get_velocities_at_temperature
 
 def main():
     parser = argparse.ArgumentParser()

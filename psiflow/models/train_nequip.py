@@ -25,7 +25,6 @@ import yaml
 # Since numpy gets imported later anyway for dataset stuff, this shouldn't affect performance.
 import numpy as np  # noqa: F401
 
-from os.path import isdir
 from pathlib import Path
 from ase.io import read, write
 
@@ -34,11 +33,8 @@ import torch
 from nequip.model import model_from_config
 from nequip.utils import Config
 from nequip.data import dataset_from_config
-from nequip.utils import load_file
-from nequip.utils.test import assert_AtomicData_equivariant
 from nequip.utils.versions import check_code_version
 from nequip.utils._global_options import _set_global_options
-from nequip.scripts._logger import set_up_script_logger
 
 default_config = dict(
     root="./",
@@ -82,7 +78,6 @@ default_config = dict(
 
 def init_n_update(config):
     import wandb
-    import logging
     from wandb.util import json_friendly_val
     conf_dict = dict(config)
     # wandb mangles keys (in terms of type) as well, but we can't easily correct that because there are many ambiguous edge cases. (E.g. string "-1" vs int -1 as keys, are they different config keys?)
@@ -145,7 +140,7 @@ def main():
 
     # put chemical symbols in config
     from ase.data import chemical_symbols
-    from ase.io.extxyz import read_extxyz, write_extxyz
+    from ase.io.extxyz import read_extxyz
     with open(config['dataset_file_name'], 'r') as f:
         data = list(read_extxyz(f, index=slice(None)))
         ntrain = len(data)

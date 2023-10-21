@@ -2,9 +2,7 @@ from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union
 import typeguard
 import copy
-from dataclasses import dataclass, field
 from pathlib import Path
-import tempfile
 import shutil
 import logging
 
@@ -79,7 +77,7 @@ def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
     from ase.data import chemical_symbols
     from pymatgen.io.cp2k.inputs import Cp2kInput
     inp = Cp2kInput.from_str(cp2k_input)
-    if not 'SUBSYS' in inp['FORCE_EVAL'].subsections.keys():
+    if 'SUBSYS' not in inp['FORCE_EVAL'].subsections.keys():
         raise ValueError('No subsystem present in cp2k input: {}'.format(cp2k_input))
     try:
         del inp['FORCE_EVAL']['SUBSYS']['TOPOLOGY'] # remove just to be safety
@@ -143,7 +141,7 @@ def regularize_input(cp2k_input: str) -> str:
     inp.update({'FORCE_EVAL': {'SUBSYS': {'COORD': {}}}})
     inp.update({'FORCE_EVAL': {'PRINT': {'FORCES': {}}}})
     inp.update({'FORCE_EVAL': {'PRINT': {'STRESS_TENSOR': {}}}})
-    if not 'STRESS_TENSOR' in inp['FORCE_EVAL'].subsections.keys():
+    if 'STRESS_TENSOR' not in inp['FORCE_EVAL'].subsections.keys():
         logger.warning('adding stress tensor calculation to cp2k input')
         inp.update({'FORCE_EVAL': {'STRESS_TENSOR': 'ANALYTICAL'}})
     return str(inp)
@@ -174,8 +172,6 @@ def cp2k_singlepoint_pre(
         parsl_resource_specification: Optional[dict] = None,
         ):
     import tempfile
-    from pathlib import Path
-    import numpy as np
     from psiflow.reference._cp2k import insert_filepaths_in_input, \
             insert_atoms_in_input, set_global_section
     filepaths = {} # cp2k cannot deal with long filenames; copy into local dir

@@ -1,7 +1,6 @@
 from __future__ import annotations # necessary for type-guarding class methods
-from typing import Optional, Union, Any, NamedTuple
+from typing import Union, Any
 import typeguard
-from dataclasses import dataclass
 from collections import namedtuple
 
 from ase import Atoms
@@ -10,8 +9,7 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import FlowAtoms
-from psiflow.walkers import BaseWalker, PlumedBias
-from psiflow.models import BaseModel
+from psiflow.walkers import BaseWalker
 from psiflow.utils import unpack_i
 
 
