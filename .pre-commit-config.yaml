@@ -8,9 +8,10 @@ repos:
         # supported by your project here, or alternatively use
         # pre-commit's default_language_version, see
         # https://pre-commit.com/#top_level-default_language_version
-        language_version: python3.11
+        language_version: python3.9
   - repo: https://github.com/PyCQA/flake8
     rev: 6.1.0
     hooks:
-    - id: flake8
-      language_version: python3.11
+      - id: flake8
+        entry: pflake8
+        additional_dependencies: [pyproject-flake8]
