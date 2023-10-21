@@ -1,20 +1,17 @@
-import requests
-import pytest
-import yaml
-import numpy as np
 import tempfile
 
+import numpy as np
+import pytest
+import requests
+import yaml
 from ase.build import bulk, make_supercell
 
 from psiflow.data import Dataset, NullState
 from psiflow.models import NequIPModel
-from psiflow.walkers import RandomWalker, PlumedBias
-from psiflow.walkers.bias import (
-    set_path_in_plumed,
-    parse_plumed_input,
-    generate_external_grid,
-    remove_comments_printflush,
-)
+from psiflow.walkers import PlumedBias, RandomWalker
+from psiflow.walkers.bias import (generate_external_grid, parse_plumed_input,
+                                  remove_comments_printflush,
+                                  set_path_in_plumed)
 
 
 def test_get_filename_hills(tmp_path):

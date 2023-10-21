@@ -16,25 +16,22 @@ NequIP train script -- copied from nequip@v0.5.6 with the following changes:
 """
 
 
-import logging
 import argparse
+import logging
 import warnings
-import yaml
+from pathlib import Path
 
 # This is a weird hack to avoid Intel MKL issues on the cluster when this is called as a subprocess of a process that has itself initialized PyTorch.
 # Since numpy gets imported later anyway for dataset stuff, this shouldn't affect performance.
 import numpy as np  # noqa: F401
-
-from pathlib import Path
-from ase.io import read, write
-
 import torch
-
+import yaml
+from ase.io import read, write
+from nequip.data import dataset_from_config
 from nequip.model import model_from_config
 from nequip.utils import Config
-from nequip.data import dataset_from_config
-from nequip.utils.versions import check_code_version
 from nequip.utils._global_options import _set_global_options
+from nequip.utils.versions import check_code_version
 
 default_config = dict(
     root="./",

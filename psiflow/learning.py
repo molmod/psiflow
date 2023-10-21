@@ -1,30 +1,27 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union
-import typeguard
-from dataclasses import dataclass, asdict, field
-from typing import Optional
-from pathlib import Path
-import numpy as np
-import yaml
+
 import logging
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Optional, Union
 
+import numpy as np
+import typeguard
+import yaml
 from ase.data import chemical_symbols
-
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.utils import save_yaml
-from psiflow.data import Dataset
-from psiflow.models import BaseModel
 from psiflow.committee import Committee
-from psiflow.reference import BaseReference
-from psiflow.walkers import BaseWalker, RandomWalker, BiasedDynamicWalker
-from psiflow.state import save_state
+from psiflow.data import Dataset
 from psiflow.metrics import Metrics
-from psiflow.sampling import sample_with_model, sample_with_committee
-from psiflow.utils import resolve_and_check, apply_temperature_ramp
-
+from psiflow.models import BaseModel
+from psiflow.reference import BaseReference
+from psiflow.sampling import sample_with_committee, sample_with_model
+from psiflow.state import save_state
+from psiflow.utils import apply_temperature_ramp, resolve_and_check, save_yaml
+from psiflow.walkers import BaseWalker, BiasedDynamicWalker, RandomWalker
 
 logger = logging.getLogger(__name__)  # logging per module
 

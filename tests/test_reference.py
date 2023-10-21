@@ -1,23 +1,22 @@
-import requests
-import pytest
 import os
+from pathlib import Path
+
 import molmod
 import numpy as np
-from pathlib import Path
-from parsl.dataflow.futures import AppFuture
-from parsl.app.futures import DataFuture
-
-from pymatgen.io.cp2k.inputs import Cp2kInput
-
+import pytest
+import requests
 from ase import Atoms
 from ase.io.extxyz import write_extxyz
 from ase.units import Pascal
+from parsl.app.futures import DataFuture
+from parsl.dataflow.futures import AppFuture
+from pymatgen.io.cp2k.inputs import Cp2kInput
 
 import psiflow
-from psiflow.data import FlowAtoms, NullState
-from psiflow.reference import EMTReference, CP2KReference, NWChemReference
-from psiflow.reference._cp2k import insert_filepaths_in_input, insert_atoms_in_input
-from psiflow.data import Dataset
+from psiflow.data import Dataset, FlowAtoms, NullState
+from psiflow.reference import CP2KReference, EMTReference, NWChemReference
+from psiflow.reference._cp2k import (insert_atoms_in_input,
+                                     insert_filepaths_in_input)
 
 
 @pytest.fixture

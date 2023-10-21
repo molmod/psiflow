@@ -1,14 +1,9 @@
-from parsl.providers import LocalProvider
-from parsl.executors import ThreadPoolExecutor
 from parsl.config import Config
+from parsl.executors import ThreadPoolExecutor
+from parsl.providers import LocalProvider
 
-from psiflow.execution import (
-    Default,
-    ModelTraining,
-    ModelEvaluation,
-    ReferenceEvaluation,
-)
-
+from psiflow.execution import (Default, ModelEvaluation, ModelTraining,
+                               ReferenceEvaluation)
 
 default = Default(
     parsl_provider=LocalProvider(),  # unused

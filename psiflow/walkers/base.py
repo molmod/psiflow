@@ -1,19 +1,19 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union, Any, NamedTuple
-import typeguard
+
 from pathlib import Path
+from typing import Any, NamedTuple, Optional, Union
 
+import typeguard
 from ase import Atoms
-
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
+from psiflow.data import Dataset, FlowAtoms, app_reset_atoms, write_atoms
 from psiflow.models import BaseModel
-from psiflow.utils import copy_app_future, unpack_i, save_yaml, sum_integers
-from psiflow.data import write_atoms, FlowAtoms, Dataset, app_reset_atoms
+from psiflow.utils import copy_app_future, save_yaml, sum_integers, unpack_i
 
 
 @typeguard.typechecked

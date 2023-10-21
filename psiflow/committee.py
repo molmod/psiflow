@@ -1,15 +1,16 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-import typeguard
-from typing import Optional, Union
-from pathlib import Path
-import numpy as np
-import yaml
 
+from pathlib import Path
+from typing import Optional, Union
+
+import numpy as np
+import typeguard
+import yaml
+from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from parsl.app.app import python_app
 from psiflow.data import Dataset, NullState
 from psiflow.models import BaseModel, load_model
 
@@ -21,6 +22,7 @@ def _compute_disagreements(
     outputs: list[File] = [],
 ) -> np.ndarray:
     import numpy as np
+
     from psiflow.data import read_dataset
 
     data = []
@@ -72,8 +74,8 @@ def _extract_highest(
     inputs: list[File] = [],
     outputs: list[File] = [],
 ) -> None:
-    from psiflow.data import read_dataset, write_dataset
     from psiflow.committee import _filter_disagreements
+    from psiflow.data import read_dataset, write_dataset
 
     data = read_dataset(slice(None), inputs=[inputs[0]])
     assert len(data) == len(disagreements)

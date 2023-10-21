@@ -4,11 +4,11 @@ from ase.io import read
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.reference import NWChemReference
-from psiflow.walkers import PlumedBias, BiasedDynamicWalker, DynamicWalker
-from psiflow.models import NequIPModel, NequIPConfig
-from psiflow.metrics import Metrics
 from psiflow.learning import SequentialLearning
+from psiflow.metrics import Metrics
+from psiflow.models import NequIPConfig, NequIPModel
+from psiflow.reference import NWChemReference
+from psiflow.walkers import BiasedDynamicWalker, DynamicWalker, PlumedBias
 
 
 def get_reference():

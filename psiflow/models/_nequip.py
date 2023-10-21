@@ -1,9 +1,11 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union, List
-import typeguard
+
 import logging
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from dataclasses import dataclass, field, asdict
+from typing import List, Optional, Union
+
+import typeguard
 
 try:
     from ase.calculators.calculator import BaseCalculator
@@ -11,15 +13,14 @@ except ImportError:  # 3.22.1 and below still use Calculator
     from ase.calculators.calculator import Calculator as BaseCalculator
 
 import parsl
-from parsl.executors import WorkQueueExecutor
-from parsl.app.app import python_app, bash_app
+from parsl.app.app import bash_app, python_app
 from parsl.data_provider.files import File
+from parsl.executors import WorkQueueExecutor
 
 import psiflow
-from psiflow.models.base import evaluate_dataset
 from psiflow.models import BaseModel
+from psiflow.models.base import evaluate_dataset
 from psiflow.utils import get_active_executor, read_yaml
-
 
 logger = logging.getLogger(__name__)  # logging per module
 

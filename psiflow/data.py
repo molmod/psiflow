@@ -12,30 +12,25 @@ the output and error logs of QM evaluation calculations.
 """
 
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union, List
-import typeguard
-import os
+
 import logging
-import numpy as np
+import os
 from pathlib import Path
+from typing import List, Optional, Union
 
-from ase.data import chemical_symbols
+import numpy as np
+import typeguard
 from ase import Atoms
-
+from ase.data import chemical_symbols
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.utils import (
-    copy_data_future,
-    resolve_and_check,
-    transform_lower_triangular,
-    reduce_box_vectors,
-    get_train_valid_indices,
-)
-
+from psiflow.utils import (copy_data_future, get_train_valid_indices,
+                           reduce_box_vectors, resolve_and_check,
+                           transform_lower_triangular)
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -154,8 +149,9 @@ def _canonical_orientation(
     inputs: list[File] = [],
     outputs: list[File] = [],
 ) -> None:
-    from psiflow.data import read_dataset
     from ase.io.extxyz import write_extxyz
+
+    from psiflow.data import read_dataset
 
     data = read_dataset(slice(None), inputs=[inputs[0]])
     for atoms in data:
@@ -224,6 +220,7 @@ def read_dataset(
     outputs: List[File] = [],
 ) -> Union[FlowAtoms, List[FlowAtoms]]:
     from ase.io.extxyz import read_extxyz, write_extxyz
+
     from psiflow.data import FlowAtoms
 
     with open(inputs[0], "r") as f:
@@ -252,8 +249,9 @@ def reset_dataset(
     inputs: List[File] = [],
     outputs: List[File] = [],
 ) -> None:
-    from psiflow.data import read_dataset
     from ase.io.extxyz import write_extxyz
+
+    from psiflow.data import read_dataset
 
     data = read_dataset(slice(None), inputs=[inputs[0]])
     for atoms in data:
@@ -290,7 +288,7 @@ def _get_indices(
     flag: str,
     inputs: List[File] = [],
 ) -> List[int]:
-    from psiflow.data import read_dataset, NullState
+    from psiflow.data import NullState, read_dataset
 
     data = read_dataset(slice(None), inputs=[inputs[0]])
     indices = []
@@ -318,10 +316,12 @@ def compute_errors(
     properties: List[str],
     inputs: List[File] = [],
 ) -> np.ndarray:
-    import numpy as np
     from copy import deepcopy
+
+    import numpy as np
+
     from psiflow.data import read_dataset
-    from psiflow.utils import get_index_element_mask, compute_error
+    from psiflow.utils import compute_error, get_index_element_mask
 
     data_0 = read_dataset(slice(None), inputs=[inputs[0]])
     if len(inputs) == 1:
@@ -377,6 +377,7 @@ def apply_offset(
 ) -> None:
     import numpy as np
     from ase.data import atomic_numbers, chemical_symbols
+
     from psiflow.data import NullState, write_dataset
 
     assert len(inputs) == 1

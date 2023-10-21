@@ -1,19 +1,20 @@
-import requests
 import logging
 from pathlib import Path
-import numpy as np
 
+import numpy as np
+import requests
 from ase.build import bulk, make_supercell
 
 import psiflow
-from psiflow.learning import SequentialLearning, load_learning, CommitteeLearning
-from psiflow.models import MACEModel, MACEConfig
-from psiflow.reference import EMTReference
-from psiflow.data import FlowAtoms, Dataset
-from psiflow.walkers import DynamicWalker, PlumedBias
-from psiflow.state import load_state
-from psiflow.metrics import Metrics
 from psiflow.committee import Committee
+from psiflow.data import Dataset, FlowAtoms
+from psiflow.learning import (CommitteeLearning, SequentialLearning,
+                              load_learning)
+from psiflow.metrics import Metrics
+from psiflow.models import MACEConfig, MACEModel
+from psiflow.reference import EMTReference
+from psiflow.state import load_state
+from psiflow.walkers import DynamicWalker, PlumedBias
 
 
 def main(path_output):

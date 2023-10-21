@@ -1,5 +1,5 @@
-import sys
 import shutil
+import sys
 from pathlib import Path
 
 from parsl.app.app import python_app
@@ -48,6 +48,7 @@ def check_models():
     report += "\twandb:\t\t"
     try:
         import os
+
         import wandb
 
         report += wandb.__version__
@@ -102,6 +103,7 @@ def check_walkers():
     report += "\tplumed:\t"
     try:
         import plumed
+
         from psiflow.walkers.bias import try_manual_plumed_linking
 
         report += "libplumedKernel.so at {}".format(try_manual_plumed_linking())

@@ -1,17 +1,16 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Union, Any
-import typeguard
+
 from collections import namedtuple
+from typing import Any, Union
 
+import typeguard
 from ase import Atoms
-
 from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import FlowAtoms
-from psiflow.walkers import BaseWalker
 from psiflow.utils import unpack_i
-
+from psiflow.walkers import BaseWalker
 
 Metadata = namedtuple("Metadata", ["state", "counter", "reset"])
 
@@ -21,8 +20,10 @@ def random_perturbation(
     state: FlowAtoms,
     parameters: dict[str, Any],
 ) -> tuple[FlowAtoms, int, bool]:
-    import numpy as np
     import copy
+
+    import numpy as np
+
     from psiflow.walkers.utils import apply_strain
 
     state = copy.deepcopy(state)

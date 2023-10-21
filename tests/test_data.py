@@ -1,14 +1,14 @@
 import os
-import pytest
-import numpy as np
-from parsl.app.futures import DataFuture
 
+import numpy as np
+import pytest
 from ase import Atoms
 from ase.io import read, write
 from ase.io.extxyz import write_extxyz
+from parsl.app.futures import DataFuture
 
 import psiflow
-from psiflow.data import FlowAtoms, Dataset, NullState
+from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.utils import get_index_element_mask, is_reduced
 
 

@@ -1,26 +1,20 @@
-import pytest
+import tempfile
+from dataclasses import asdict
+from pathlib import Path
+
+import numpy as np
 import parsl
+import pytest
 import requests
 import yaml
-import numpy as np
-import tempfile
-from pathlib import Path
-from dataclasses import asdict
-
 from ase import Atoms
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.models import (
-    NequIPModel,
-    NequIPConfig,
-    MACEModel,
-    MACEConfig,
-    AllegroModel,
-    AllegroConfig,
-)
+from psiflow.models import (AllegroConfig, AllegroModel, MACEConfig, MACEModel,
+                            NequIPConfig, NequIPModel)
 from psiflow.reference import EMTReference
 
 

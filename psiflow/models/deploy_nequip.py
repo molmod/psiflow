@@ -1,23 +1,20 @@
-from typing import Final, Optional
 import argparse
 import logging
-import yaml
-import packaging.version
+from typing import Final, Optional
 
 # This is a weird hack to avoid Intel MKL issues on the cluster when this is called as a subprocess of a process that has itself initialized PyTorch.
 # Since numpy gets imported later anyway for dataset stuff, this shouldn't affect performance.
 import numpy as np  # noqa: F401
-
+import packaging.version
 import torch
-
+import yaml
 from e3nn.util.jit import script
-
 from nequip.model import model_from_config
-from nequip.utils import Config
-from nequip.utils.versions import check_code_version, get_current_code_versions
 from nequip.scripts.train import default_config
-from nequip.utils.misc import dtype_to_name
+from nequip.utils import Config
 from nequip.utils._global_options import _set_global_options
+from nequip.utils.misc import dtype_to_name
+from nequip.utils.versions import check_code_version, get_current_code_versions
 
 CONFIG_KEY: Final[str] = "config"
 NEQUIP_VERSION_KEY: Final[str] = "nequip_version"

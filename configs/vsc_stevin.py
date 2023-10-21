@@ -1,14 +1,8 @@
 from parsl.providers import SlurmProvider
 
-from psiflow.execution import (
-    Default,
-    ModelTraining,
-    ModelEvaluation,
-    ReferenceEvaluation,
-    generate_parsl_config,
-)
+from psiflow.execution import (Default, ModelEvaluation, ModelTraining,
+                               ReferenceEvaluation, generate_parsl_config)
 from psiflow.parsl_utils import ContainerizedLauncher
-
 
 launcher_cpu = ContainerizedLauncher(
     "oras://ghcr.io/molmod/psiflow:2.0.0-cuda",

@@ -1,19 +1,18 @@
-from sys import stdout
-from pathlib import Path
-import numpy as np
 import argparse
-import torch
+from pathlib import Path
+from sys import stdout
 
 import mdtraj
+import numpy as np
 import openmm
 import openmm.app as app
 import openmm.unit as unit
-from openmmml import MLPotential
-
-from ase.io import read, write
+import torch
 from ase.data import chemical_symbols
-from ase.units import nm, fs
 from ase.geometry.geometry import find_mic
+from ase.io import read, write
+from ase.units import fs, nm
+from openmmml import MLPotential
 
 from psiflow.walkers.utils import get_velocities_at_temperature
 
@@ -144,6 +143,7 @@ def main():
 
     if Path("plumed.dat").is_file():
         from openmmplumed import PlumedForce
+
         from psiflow.walkers.bias import try_manual_plumed_linking
 
         try_manual_plumed_linking()

@@ -1,13 +1,15 @@
 import shutil
+
 import pytest
 
 import psiflow
-from psiflow.reference import EMTReference
-from psiflow.walkers import RandomWalker, PlumedBias, BiasedDynamicWalker
-from psiflow.models import MACEModel
-from psiflow.learning import SequentialLearning, load_learning, IncrementalLearning
+from psiflow.learning import (IncrementalLearning, SequentialLearning,
+                              load_learning)
 from psiflow.metrics import Metrics
+from psiflow.models import MACEModel
+from psiflow.reference import EMTReference
 from psiflow.utils import apply_temperature_ramp
+from psiflow.walkers import BiasedDynamicWalker, PlumedBias, RandomWalker
 
 
 def test_learning_save_load(context, tmp_path):

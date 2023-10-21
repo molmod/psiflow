@@ -1,9 +1,9 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Union, List
+
+from typing import List, Union
+
 import typeguard
-
 from ase import Atoms
-
 from parsl.app.app import python_app
 
 import psiflow

@@ -1,20 +1,19 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional
-import logging
-import copy
 
-from ase.data import atomic_numbers
+import copy
+import logging
+from typing import Optional
 
 import parsl
-from parsl.app.app import python_app, bash_app, join_app
-from parsl.executors import WorkQueueExecutor
+from ase.data import atomic_numbers
+from parsl.app.app import bash_app, join_app, python_app
 from parsl.data_provider.files import File
+from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import NullState
 from psiflow.reference import BaseReference
-from psiflow.utils import get_active_executor, copy_app_future
-
+from psiflow.utils import copy_app_future, get_active_executor
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -27,17 +26,10 @@ def write_nwchem_in(path_input, atoms, properties=None, echo=False, **params):
     """
     import os
     from copy import deepcopy
-    from ase.io.nwchem.nwwriter import (
-        _get_kpts,
-        _get_theory,
-        _xc_conv,
-        _update_mult,
-        _get_geom,
-        _get_basis,
-        _get_other,
-        _get_set,
-        _get_bandpath,
-    )
+
+    from ase.io.nwchem.nwwriter import (_get_bandpath, _get_basis, _get_geom,
+                                        _get_kpts, _get_other, _get_set,
+                                        _get_theory, _update_mult, _xc_conv)
 
     params = deepcopy(params)
     if properties is None:
@@ -111,6 +103,7 @@ def nwchem_singlepoint_pre(
     parsl_resource_specification: Optional[dict] = None,
 ):
     import tempfile
+
     from psiflow.reference._nwchem import write_nwchem_in
 
     tmp = tempfile.NamedTemporaryFile(delete=False, mode="w+")
