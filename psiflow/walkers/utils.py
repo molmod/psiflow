@@ -1,11 +1,10 @@
 import molmod
-import yaff
 import numpy as np
-from scipy.stats import chi2
-
-from ase.geometry import Cell
+import yaff
 from ase import Atoms
+from ase.geometry import Cell
 from ase.io import write
+from scipy.stats import chi2
 
 
 class ForcePartPlumed(yaff.external.ForcePartPlumed):

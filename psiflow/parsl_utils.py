@@ -1,13 +1,12 @@
-import typeguard
-from typing import Optional
-import os
 import logging
-from pathlib import Path
+import os
 from importlib import metadata  # necessary on python 3.9
+from pathlib import Path
+from typing import Optional
 
+import typeguard
 from parsl.executors import WorkQueueExecutor
 from parsl.launchers.launchers import Launcher
-
 
 logger = logging.getLogger(__name__)
 

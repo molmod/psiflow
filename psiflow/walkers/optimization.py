@@ -1,22 +1,21 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Callable, Type, Any, Union, NamedTuple
-import typeguard
+
 from collections import namedtuple
+from typing import Any, Callable, NamedTuple, Optional, Type, Union
 
+import typeguard
 from ase import Atoms
-
 from parsl.app.app import python_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-from parsl.app.futures import DataFuture
 from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import FlowAtoms, NullState
-from psiflow.walkers.base import BaseWalker
 from psiflow.models import BaseModel
-from psiflow.utils import unpack_i, get_active_executor
-
+from psiflow.utils import get_active_executor, unpack_i
+from psiflow.walkers.base import BaseWalker
 
 Metadata = namedtuple("Metadata", ["state", "counter", "reset", "time"])
 
@@ -37,14 +36,16 @@ def optimize_geometry(
 ) -> tuple[FlowAtoms, int, bool, float]:
     import os
     import tempfile
-    import torch
-    import numpy as np
     import time
-    from parsl.app.errors import AppTimeout
-    from ase.optimize.precon import Exp, PreconLBFGS
+
+    import numpy as np
+    import torch
     from ase.constraints import ExpCellFilter
     from ase.io import read
     from ase.io.extxyz import write_extxyz
+    from ase.optimize.precon import Exp, PreconLBFGS
+    from parsl.app.errors import AppTimeout
+
     from psiflow.data import FlowAtoms
 
     if device == "cpu":

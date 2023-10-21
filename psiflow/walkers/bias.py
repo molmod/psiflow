@@ -1,23 +1,22 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union, Callable
-import typeguard
-import os
+
 import logging
-import numpy as np
-from pathlib import Path
+import os
 from collections import OrderedDict
+from pathlib import Path
+from typing import Callable, Optional, Union
 
+import numpy as np
+import typeguard
 from ase import Atoms
-
-from parsl.app.app import python_app, join_app
+from parsl.app.app import join_app, python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
+from psiflow.data import Dataset, FlowAtoms, read_dataset, write_dataset
 from psiflow.utils import copy_data_future, save_txt
-from psiflow.data import read_dataset, write_dataset, Dataset, FlowAtoms
-
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -132,16 +131,18 @@ def evaluate_bias(
     variables: tuple[str, ...],
     inputs: list[File] = [],
 ) -> np.ndarray:
-    import tempfile
     import os
+    import tempfile
+
     import numpy as np
     import yaff
 
     yaff.log.set_level(yaff.log.silent)
     import molmod
-    from psiflow.walkers.utils import ForcePartPlumed
-    from psiflow.walkers.bias import try_manual_plumed_linking
+
     from psiflow.data import read_dataset
+    from psiflow.walkers.bias import try_manual_plumed_linking
+    from psiflow.walkers.utils import ForcePartPlumed
 
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     values = np.zeros((len(dataset), len(variables) + 1))  # column 0 for CV, 1 for bias
@@ -226,7 +227,7 @@ def partitioned_evaluate_bias(
     inputs: list[File] = [],
 ) -> AppFuture:
     import psiflow
-    from psiflow.data import write_dataset, read_dataset, NullState
+    from psiflow.data import NullState, read_dataset, write_dataset
 
     dataset = read_dataset(slice(None), inputs=[data_future])
 

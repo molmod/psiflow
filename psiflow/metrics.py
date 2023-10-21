@@ -1,19 +1,19 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union, NamedTuple
-import os
+
 import logging
+import os
+from pathlib import Path
+from typing import NamedTuple, Optional, Union
+
+import numpy as np
 import typeguard
 import wandb
-from pathlib import Path
-import numpy as np
-
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.models import BaseModel
-
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -140,6 +140,7 @@ gather_walker_logs = python_app(_gather_walker_logs, executors=["Default"])
 def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
     import numpy as np
     from ase.data import chemical_symbols
+
     from psiflow.data import read_dataset
     from psiflow.utils import compute_error, get_index_element_mask
 
@@ -249,8 +250,9 @@ def _to_wandb(
 ):
     import os
     import tempfile
-    import wandb
+
     import plotly.express as px
+    import wandb
 
     figures = {}
     if walker_logs is not None:

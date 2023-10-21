@@ -1,24 +1,28 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Union
-import typeguard
+
 import os
 from pathlib import Path
+from typing import Union
+
+import typeguard
 
 from psiflow.data import FlowAtoms
 from psiflow.utils import resolve_and_check
 
 from .base import BaseWalker  # import base and bias before walkers
 from .bias import PlumedBias
-from .random import RandomWalker
-from .dynamic import DynamicWalker, BiasedDynamicWalker
+from .dynamic import BiasedDynamicWalker, DynamicWalker
 from .optimization import OptimizationWalker
+from .random import RandomWalker
 
 
 @typeguard.typechecked
 def load_walker(path: Union[Path, str]) -> BaseWalker:
     from pathlib import Path
-    from ase.io import read
+
     import yaml
+    from ase.io import read
+
     from psiflow.utils import copy_app_future
 
     path = resolve_and_check(Path(path))

@@ -1,29 +1,29 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-# see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
-from typing import Optional, Callable, Union, Type
-import typeguard
+import argparse
+import atexit
+import importlib
+import logging
+import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-import argparse
-import logging
-import sys
-import importlib
-import atexit
-import shutil
+
+# see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
+from typing import Callable, Optional, Type, Union
 
 import parsl
+import typeguard
+from parsl.config import Config
+from parsl.data_provider.files import File
 from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
 from parsl.providers import LocalProvider
 from parsl.providers.base import ExecutionProvider
-from parsl.data_provider.files import File
-from parsl.config import Config
 
-from psiflow.utils import set_logger
+from psiflow.models import BaseModel
 from psiflow.parsl_utils import MyWorkQueueExecutor
 from psiflow.reference import BaseReference
-from psiflow.models import BaseModel
-
+from psiflow.utils import set_logger
 
 logger = logging.getLogger(__name__)  # logging per module
 

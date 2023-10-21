@@ -1,23 +1,23 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union
-import typeguard
-import copy
-from pathlib import Path
-import shutil
-import logging
 
-from ase.data import atomic_numbers
+import copy
+import logging
+import shutil
+from pathlib import Path
+from typing import Optional, Union
 
 import parsl
-from parsl.executors import WorkQueueExecutor
-from parsl.app.app import python_app, bash_app, join_app
+import typeguard
+from ase.data import atomic_numbers
+from parsl.app.app import bash_app, join_app, python_app
 from parsl.data_provider.files import File
+from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import FlowAtoms, NullState
-from psiflow.utils import get_active_executor, copy_app_future
-from .base import BaseReference
+from psiflow.utils import copy_app_future, get_active_executor
 
+from .base import BaseReference
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -186,9 +186,10 @@ def cp2k_singlepoint_pre(
     parsl_resource_specification: Optional[dict] = None,
 ):
     import tempfile
+
     from psiflow.reference._cp2k import (
-        insert_filepaths_in_input,
         insert_atoms_in_input,
+        insert_filepaths_in_input,
         set_global_section,
     )
 
@@ -232,7 +233,7 @@ def cp2k_singlepoint_post(
     inputs: list[File] = [],
 ) -> FlowAtoms:
     import numpy as np
-    from ase.units import Hartree, Bohr, Pascal
+    from ase.units import Bohr, Hartree, Pascal
     from pymatgen.io.cp2k.outputs import Cp2kOutput
 
     atoms.reference_stdout = inputs[0]

@@ -1,13 +1,13 @@
-from typing import Optional, Union
-import typeguard
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Optional, Union
 
-from psiflow.models import BaseModel, load_model
+import typeguard
+
 from psiflow.data import Dataset
-from psiflow.walkers import BaseWalker, save_walkers, load_walkers
+from psiflow.models import BaseModel, load_model
 from psiflow.utils import resolve_and_check
-
+from psiflow.walkers import BaseWalker, load_walkers, save_walkers
 
 logger = logging.getLogger(__name__)  # logging per module
 

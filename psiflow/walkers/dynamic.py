@@ -1,14 +1,14 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union, Type, Any, NamedTuple
-import typeguard
-import numpy as np
-from pathlib import Path
+
 from collections import namedtuple
+from pathlib import Path
+from typing import Any, NamedTuple, Optional, Type, Union
 
-from ase import Atoms
-
+import numpy as np
 import parsl
-from parsl.app.app import python_app, bash_app
+import typeguard
+from ase import Atoms
+from parsl.app.app import bash_app, python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
@@ -16,10 +16,9 @@ from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, app_write_dataset
-from psiflow.utils import unpack_i, get_active_executor, copy_app_future
-from psiflow.walkers import BaseWalker, PlumedBias
 from psiflow.models import BaseModel
-
+from psiflow.utils import copy_app_future, get_active_executor, unpack_i
+from psiflow.walkers import BaseWalker, PlumedBias
 
 Metadata = namedtuple(
     "Metadata", ["state", "counter", "reset", "temperature", "time", "stdout"]
@@ -93,6 +92,7 @@ def molecular_dynamics_yaff_post(
     outputs: list[File] = [],
 ):
     from ase.io import read
+
     from psiflow.data import FlowAtoms, NullState
     from psiflow.walkers.utils import parse_yaff_output
 
@@ -177,6 +177,7 @@ def molecular_dynamics_openmm_post(
     outputs: list[File] = [],
 ):
     from ase.io import read
+
     from psiflow.data import FlowAtoms, NullState
     from psiflow.walkers.utils import parse_openmm_output
 

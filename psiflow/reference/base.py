@@ -1,22 +1,21 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Union
-import typeguard
+
+import logging
 from copy import deepcopy
 from pathlib import Path
+from typing import Union
+
 import numpy as np
-import logging
-
-from parsl.dataflow.futures import AppFuture
-from parsl.app.app import join_app, python_app, join_app
-from parsl.data_provider.files import File
-
+import typeguard
 from ase import Atoms
 from ase.data import atomic_numbers
+from parsl.app.app import join_app, python_app
+from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import FlowAtoms, Dataset, read_dataset, app_write_dataset, NullState
+from psiflow.data import Dataset, FlowAtoms, NullState, app_write_dataset, read_dataset
 from psiflow.utils import copy_app_future, resolve_and_check
-
 
 logger = logging.getLogger(__name__)  # logging per module
 

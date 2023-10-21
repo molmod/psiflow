@@ -1,22 +1,22 @@
-import torch
 import argparse
 import os
-import numpy as np
 from pathlib import Path
 
-import yaff
 import molmod
-from ase.io import read, write
+import numpy as np
+import torch
+import yaff
 from ase.geometry.geometry import find_mic
+from ase.io import read, write
 
+from psiflow.walkers.bias import try_manual_plumed_linking
 from psiflow.walkers.utils import (
     DataHook,
-    create_forcefield,
-    ForceThresholdExceededException,
-    ForcePartPlumed,
     ExtXYZHook,
+    ForcePartPlumed,
+    ForceThresholdExceededException,
+    create_forcefield,
 )
-from psiflow.walkers.bias import try_manual_plumed_linking
 
 
 def main():

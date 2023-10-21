@@ -1,21 +1,20 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union, NamedTuple
-import typeguard
+
 import logging
-from typing import Optional, Union
+from typing import NamedTuple, Optional, Union
+
 import numpy as np
-
-from parsl.dataflow.futures import AppFuture
+import typeguard
 from parsl.app.app import join_app, python_app
+from parsl.dataflow.futures import AppFuture
 
+from psiflow.committee import Committee, filter_disagreements
 from psiflow.data import Dataset, FlowAtoms, NullState
+from psiflow.metrics import Metrics
 from psiflow.models import BaseModel
 from psiflow.reference import BaseReference
+from psiflow.utils import copy_app_future, unpack_i
 from psiflow.walkers import BaseWalker
-from psiflow.utils import unpack_i, copy_app_future
-from psiflow.committee import Committee, filter_disagreements
-from psiflow.metrics import Metrics
-
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -84,6 +83,7 @@ def log_evaluation_model(
     identifier: int,
 ) -> AppFuture:
     from pathlib import Path
+
     from psiflow.utils import copy_app_future
 
     s = log_metadata(i, metadata, state, condition)
@@ -121,6 +121,7 @@ def _compute_error(
     atoms1: FlowAtoms,
 ) -> tuple[Optional[float], Optional[float]]:
     import numpy as np
+
     from psiflow.utils import compute_error
 
     if not (atoms0 == NullState) and not (atoms1 == NullState):
@@ -236,6 +237,7 @@ def log_evaluation_committee(
     indices: np.ndarray,
 ) -> AppFuture:
     from pathlib import Path
+
     from psiflow.utils import copy_app_future
 
     s = log_metadata(i, metadata, state, condition)

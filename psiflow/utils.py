@@ -1,18 +1,17 @@
 from __future__ import annotations  # necessary for type-guarding class methods
-from typing import Optional, Union, List, Any, Tuple, Dict
-import typeguard
-import sys
+
 import logging
-import numpy as np
+import sys
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import numpy as np
+import typeguard
 from ase.data import atomic_numbers
-
-from parsl.executors.base import ParslExecutor
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-
+from parsl.executors.base import ParslExecutor
 
 logger = logging.getLogger(__name__)  # logging per module
 

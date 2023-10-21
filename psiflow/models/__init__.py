@@ -1,22 +1,24 @@
-from typing import Union
-import typeguard
 from pathlib import Path
+from typing import Union
 
+import typeguard
 from ase.data import chemical_symbols
 
 import psiflow
 from psiflow.utils import resolve_and_check
 
+from ._mace import MACEConfig, MACEModel
+from ._nequip import AllegroConfig, AllegroModel, NequIPConfig, NequIPModel
 from .base import BaseModel
-from ._nequip import NequIPModel, NequIPConfig, AllegroModel, AllegroConfig
-from ._mace import MACEModel, MACEConfig
 
 
 @typeguard.typechecked
 def load_model(path: Union[Path, str]) -> BaseModel:
     from pathlib import Path
+
     import yaml
     from parsl.data_provider.files import File
+
     from psiflow.utils import copy_app_future, copy_data_future
 
     path = resolve_and_check(Path(path))
