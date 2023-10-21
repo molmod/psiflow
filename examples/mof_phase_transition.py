@@ -1,7 +1,5 @@
 import requests
-import logging
 from pathlib import Path
-import numpy as np
 
 from ase.io import read
 

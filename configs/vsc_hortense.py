@@ -1,5 +1,5 @@
 from parsl.providers import SlurmProvider
-from parsl.launchers import SimpleLauncher
+# from parsl.launchers import SimpleLauncher
 
 from psiflow.execution import (
     Default,
