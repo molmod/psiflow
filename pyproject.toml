@@ -68,7 +68,6 @@ extend-ignore = ["E203", "E501", "E704"]
 
 [tool.isort]
 profile = 'black'
-skip_gitignore = true
 
 [tool.pytest.ini_options]
 log_cli = 0
