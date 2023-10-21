@@ -1,6 +1,7 @@
 import importlib
-import subprocess
 import shlex
+import subprocess
+
 import pytest
 
 from psiflow.parsl_utils import ContainerizedLauncher

@@ -1,16 +1,16 @@
 from pathlib import Path
-import requests
 
+import requests
 from ase.io import read
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms
-from psiflow.walkers import BiasedDynamicWalker, PlumedBias
-from psiflow.models import MACEConfig, MACEModel
 from psiflow.committee import Committee
+from psiflow.data import Dataset, FlowAtoms
 from psiflow.learning import CommitteeLearning, SequentialLearning
-from psiflow.reference import CP2KReference
 from psiflow.metrics import Metrics
+from psiflow.models import MACEConfig, MACEModel
+from psiflow.reference import CP2KReference
+from psiflow.walkers import BiasedDynamicWalker, PlumedBias
 
 
 def get_bias():

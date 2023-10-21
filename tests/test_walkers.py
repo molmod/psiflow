@@ -1,31 +1,22 @@
-from dataclasses import asdict
 import os
+from dataclasses import asdict
+
+import numpy as np
 import pytest
 import torch
-import numpy as np
-from parsl.dataflow.futures import AppFuture
-
 from ase import Atoms
 from ase.units import kB
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.models import NequIPModel, MACEModel
-from psiflow.walkers import (
-    BaseWalker,
-    RandomWalker,
-    DynamicWalker,
-    OptimizationWalker,
-    BiasedDynamicWalker,
-    PlumedBias,
-    load_walker,
-)
-from psiflow.walkers.utils import (
-    parse_yaff_output,
-    parse_openmm_output,
-    get_velocities_at_temperature,
-)
 from psiflow.data import Dataset
+from psiflow.models import MACEModel, NequIPModel
 from psiflow.utils import copy_app_future
+from psiflow.walkers import (BaseWalker, BiasedDynamicWalker, DynamicWalker,
+                             OptimizationWalker, PlumedBias, RandomWalker,
+                             load_walker)
+from psiflow.walkers.utils import (get_velocities_at_temperature,
+                                   parse_openmm_output, parse_yaff_output)
 
 
 def test_random_walker_multiply(context, dataset, tmp_path):

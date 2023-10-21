@@ -1,30 +1,23 @@
-import pytest
-import os
-import copy
 import ast
-import numpy as np
-import torch
+import copy
+import os
 from dataclasses import asdict
 
+import numpy as np
+import pytest
+import torch
+from ase.data import chemical_symbols
+from ase.io.extxyz import read_extxyz
 from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 
-from ase.data import chemical_symbols
-from ase.io.extxyz import read_extxyz
-
 import psiflow
-from psiflow.reference import EMTReference
-from psiflow.execution import ModelEvaluation
-from psiflow.data import Dataset
-from psiflow.models import (
-    MACEModel,
-    NequIPModel,
-    AllegroModel,
-    load_model,
-    MACEConfig,
-    NequIPConfig,
-)
 from psiflow.committee import Committee
+from psiflow.data import Dataset
+from psiflow.execution import ModelEvaluation
+from psiflow.models import (AllegroModel, MACEConfig, MACEModel, NequIPConfig,
+                            NequIPModel, load_model)
+from psiflow.reference import EMTReference
 
 
 def test_nequip_init(context, nequip_config, dataset):

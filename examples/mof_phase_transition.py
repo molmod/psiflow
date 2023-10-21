@@ -1,18 +1,18 @@
-import requests
 import logging
 from pathlib import Path
-import numpy as np
 
+import numpy as np
+import requests
 from ase.io import read
 
 import psiflow
+from psiflow.data import Dataset, FlowAtoms
 from psiflow.learning import IncrementalLearning, load_learning
-from psiflow.models import MACEModel, MACEConfig
-from psiflow.reference import CP2KReference
-from psiflow.data import FlowAtoms, Dataset
-from psiflow.walkers import BiasedDynamicWalker, PlumedBias
-from psiflow.state import load_state
 from psiflow.metrics import Metrics
+from psiflow.models import MACEConfig, MACEModel
+from psiflow.reference import CP2KReference
+from psiflow.state import load_state
+from psiflow.walkers import BiasedDynamicWalker, PlumedBias
 
 
 def get_bias():

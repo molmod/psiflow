@@ -8,7 +8,6 @@ import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-
 # see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
 from typing import Callable, Optional, Type, Union
 

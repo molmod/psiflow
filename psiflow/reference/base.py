@@ -14,7 +14,8 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, NullState, app_write_dataset, read_dataset
+from psiflow.data import (Dataset, FlowAtoms, NullState, app_write_dataset,
+                          read_dataset)
 from psiflow.utils import copy_app_future, resolve_and_check
 
 logger = logging.getLogger(__name__)  # logging per module

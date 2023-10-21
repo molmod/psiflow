@@ -10,13 +10,9 @@ from ase.geometry.geometry import find_mic
 from ase.io import read, write
 
 from psiflow.walkers.bias import try_manual_plumed_linking
-from psiflow.walkers.utils import (
-    DataHook,
-    ExtXYZHook,
-    ForcePartPlumed,
-    ForceThresholdExceededException,
-    create_forcefield,
-)
+from psiflow.walkers.utils import (DataHook, ExtXYZHook, ForcePartPlumed,
+                                   ForceThresholdExceededException,
+                                   create_forcefield)
 
 
 def main():

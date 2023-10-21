@@ -1,14 +1,14 @@
 import numpy as np
-
 import parsl
 
-from psiflow.data import FlowAtoms, Dataset
-from psiflow.walkers import RandomWalker, DynamicWalker, PlumedBias, BiasedDynamicWalker
-from psiflow.reference import EMTReference
-from psiflow.models import MACEModel
-from psiflow.sampling import sample_with_model, sample_with_committee
 from psiflow.committee import Committee
-from psiflow.metrics import log_dataset, Metrics
+from psiflow.data import Dataset, FlowAtoms
+from psiflow.metrics import Metrics, log_dataset
+from psiflow.models import MACEModel
+from psiflow.reference import EMTReference
+from psiflow.sampling import sample_with_committee, sample_with_model
+from psiflow.walkers import (BiasedDynamicWalker, DynamicWalker, PlumedBias,
+                             RandomWalker)
 
 
 def test_sample_metrics(mace_config, dataset, tmp_path):

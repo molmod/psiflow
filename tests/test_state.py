@@ -2,8 +2,8 @@ from pathlib import Path
 
 import psiflow
 from psiflow.models import NequIPModel
-from psiflow.walkers import RandomWalker, DynamicWalker
-from psiflow.state import save_state, load_state
+from psiflow.state import load_state, save_state
+from psiflow.walkers import DynamicWalker, RandomWalker
 
 
 def test_save_load(context, dataset, nequip_config, tmp_path):
