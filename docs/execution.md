@@ -3,7 +3,7 @@ complex computational graphs that consist of
 QM evaluations, model training, and a variety of phase space sampling algorithms, among others.
 If your Python environment contains the required dependencies, you can execute any of the learning examples just like that:
 ```console
-$ python zeolite_reaction.py
+python zeolite_reaction.py
 ```
 Model training, molecular dynamics, and reference evaluations will all get executed in separate processes; the main
 Python script only used to resolve the computational directed acyclic graph (DAG) of tasks.
@@ -34,13 +34,14 @@ To execute the zeolite reaction example not on your local computer, but on remot
 file as an argument__:
 
 ```console
-  $ python my_workflow.py --psiflow-config frontier.py      # executes exact same workflow on Frontier
+python my_workflow.py --psiflow-config frontier.py      # executes exact same workflow on Frontier
 ```
 
 The following sections will explain in more detail how remote execution is configured.
 
 
 !!! note "Parsl execution"
+    
     Before you continue, we recommend going through the 
     [Parsl documentation on execution](https://parsl.readthedocs.io/en/stable/userguide/execution.html)
     first in order to get acquainted with the `executor`, `provider`, and `launcher`
