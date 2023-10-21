@@ -8,8 +8,8 @@ import psiflow
 from psiflow.utils import resolve_and_check
 
 from .base import BaseModel
-from ._nequip import NequIPModel, AllegroModel
-from ._mace import MACEModel
+from ._nequip import NequIPModel, NequIPConfig, AllegroModel, AllegroConfig
+from ._mace import MACEModel, MACEConfig
 
 
 @typeguard.typechecked
