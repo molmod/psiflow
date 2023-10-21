@@ -411,7 +411,8 @@ check_distances = python_app(_check_distances, executors=['Default'])
 
 
 @typeguard.typechecked
-def apply_temperature_ramp(T_min, T_max, nsteps, current_temperature):
+def apply_temperature_ramp(T_min: float, T_max: float, nsteps: int,
+                           current_temperature: float) -> float:
     assert T_max > T_min
     if nsteps > 1:
         delta_beta = (1 / T_min - 1 / T_max) / (nsteps - 1)
