@@ -64,12 +64,11 @@ def main(path_output):
     learning = SequentialLearning(
             path_output,
             niterations=10,
-            temperature_ramp=(20, 600),
             pretraining_nstates=50,
             pretraining_amplitude_pos=0.05,
             metrics=Metrics('alanine_nwchem', 'psiflow_examples'),
             error_thresholds_for_reset=(5, 100),
-            temperature_ramp=(100, 1000),
+            temperature_ramp=(100, 1000, 5),
             )
 
     # construct walkers; mix metadynamics with regular MD
@@ -79,7 +78,8 @@ def main(path_output):
             timestep=0.5,
             steps=20,
             step=1,
-            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
+            temperature=300,
+            max_excess_temperature=300, # reset if T > T0 + 200
             )
     walkers_mtd = BiasedDynamicWalker.multiply(
             20,
@@ -88,7 +88,8 @@ def main(path_output):
             timestep=0.5,
             steps=30,
             step=1,
-            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
+            temperature=300,
+            max_excess_temperature=300, # reset if T > T0 + 200
             )
 
     # this is mostly a toy script to test code paths rather

@@ -91,7 +91,7 @@ def main(path_output):
             step=50,
             start=0,
             temperature=100,
-            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
+            temperature_threshold=300, # reset if T > T_0 + 300 K
             pressure=0,
             )
     metrics = Metrics('perovskite_defect', 'psiflow_examples')
@@ -102,7 +102,7 @@ def main(path_output):
             train_valid_split=0.9,
             metrics=metrics,
             error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
-            temperature_ramp=(200, 400),
+            temperature_ramp=(200, 400, 1),
             )
     data = learning.run(
             model=model,
@@ -117,7 +117,7 @@ def main(path_output):
             train_valid_split=0.9,
             metrics=metrics,
             error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
-            temperature_ramp=(600, 1200),
+            temperature_ramp=(600, 1200, 3),
             nstates_per_iteration=50,
             )
     model.reset()

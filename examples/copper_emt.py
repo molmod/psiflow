@@ -45,7 +45,7 @@ def main(path_output):
             train_from_scratch=True,
             metrics=Metrics('copper_EMT', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            temperature_ramp=(400, 2000),
+            temperature_ramp=(400, 2000, 1),
             )
 
     # construct walkers; straightforward MD in this case
@@ -57,7 +57,7 @@ def main(path_output):
             step=40,
             start=0,
             temperature=100,
-            temperature_threshold=3, # reset if T > T_0 + 3 * sigma
+            temperature_threshold=300, # reset if T > T_0 + 300 K
             pressure=0,
             )
     data = learning.run(
@@ -67,13 +67,15 @@ def main(path_output):
             )
     model.reset()
 
-    # continue with committee learning
+    # continue with committee learning with modified temperature
+    for walker in walkers:
+        walker.temperature = 2000
     learning = CommitteeLearning(
             path_committee,
             niterations=3,
             metrics=Metrics('copper_EMT', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # in meV/atom, meV/angstrom
-            temperature_ramp=(400, 2000),
+            temperature_ramp=None,
             nstates_per_iteration=3,
             )
     committee = Committee([model.copy() for i in range(2)])

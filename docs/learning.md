@@ -92,8 +92,8 @@ The following keyword arguments are specific to `SequentialLearning`:
 
 - `niterations: int` : the number of active learning iterations to perform. Each iterations starts with phase space
 sampling, followed by reference evaluation and model training.
-- `temperature_ramp: Optional[tuple[float]] = None`: whether to gradually increase the temperature of the walkers 
-in subsequent iterations. If not `None`, this keyword argument expects a tuple of floats: (initial T, final T).
+- `temperature_ramp: Optional[tuple[float]] = None`: (new in v2.0.0) whether to gradually increase the temperature of the walkers 
+over a certain number of iterations. If not `None`, this keyword argument expects a tuple of floats: (initial T, final T, nsteps).
 If this is `None`, then the temperature of the walkers is left as-is. 
 - `error_thresholds_for_reset: tuple[float, float] = (10, 200)` : (new in v2.0.0) determines the (energy, force)
 error thresholds for resetting walkers, in meV/atom and meV/angstrom.
@@ -295,7 +295,7 @@ def main(path_output):
             train_from_scratch=True,
             metrics=Metrics('zeolite_reaction', 'psiflow_examples'),
             error_thresholds_for_reset=(10, 200), # (meV/atom, meV/angstrom)
-            temperature_ramp=(300, 1000) # logarithmic increase from 300 K to 1000 K
+            temperature_ramp=(300, 1000, 5) # logarithmic increase from 300 K to 1000 K
             )
 
     # construct walkers; biased MTD in this case
@@ -549,7 +549,7 @@ def main(path_output):
             train_valid_split=0.9,
             metrics=metrics,
             error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
-            temperature_ramp=(200, 400),
+            temperature_ramp=(200, 400, 2),
             )
     data = learning.run(
             model=model,
@@ -564,7 +564,7 @@ def main(path_output):
             train_valid_split=0.9,
             metrics=metrics,
             error_thresholds_for_reset=(10, 100), # in meV/atom, meV/angstrom
-            temperature_ramp=(600, 1200),
+            temperature_ramp=(600, 1200, 3),
             nstates_per_iteration=50,
             )
     model.reset()
