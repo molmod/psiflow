@@ -1,11 +1,3 @@
-"""
-psiflow: a modular and scalable library for developing interatomic potentials
-         using online learning.
-
-Copyright 2022-2023 Ghent University
-Author(s): Sander Vandenhaute
-
-"""
 from __future__ import annotations # necessary for type-guarding class methods
 from typing import Optional, Union
 import typeguard
