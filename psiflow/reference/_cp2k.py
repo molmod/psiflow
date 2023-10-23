@@ -15,8 +15,8 @@ from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import FlowAtoms, NullState
-from psiflow.utils import copy_app_future, get_active_executor
 from psiflow.reference.base import BaseReference
+from psiflow.utils import copy_app_future, get_active_executor
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -116,13 +116,13 @@ def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
         pos = [str(c) for c in atoms.positions[i]]
         atoms_str += str(chemical_symbols[n]) + " " + " ".join(pos) + "\n"
     atoms_str += "\n"
-    for line in cp2k_input.splitlines():
+    for _i, line in enumerate(cp2k_input.splitlines()):
         if tuple(line.split()) == ("&END", "SUBSYS"):  # insert before here
             break
-    assert i != len(cp2k_input.splitlines()) - 1
-    new_input = "\n".join(cp2k_input.splitlines()[:i]) + "\n"
+    assert _i != len(cp2k_input.splitlines()) - 1
+    new_input = "\n".join(cp2k_input.splitlines()[:_i]) + "\n"
     new_input += "&COORD\n" + atoms_str + "&END COORD\n"
-    new_input += "\n".join(cp2k_input.splitlines()[i:])
+    new_input += "\n".join(cp2k_input.splitlines()[_i:])
     cp2k_input = new_input
 
     # insert box vectors
@@ -131,12 +131,12 @@ def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
         vector = [str(c) for c in atoms.cell[index]]
         cell_str += name + " " + " ".join(vector) + "\n"
     cell_str += "\n"
-    for line in cp2k_input.splitlines():
+    for _i, line in enumerate(cp2k_input.splitlines()):
         if tuple(line.split()) == ("&END", "SUBSYS"):  # insert before here
             break
-    new_input = "\n".join(cp2k_input.splitlines()[:i]) + "\n"
+    new_input = "\n".join(cp2k_input.splitlines()[:_i]) + "\n"
     new_input += "&CELL\n" + cell_str + "&END CELL\n"
-    new_input += "\n".join(cp2k_input.splitlines()[i:])
+    new_input += "\n".join(cp2k_input.splitlines()[_i:])
     cp2k_input = new_input
 
     return cp2k_input
@@ -186,11 +186,9 @@ def cp2k_singlepoint_pre(
 ):
     import tempfile
 
-    from psiflow.reference._cp2k import (
-        insert_atoms_in_input,
-        insert_filepaths_in_input,
-        set_global_section,
-    )
+    from psiflow.reference._cp2k import (insert_atoms_in_input,
+                                         insert_filepaths_in_input,
+                                         set_global_section)
 
     filepaths = {}  # cp2k cannot deal with long filenames; copy into local dir
     for name, file in zip(file_names, inputs):

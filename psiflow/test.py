@@ -148,7 +148,7 @@ def main():
     for definition in context.definitions:
         print('EXECUTOR "{}":'.format(definition.name()))
         apps = []
-        if definition is not ReferenceEvaluation:
+        if type(definition) is not ReferenceEvaluation:
             app = python_app(check_torch, executors=[definition.name()])
             apps.append(app)
             app = python_app(check_models, executors=[definition.name()])

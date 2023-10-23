@@ -21,7 +21,7 @@ def evaluate_emt(
 ) -> FlowAtoms:
     from ase.calculators.emt import EMT
 
-    if atoms is not FlowAtoms:
+    if type(atoms) is not FlowAtoms:
         atoms = FlowAtoms.from_atoms(atoms)
     assert len(file_names) == 0
     atoms.reference_stdout = ""

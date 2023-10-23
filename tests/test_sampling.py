@@ -7,7 +7,8 @@ from psiflow.metrics import Metrics, log_dataset
 from psiflow.models import MACEModel
 from psiflow.reference import EMTReference
 from psiflow.sampling import sample_with_committee, sample_with_model
-from psiflow.walkers import BiasedDynamicWalker, DynamicWalker, PlumedBias, RandomWalker
+from psiflow.walkers import (BiasedDynamicWalker, DynamicWalker, PlumedBias,
+                             RandomWalker)
 
 
 def test_sample_metrics(mace_model, dataset, tmp_path):
@@ -59,7 +60,7 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
         assert len(dataset_log[key]) == 6
     assert "CV1" in dataset_log
     assert "identifier" in dataset_log
-    assert 'stdout' in dataset_log
+    assert "stdout" in dataset_log
     assert sum([a is None for a in dataset_log["CV1"]]) == 6 - 1
 
     assert len(metrics.walker_logs) == len(walkers)

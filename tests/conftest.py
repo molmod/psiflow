@@ -13,14 +13,8 @@ from ase.calculators.emt import EMT
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.models import (
-    AllegroConfig,
-    AllegroModel,
-    MACEConfig,
-    MACEModel,
-    NequIPConfig,
-    NequIPModel,
-)
+from psiflow.models import (AllegroConfig, AllegroModel, MACEConfig, MACEModel,
+                            NequIPConfig, NequIPModel)
 from psiflow.reference import EMTReference
 
 
@@ -35,13 +29,13 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="whether to run tests which require a GPU",
-        )
+    )
 
 
 @pytest.fixture(scope="session")
 def gpu(request):
     if request.config.getoption("--skip-gpu"):
-        pytest.skip('skipping tests which require GPU')
+        pytest.skip("skipping tests which require GPU")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -64,10 +58,10 @@ def context(request, tmp_path_factory):
     return context
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def nequip_config(tmp_path_factory):
     nequip_config = NequIPConfig()
-    nequip_config.root = str(tmp_path_factory.mktemp('nequip_config_temp'))
+    nequip_config.root = str(tmp_path_factory.mktemp("nequip_config_temp"))
     nequip_config.wandb_group = "pytest_group"
     nequip_config.num_layers = 1
     nequip_config.num_features = 2
@@ -78,10 +72,10 @@ def nequip_config(tmp_path_factory):
     return asdict(nequip_config)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def allegro_config(tmp_path_factory):
     allegro_config = AllegroConfig()
-    allegro_config.root = str(tmp_path_factory.mktemp('allegro_config_temp'))
+    allegro_config.root = str(tmp_path_factory.mktemp("allegro_config_temp"))
     allegro_config.env_embed_multiplicity = 2
     allegro_config.two_body_latent_mlp_latent_dimensions = [2, 2, 4]
     allegro_config.mlp_latent_dimensions = [4]
@@ -89,7 +83,7 @@ def allegro_config(tmp_path_factory):
     return asdict(allegro_config)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def mace_config():
     mace_config = MACEConfig()
     mace_config.num_radial_basis = 3
@@ -136,7 +130,7 @@ def dataset(context):
     return Dataset(data_).canonical_orientation()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def mace_model(mace_config):
     # manually recreate dataset with 'session' scope
     data = generate_emt_cu_data(20, 0.2)
@@ -148,13 +142,13 @@ def mace_model(mace_config):
     # add additional state to initialize other atomic numbers
     # mace cannot handle partially periodic datasets
     atoms = Atoms(
-            numbers=2 * [101],
-            positions=np.array([[0, 0, 0], [2, 0, 0]]),
-            cell=2 * np.eye(3),
-            pbc=True,
+        numbers=2 * [101],
+        positions=np.array([[0, 0, 0], [2, 0, 0]]),
+        cell=2 * np.eye(3),
+        pbc=True,
     )
-    atoms.info['energy'] = -1.0
-    atoms.arrays['forces'] = np.random.uniform(size=(2, 3))
+    atoms.info["energy"] = -1.0
+    atoms.arrays["forces"] = np.random.uniform(size=(2, 3))
     atoms = FlowAtoms.from_atoms(atoms)
     atoms.reference_status = True
     model.initialize(dataset[:5] + Dataset([atoms]))

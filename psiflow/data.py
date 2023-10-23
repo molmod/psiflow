@@ -28,13 +28,9 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.utils import (
-    copy_data_future,
-    get_train_valid_indices,
-    reduce_box_vectors,
-    resolve_and_check,
-    transform_lower_triangular,
-)
+from psiflow.utils import (copy_data_future, get_train_valid_indices,
+                           reduce_box_vectors, resolve_and_check,
+                           transform_lower_triangular)
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -174,7 +170,7 @@ def reset_atoms(
     from copy import deepcopy
 
     _atoms = deepcopy(atoms)
-    if _atoms is not FlowAtoms:
+    if type(_atoms) is not FlowAtoms:
         _atoms = FlowAtoms.from_atoms(_atoms)
     _atoms.reset()
     return _atoms
@@ -228,14 +224,14 @@ def read_dataset(
     from psiflow.data import FlowAtoms
 
     with open(inputs[0], "r") as f:
-        if index_or_indices is int:
+        if type(index_or_indices) is int:
             atoms = list(read_extxyz(f, index=index_or_indices))[0]
             data = FlowAtoms.from_atoms(atoms)  # single atoms instance
             data.calc = None
         else:
-            if index_or_indices is list:
+            if type(index_or_indices) is list:
                 data = [list(read_extxyz(f, index=i))[0] for i in index_or_indices]
-            elif index_or_indices is slice:
+            elif type(index_or_indices) is slice:
                 data = list(read_extxyz(f, index=index_or_indices))
             else:
                 raise ValueError

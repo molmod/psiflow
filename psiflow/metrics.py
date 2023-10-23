@@ -391,4 +391,6 @@ class Metrics:
             save_dataset_log(dataset_log, path / "dataset.log")
         if self.wandb_group is not None:
             #  somehow, assignment is necessary to ensure execution of app
-            f = to_wandb(self.wandb_id, self.wandb_project, walker_logs, dataset_log) # noqa: F841
+            f = to_wandb(
+                self.wandb_id, self.wandb_project, walker_logs, dataset_log
+            )  # noqa: F841

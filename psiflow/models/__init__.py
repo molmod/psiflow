@@ -7,8 +7,9 @@ from ase.data import chemical_symbols
 import psiflow
 from psiflow.utils import resolve_and_check
 
-from ._mace import MACEConfig, MACEModel # noqa: F401
-from ._nequip import AllegroConfig, AllegroModel, NequIPConfig, NequIPModel # noqa: F401
+from ._mace import MACEConfig, MACEModel  # noqa: F401
+from ._nequip import (AllegroConfig, AllegroModel, NequIPConfig,  # noqa: F401
+                      NequIPModel)
 from .base import BaseModel
 
 

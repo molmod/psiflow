@@ -1,8 +1,8 @@
 import os
 
 import numpy as np
-from ase.io import read
 import pytest
+from ase.io import read
 from parsl.app.futures import DataFuture
 
 import psiflow

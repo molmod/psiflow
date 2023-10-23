@@ -2,12 +2,8 @@ from parsl.config import Config
 from parsl.executors import ThreadPoolExecutor
 from parsl.providers import LocalProvider
 
-from psiflow.execution import (
-    Default,
-    ModelEvaluation,
-    ModelTraining,
-    ReferenceEvaluation,
-)
+from psiflow.execution import (Default, ModelEvaluation, ModelTraining,
+                               ReferenceEvaluation)
 
 default = Default(
     parsl_provider=LocalProvider(),  # unused
@@ -15,7 +11,7 @@ default = Default(
 model_evaluation = ModelEvaluation(
     parsl_provider=LocalProvider(),
     cores_per_worker=2,
-    max_walltime=20 / 60, # timeout after 10 seconds
+    max_walltime=20 / 60,  # timeout after 10 seconds
     simulation_engine="openmm",
     gpu=False,
 )

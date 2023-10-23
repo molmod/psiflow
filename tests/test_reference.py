@@ -15,7 +15,8 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.reference import CP2KReference, EMTReference, NWChemReference
-from psiflow.reference._cp2k import insert_atoms_in_input, insert_filepaths_in_input
+from psiflow.reference._cp2k import (insert_atoms_in_input,
+                                     insert_filepaths_in_input)
 
 
 @pytest.fixture
@@ -408,7 +409,7 @@ def test_emt_atomic_energies(context, dataset):
 def test_cp2k_atomic_energies(cp2k_reference, dataset):
     element = "H"
     energy = cp2k_reference.compute_atomic_energy(element, box_size=4)
-    assert abs(energy.result() - (-13.6)) < 1 # reasonably close to exact value
+    assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
 
 
 @pytest.fixture
