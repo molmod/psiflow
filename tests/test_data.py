@@ -12,7 +12,7 @@ from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.utils import get_index_element_mask, is_reduced
 
 
-def test_flow_atoms(context, dataset, tmp_path):
+def test_flow_atoms(dataset, tmp_path):
     atoms = dataset.get(index=0).result().copy()  # copy necessary with HTEX!
     assert type(atoms) == FlowAtoms
     atoms.reference_status = True
