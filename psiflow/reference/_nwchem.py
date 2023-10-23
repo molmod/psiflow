@@ -26,9 +26,17 @@ def write_nwchem_in(path_input, atoms, properties=None, echo=False, **params):
     """
     from copy import deepcopy
 
-    from ase.io.nwchem.nwwriter import (_get_bandpath, _get_basis, _get_geom,
-                                        _get_kpts, _get_other, _get_set,
-                                        _get_theory, _update_mult, _xc_conv)
+    from ase.io.nwchem.nwwriter import (
+        _get_bandpath,
+        _get_basis,
+        _get_geom,
+        _get_kpts,
+        _get_other,
+        _get_set,
+        _get_theory,
+        _update_mult,
+        _xc_conv,
+    )
 
     params = deepcopy(params)
     if properties is None:
@@ -68,9 +76,8 @@ def write_nwchem_in(path_input, atoms, properties=None, echo=False, **params):
         out = ["echo"]
     else:
         out = []
-
-    params.pop('perm')
-    params.pop('scratch')
+    params.pop("perm")
+    params.pop("scratch")
     out.extend(
         [
             'title "{}"'.format(short_label),
