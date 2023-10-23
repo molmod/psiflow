@@ -10,10 +10,10 @@ from psiflow.sampling import sample_with_committee, sample_with_model
 from psiflow.walkers import BiasedDynamicWalker, DynamicWalker, PlumedBias, RandomWalker
 
 
-def test_sample_metrics(mace_config, dataset, tmp_path):
+def test_sample_metrics(mace_model, dataset, tmp_path):
     walkers = RandomWalker.multiply(3, data_start=dataset)
     state = FlowAtoms(
-        numbers=100 + np.arange(1, 4),
+        numbers=101 * np.ones(3),
         positions=np.zeros((3, 3)),
         cell=np.eye(3),
         pbc=True,
@@ -31,15 +31,13 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
     walkers.append(BiasedDynamicWalker(dataset[0], bias=bias, seed=10, steps=10))
 
     reference = EMTReference()
-    model = MACEModel(mace_config)
-    model.initialize(dataset[:3] + Dataset([state]))
 
     assert not np.allclose(dataset[0].result().arrays["forces"], 0.0)
 
     identifier = 4
     metrics = Metrics(wandb_group="test_sample_metrics", wandb_project="psiflow")
     data, identifier = sample_with_model(
-        model,
+        mace_model,
         reference,
         walkers,
         identifier,
@@ -54,23 +52,24 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
         assert data[i].result().info["identifier"] <= 9
 
     dataset_log = log_dataset(
-        inputs=[data.data_future, model.evaluate(data).data_future]
+        inputs=[data.data_future, mace_model.evaluate(data).data_future]
     )
     dataset_log = dataset_log.result()
     for key in dataset_log:
         assert len(dataset_log[key]) == 6
     assert "CV1" in dataset_log
     assert "identifier" in dataset_log
+    assert 'stdout' in dataset_log
     assert sum([a is None for a in dataset_log["CV1"]]) == 6 - 1
 
     assert len(metrics.walker_logs) == len(walkers)
-    metrics.save(tmp_path, model=model, dataset=data)
+    metrics.save(tmp_path, model=mace_model, dataset=data)
     parsl.wait_for_current_tasks()
     assert (tmp_path / "walkers.log").exists()
     assert (tmp_path / "dataset.log").exists()
 
     data, identifier = sample_with_model(  # test without metrics
-        model,
+        mace_model,
         reference,
         walkers,
         identifier,
@@ -80,7 +79,7 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
         assert walker.counter.result() == 0
 
 
-def test_sample_committee(mace_config, dataset, tmp_path):
+def test_sample_committee(gpu, mace_config, dataset, tmp_path):
     walkers = RandomWalker.multiply(3, data_start=dataset)
     walkers.append(DynamicWalker(dataset[0], steps=100, step=1, start=0))
     walkers.append(

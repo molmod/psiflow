@@ -54,9 +54,7 @@ def molecular_dynamics_yaff(
         command_unbuffer,
         command_printenv,
         command_write,
-        "timeout -k 5 {}s".format(
-            max(walltime - 20, 0)
-        ),  # some time is spent on copying
+        "timeout -s 15 {}s".format(walltime - 2),
         "psiflow-md-yaff",
         "--device {}".format(device),
         "--ncores {}".format(ncores),
@@ -139,9 +137,7 @@ def molecular_dynamics_openmm(
         command_unbuffer,
         command_printenv,
         command_write,
-        "timeout --kill-after=15 {}s".format(
-            max(walltime - 20, 0)
-        ),  # some time is spent on copying
+        "timeout -s 15 {}s".format(walltime - 2),
         "psiflow-md-openmm",
         "--device {}".format(device),
         "--ncores {}".format(ncores),

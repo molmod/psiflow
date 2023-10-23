@@ -21,7 +21,7 @@ def evaluate_emt(
 ) -> FlowAtoms:
     from ase.calculators.emt import EMT
 
-    if type(atoms) == Atoms:
+    if atoms is not FlowAtoms:
         atoms = FlowAtoms.from_atoms(atoms)
     assert len(file_names) == 0
     atoms.reference_stdout = ""
@@ -31,13 +31,12 @@ def evaluate_emt(
         atoms.arrays["forces"] = atoms.get_forces()
         atoms.info["stress"] = atoms.get_stress(voigt=False)
         atoms.calc = None
-        atoms.reference_stderr = False
-        atoms.reference_stdout = True
         atoms.reference_status = True
     except Exception as e:
-        atoms.reference_stderr = str(e)
         atoms.reference_status = False
-        atoms.reference_stdout = False
+        print(e)
+    atoms.reference_stderr = False
+    atoms.reference_stdout = False
     return atoms
 
 

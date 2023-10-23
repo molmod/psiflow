@@ -11,7 +11,7 @@ from parsl.data_provider.files import File
 from parsl.executors import WorkQueueExecutor
 
 import psiflow
-from psiflow.data import NullState
+from psiflow.data import NullState, FlowAtoms
 from psiflow.reference.base import BaseReference
 from psiflow.utils import copy_app_future, get_active_executor
 
@@ -24,7 +24,6 @@ def write_nwchem_in(path_input, atoms, properties=None, echo=False, **params):
     forces perm and scratch dirs to their defaults
 
     """
-    import os
     from copy import deepcopy
 
     from ase.io.nwchem.nwwriter import (
@@ -69,8 +68,6 @@ def write_nwchem_in(path_input, atoms, properties=None, echo=False, **params):
     magmom_tot = int(atoms.get_initial_magnetic_moments().sum())
     params = _update_mult(magmom_tot, **params)
     label = params.get("label", "nwchem")
-    perm = os.path.abspath(params.pop("perm", label))
-    scratch = os.path.abspath(params.pop("scratch", label))
     restart_kw = params.get("restart_kw", "start")
     if restart_kw not in ("start", "restart"):
         raise ValueError("Unrecognised restart keyword: {}!".format(restart_kw))
@@ -82,8 +79,6 @@ def write_nwchem_in(path_input, atoms, properties=None, echo=False, **params):
     out.extend(
         [
             'title "{}"'.format(short_label),
-            #'permanent_dir {}'.format(perm),
-            #'scratch_dir {}'.format(scratch),
             "{} {}".format(restart_kw, short_label),
             "\n".join(_get_geom(atoms, **params)),
             "\n".join(_get_basis(**params)),

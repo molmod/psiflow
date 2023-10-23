@@ -18,7 +18,6 @@ NequIP train script -- copied from nequip@v0.5.6 with the following changes:
 
 import argparse
 import logging
-import warnings
 from pathlib import Path
 
 # This is a weird hack to avoid Intel MKL issues on the cluster when this is called as a subprocess of a process that has itself initialized PyTorch.
@@ -269,4 +268,4 @@ def _check_old_keys(config) -> None:
         if config[k]:
             raise ValueError("the `compile_model` option has been removed")
         else:
-            warnings.warn("the `compile_model` option has been removed")
+            pass

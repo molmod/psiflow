@@ -44,13 +44,13 @@ class ExecutionDefinition:
             walltime += 60 * float(walltime_hhmmss[0])
             walltime += float(walltime_hhmmss[1])
             walltime += 1  # whatever seconds are present
-            walltime -= 4  # add 4 minutes of slack, e.g. for container downloading
+            walltime -= 5  # add 5 minutes of slack, e.g. for container downloading
             if self.max_walltime is None:
                 object.__setattr__(self, "max_walltime", walltime)  # avoid frozen
             else:  # check whether it doesn't exceeed it
                 assert (
                     walltime > self.max_walltime
-                ), "{} walltime must be larger" " than max_walltime".format(
+                ), "{} walltime must be larger than max_walltime".format(
                     type(self.parsl_provider)
                 )
         elif self.max_walltime is None:
@@ -202,7 +202,7 @@ def generate_parsl_config(
     ), "labels must be unique, but found {}".format(labels)
     executors = []
     for definition in definitions:
-        if type(definition) == Default:
+        if definition is not Default:
             executor = HighThroughputExecutor(
                 address=htex_address,
                 label=definition.name(),

@@ -102,7 +102,7 @@ def check_walkers():
     report += "\n"
     report += "\tplumed:\t"
     try:
-        import plumed
+        import plumed  # noqa: F401
 
         from psiflow.walkers.bias import try_manual_plumed_linking
 
@@ -118,7 +118,7 @@ def check_reference(mpi_command):
 
     report = "\tpymatgen:\t\t"
     try:
-        import pymatgen
+        import pymatgen  # noqa: F401
 
         report += "OK"
     except ModuleNotFoundError:
@@ -145,11 +145,10 @@ def main():
         shutil.rmtree(path_tmp)
     Path(path_tmp).mkdir()
     context = psiflow.load(path_config, path_tmp)
-    executors = {}
     for definition in context.definitions:
         print('EXECUTOR "{}":'.format(definition.name()))
         apps = []
-        if not type(definition) == ReferenceEvaluation:
+        if definition is not ReferenceEvaluation:
             app = python_app(check_torch, executors=[definition.name()])
             apps.append(app)
             app = python_app(check_models, executors=[definition.name()])

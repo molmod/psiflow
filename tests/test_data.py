@@ -1,10 +1,8 @@
 import os
 
 import numpy as np
+from ase.io import read
 import pytest
-from ase import Atoms
-from ase.io import read, write
-from ase.io.extxyz import write_extxyz
 from parsl.app.futures import DataFuture
 
 import psiflow
@@ -38,7 +36,7 @@ def test_flow_atoms(dataset, tmp_path):
     assert is_reduced(atoms.cell)
 
 
-def test_dataset_empty(context, tmp_path):
+def test_dataset_empty(tmp_path):
     dataset = Dataset(atoms_list=[])
     assert dataset.length().result() == 0
     assert isinstance(dataset.data_future, DataFuture)
@@ -100,7 +98,7 @@ def test_dataset_slice(dataset):
     assert not np.all(equal)
 
 
-def test_dataset_from_xyz(context, tmp_path, dataset):
+def test_dataset_from_xyz(tmp_path, dataset):
     path_xyz = tmp_path / "data.xyz"
     dataset.save(path_xyz)
     psiflow.wait()
@@ -118,7 +116,7 @@ def test_dataset_from_xyz(context, tmp_path, dataset):
         )
 
 
-def test_dataset_metric(context, dataset):
+def test_dataset_metric(dataset):
     errors = Dataset.get_errors(dataset, None)
     assert errors.result().shape == (dataset.length().result(), 3)
     errors = np.mean(errors.result(), axis=0)
@@ -198,7 +196,7 @@ def test_index_element_mask():
     )
 
 
-def test_dataset_gather(context, dataset):
+def test_dataset_gather(dataset):
     indices = [0, 3, 2, 6, 1]
     gathered = dataset[indices]
     assert gathered.length().result() == len(indices)
@@ -209,13 +207,14 @@ def test_dataset_gather(context, dataset):
         )
 
 
-def test_data_elements(context, dataset):
+def test_data_elements(dataset):
     assert "H" in dataset.elements().result()
     assert "Cu" in dataset.elements().result()
+    print(dataset.elements().result())
     assert len(dataset.elements().result()) == 2
 
 
-def test_data_reset(context, dataset):
+def test_data_reset(dataset):
     dataset = dataset.reset()
     assert not "energy" in dataset[0].result().info
 
@@ -230,14 +229,14 @@ def test_nullstate(context):
     assert state == NullState
 
 
-def test_data_split(context, dataset):
+def test_data_split(dataset):
     train, valid = dataset.split(0.9)
     assert (
         train.length().result() + valid.length().result() == dataset.length().result()
     )
 
 
-def test_identifier(context, dataset):
+def test_identifier(dataset):
     data = dataset + Dataset([NullState, NullState, dataset[0].result()])
     identifier = data.assign_identifiers(0)
     assert identifier.result() == dataset.length().result() + 1
@@ -261,7 +260,7 @@ def test_identifier(context, dataset):
             assert s.info["identifier"] >= 10
 
 
-def test_data_offset(context, dataset):
+def test_data_offset(dataset):
     atomic_energies = {
         "H": 34,
         "Cu": 12,

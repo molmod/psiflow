@@ -174,7 +174,7 @@ def reset_atoms(
     from copy import deepcopy
 
     _atoms = deepcopy(atoms)
-    if not type(_atoms) == FlowAtoms:
+    if _atoms is not FlowAtoms:
         _atoms = FlowAtoms.from_atoms(_atoms)
     _atoms.reset()
     return _atoms
@@ -228,17 +228,20 @@ def read_dataset(
     from psiflow.data import FlowAtoms
 
     with open(inputs[0], "r") as f:
-        if type(index_or_indices) == int:
+        if index_or_indices is int:
             atoms = list(read_extxyz(f, index=index_or_indices))[0]
             data = FlowAtoms.from_atoms(atoms)  # single atoms instance
+            data.calc = None
         else:
-            if type(index_or_indices) == list:
+            if index_or_indices is list:
                 data = [list(read_extxyz(f, index=i))[0] for i in index_or_indices]
-            elif type(index_or_indices) == slice:
+            elif index_or_indices is slice:
                 data = list(read_extxyz(f, index=index_or_indices))
             else:
                 raise ValueError
             data = [FlowAtoms.from_atoms(a) for a in data]  # list of atoms
+            for atoms in data:  # suppress warnings
+                atoms.calc = None
     if len(outputs) > 0:  # write to file
         with open(outputs[0], "w") as f:
             write_extxyz(f, data)
@@ -397,7 +400,7 @@ def apply_offset(
             continue
         natoms = len(atoms)
         energy = atoms.info["energy"]
-        for i, number in enumerate(numbers):
+        for number in numbers:
             natoms_per_number = np.sum(atoms.numbers == number)
             if natoms_per_number == 0:
                 continue
@@ -685,7 +688,6 @@ class Dataset:
     ) -> Dataset:
         path_xyz = resolve_and_check(Path(path_xyz))
         assert os.path.isfile(path_xyz)  # needs to be locally accessible
-        context = psiflow.context()
         return cls(None, data_future=File(str(path_xyz)))
 
     @staticmethod

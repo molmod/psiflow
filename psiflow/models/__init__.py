@@ -7,8 +7,8 @@ from ase.data import chemical_symbols
 import psiflow
 from psiflow.utils import resolve_and_check
 
-from ._mace import MACEConfig, MACEModel
-from ._nequip import AllegroConfig, AllegroModel, NequIPConfig, NequIPModel
+from ._mace import MACEConfig, MACEModel # noqa: F401
+from ._nequip import AllegroConfig, AllegroModel, NequIPConfig, NequIPModel # noqa: F401
 from .base import BaseModel
 
 
@@ -43,10 +43,8 @@ def load_model(path: Union[Path, str]) -> BaseModel:
             model.add_atomic_energy(element, energy)
     path_config = path / "config_after_init.yaml"
     path_model = path / "model_undeployed.pth"
-    path_deploy = path / "model_deployed.pth"
     if path_model.is_file():
         assert path_config.is_file()
-        # assert path_deploy.is_file()
         with open(path_config, "r") as f:
             config_init = yaml.load(f, Loader=yaml.FullLoader)
         model.config_future = copy_app_future(config_init)

@@ -4,7 +4,7 @@ from psiflow.committee import Committee
 from psiflow.models import MACEModel
 
 
-def test_committee_mace(context, mace_config, dataset):
+def test_committee_mace(gpu, mace_config, dataset):
     mace_config["max_num_epochs"] = 1
     models = [MACEModel(mace_config) for i in range(4)]
     committee = Committee(models)

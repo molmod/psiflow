@@ -15,7 +15,7 @@ default = Default(
 model_evaluation = ModelEvaluation(
     parsl_provider=LocalProvider(),
     cores_per_worker=2,
-    max_walltime=1,
+    max_walltime=20 / 60, # timeout after 10 seconds
     simulation_engine="openmm",
     gpu=False,
 )
@@ -27,7 +27,7 @@ model_training = ModelTraining(
 reference_evaluation = ReferenceEvaluation(
     parsl_provider=LocalProvider(),
     cores_per_worker=2,
-    max_walltime=1.5,
+    max_walltime=0.3,
     mpi_command=lambda x: f"mpirun -np {x}",
 )
 definitions = [

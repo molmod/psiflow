@@ -116,7 +116,7 @@ def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
         pos = [str(c) for c in atoms.positions[i]]
         atoms_str += str(chemical_symbols[n]) + " " + " ".join(pos) + "\n"
     atoms_str += "\n"
-    for i, line in enumerate(cp2k_input.splitlines()):
+    for line in cp2k_input.splitlines():
         if tuple(line.split()) == ("&END", "SUBSYS"):  # insert before here
             break
     assert i != len(cp2k_input.splitlines()) - 1
@@ -131,7 +131,7 @@ def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
         vector = [str(c) for c in atoms.cell[index]]
         cell_str += name + " " + " ".join(vector) + "\n"
     cell_str += "\n"
-    for i, line in enumerate(cp2k_input.splitlines()):
+    for line in cp2k_input.splitlines():
         if tuple(line.split()) == ("&END", "SUBSYS"):  # insert before here
             break
     new_input = "\n".join(cp2k_input.splitlines()[:i]) + "\n"
@@ -154,7 +154,7 @@ def regularize_input(cp2k_input: str) -> str:
     inp.update({"FORCE_EVAL": {"PRINT": {"FORCES": {}}}})
     inp.update({"FORCE_EVAL": {"PRINT": {"STRESS_TENSOR": {}}}})
     if "STRESS_TENSOR" not in inp["FORCE_EVAL"].subsections.keys():
-        logger.warning("adding stress tensor calculation to cp2k input")
+        logger.info("adding stress tensor calculation to cp2k input")
         inp.update({"FORCE_EVAL": {"STRESS_TENSOR": "ANALYTICAL"}})
     return str(inp)
 
@@ -217,9 +217,7 @@ def cp2k_singlepoint_pre(
         command_cd,
         command_write,
         "export OMP_NUM_THREADS={};".format(omp_num_threads),
-        "timeout -k 5 {}s".format(
-            max(walltime - 20, 0)
-        ),  # some time is spent on copying
+        "timeout -s 9 {}s".format(walltime - 2),  # kill right before parsl walltime
         cp2k_command,
         "-i cp2k.inp",
         " || true",
@@ -252,7 +250,7 @@ def cp2k_singlepoint_post(
         atoms.info["stress"] = stress_
         atoms.arrays["forces"] = forces_
         atoms.reference_status = True
-    except:
+    except Exception:
         atoms.reference_status = False
     return atoms
 
@@ -279,22 +277,6 @@ class CP2KReference(BaseReference):
         from pymatgen.io.cp2k.inputs import Cp2kInput
 
         number = atomic_numbers[element]
-        configurations = [
-            {"UKS": "TRUE", "MULTIPLICITY": 1},
-            {"UKS": "TRUE", "MULTIPLICITY": 2},
-            {"UKS": "TRUE", "MULTIPLICITY": 3},
-            {"UKS": "TRUE", "MULTIPLICITY": 4},
-            {"UKS": "TRUE", "MULTIPLICITY": 5},
-            {"UKS": "TRUE", "MULTIPLICITY": 6},
-            {"UKS": "TRUE", "MULTIPLICITY": 8},
-            {"UKS": "TRUE", "MULTIPLICITY": 9},
-            {"UKS": "TRUE", "MULTIPLICITY": 10},
-            {"UKS": "TRUE", "MULTIPLICITY": 11},
-            {"UKS": "TRUE", "MULTIPLICITY": 12},
-            {"UKS": "TRUE", "MULTIPLICITY": 13},
-            {"UKS": "TRUE", "MULTIPLICITY": 14},
-            {"UKS": "TRUE", "MULTIPLICITY": 15},
-        ]
         references = []
         for mult in range(1, 16):
             if number % 2 == 0 and mult % 2 == 0:

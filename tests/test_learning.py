@@ -11,7 +11,7 @@ from psiflow.utils import apply_temperature_ramp
 from psiflow.walkers import BiasedDynamicWalker, PlumedBias, RandomWalker
 
 
-def test_learning_save_load(context, tmp_path):
+def test_learning_save_load(gpu, tmp_path):
     path_output = tmp_path / "output"
     path_output.mkdir()
     learning = SequentialLearning(
@@ -38,7 +38,7 @@ def test_learning_save_load(context, tmp_path):
     assert learning_.metrics is not None
 
 
-def test_sequential_learning(context, tmp_path, mace_config, dataset):
+def test_sequential_learning(gpu, tmp_path, mace_config, dataset):
     path_output = tmp_path / "output"
     path_output.mkdir()
     reference = EMTReference()
@@ -119,7 +119,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
         data.data_future.result()
 
 
-def test_incremental_learning(context, tmp_path, mace_config, dataset):
+def test_incremental_learning(gpu, tmp_path, mace_config, dataset):
     model = MACEModel(mace_config)
     model.initialize(dataset[:2])
     plumed_input = """

@@ -30,12 +30,13 @@ def extract_energy(state):
 
 @join_app
 def get_minimum_energy(element, configs, *energies):
-    index = energies.index(min(energies))
     logger.info("atomic energies for element {}:".format(element))
     for config, energy in zip(configs, energies):
         logger.info("\t{} eV;  ".format(energy) + str(config))
     energy = min(energies)
-    assert not energy == 0.0, "atomic energy calculations failed"
+    assert not energy == 1e10, (
+            "atomic energy calculation of {} failed".format(element)
+            )
     return copy_app_future(energy)
 
 
@@ -78,7 +79,7 @@ class BaseReference:
             # otherwise, FileNotFoundErrors will occur when using HTEX.
             retval = Dataset(None, data_future=data.outputs[0])
         else:  # Atoms, FlowAtoms, AppFuture
-            if type(arg) == Atoms:
+            if arg is Atoms:
                 arg = FlowAtoms.from_atoms(arg)
             data = context.apps(self.__class__, "evaluate_single")(
                 arg,  # converts to FlowAtoms if necessary
@@ -106,7 +107,7 @@ class BaseReference:
                 positions=np.array([[0, 0, 0]]),
                 pbc=False,
             )
-        for config, reference in references:
+        for _, reference in references:
             energies.append(extract_energy(reference.evaluate(atoms)))
         return get_minimum_energy(element, configs, *energies)
 

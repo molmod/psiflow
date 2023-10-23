@@ -186,7 +186,7 @@ def sample_with_model(
             error_thresholds=error_thresholds_for_reset,
         )
         walkers[i].reset(condition)
-        s = log_evaluation_model(
+        log_evaluation_model(
             i, metadatas[i], states[i], errors[i], condition, identifier
         )
         if metrics is not None:
@@ -303,7 +303,7 @@ def sample_with_committee(
         )
         condition = reset_condition(i, states[i], indices, checked_error)
         walkers[i].reset(condition)
-        s = log_evaluation_committee(
+        log_evaluation_committee(
             i,
             metadatas[i],
             states[i],

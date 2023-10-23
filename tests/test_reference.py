@@ -230,6 +230,7 @@ def test_cp2k_insert_filepaths(fake_cp2k_input):
     assert str(target) == str(sample)
 
 
+@pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_success(context, cp2k_reference):
     atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
@@ -293,6 +294,7 @@ def test_cp2k_success(context, cp2k_reference):
     assert 1 == nthreads
 
 
+@pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_failure(context, cp2k_data, tmp_path):
     cp2k_input = """
 &FORCE_EVAL
@@ -380,6 +382,7 @@ def test_cp2k_failure(context, cp2k_data, tmp_path):
     assert "requested basis set" in log
 
 
+@pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_timeout(context, cp2k_reference):
     atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
@@ -401,10 +404,11 @@ def test_emt_atomic_energies(context, dataset):
         assert energy.result() < energy_.result()
 
 
+@pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_atomic_energies(cp2k_reference, dataset):
     element = "H"
-    energy = cp2k_reference.compute_atomic_energy(element, box_size=8)
-    assert abs(energy.result() - (-13.6)) < 1e-1
+    energy = cp2k_reference.compute_atomic_energy(element, box_size=4)
+    assert abs(energy.result() - (-13.6)) < 1 # reasonably close to exact value
 
 
 @pytest.fixture

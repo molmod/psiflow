@@ -26,7 +26,7 @@ from psiflow.models import (
 from psiflow.reference import EMTReference
 
 
-def test_nequip_init(context, nequip_config, dataset):
+def test_nequip_init(nequip_config, dataset):
     model = NequIPModel(nequip_config)
     model.seed = 1
     model.initialize(dataset[:3])
@@ -59,7 +59,7 @@ def test_nequip_init(context, nequip_config, dataset):
     assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
 
 
-def test_nequip_train(context, nequip_config, dataset, tmp_path):
+def test_nequip_train(gpu, nequip_config, dataset, tmp_path):
     training = dataset[:-5]
     validation = dataset[-5:]
     model = NequIPModel(nequip_config)
@@ -73,7 +73,7 @@ def test_nequip_train(context, nequip_config, dataset, tmp_path):
     assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
 
 
-def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
+def test_nequip_save_load(nequip_config, dataset, tmp_path):
     model = NequIPModel(nequip_config)
     future_raw, _, _ = model.save(tmp_path)
     assert not future_raw.done()
@@ -99,7 +99,7 @@ def test_nequip_save_load(context, nequip_config, dataset, tmp_path):
     assert np.allclose(e0, e1, atol=1e-4)  # up to single precision
 
 
-def test_nequip_seed(context, nequip_config):
+def test_nequip_seed(nequip_config):
     config = NequIPConfig(**nequip_config)
     model = NequIPModel(config)
     assert model.seed == 123
@@ -109,7 +109,7 @@ def test_nequip_seed(context, nequip_config):
     assert model.seed == 112
 
 
-def test_nequip_offset(context, nequip_config, dataset):
+def test_nequip_offset(nequip_config, dataset):
     config = NequIPConfig(**nequip_config)
     model = NequIPModel(config)
     model.initialize(dataset[:2])
@@ -150,7 +150,7 @@ def test_nequip_offset(context, nequip_config, dataset):
     )
 
 
-def test_allegro_init(context, allegro_config, dataset):
+def test_allegro_init(allegro_config, dataset):
     model = AllegroModel(allegro_config)
     model.seed = 1
     model.initialize(dataset[:3])
@@ -181,7 +181,7 @@ def test_allegro_init(context, allegro_config, dataset):
     assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
 
 
-def test_allegro_train(context, allegro_config, dataset, tmp_path):
+def test_allegro_train(gpu, allegro_config, dataset, tmp_path):
     training = dataset[:-5]
     validation = dataset[-5:]
     model = AllegroModel(allegro_config)
@@ -193,7 +193,7 @@ def test_allegro_train(context, allegro_config, dataset, tmp_path):
     assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
 
 
-def test_allegro_save_load(context, allegro_config, dataset, tmp_path):
+def test_allegro_save_load(allegro_config, dataset, tmp_path):
     model = AllegroModel(allegro_config)
     future_raw, _, _ = model.save(tmp_path)
     assert not future_raw.done()
@@ -219,7 +219,7 @@ def test_allegro_save_load(context, allegro_config, dataset, tmp_path):
     assert np.allclose(e0, e1, atol=1e-4)  # up to single precision
 
 
-def test_mace_init(context, mace_config, dataset):
+def test_mace_init(mace_config, dataset):
     model = MACEModel(mace_config)
     assert model.deploy_future is None
     assert model.model_future is None
@@ -264,7 +264,7 @@ def test_mace_init(context, mace_config, dataset):
     assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
 
 
-def test_mace_train(context, mace_config, dataset, tmp_path):
+def test_mace_train(gpu, mace_config, dataset, tmp_path):
     # as an additional verification, this test can be executed while monitoring
     # the mace logging, and in particular the rmse_r during training, to compare
     # it with the manually computed value
@@ -288,7 +288,7 @@ def test_mace_train(context, mace_config, dataset, tmp_path):
     )
 
 
-def test_mace_save_load(context, mace_config, dataset, tmp_path):
+def test_mace_save_load(mace_config, dataset, tmp_path):
     model = MACEModel(mace_config)
     model.add_atomic_energy("H", 3)
     model.add_atomic_energy("Cu", 4)
@@ -316,7 +316,7 @@ def test_mace_save_load(context, mace_config, dataset, tmp_path):
     assert np.allclose(e0, e1, atol=1e-4)  # up to single precision
 
 
-def test_mace_seed(context, mace_config):
+def test_mace_seed(mace_config):
     config = MACEConfig(**mace_config)
     model = MACEModel(config)
     assert model.seed == 0
@@ -326,7 +326,7 @@ def test_mace_seed(context, mace_config):
     assert model.seed == 112
 
 
-def test_mace_offset(context, mace_config, dataset, tmp_path):
+def test_mace_offset(mace_config, dataset, tmp_path):
     config = MACEConfig(**mace_config)
     model = MACEModel(config)
     model.initialize(dataset[:2])
@@ -372,7 +372,7 @@ def test_mace_offset(context, mace_config, dataset, tmp_path):
     assert model.atomic_energies["Cu"] == atomic_energies["Cu"].result()
 
 
-def test_model_evaluate(context, mace_config, dataset):
+def test_model_evaluate(mace_config, dataset):
     model = MACEModel(mace_config)
     model.initialize(dataset[:1])
 

@@ -175,9 +175,9 @@ def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
     for key in y_axis:
         data[key] = []
     data["stdout"] = []
-    for i, (atoms0, atoms1) in enumerate(zip(dataset0, dataset1)):
-        stdout = atoms0.info.get("reference_stdout", None)
-        if stdout is not None:
+    for atoms0, atoms1 in zip(dataset0, dataset1):
+        stdout = atoms0.info.get("reference_stdout", False)
+        if stdout:
             stdout = Path(stdout).stem
         else:
             stdout = "NA"
@@ -200,7 +200,7 @@ def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
                 properties=["forces"],
             )[0]
         )
-        for j, symbol in enumerate(symbols):
+        for symbol in symbols:
             mask = get_index_element_mask(
                 atoms0.numbers,
                 elements=[symbol],
@@ -390,4 +390,5 @@ class Metrics:
             dataset_log = log_dataset(inputs=inputs)
             save_dataset_log(dataset_log, path / "dataset.log")
         if self.wandb_group is not None:
-            f = to_wandb(self.wandb_id, self.wandb_project, walker_logs, dataset_log)
+            #  somehow, assignment is necessary to ensure execution of app
+            f = to_wandb(self.wandb_id, self.wandb_project, walker_logs, dataset_log) # noqa: F841

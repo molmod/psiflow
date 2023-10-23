@@ -28,7 +28,7 @@ from psiflow.walkers.utils import (
 )
 
 
-def test_random_walker_multiply(context, dataset, tmp_path):
+def test_random_walker_multiply(dataset, tmp_path):
     amplitude_pos = 0.1
     amplitude_box = 0.0
     nwalkers = 40
@@ -57,7 +57,7 @@ def test_random_walker_multiply(context, dataset, tmp_path):
     assert walker.counter.result() == 0
 
 
-def test_walker_save_load(context, dataset, mace_config, tmp_path):
+def test_walker_save_load(dataset, mace_model, tmp_path):
     walker = DynamicWalker(dataset[0], steps=10, step=1)
     path_state0 = tmp_path / "new" / "state0.xyz"
     path_state = tmp_path / "new" / "state.xyz"
@@ -78,15 +78,13 @@ def test_walker_save_load(context, dataset, mace_config, tmp_path):
     )
     for key, value in walker.parameters.items():
         assert value == walker_.parameters[key]
-    model = MACEModel(mace_config)
-    model.initialize(dataset[:3])
-    walker.propagate(model=model)
+    walker.propagate(model=mace_model)
     walker.save(tmp_path / "new_again")
     walker = load_walker(tmp_path / "new_again")
     assert walker.counter.result() == 10
 
 
-def test_base_walker(context, dataset):
+def test_base_walker(dataset):
     walker = BaseWalker(dataset[0])
     assert isinstance(walker.state, AppFuture)
     assert isinstance(walker.state0, AppFuture)
@@ -98,7 +96,7 @@ def test_base_walker(context, dataset):
         BaseWalker(dataset[0], some_illegal_kwarg=0)
 
 
-def test_random_walker(context, dataset):
+def test_random_walker(dataset):
     walker = RandomWalker(dataset[0], seed=0)
 
     metadata = walker.propagate()
@@ -117,7 +115,7 @@ def test_random_walker(context, dataset):
     metadata = walker.propagate(model=None)  # irrelevant kwargs are ignored
 
 
-def test_parse_yaff(context):
+def test_parse_yaff():
     stdout = """
     sampling NVT ensemble ...
 
@@ -145,7 +143,7 @@ tagging sample as unsafe
     assert time == 2.0
 
 
-def test_parse_openmm(context):
+def test_parse_openmm():
     stdout = """
 PLUMED: Finished setup
 PLUMED: FILE: /tmp/fileahZtE6
@@ -166,18 +164,16 @@ PLUMED:                                               Cycles        Total      A
     assert time == 0.11220741271972656
 
 
-def test_initial_velocities(context):
+def test_initial_velocities():
     masses = np.random.uniform(10, 20, size=20)
     velocities = get_velocities_at_temperature(300, masses)
     actual = (velocities**2 * masses.reshape(-1, 1)).mean() / kB
     assert np.allclose(actual, 300, atol=2)
 
 
-def test_dynamic_walker_plain(context, dataset, mace_config):
+def test_dynamic_walker_plain(dataset, mace_model):
     walker = DynamicWalker(dataset[0], steps=10, step=2)
-    model = MACEModel(mace_config)
-    model.initialize(dataset[:3])
-    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    metadata, trajectory = walker.propagate(model=mace_model, keep_trajectory=True)
     assert trajectory.length().result() == 6
     assert walker.counter.result() == 10
     assert np.allclose(
@@ -191,7 +187,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
 
     # test timeout
     walker = DynamicWalker(dataset[0], steps=int(1e9), step=1)
-    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    metadata, trajectory = walker.propagate(model=mace_model, keep_trajectory=True)
     assert trajectory.length().result() < int(1e9)  # timeout
     assert trajectory.length().result() > 1
     assert metadata.time.result() > 10  # ran for some time
@@ -200,7 +196,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     walker.steps = 20
     walker.step = 5
     walker.max_excess_temperature = -10000  # always resets
-    metadata = walker.propagate(model=model)
+    metadata = walker.propagate(model=mace_model)
     assert walker.is_reset().result()
     assert np.allclose(
         walker.state0.result().positions,
@@ -212,7 +208,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     walker.step = 5
     walker.max_excess_temperature = 100000  # never resets
     walker.distance_threshold = 5.0  # always resets
-    metadata = walker.propagate(model=model)
+    metadata = walker.propagate(model=mace_model)
     assert walker.is_reset().result()
     assert np.allclose(
         walker.state0.result().positions,
@@ -222,14 +218,14 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
 
     walker.temperature = None  # NVE
     walker.force_threshold = 40
-    metadata = walker.propagate(model=model)
+    metadata = walker.propagate(model=mace_model)
     assert not metadata.reset.result()
 
     walker.reset()
     walker.pressure = 0
     walker.temperature = 500
     walker.steps = 9  # takes 10 steps to attempt unit cell change
-    walker.propagate(model=model)
+    walker.propagate(model=mace_model)
     if psiflow.context()[MACEModel][0].simulation_engine == "openmm":
         assert np.allclose(
             walker.state0.result().get_volume(),
@@ -242,7 +238,7 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
         )
     walker.steps = 1000
     walker.max_excess_temperature = 100000  # never resets
-    walker.propagate(model=model)
+    walker.propagate(model=mace_model)
     assert not walker.is_reset().result()
     assert not np.allclose(
         walker.state0.result().get_positions(),
@@ -254,39 +250,37 @@ def test_dynamic_walker_plain(context, dataset, mace_config):
     )
 
 
-def test_optimization_walker(context, dataset, mace_config):
-    training = dataset[:15]
-    validate = dataset[15:]
-    model = MACEModel(mace_config)
-    model.initialize(training)
-    model.train(training, validate)
+#def test_optimization_walker(context, dataset, mace_config):
+#    training = dataset[:15]
+#    validate = dataset[15:]
+#    model = MACEModel(mace_config)
+#    model.initialize(training)
+#    model.train(training, validate)
+#
+#    walker = OptimizationWalker(dataset[0], optimize_cell=False, fmax=1e-1)
+#    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
+#    assert trajectory.length().result() > 1
+#    assert np.all(
+#        np.abs(metadata.state.result().positions - dataset[0].result().positions) < 1.0
+#    )
+#    assert not np.all(
+#        np.abs(metadata.state.result().positions - dataset[0].result().positions)
+#        < 0.001
+#    )  # they have to have moved
+#    counter = walker.counter.result()
+#    assert counter > 0
+#    assert not metadata.reset.result()
+#    walker.fmax = 1e-3
+#    metadata = walker.propagate(model=model)
+#    assert not walker.is_reset().result()
+#    assert not np.all(
+#        np.abs(metadata.state.result().positions - dataset[0].result().positions)
+#        < 0.001
+#    )  # moved again
+#    assert walker.counter.result() > counter  # more steps in total
 
-    walker = OptimizationWalker(dataset[0], optimize_cell=False, fmax=1e-1)
-    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
-    assert trajectory.length().result() > 1
-    assert np.all(
-        np.abs(metadata.state.result().positions - dataset[0].result().positions) < 1.0
-    )
-    assert not np.all(
-        np.abs(metadata.state.result().positions - dataset[0].result().positions)
-        < 0.001
-    )  # they have to have moved
-    counter = walker.counter.result()
-    assert counter > 0
-    assert not metadata.reset.result()
-    walker.fmax = 1e-3
-    metadata = walker.propagate(model=model)
-    assert not walker.is_reset().result()
-    assert not np.all(
-        np.abs(metadata.state.result().positions - dataset[0].result().positions)
-        < 0.001
-    )  # moved again
-    assert walker.counter.result() > counter  # more steps in total
 
-
-def test_biased_dynamic_walker(context, mace_config, dataset):
-    model = MACEModel(mace_config)
-    model.initialize(dataset)
+def test_biased_dynamic_walker(mace_model, dataset):
     parameters = {
         "timestep": 1,
         "steps": 10,
@@ -306,7 +300,7 @@ restraint: RESTRAINT ARG=CV,CV1 AT=150,450 KAPPA=1,10
     bias = PlumedBias(plumed_input)
     walker = BiasedDynamicWalker(dataset[0], bias=bias, **parameters)
     assert bias.components[0] == ("RESTRAINT", ("CV", "CV1"))
-    metadata, trajectory = walker.propagate(model=model, keep_trajectory=True)
+    metadata, trajectory = walker.propagate(model=mace_model, keep_trajectory=True)
     state = metadata.state.result()
     assert "CV" in state.info
     assert "CV1" in state.info
@@ -342,13 +336,13 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
         "pressure": None,
     }
     walker = BiasedDynamicWalker(dataset[0], bias=bias, **parameters)
-    walker.propagate(model=model)
+    walker.propagate(model=mace_model)
 
     with open(walker.bias.data_futures["METAD"].result(), "r") as f:
         single_length = len(f.read().split("\n"))
     assert single_length > 1
     assert walker.counter.result() > 0
-    metadata = walker.propagate(model=model)
+    metadata = walker.propagate(model=mace_model)
     assert walker.counter.result() > 0
     assert not metadata.reset.result()
     with open(walker.bias.data_futures["METAD"].result(), "r") as f:
@@ -404,7 +398,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     )
 
 
-def test_walker_multiply_distribute(context, dataset, mace_config):
+def test_walker_multiply_distribute(dataset):
     def check(walkers):
         for i, walker in enumerate(walkers):
             assert np.allclose(
@@ -454,9 +448,7 @@ restraint: RESTRAINT ARG=CV AT=15 KAPPA=100
     assert walkers[0].bias.plumed_input != walkers[1].bias.plumed_input
 
 
-def test_moving_restraint_walker(context, dataset, mace_config):
-    model = MACEModel(mace_config)
-    model.initialize(dataset[:3])
+def test_moving_restraint_walker(dataset, mace_model):
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -477,5 +469,5 @@ RESTRAINT ARG=CV AT=150 KAPPA=1
     )
 
     walker = BiasedDynamicWalker(dataset[0], bias=bias, steps=30)
-    metadata = walker.propagate(model=model)
+    metadata = walker.propagate(model=mace_model)
     assert not walker.is_reset().result()

@@ -87,7 +87,7 @@ def main():
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=getattr(logging, "INFO"))
+    logging.basicConfig(level="INFO")
     state_dict = torch.load(str(args.model), map_location="cpu")
     config = Config.from_file(str(args.config), defaults=default_config)
 

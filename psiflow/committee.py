@@ -32,8 +32,8 @@ def _compute_disagreements(
         data.append(_data)
     lengths = [len(d) for d in data]
     assert lengths[0] > 0
-    for l in lengths:
-        assert l == lengths[0]
+    for length in lengths:
+        assert length == lengths[0]
     disagreements = np.zeros(lengths[0])
     if metric == "mean_force":
         for i in range(lengths[0]):
@@ -102,7 +102,6 @@ class Committee:
             model.seed = i
 
     def compute_disagreements(self, data: Dataset) -> AppFuture[np.ndarray]:
-        context = psiflow.context()
         inputs = [m.evaluate(data).data_future for m in self.models]
         disagreements = compute_disagreements(
             self.metric,
@@ -121,10 +120,9 @@ class Committee:
         return Dataset(None, data_future=future.outputs[0]), disagreements
 
     def train(self, training, validation) -> None:
-        for i, model in enumerate(self.models):
+        for model in self.models:
             model.reset()
             model.seed += len(self.models)
-        for model in self.models:
             model.initialize(training)
             model.train(training, validation)
 
