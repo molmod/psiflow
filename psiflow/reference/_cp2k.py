@@ -16,8 +16,7 @@ from parsl.executors import WorkQueueExecutor
 import psiflow
 from psiflow.data import FlowAtoms, NullState
 from psiflow.utils import copy_app_future, get_active_executor
-
-from .base import BaseReference
+from psiflow.reference.base import BaseReference
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -187,9 +186,11 @@ def cp2k_singlepoint_pre(
 ):
     import tempfile
 
-    from psiflow.reference._cp2k import (insert_atoms_in_input,
-                                         insert_filepaths_in_input,
-                                         set_global_section)
+    from psiflow.reference._cp2k import (
+        insert_atoms_in_input,
+        insert_filepaths_in_input,
+        set_global_section,
+    )
 
     filepaths = {}  # cp2k cannot deal with long filenames; copy into local dir
     for name, file in zip(file_names, inputs):

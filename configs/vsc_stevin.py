@@ -1,7 +1,12 @@
 from parsl.providers import SlurmProvider
 
-from psiflow.execution import (Default, ModelEvaluation, ModelTraining,
-                               ReferenceEvaluation, generate_parsl_config)
+from psiflow.execution import (
+    Default,
+    ModelEvaluation,
+    ModelTraining,
+    ReferenceEvaluation,
+    generate_parsl_config,
+)
 from psiflow.parsl_utils import ContainerizedLauncher
 
 launcher_cpu = ContainerizedLauncher(

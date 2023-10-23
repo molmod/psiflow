@@ -14,8 +14,12 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset, app_join_dataset
-from psiflow.utils import (copy_app_future, copy_data_future,
-                           resolve_and_check, save_yaml)
+from psiflow.utils import (
+    copy_app_future,
+    copy_data_future,
+    resolve_and_check,
+    save_yaml,
+)
 
 logger = logging.getLogger(__name__)  # logging per module
 logger.setLevel(logging.INFO)

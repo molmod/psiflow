@@ -9,9 +9,12 @@ from ase.build import bulk, make_supercell
 from psiflow.data import Dataset, NullState
 from psiflow.models import NequIPModel
 from psiflow.walkers import PlumedBias, RandomWalker
-from psiflow.walkers.bias import (generate_external_grid, parse_plumed_input,
-                                  remove_comments_printflush,
-                                  set_path_in_plumed)
+from psiflow.walkers.bias import (
+    generate_external_grid,
+    parse_plumed_input,
+    remove_comments_printflush,
+    set_path_in_plumed,
+)
 
 
 def test_get_filename_hills(tmp_path):

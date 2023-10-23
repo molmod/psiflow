@@ -7,8 +7,7 @@ from psiflow.metrics import Metrics, log_dataset
 from psiflow.models import MACEModel
 from psiflow.reference import EMTReference
 from psiflow.sampling import sample_with_committee, sample_with_model
-from psiflow.walkers import (BiasedDynamicWalker, DynamicWalker, PlumedBias,
-                             RandomWalker)
+from psiflow.walkers import BiasedDynamicWalker, DynamicWalker, PlumedBias, RandomWalker
 
 
 def test_sample_metrics(mace_config, dataset, tmp_path):

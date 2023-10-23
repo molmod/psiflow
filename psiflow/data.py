@@ -28,9 +28,13 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.utils import (copy_data_future, get_train_valid_indices,
-                           reduce_box_vectors, resolve_and_check,
-                           transform_lower_triangular)
+from psiflow.utils import (
+    copy_data_future,
+    get_train_valid_indices,
+    reduce_box_vectors,
+    resolve_and_check,
+    transform_lower_triangular,
+)
 
 logger = logging.getLogger(__name__)  # logging per module
 

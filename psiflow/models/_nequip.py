@@ -18,8 +18,7 @@ from parsl.data_provider.files import File
 from parsl.executors import WorkQueueExecutor
 
 import psiflow
-from psiflow.models import BaseModel
-from psiflow.models.base import evaluate_dataset
+from psiflow.models.base import BaseModel, evaluate_dataset
 from psiflow.utils import get_active_executor, read_yaml
 
 logger = logging.getLogger(__name__)  # logging per module

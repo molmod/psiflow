@@ -15,8 +15,7 @@ from pymatgen.io.cp2k.inputs import Cp2kInput
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.reference import CP2KReference, EMTReference, NWChemReference
-from psiflow.reference._cp2k import (insert_atoms_in_input,
-                                     insert_filepaths_in_input)
+from psiflow.reference._cp2k import insert_atoms_in_input, insert_filepaths_in_input
 
 
 @pytest.fixture

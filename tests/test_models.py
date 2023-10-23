@@ -15,8 +15,14 @@ import psiflow
 from psiflow.committee import Committee
 from psiflow.data import Dataset
 from psiflow.execution import ModelEvaluation
-from psiflow.models import (AllegroModel, MACEConfig, MACEModel, NequIPConfig,
-                            NequIPModel, load_model)
+from psiflow.models import (
+    AllegroModel,
+    MACEConfig,
+    MACEModel,
+    NequIPConfig,
+    NequIPModel,
+    load_model,
+)
 from psiflow.reference import EMTReference
 
 

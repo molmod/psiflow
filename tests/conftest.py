@@ -13,8 +13,14 @@ from ase.calculators.emt import EMT
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.models import (AllegroConfig, AllegroModel, MACEConfig, MACEModel,
-                            NequIPConfig, NequIPModel)
+from psiflow.models import (
+    AllegroConfig,
+    AllegroModel,
+    MACEConfig,
+    MACEModel,
+    NequIPConfig,
+    NequIPModel,
+)
 from psiflow.reference import EMTReference
 
 

@@ -1,8 +1,13 @@
 from parsl.launchers import SimpleLauncher
 from parsl.providers import LocalProvider
 
-from psiflow.execution import (Default, ModelEvaluation, ModelTraining,
-                               ReferenceEvaluation, generate_parsl_config)
+from psiflow.execution import (
+    Default,
+    ModelEvaluation,
+    ModelTraining,
+    ReferenceEvaluation,
+    generate_parsl_config,
+)
 from psiflow.parsl_utils import ContainerizedLauncher
 
 containerize = False

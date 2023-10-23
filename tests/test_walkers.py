@@ -12,11 +12,20 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.models import MACEModel, NequIPModel
 from psiflow.utils import copy_app_future
-from psiflow.walkers import (BaseWalker, BiasedDynamicWalker, DynamicWalker,
-                             OptimizationWalker, PlumedBias, RandomWalker,
-                             load_walker)
-from psiflow.walkers.utils import (get_velocities_at_temperature,
-                                   parse_openmm_output, parse_yaff_output)
+from psiflow.walkers import (
+    BaseWalker,
+    BiasedDynamicWalker,
+    DynamicWalker,
+    OptimizationWalker,
+    PlumedBias,
+    RandomWalker,
+    load_walker,
+)
+from psiflow.walkers.utils import (
+    get_velocities_at_temperature,
+    parse_openmm_output,
+    parse_yaff_output,
+)
 
 
 def test_random_walker_multiply(context, dataset, tmp_path):

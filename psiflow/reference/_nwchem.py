@@ -12,7 +12,7 @@ from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import NullState
-from psiflow.reference import BaseReference
+from psiflow.reference.base import BaseReference
 from psiflow.utils import copy_app_future, get_active_executor
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -27,9 +27,17 @@ def write_nwchem_in(path_input, atoms, properties=None, echo=False, **params):
     import os
     from copy import deepcopy
 
-    from ase.io.nwchem.nwwriter import (_get_bandpath, _get_basis, _get_geom,
-                                        _get_kpts, _get_other, _get_set,
-                                        _get_theory, _update_mult, _xc_conv)
+    from ase.io.nwchem.nwwriter import (
+        _get_bandpath,
+        _get_basis,
+        _get_geom,
+        _get_kpts,
+        _get_other,
+        _get_set,
+        _get_theory,
+        _update_mult,
+        _xc_conv,
+    )
 
     params = deepcopy(params)
     if properties is None:

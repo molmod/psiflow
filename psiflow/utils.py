@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import typeguard
+from ase import Atoms
 from ase.data import atomic_numbers
 from parsl.app.app import python_app
-from psiflow.data import FlowAtoms, NullState
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 from parsl.executors.base import ParslExecutor
@@ -417,7 +417,9 @@ def reduce_box_vectors(rvecs):
 
 
 @typeguard.typechecked
-def _check_distances(state: FlowAtoms, threshold: float):
+def _check_distances(state: Atoms, threshold: float):
+    import numpy as np
+    from psiflow.data import NullState
     from ase.geometry.geometry import find_mic
 
     if state == NullState:

@@ -3,8 +3,7 @@ import shutil
 import pytest
 
 import psiflow
-from psiflow.learning import (IncrementalLearning, SequentialLearning,
-                              load_learning)
+from psiflow.learning import IncrementalLearning, SequentialLearning, load_learning
 from psiflow.metrics import Metrics
 from psiflow.models import MACEModel
 from psiflow.reference import EMTReference

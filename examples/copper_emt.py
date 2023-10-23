@@ -8,8 +8,7 @@ from ase.build import bulk, make_supercell
 import psiflow
 from psiflow.committee import Committee
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.learning import (CommitteeLearning, SequentialLearning,
-                              load_learning)
+from psiflow.learning import CommitteeLearning, SequentialLearning, load_learning
 from psiflow.metrics import Metrics
 from psiflow.models import MACEConfig, MACEModel
 from psiflow.reference import EMTReference
