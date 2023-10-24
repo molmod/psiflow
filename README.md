@@ -32,7 +32,7 @@ ___
 Check out this seven-minute introduction to psiflow:
 
 <a href="https://www.youtube.com/watch?v=mQC7VomFjYQ">
-  <img src="./docs/parslfest_thumbnail.png" alt="drawing" width="350"/>
+  <img src="./docs/parslfest_thumbnail.png" alt="drawing" width="450"/>
 </a>
 
 which was recorded at [ParslFest 2023](https://parsl-project.org/parslfest/parslfest2023.html)
