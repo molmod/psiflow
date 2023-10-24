@@ -1,13 +1,8 @@
-import tempfile
-
 import numpy as np
 import pytest
-import requests
-import yaml
-from ase.build import bulk, make_supercell
+from ase.build import make_supercell
 
 from psiflow.data import Dataset, NullState
-from psiflow.models import NequIPModel
 from psiflow.walkers import PlumedBias, RandomWalker
 from psiflow.walkers.bias import (
     generate_external_grid,
@@ -111,7 +106,7 @@ METAD ARG=CV1 SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
         assert np.allclose(volume, values[i, 0])
     assert np.allclose(np.zeros(values[:, 1].shape), values[:, 1])
     dataset_ = bias.evaluate(dataset, as_dataset=True)
-    for i, atoms in enumerate(dataset_.as_list().result()):
+    for atoms in dataset_.as_list().result():
         assert np.allclose(atoms.get_volume(), atoms.info["CV1"])
     state = dataset_[0].result()
     state.reset()
@@ -142,7 +137,7 @@ UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 external: EXTERNAL ARG=CV FILE=test_grid
 """
-    bias_function = lambda x: np.exp(-0.01 * (x - 150) ** 2)
+    bias_function = lambda x: np.exp(-0.01 * (x - 150) ** 2)  # noqa: E731
     variable = np.linspace(0, 300, 500)
     grid = generate_external_grid(bias_function, variable, "CV", periodic=False)
     data = {"EXTERNAL": grid}

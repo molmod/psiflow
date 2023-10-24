@@ -1,22 +1,29 @@
 import os
-from dataclasses import asdict
 
 import numpy as np
 import pytest
-import torch
 from ase import Atoms
 from ase.units import kB
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.models import MACEModel, NequIPModel
+from psiflow.models import MACEModel
 from psiflow.utils import copy_app_future
-from psiflow.walkers import (BaseWalker, BiasedDynamicWalker, DynamicWalker,
-                             OptimizationWalker, PlumedBias, RandomWalker,
-                             load_walker)
-from psiflow.walkers.utils import (get_velocities_at_temperature,
-                                   parse_openmm_output, parse_yaff_output)
+from psiflow.walkers import (  # noqa: F401
+    BaseWalker,
+    BiasedDynamicWalker,
+    DynamicWalker,
+    OptimizationWalker,
+    PlumedBias,
+    RandomWalker,
+    load_walker,
+)
+from psiflow.walkers.utils import (
+    get_velocities_at_temperature,
+    parse_openmm_output,
+    parse_yaff_output,
+)
 
 
 def test_random_walker_multiply(dataset, tmp_path):
@@ -29,13 +36,13 @@ def test_random_walker_multiply(dataset, tmp_path):
         amplitude_pos=amplitude_pos,
         amplitude_box=amplitude_box,
     )
-    for i, walker in enumerate(walkers):
+    for walker in walkers:
         delta = np.abs(dataset[0].result().positions - walker.state.result().positions)
         assert np.allclose(delta, 0)
         delta = np.abs(dataset[0].result().positions - walker.state0.result().positions)
         assert np.allclose(delta, 0)
-    data = Dataset([w.propagate(None).state for w in walkers])
-    for i, walker in enumerate(walkers):
+    Dataset([w.propagate(None).state for w in walkers])
+    for walker in walkers:
         delta = np.abs(
             walker.state0.result().positions - walker.state.result().positions
         )
@@ -58,7 +65,7 @@ def test_walker_save_load(dataset, mace_model, tmp_path):
     assert os.path.exists(path_state)
     assert os.path.exists(path_pars)
     walker_ = load_walker(tmp_path / "new")
-    assert type(walker_) == DynamicWalker
+    assert type(walker_) is DynamicWalker
     assert np.allclose(
         walker.state0.result().positions,
         walker_.state0.result().positions,
@@ -415,7 +422,7 @@ restraint: RESTRAINT ARG=CV AT=15 KAPPA=100
     bias = PlumedBias(plumed_input)
     walkers = BiasedDynamicWalker.multiply(3, dataset, bias=bias, steps=123)
     assert len(walkers) == 3
-    assert type(walkers[0]) == BiasedDynamicWalker
+    assert type(walkers[0]) is BiasedDynamicWalker
     assert walkers[0].steps == 123
     check(walkers)
 
@@ -460,5 +467,5 @@ RESTRAINT ARG=CV AT=150 KAPPA=1
     )
 
     walker = BiasedDynamicWalker(dataset[0], bias=bias, steps=30)
-    metadata = walker.propagate(model=mace_model)
+    walker.propagate(model=mace_model)
     assert not walker.is_reset().result()

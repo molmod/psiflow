@@ -1,22 +1,22 @@
 import ast
-import copy
 import os
-from dataclasses import asdict
 
 import numpy as np
 import pytest
 import torch
-from ase.data import chemical_symbols
-from ase.io.extxyz import read_extxyz
 from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.committee import Committee
 from psiflow.data import Dataset
-from psiflow.execution import ModelEvaluation
-from psiflow.models import (AllegroModel, MACEConfig, MACEModel, NequIPConfig,
-                            NequIPModel, load_model)
+from psiflow.models import (
+    AllegroModel,
+    MACEConfig,
+    MACEModel,
+    NequIPConfig,
+    NequIPModel,
+    load_model,
+)
 from psiflow.reference import EMTReference
 
 
@@ -79,14 +79,14 @@ def test_nequip_save_load(nequip_config, dataset, tmp_path):
     path_config = tmp_path / "config_after_init.yaml"
     path_model = tmp_path / "model_undeployed.pth"
     path_deploy = tmp_path / "model_deployed.pth"
-    futures = model.save(tmp_path, require_done=True)
+    model.save(tmp_path, require_done=True)
     assert os.path.exists(path_config_raw)
     assert os.path.exists(path_config)
     assert os.path.exists(path_model)
     assert os.path.exists(path_deploy)
 
     model_ = load_model(tmp_path)
-    assert type(model_) == NequIPModel
+    assert type(model_) is NequIPModel
     assert model_.model_future is not None
     assert model_.deploy_future is not None
     e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info["energy"]
@@ -199,14 +199,14 @@ def test_allegro_save_load(allegro_config, dataset, tmp_path):
     path_config = tmp_path / "config_after_init.yaml"
     path_model = tmp_path / "model_undeployed.pth"
     path_deploy = tmp_path / "model_deployed.pth"
-    futures = model.save(tmp_path, require_done=True)
+    model.save(tmp_path, require_done=True)
     assert os.path.exists(path_config_raw)
     assert os.path.exists(path_config)
     assert os.path.exists(path_model)
     assert os.path.exists(path_deploy)
 
     model_ = load_model(tmp_path)
-    assert type(model_) == AllegroModel
+    assert type(model_) is AllegroModel
     assert model_.model_future is not None
     assert model_.deploy_future is not None
     e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info["energy"]
@@ -303,7 +303,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     assert os.path.exists(path_deployed)
 
     model_ = load_model(tmp_path)
-    assert type(model_) == MACEModel
+    assert type(model_) is MACEModel
     assert model_.model_future is not None
     assert model_.deploy_future is not None
     e1 = model_.evaluate(dataset.get(indices=[3]))[0].result().info["energy"]

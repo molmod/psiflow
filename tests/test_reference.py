@@ -1,22 +1,17 @@
-import os
 from pathlib import Path
 
 import molmod
 import numpy as np
 import pytest
 import requests
-from ase import Atoms
-from ase.io.extxyz import write_extxyz
 from ase.units import Pascal
-from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 from pymatgen.io.cp2k.inputs import Cp2kInput
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.reference import CP2KReference, EMTReference, NWChemReference
-from psiflow.reference._cp2k import (insert_atoms_in_input,
-                                     insert_filepaths_in_input)
+from psiflow.reference._cp2k import insert_filepaths_in_input
 
 
 @pytest.fixture
@@ -182,11 +177,11 @@ def test_reference_emt(context, dataset, tmp_path):
     assert evaluated.length().result() == len(atoms_list)
 
     atoms = reference.evaluate(dataset_[5]).result()
-    assert type(atoms) == FlowAtoms
-    assert atoms.reference_status == True
+    assert type(atoms) is FlowAtoms
+    assert atoms.reference_status
     atoms = reference.evaluate(dataset_[6]).result()
-    assert type(atoms) == FlowAtoms
-    assert atoms.reference_status == False
+    assert type(atoms) is FlowAtoms
+    assert not atoms.reference_status
 
 
 def test_cp2k_insert_filepaths(fake_cp2k_input):
@@ -242,7 +237,7 @@ def test_cp2k_success(context, cp2k_reference):
     dataset = Dataset([atoms])
     evaluated = cp2k_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().reference_status == True
+    assert evaluated.result().reference_statuss
     assert Path(evaluated.result().reference_stdout).is_file()
     assert Path(evaluated.result().reference_stderr).is_file()
     assert "energy" in evaluated.result().info.keys()
@@ -375,7 +370,7 @@ def test_cp2k_failure(context, cp2k_data, tmp_path):
     )
     evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().reference_status == False
+    assert not evaluated.result().reference_status
     assert "energy" not in evaluated.result().info.keys()
     with open(evaluated.result().reference_stdout, "r") as f:
         log = f.read()
@@ -393,7 +388,7 @@ def test_cp2k_timeout(context, cp2k_reference):
     )
     evaluated = cp2k_reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().reference_status == False
+    assert not evaluated.result().reference_status
     assert "energy" not in evaluated.result().info.keys()
 
 
@@ -438,14 +433,14 @@ def test_nwchem_success(nwchem_reference):
     dataset = Dataset([atoms])
     evaluated = nwchem_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().reference_status == True
+    assert evaluated.result().reference_status
     assert Path(evaluated.result().reference_stdout).is_file()
     assert Path(evaluated.result().reference_stderr).is_file()
     assert "energy" in evaluated.result().info.keys()
-    assert not "stress" in evaluated.result().info.keys()
+    assert "stress" not in evaluated.result().info.keys()
     assert "forces" in evaluated.result().arrays.keys()
     assert evaluated.result().arrays["forces"][0, 0] < 0
     assert evaluated.result().arrays["forces"][1, 0] > 0
 
-    energy_h2 = nwchem_reference.evaluate(dataset)
+    nwchem_reference.evaluate(dataset)
     assert nwchem_reference.compute_atomic_energy("H").result() < 0

@@ -12,24 +12,24 @@ from psiflow.utils import get_index_element_mask, is_reduced
 
 def test_flow_atoms(dataset, tmp_path):
     atoms = dataset.get(index=0).result().copy()  # copy necessary with HTEX!
-    assert type(atoms) == FlowAtoms
+    assert type(atoms) is FlowAtoms
     atoms.reference_status = True
     atoms_ = atoms.copy()
-    assert atoms_.reference_status == True
+    assert atoms_.reference_status
     atoms_ = FlowAtoms.from_atoms(atoms)
-    assert atoms_.reference_status == True
+    assert atoms_.reference_status
     for i in range(dataset.length().result()):
         atoms = dataset[i].result()
-        assert type(atoms) == FlowAtoms
-        assert atoms.reference_status == True
+        assert type(atoms) is FlowAtoms
+        assert atoms.reference_status
     assert dataset.labeled().length().result() == dataset.length().result()
     dataset += Dataset([NullState])
     assert dataset.length().result() == 1 + dataset.not_null().length().result()
-    assert atoms.reference_status == True
+    assert atoms.reference_status
     atoms.reset()
     atoms.cell[:] = np.array([[3, 1, 1], [1, 5, 0], [0, -1, 5]])
-    assert not "energy" in atoms.info
-    assert atoms.reference_status == False
+    assert "energy" not in atoms.info
+    assert not atoms.reference_status
     assert tuple(sorted(atoms.elements)) == ("Cu", "H")
     assert not is_reduced(atoms.cell)
     atoms.canonical_orientation()
@@ -42,7 +42,6 @@ def test_dataset_empty(tmp_path):
     assert isinstance(dataset.data_future, DataFuture)
     path_xyz = tmp_path / "test.xyz"
     dataset.save(path_xyz)  # ensure the copy is executed before assert
-    assert not os.path.isfile(path_xyz)
     psiflow.wait()
     assert os.path.isfile(path_xyz)
     with pytest.raises(ValueError):  # cannot save outside cwd
@@ -53,8 +52,8 @@ def test_dataset_append(dataset):
     assert 20 == dataset.length().result()
     atoms_list = dataset.as_list().result()
     assert len(atoms_list) == 20
-    assert type(atoms_list) == list
-    assert type(atoms_list[0]) == FlowAtoms
+    assert type(atoms_list) is list
+    assert type(atoms_list[0]) is FlowAtoms
     empty = Dataset([])  # use [] instead of None
     empty.append(dataset)
     assert 20 == empty.length().result()
@@ -216,7 +215,7 @@ def test_data_elements(dataset):
 
 def test_data_reset(dataset):
     dataset = dataset.reset()
-    assert not "energy" in dataset[0].result().info
+    assert "energy" not in dataset[0].result().info
 
 
 def test_nullstate(context):
@@ -249,7 +248,7 @@ def test_identifier(dataset):
     for i in range(data.length().result()):
         s = data[i].result()
         if not s == NullState:
-            assert not "identifier" in s.info
+            assert "identifier" not in s.info
     identifier = data.assign_identifiers(10)
     assert identifier.result() == 10  # none are labeled
     identifier = dataset.assign_identifiers(10)

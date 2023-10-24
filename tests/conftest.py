@@ -1,21 +1,16 @@
-import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
 import parsl
 import pytest
-import requests
-import yaml
 from ase import Atoms
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.models import (AllegroConfig, AllegroModel, MACEConfig, MACEModel,
-                            NequIPConfig, NequIPModel)
-from psiflow.reference import EMTReference
+from psiflow.models import AllegroConfig, MACEConfig, MACEModel, NequIPConfig
 
 
 def pytest_addoption(parser):
@@ -104,7 +99,7 @@ def generate_emt_cu_data(nstates, amplitude):
     pos = atoms.get_positions()
     box = atoms.get_cell()
     atoms_list = []
-    for i in range(nstates):
+    for _ in range(nstates):
         atoms.set_positions(
             pos + np.random.uniform(-amplitude, amplitude, size=(len(atoms), 3))
         )

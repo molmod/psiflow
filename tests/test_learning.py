@@ -161,7 +161,7 @@ MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
         walkers,
     )
     assert data.length().result() == len(walkers)  # perform 1 iteration
-    for i, walker in enumerate(walkers):
+    for walker in walkers:
         assert not walker.is_reset().result()
         steps, kappas, centers = walker.bias.get_moving_restraint(variable="CV")
         assert steps == 10
@@ -172,7 +172,7 @@ def test_temperature_ramp(context):
     assert apply_temperature_ramp(100, 300, 1, 100) == 300
     assert apply_temperature_ramp(100, 500, 3, 550) == 500
     T = 100
-    for i in range(3):
+    for _ in range(3):
         T = apply_temperature_ramp(100, 500, 5, T)
     assert T == 1 / (1 / 100 - 3 * (1 / 100 - 1 / 500) / 4)
     assert not T == 500
