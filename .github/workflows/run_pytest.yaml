@@ -1,36 +1,42 @@
 name: CI
 run-name: pytest-CI
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 jobs:
-  - uses: mamba-org/setup-micromamba@v1
-    with:
-      micromamba-version: '1.5.0'
-      environment-name: 'test-env'
-      create-args: >-
-        python=3.9
-        openmm-torch
-        openmm-plumed
-        py-plumed
-        cp2k
-        nwchem
-        pip
-        pytorch=1.13.1
-        -c conda-forge
-      init-shell: >-
-        bash
-      cache-environment: true
-      post-cleanup: 'all'
-  - name: install pip dependencies and execute pytest
-    run: >-
-      pip install cython==0.29.36 matscipy prettytable
-      pip install git+https://github.com/molmod/molmod
-      pip install git+https://github.com/molmod/yaff
-      pip install e3nn==0.4.4
-      pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0' mdtraj tables
-      pip install git+https://github.com/acesuit/MACE.git@55f7411
-      pip install git+https://github.com/mir-group/nequip.git@develop --no-deps
-      pip install git+https://github.com/mir-group/allegro --no-deps
-      pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
-      pip install 'psiflow[dev] @ git+https://github.com/molmod/psiflow.git'
-      pytest --skip-gpu
-    shell: micromamba-shell {0}
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: mamba-org/setup-micromamba@v1
+        with:
+          micromamba-version: '1.5.0'
+          environment-name: 'test-env'
+          create-args: >-
+            python=3.9
+            openmm-torch
+            openmm-plumed
+            py-plumed
+            cp2k
+            nwchem
+            pip
+            pytorch=1.13.1
+            -c conda-forge
+          init-shell: bash
+          cache-environment: true
+          post-cleanup: 'all'
+      - name: install pip dependencies and execute pytest
+        run: >-
+          pip install cython==0.29.36 matscipy prettytable
+          pip install git+https://github.com/molmod/molmod
+          pip install git+https://github.com/molmod/yaff
+          pip install e3nn==0.4.4
+          pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0' mdtraj tables
+          pip install git+https://github.com/acesuit/MACE.git@55f7411
+          pip install git+https://github.com/mir-group/nequip.git@develop --no-deps
+          pip install git+https://github.com/mir-group/allegro --no-deps
+          pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
+          pip install 'psiflow[dev] @ git+https://github.com/molmod/psiflow.git'
+          pytest --skip-gpu
+        shell: micromamba-shell {0}
