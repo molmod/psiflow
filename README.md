@@ -1,12 +1,14 @@
 ![psiflow](./docs/logo_light.png#gh-light-mode-only)
 ![psiflow](./docs/logo_dark.png#gh-dark-mode-only)
 
-[![Coverage Status](https://coveralls.io/repos/github/svandenhaute/psiflow/badge.svg?branch=main&service=github)](https://coveralls.io/github/svandenhaute/psiflow?branch=main)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/molmod/psiflow)](https://github.com/molmod/psiflow/releases)
-[![pages-build-deployment](https://github.com/molmod/psiflow/actions/workflows/pages/pages-build-deployment/badge.svg)](https://molmod.github.io/psiflow)
-[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
-[![code style](https://img.shields.io/badge/code%20style-black-black)]()
-[![Citation Badge](https://api.juleskreuer.eu/citation-badge.php?doi=10.1038/s41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
+
+![License](https://flat.badgen.net/github/license/molmod/psiflow)
+[![Docs](https://flat.badgen.net/static/docs/passing/green)](https://molmod.github.io/psiflow)
+[![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Fmolmod%2Fpsiflow%2Fbadge%3Fref%3Dmain&style=flat-square)](https://actions-badge.atrox.dev/molmod/psiflow/goto?ref=main)
+![Python](https://flat.badgen.net/static/python/3.9/blue)
+![Code style](https://flat.badgen.net/static/code%20style/black/black)
+[![DOI](https://flat.badgen.net/static/DOI/10.1038%2Fs41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
+
 
 
 # Interatomic potentials using online learning
