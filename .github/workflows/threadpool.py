@@ -21,7 +21,7 @@ model_evaluation = ModelEvaluation(
 )
 model_training = ModelTraining(
     parsl_provider=LocalProvider(),
-    gpu=False,
+    gpu=True,
     max_walltime=1,
 )
 reference_evaluation = ReferenceEvaluation(
