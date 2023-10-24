@@ -237,7 +237,7 @@ def test_cp2k_success(context, cp2k_reference):
     dataset = Dataset([atoms])
     evaluated = cp2k_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().reference_statuss
+    assert evaluated.result().reference_status
     assert Path(evaluated.result().reference_stdout).is_file()
     assert Path(evaluated.result().reference_stderr).is_file()
     assert "energy" in evaluated.result().info.keys()
