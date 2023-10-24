@@ -38,6 +38,6 @@ jobs:
           pip install git+https://github.com/mir-group/nequip.git@develop --no-deps
           pip install git+https://github.com/mir-group/allegro --no-deps
           pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
-          pip install 'psiflow[dev] @ git+https://github.com/molmod/psiflow.git'
+          pip install 'psiflow[test] @ git+https://github.com/molmod/psiflow.git'
           pytest --skip-gpu
         shell: micromamba-shell {0}
