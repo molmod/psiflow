@@ -3,8 +3,7 @@ import shutil
 import pytest
 
 import psiflow
-from psiflow.learning import (IncrementalLearning, SequentialLearning,
-                              load_learning)
+from psiflow.learning import IncrementalLearning, SequentialLearning, load_learning
 from psiflow.metrics import Metrics
 from psiflow.models import MACEModel
 from psiflow.reference import EMTReference
@@ -15,7 +14,7 @@ from psiflow.walkers import BiasedDynamicWalker, PlumedBias, RandomWalker
 def test_learning_save_load(gpu, tmp_path):
     path_output = tmp_path / "output"
     path_output.mkdir()
-    learning = SequentialLearning(
+    SequentialLearning(
         path_output=path_output,
         metrics=None,
         pretraining_nstates=100,
@@ -29,7 +28,7 @@ def test_learning_save_load(gpu, tmp_path):
         wandb_project="pytest",
         wandb_group="test_learning_save_load",
     )
-    learning = SequentialLearning(
+    SequentialLearning(
         path_output=path_output,
         metrics=metrics,
         pretraining_nstates=99,
@@ -166,7 +165,7 @@ MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
         assert not walker.is_reset().result()
         steps, kappas, centers = walker.bias.get_moving_restraint(variable="CV")
         assert steps == 10
-        assert centers[1] == learning.cv_stop
+        assert centers[1] == 170  # update(initialize=True) does not change anything
 
 
 def test_temperature_ramp(context):

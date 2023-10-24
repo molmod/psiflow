@@ -88,7 +88,7 @@ def parse_plumed_input(plumed_input: str) -> tuple[list[tuple], tuple[str, ...]]
     external_exists = False
     for key in PLUMED_BIAS_KEYWORDS:
         lines = plumed_input.split("\n")
-        for i, line in enumerate(lines):
+        for line in lines:
             if key in line.split():
                 if key == "METAD":
                     assert not metad_exists, "only one METAD action is allowed"
@@ -421,7 +421,7 @@ class PlumedBias:
         else:
             for key, value in data.items():
                 assert key in self.keys
-                if type(value) == str:
+                if type(value) is str:
                     self.data_futures[key] = save_txt(
                         value,
                         outputs=[context.new_file(key + "_", ".txt")],
@@ -584,7 +584,7 @@ class PlumedBias:
         plumed_input = str(self.plumed_input)
         lines = plumed_input.split("\n")
         found = False
-        for i, line in enumerate(lines):
+        for line in lines:
             if "RESTRAINT" in line.split() and "MOVING" not in line.split():
                 if "ARG={}".format(variable) in line.split():
                     assert not found
@@ -598,7 +598,7 @@ class PlumedBias:
         plumed_input = str(self.plumed_input)
         lines = plumed_input.split("\n")
         found = False
-        for i, line in enumerate(lines):
+        for line in lines:
             if "MOVINGRESTRAINT" in line.split():
                 if "ARG={}".format(variable) in line.split():
                     assert not found

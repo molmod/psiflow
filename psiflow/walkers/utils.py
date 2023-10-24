@@ -260,7 +260,7 @@ def parse_yaff_output(stdout):
     for line in stdout.split("\n"):
         if "VERLET" in line:
             try:
-                a = [float(s) for s in line.split()[1:]]
+                _ = [float(s) for s in line.split()[1:]]
             except ValueError:
                 continue
             temperatures.append(float(line.split()[3]))

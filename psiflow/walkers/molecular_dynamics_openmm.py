@@ -43,8 +43,6 @@ def main():
 
     args = parser.parse_args()
 
-    path_plumed = "plumed.dat"
-
     assert args.device in ["cpu", "cuda"]
     assert Path(args.atoms).is_file()
     assert args.model_cls in ["MACEModel", "NequIPModel", "AllegroModel"]
@@ -202,7 +200,6 @@ def main():
 
     # save either entire trajectory or only last state
     traj = mdtraj.load_hdf5("traj.h5")
-    symbols = list(traj.top.to_dataframe()[0]["element"])
     trajectory = [initial]
     for i in range(traj.xyz.shape[0]):
         if not args.keep_trajectory and (i != traj.xyz.shape[0] - 1):

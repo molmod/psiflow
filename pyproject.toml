@@ -63,7 +63,7 @@ include = [
 
 [tool.flake8]
 max-line-length = 88
-extend-ignore = ["E203", "E501", "E704"]
+extend-ignore = ["E203", "E501", "E704", "B006"]
 #select = C,E,F,W,B,B950
 
 [tool.isort]

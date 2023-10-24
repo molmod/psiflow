@@ -56,19 +56,6 @@ sum_integers = python_app(_sum_integers, executors=["Default"])
 
 
 @typeguard.typechecked
-def _create_if_empty(outputs: List[File] = []) -> None:
-    try:
-        with open(inputs[1], "r") as f:
-            f.read()
-    except FileNotFoundError:  # create it if it doesn't exist
-        with open(inputs[1], "w+") as f:
-            f.write("")
-
-
-create_if_empty = python_app(_create_if_empty, executors=["Default"])
-
-
-@typeguard.typechecked
 def _combine_futures(inputs: List[Any]) -> List[Any]:
     return list(inputs)
 
@@ -153,7 +140,7 @@ def _save_yaml(
         for key in list(arg.keys()):
             if hasattr(arg[key], "item"):
                 arg[key] = arg[key].item()
-            elif type(arg[key]) == dict:
+            elif type(arg[key]) is dict:
                 arg[key] = _make_dict_safe(arg[key])
             else:
                 pass
@@ -252,8 +239,8 @@ def resolve_and_check(path: Path) -> Path:
 
 
 def compute_error(
-    atoms_0: FlowAtoms,
-    atoms_1: FlowAtoms,
+    atoms_0: Atoms,
+    atoms_1: Atoms,
     metric: str,
     mask: np.ndarray,
     properties: List[str],
@@ -419,8 +406,9 @@ def reduce_box_vectors(rvecs):
 @typeguard.typechecked
 def _check_distances(state: Atoms, threshold: float):
     import numpy as np
-    from psiflow.data import NullState
     from ase.geometry.geometry import find_mic
+
+    from psiflow.data import NullState
 
     if state == NullState:
         return NullState

@@ -49,7 +49,7 @@ class BaseWalker:
         atoms: Union[Atoms, FlowAtoms, AppFuture],
         seed: int = 0,
     ) -> None:
-        if type(atoms) == Atoms:
+        if type(atoms) is Atoms:
             atoms = FlowAtoms.from_atoms(atoms)
         self.state0 = app_reset_atoms(atoms)
         self.state = app_reset_atoms(atoms)

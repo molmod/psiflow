@@ -45,8 +45,6 @@ def main():
 
     args = parser.parse_args()
 
-    path_plumed = "plumed.dat"
-
     assert args.device in ["cpu", "cuda"]
     assert Path(args.atoms).is_file()
     assert args.model_cls in ["MACEModel", "NequIPModel", "AllegroModel"]
@@ -130,7 +128,7 @@ def main():
         else:
             print("sampling NPT ensemble ...")
             try:  # some models do not have stress support; prevent NPT!
-                stress = atoms.get_stress()
+                atoms.get_stress()
             except Exception:
                 raise ValueError("NPT requires stress support in model")
             baro = yaff.LangevinBarostat(

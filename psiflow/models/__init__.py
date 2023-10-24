@@ -8,10 +8,10 @@ import psiflow
 from psiflow.utils import resolve_and_check
 
 from ._mace import MACEConfig, MACEModel  # noqa: F401
-from ._nequip import (
+from ._nequip import (  # noqa: F401
     AllegroConfig,
     AllegroModel,
-    NequIPConfig,  # noqa: F401
+    NequIPConfig,
     NequIPModel,
 )
 from .base import BaseModel

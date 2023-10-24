@@ -59,7 +59,7 @@ def optimize_geometry(
     preconditioner = Exp(A=3)  # from ASE docs
     if pars["optimize_cell"]:  # include cell DOFs in optimization
         try:  # some models do not have stress support; prevent full cell opt!
-            stress = atoms.get_stress()
+            atoms.get_stress()
         except Exception:
             raise ValueError("cell optimization requires stress support in model")
         dof = ExpCellFilter(atoms, mask=[True] * 6)
@@ -77,13 +77,11 @@ def optimize_geometry(
     reset = False
     try:
         optimizer.run(fmax=pars["fmax"])
-        nsteps = optimizer.nsteps
     except (AppTimeout, RuntimeError) as error:
         print(error)
-        nsteps = optimizer.nsteps
-    except:
+    except Exception as e:
         reset = True
-        nsteps = 0
+        print(e)
     atoms.calc = None
     if keep_trajectory:
         assert str(outputs[0].filepath).endswith(".xyz")
