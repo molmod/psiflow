@@ -26,7 +26,8 @@ jobs:
           init-shell: bash
           cache-environment: true
           post-cleanup: 'all'
-      - name: install pip dependencies and execute pytest
+      - uses: actions/checkout@v4  
+        name: install pip dependencies and execute pytest
         run: >-
           pip install cython==0.29.36 matscipy prettytable
           pip install git+https://github.com/molmod/molmod
