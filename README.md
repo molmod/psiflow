@@ -27,6 +27,10 @@ Execution is massively parallel and powered by [Parsl](https://parsl-project.org
 While psiflow exposes an intuitive and concise API for defining complex molecular simulation workflows in a single Python script, Parsl ensures that the execution is automatically offloaded to arbitrarily large amounts of compute resources.
 Visit the [documentation](https://molmod.github.io/psiflow) for more details.
 
-Check out [this 7-minute introduction](https://www.youtube.com/watch?v=mQC7VomFjYQ) from ParslFest 2023!
+___
 
-![talk](./docs/parslfest_thumbnail.png)
+Check out this seven-minute introduction from [ParslFest 2023](https://parsl-project.org/parslfest/parslfest2023.html):
+
+<a href="https://www.youtube.com/watch?v=mQC7VomFjYQ">
+  <img src="./docs/parslfest_thumbnail.png" alt="drawing" width="350"/>
+</a>
