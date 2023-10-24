@@ -28,7 +28,7 @@ jobs:
           post-cleanup: 'all'
       - uses: actions/checkout@v4
       - name: install pip dependencies and execute pytest
-        run: >
+        run: |
           pip install cython==0.29.36 matscipy prettytable
           pip install git+https://github.com/molmod/molmod
           pip install git+https://github.com/molmod/yaff
