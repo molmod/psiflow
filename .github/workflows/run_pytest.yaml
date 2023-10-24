@@ -14,16 +14,18 @@ jobs:
           micromamba-version: '1.5.0-0'
           environment-name: 'test-env'
           generate-run-shell: true
+          # constraints on env:
+          # - spglib / cp2k linking error for spglib > 2.0.*
+          # - openmm-torch 1.0 requires cuda
+          # - openmm-torch >1.0 requires python 3.9
           create-args: >-
-            python=3.9
-            openmm-torch
+            openmm-torch=1.*=*cpu*
             openmm-plumed
             py-plumed
             cp2k
             spglib=2.0.*
             nwchem
             pip
-            pytorch=1.13.1
             -c conda-forge
           init-shell: bash
           cache-environment: true
