@@ -29,8 +29,10 @@ Visit the [documentation](https://molmod.github.io/psiflow) for more details.
 
 ___
 
-Check out this seven-minute introduction from [ParslFest 2023](https://parsl-project.org/parslfest/parslfest2023.html):
+Check out this seven-minute introduction to psiflow:
 
 <a href="https://www.youtube.com/watch?v=mQC7VomFjYQ">
   <img src="./docs/parslfest_thumbnail.png" alt="drawing" width="350"/>
 </a>
+
+which was recorded at [ParslFest 2023](https://parsl-project.org/parslfest/parslfest2023.html)
