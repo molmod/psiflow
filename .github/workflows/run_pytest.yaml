@@ -39,5 +39,7 @@ jobs:
           pip install git+https://github.com/mir-group/allegro --no-deps
           pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
           pip install 'psiflow[test] @ git+https://github.com/molmod/psiflow.git'
-          pytest --skip-gpu --psiflow-config=.github/workflows/threadpool.py --basetemp=${{ runner.temp }}
+          cd ${{ runner.temp }} && git clone https://github.com/molmod/psiflow
+          cd psiflow
+          pytest --skip-gpu --psiflow-config=.github/workflows/threadpool.py
         shell: micromamba-shell {0}
