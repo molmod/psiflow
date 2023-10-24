@@ -26,3 +26,7 @@ Its features include:
 Execution is massively parallel and powered by [Parsl](https://parsl-project.org/), a parallel execution library which supports a variety of execution resources including clouds (e.g. Amazon Web Services, Google Cloud), clusters (e.g. SLURM, Torque/PBS, HTCondor) and even container orchestration systems (e.g. Kubernetes).
 While psiflow exposes an intuitive and concise API for defining complex molecular simulation workflows in a single Python script, Parsl ensures that the execution is automatically offloaded to arbitrarily large amounts of compute resources.
 Visit the [documentation](https://molmod.github.io/psiflow) for more details.
+
+Check out [this 7-minute introduction](https://www.youtube.com/watch?v=mQC7VomFjYQ) from ParslFest 2023!
+
+![talk](./docs/parslfest_thumbnail.png)
