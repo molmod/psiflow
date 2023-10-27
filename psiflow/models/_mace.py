@@ -235,7 +235,7 @@ class MACEModel(BaseModel):
         model_device = "cuda" if evaluation.gpu else "cpu"
         model_ncores = evaluation.cores_per_worker
 
-        app_initialize = bash_app(initialize, executors=["Default"])
+        app_initialize = bash_app(initialize, executors=[model_label])
 
         def wrapped_deploy(inputs=[], outputs=[]):
             assert len(inputs) == 1

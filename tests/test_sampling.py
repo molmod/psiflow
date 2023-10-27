@@ -29,6 +29,7 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
 """
     bias = PlumedBias(plumed_input)
     walkers.append(BiasedDynamicWalker(dataset[0], bias=bias, seed=10, steps=10))
+    # walkers = [BiasedDynamicWalker(dataset[0], bias=bias, seed=10, steps=10)]
 
     reference = EMTReference()
 
@@ -36,6 +37,7 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
 
     identifier = 4
     metrics = Metrics(wandb_group="test_sample_metrics", wandb_project="psiflow")
+    print(dataset[0].result())
     data, identifier = sample_with_model(
         mace_model,
         reference,

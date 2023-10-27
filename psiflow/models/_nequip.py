@@ -311,7 +311,7 @@ class NequIPModel(BaseModel):
         model_device = "cuda" if evaluation.gpu else "cpu"
         model_ncores = evaluation.cores_per_worker
 
-        app_initialize = bash_app(initialize, executors=["Default"])
+        app_initialize = bash_app(initialize, executors=[model_label])
         app_deploy = bash_app(deploy, executors=[training_label])
         context.register_app(cls, "deploy", app_deploy)
 
