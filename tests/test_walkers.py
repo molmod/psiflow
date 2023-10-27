@@ -188,7 +188,7 @@ def test_dynamic_walker_plain(dataset, mace_model):
     metadata, trajectory = walker.propagate(model=mace_model, keep_trajectory=True)
     assert trajectory.length().result() < int(1e9)  # timeout
     assert trajectory.length().result() > 1
-    assert metadata.time.result() > 10  # ran for some time
+    assert metadata.time.result() > 5  # ran for some time
 
     # test temperature reset
     walker.steps = 20

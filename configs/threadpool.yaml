@@ -1,0 +1,15 @@
+---
+ModelEvaluation:
+  max_walltime: 0.3
+  simulation_engine: 'openmm'
+  gpu: false
+  use_threadpool: true
+ModelTraining:
+  max_walltime: 1
+  gpu: true
+  use_threadpool: true
+ReferenceEvaluation:
+  max_walltime: 0.3
+  mpi_command: 'mpirun -np {}'
+  use_threadpool: true
+...

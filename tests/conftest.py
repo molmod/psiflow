@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import parsl
 import pytest
+import yaml
 from ase import Atoms
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -35,16 +36,16 @@ def gpu(request):
 
 @pytest.fixture(scope="session", autouse=True)
 def context(request, tmp_path_factory):
-    path_config = Path(request.config.getoption("--psiflow-config"))
     try:
         context = psiflow.context()
     except RuntimeError:
-        context = psiflow.load(
-            path_config,
-            tmp_path_factory.mktemp("psiflow_internal"),
-            psiflow_log_level="INFO",
-            parsl_log_level="WARN",
-        )
+        path_config = Path(request.config.getoption("--psiflow-config"))
+        with open(path_config, "r") as f:
+            yaml_dict = yaml.safe_load(f)
+        psiflow_config, definitions = psiflow.parse_config(yaml_dict)
+        psiflow_config["psiflow_internal"] = tmp_path_factory.mktemp("psiflow_internal")
+        psiflow.load(psiflow_config, definitions)
+        context = psiflow.context()
 
     def cleanup():
         parsl.dfk().wait_for_current_tasks()

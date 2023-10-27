@@ -1,6 +1,5 @@
 import logging
 import os
-from importlib import metadata  # necessary on python 3.9
 from pathlib import Path
 from typing import Optional
 
@@ -16,7 +15,6 @@ class MyWorkQueueExecutor(WorkQueueExecutor):
         return self.worker_command
 
 
-VERSION = metadata.version("psiflow")
 ADDOPTS = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs"
 ENTRYPOINT = "/usr/local/bin/entry.sh"
 

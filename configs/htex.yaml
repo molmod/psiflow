@@ -1,0 +1,12 @@
+---
+ModelEvaluation:
+  max_walltime: 0.3
+  simulation_engine: 'openmm'
+  gpu: false
+ModelTraining:
+  max_walltime: 1
+  gpu: true
+ReferenceEvaluation:
+  max_walltime: 0.3
+  mpi_command: 'mpirun -np {}'
+...

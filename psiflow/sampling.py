@@ -89,9 +89,12 @@ def log_evaluation_model(
     s = log_metadata(i, metadata, state, condition)
     if not metadata.reset.result():
         if not state.reference_status:
-            s += "\tevaluation failed; see {} in the task_logs directory".format(
-                Path(state.reference_stderr).stem
-            )
+            if state.reference_stderr:
+                s += "\tevaluation failed; see {} in the task_logs directory".format(
+                    Path(state.reference_stderr).stem
+                )
+            else:
+                s += "\tevaluation failed; no task log available"
             assert condition
         else:
             s += "\tevaluation successful; state received unique id {}".format(
