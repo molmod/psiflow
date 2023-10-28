@@ -1,6 +1,6 @@
 import numpy as np
-import parsl
 
+import psiflow
 from psiflow.committee import Committee
 from psiflow.data import FlowAtoms
 from psiflow.metrics import Metrics, log_dataset
@@ -65,8 +65,7 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
     assert sum([a is None for a in dataset_log["CV1"]]) == 6 - 1
 
     assert len(metrics.walker_logs) == len(walkers)
-    metrics.save(tmp_path, model=mace_model, dataset=data)
-    parsl.wait_for_current_tasks()
+    metrics.save(tmp_path, model=mace_model, dataset=data).result()
     assert (tmp_path / "walkers.log").exists()
     assert (tmp_path / "dataset.log").exists()
 
@@ -111,7 +110,7 @@ def test_sample_committee(gpu, mace_config, dataset, tmp_path):
         assert data[i].result().info["identifier"] <= 2
     assert len(metrics.walker_logs) == len(walkers)
     metrics.save(tmp_path)
-    parsl.wait_for_current_tasks()
+    psiflow.wait()
     assert (tmp_path / "walkers.log").exists()
     with open(tmp_path / "walkers.log", "r") as f:
         print(f.read())
