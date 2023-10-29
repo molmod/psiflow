@@ -46,5 +46,5 @@ jobs:
           cd psiflow
           which cp2k.psmp
           export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
-          pytest --skip-gpu --psiflow-config=.github/workflows/threadpool.yaml
+          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
         shell: micromamba-shell {0}
