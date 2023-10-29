@@ -443,9 +443,9 @@ which needs to take care of possible job submissions and input/output writing.
 Since the actual calculations are performed inside the container, the standalone
 Python environment requires barely anything, and is straightforward to install
 using <code>micromamba</code> -- a blazingly fast drop-in replacement for <code>conda</code>:</p>
-<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">$ </span>micromamba<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>psiflow_env<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>-y<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.9<span class="w"> </span><span class="nv">ndcctools</span><span class="o">=</span><span class="m">7</span>.6.1<span class="w"> </span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">$ </span>micromamba<span class="w"> </span>activate<span class="w"> </span>psiflow_env
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/molmod/psiflow
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="go">micromamba create -n psiflow_env -c conda-forge -y python=3.9 ndcctools=7.6.1 </span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="go">micromamba activate psiflow_env</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="go">pip install git+https://github.com/molmod/psiflow</span>
 </code></pre></div>
 That's it! Before running actual calculations, it is still necessary to set up Parsl
 to use the compute resources you have at your disposal -- whether it's a local GPU,
@@ -454,22 +454,20 @@ a SLURM cluster, or a cloud computing provider; check out the
 <div class="admonition note">
 <p class="admonition-title">Containers 101</p>
 <p>Apptainer -- now the most widely used container system for HPCs -- is part of the
-Linux Foundation and can be installed on Ubuntu using:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>apptainer
-</code></pre></div>
+Linux Foundation. It is easy to set up on most Linux distributions, as explained in the <a href="https://apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages">Apptainer documentation</a>.</p>
 <p>Psiflow's containers are hosted on the GitHub Container Registry (GHCR).
-To download and run commands in them, simply execute:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="gp"># </span>show<span class="w"> </span>available<span class="w"> </span>pip<span class="w"> </span>packages
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="gp">$ </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8<span class="w"> </span>/usr/local/bin/entry.sh<span class="w"> </span>pip<span class="w"> </span>list
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="gp"># </span>inspect<span class="w"> </span>cp2k<span class="w"> </span>version
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="gp">$ </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8<span class="w"> </span>/usr/local/bin/entry.sh<span class="w"> </span>cp2k.pmsp<span class="w"> </span>--version
-</code></pre></div></p>
+To download and run commands in them, simply execute:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp"># </span>show<span class="w"> </span>available<span class="w"> </span>pip<span class="w"> </span>packages
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="go">apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh pip list</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="gp"># </span>inspect<span class="w"> </span>cp2k<span class="w"> </span>version
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="go">apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh cp2k.pmsp --version</span>
+</code></pre></div>
 <p>Internally, Apptainer will store the container in a local cache directory such that it does not have to
 redownload it every time a command gets executed. Usually, it's a good idea to manually change the location 
 of these cache directories since they can end up clogging your <code>$HOME$</code> directory quite quickly.
 To do this, simply put the following lines in your <code>.bashrc</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="go">export APPTAINER_CACHEDIR=/some/dir/on/local/scratch/apptainer_cache</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="go">export APPTAINER_CACHEDIR=/some/dir/on/local/scratch/apptainer_cache</span>
 </code></pre></div>
 <p>If your compute resources use SingularityCE instead of Apptainer,
 replace 'APPTAINER' with 'SINGULARITY' in the environment variable names.</p>
@@ -477,7 +475,7 @@ replace 'APPTAINER' with 'SINGULARITY' in the environment variable names.</p>
 <div class="admonition note">
 <p class="admonition-title">Weights &amp; Biases</p>
 <p>To ensure psiflow can communicate its data to <a href="https://wandb.ai">W&amp;B</a>, add </p>
-<p><div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="go">export WANDB_API_KEY=&lt;your key from wandb.ai/authorize&gt;</span>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="go">export WANDB_API_KEY=&lt;your key from wandb.ai/authorize&gt;</span>
 </code></pre></div>
 to your <code>.bashrc</code>.</p>
 </div>
@@ -490,7 +488,7 @@ in psiflow, you'll have to manually create a separate Python environment with a 
 PyTorch for training, and the regular containerized setup for CPU-only
 molecular dynamics with OpenMM.</p>
 <p>A ROCm-compatible PyTorch can be installed using the following command:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="go">pip install --force torch==1.13.1 --index-url https://download.pytorch.org/whl/rocm5.2</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="go">pip install --force torch==1.13.1 --index-url https://download.pytorch.org/whl/rocm5.2</span>
 </code></pre></div></p>
 </div>
 <h2 id="manual">Manual</h2>
@@ -499,21 +497,21 @@ a fully manual setup of Psiflow and its dependencies provides the user with full
 over software versions or compiler flags.
 While this is not really necessary in the vast majority of cases, we mention for completeness
 the following manual setup using <code>micromamba</code>:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="gp">$ </span><span class="nv">CONDA_OVERRIDE_CUDA</span><span class="o">=</span><span class="s2">&quot;11.8&quot;</span><span class="w"> </span>micromamba<span class="w"> </span>create<span class="w"> </span>-p<span class="w"> </span>./psiflow_env<span class="w"> </span>-y<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.9<span class="w"> </span>pip<span class="w"> </span><span class="nv">ndcctools</span><span class="o">=</span><span class="m">7</span>.6.1<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span>openmm-plumed<span class="w"> </span>openmm-torch<span class="w"> </span><span class="nv">pytorch</span><span class="o">=</span><span class="m">1</span>.13.1<span class="o">=</span>cuda*<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>nwchem<span class="w"> </span>py-plumed<span class="w"> </span>cp2k<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span>micromamba<span class="w"> </span>clean<span class="w"> </span>-af<span class="w"> </span>--yes
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">cython</span><span class="o">==</span><span class="m">0</span>.29.36<span class="w"> </span>matscipy<span class="w"> </span>prettytable<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/molmod/molmod<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/molmod/yaff<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">e3nn</span><span class="o">==</span><span class="m">0</span>.4.4
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>numpy<span class="w"> </span>ase<span class="w"> </span>tqdm<span class="w"> </span>pyyaml<span class="w"> </span><span class="s1">&#39;torch-runstats&gt;=0.2.0&#39;</span><span class="w"> </span><span class="s1">&#39;torch-ema&gt;=0.3.0&#39;</span><span class="w"> </span>mdtraj<span class="w"> </span>tables
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/acesuit/MACE.git@55f7411<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/mir-group/nequip.git@develop<span class="w"> </span>--no-deps<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/mir-group/allegro<span class="w"> </span>--no-deps<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/svandenhaute/openmm-ml.git@triclinic
-<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/molmod/psiflow
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="go">CONDA_OVERRIDE_CUDA=&quot;11.8&quot; micromamba create -p ./psiflow_env -y -c conda-forge \</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="go">    python=3.9 pip ndcctools=7.6.1 \</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="go">    openmm-plumed openmm-torch pytorch=1.13.1=cuda* \</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="go">    nwchem py-plumed cp2k &amp;&amp; \</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="go">    micromamba clean -af --yes</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="go">pip install cython==0.29.36 matscipy prettytable &amp;&amp; \</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="go">    pip install git+https://github.com/molmod/molmod &amp;&amp; \</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="go">    pip install git+https://github.com/molmod/yaff &amp;&amp; \</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="go">    pip install e3nn==0.4.4</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="go">pip install numpy ase tqdm pyyaml &#39;torch-runstats&gt;=0.2.0&#39; &#39;torch-ema&gt;=0.3.0&#39; mdtraj tables</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="go">pip install git+https://github.com/acesuit/MACE.git@55f7411 &amp;&amp; \</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="go">    pip install git+https://github.com/mir-group/nequip.git@develop --no-deps &amp;&amp; \</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="go">    pip install git+https://github.com/mir-group/allegro --no-deps &amp;&amp; \</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="go">    pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="go">pip install git+https://github.com/molmod/psiflow</span>
 </code></pre></div>
 This is mostly a copy-paste from psiflow's <a href="https://github.com/molmod/psiflow/blob/main/Dockerfile">Dockerfile</a>.</p>
 
@@ -553,7 +551,7 @@ This is mostly a copy-paste from psiflow's <a href="https://github.com/molmod/ps
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.expand", "toc.integrate", "toc.follow"], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": ["content.code.copy", "navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.expand", "toc.integrate", "toc.follow"], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
       <script src="../assets/javascripts/bundle.220ee61c.min.js"></script>

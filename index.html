@@ -717,7 +717,11 @@ are either impossible to evaluate with the given reference (e.g. due to SCF
 convergence issues) or do not contain any relevant information on the atomic
 interactions.
 While there exist a bunch of techniques in literature in order to check for such divergences,
-psiflow takes a pragmatic approach and simply monitors the temperature of the walkers.
+psiflow takes a pragmatic approach and puts a ceiling value on the allowed temperature
+using the <code>max_excess_temperature</code> keyword argument.
+If, at the end of a simulation, the instantaneous temperature deviates from the nominal 
+heat bath temperature by more than <span class="arithmatex">\(T_{\text{excess}}\)</span>, the simulation is considered unsafe,
+and the walker is reset.
 Statistical mechanics provides an exact expression for the distribution of the instantaneous
 temperature of the system as a function of the number of atoms <em>N</em> and the temperature
 of the heat bath <em>T</em> (hit <code>ctrl+R</code> if the math does not show up correctly):
@@ -731,18 +735,10 @@ Its standard deviation is given by:
 $$
 \sigma_T = \frac{T}{\sqrt{3N}}
 $$
-Psiflow gives users the ability to put a threshold on the instantaneous temperature
-of the walkers based on <span class="arithmatex">\(\sigma_T\)</span>:
-$$
-T_{\text{max}}(n) = T + n \cdot \sigma_T
-$$
-The allowed number of standard deviations <span class="arithmatex">\(n\)</span> is
-set using the <code>temperature_threshold</code> keyword argument of <code>DynamicWalker</code>.
-If the temperature at the last step of the MD simulation exceeds this threshold
-(or model evaluation yielded <code>NaN</code> or <code>ValueError</code> at any point throughout the propagation),
-the walker will reset its internal state to the starting configuration
-in order to make sure that subsequent propagations again start from a physically
-sensible structure.</p>
+This means that for very small systems and/or very high temperatures, the system's instantaneous
+temperature is expected to deviate quite a bit from its average value.
+In those cases, it's important to set the allowed excess temperature sufficiently high (e.g. 300 K)
+in order to avoid resetting walkers unnecessarily.</p>
 <p>In practical scenarios, phase space exploration is often performed in a massively
 parallel manner, i.e. with multiple walkers.
 The <code>multiply()</code> class method provides a convenient way of initializing a <code>list</code> of
@@ -832,7 +828,7 @@ on <code>Dataset</code> instances using the <code>bias.evaluate()</code> method.
 The returned object is a Parsl <code>Future</code> that represents an <code>ndarray</code> of shape <code>(nstates, ncolvars + 1)</code>.
 The first column represents the value of the collective variable for each state,
 and the second column contains the bias energy.</p>
-<p><div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">values</span> <span class="o">=</span> <span class="n">bias</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_train</span><span class="p">,</span> <span class="n">variable</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">)</span>       <span class="c1"># compute the collective variable &#39;CV&#39; and bias energy</span>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">values</span> <span class="o">=</span> <span class="n">bias</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>       <span class="c1"># compute the collective variable &#39;CV&#39; and bias energy</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">data_train</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>  <span class="c1"># each snapshot is evaluated separately</span>
 <a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>                             <span class="c1"># CV and bias per snapshot, in PLUMED units!</span>
@@ -1003,7 +999,7 @@ The <code>NWChemReference</code> class essentially wraps around the ASE calculat
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": ".", "features": ["navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.expand", "toc.integrate", "toc.follow"], "search": "assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": ".", "features": ["content.code.copy", "navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.expand", "toc.integrate", "toc.follow"], "search": "assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
       <script src="assets/javascripts/bundle.220ee61c.min.js"></script>

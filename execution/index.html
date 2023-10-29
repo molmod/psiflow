@@ -321,7 +321,7 @@
 complex computational graphs that consist of
 QM evaluations, model training, and a variety of phase space sampling algorithms, among others.
 If your Python environment contains the required dependencies, you can execute any of the learning examples just like that:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">$ </span>python<span class="w"> </span>zeolite_reaction.py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="go">python zeolite_reaction.py</span>
 </code></pre></div>
 Model training, molecular dynamics, and reference evaluations will all get executed in separate processes; the main
 Python script only used to resolve the computational directed acyclic graph (DAG) of tasks.
@@ -350,7 +350,7 @@ from the main Python script that defines the workflow, in line with Parsl's phil
 To execute the zeolite reaction example not on your local computer, but on remote compute resources
 (e.g. the Frontier exascale system at OLCF), you simply have to <strong>pass the relevant psiflow configuration
 file as an argument</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">  $ </span>python<span class="w"> </span>my_workflow.py<span class="w"> </span>--psiflow-config<span class="w"> </span>frontier.py<span class="w">      </span><span class="c1"># executes exact same workflow on Frontier</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="go">python my_workflow.py --psiflow-config frontier.py      # executes exact same workflow on Frontier</span>
 </code></pre></div>
 <p>The following sections will explain in more detail how remote execution is configured.</p>
 <div class="admonition note">
@@ -611,7 +611,7 @@ activate specific Python environments or execute <code>module load</code> comman
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.expand", "toc.integrate", "toc.follow"], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": ["content.code.copy", "navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.expand", "toc.integrate", "toc.follow"], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
       <script src="../assets/javascripts/bundle.220ee61c.min.js"></script>
