@@ -3,6 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import atexit
 import copy
 import logging
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -291,6 +292,10 @@ ReferenceEvaluation:
 ...
                 """
                 yaml_dict = yaml.safe_load(yaml_dict_str)
+                path_internal = Path.cwd() / ".psiflow_internal"
+                if path_internal.exists():
+                    shutil.rmtree(path_internal)
+                yaml_dict["psiflow_internal"] = path_internal
             else:
                 assert len(sys.argv) == 2
                 path_config = resolve_and_check(Path(sys.argv[1]))
@@ -301,12 +306,14 @@ ReferenceEvaluation:
                 )
                 with open(path_config, "r") as f:
                     yaml_dict = yaml.safe_load(f)
-            psiflow_config, definitions = cls.parse_yaml(yaml_dict)
+            psiflow_config, definitions = cls.parse_config(yaml_dict)
         psiflow_config = copy.deepcopy(psiflow_config)  # modified in place
         path = resolve_and_check(Path(psiflow_config.pop("psiflow_internal")))
-        assert not any(path.iterdir()), "internal directory {} should be empty".format(
-            path
-        )
+        if path.exists():
+            assert not any(
+                path.iterdir()
+            ), "internal directory {} should be empty".format(path)
+        path.mkdir(parents=True, exist_ok=True)
         set_logger(psiflow_config.pop("psiflow_log_level"))
         parsl.set_file_logger(
             str(path / "parsl.log"),
