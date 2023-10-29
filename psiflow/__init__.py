@@ -1,6 +1,6 @@
 import parsl
 
-from .execution import ExecutionContextLoader
+from .execution import ExecutionContextLoader, load_from_yaml  # noqa: F401
 
 load = ExecutionContextLoader.load
 parse_config = ExecutionContextLoader.parse_config

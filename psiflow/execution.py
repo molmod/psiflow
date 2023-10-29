@@ -377,3 +377,11 @@ ReferenceEvaluation:
         if cls._context is None:
             raise RuntimeError("No ExecutionContext is currently loaded")
         return cls._context
+
+
+def load_from_yaml(path: Union[str, Path]) -> ExecutionContext:
+    assert ExecutionContextLoader._context is None  # no previously loaded context
+    with open(path, "r") as f:
+        config_dict = yaml.safe_load(f)
+    psiflow_config, definitions = ExecutionContextLoader.parse_config(config_dict)
+    return ExecutionContextLoader.load(psiflow_config, definitions)
