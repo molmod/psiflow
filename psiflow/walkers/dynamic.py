@@ -84,7 +84,7 @@ def molecular_dynamics_yaff(
     return " ".join(command_list)
 
 
-@python_app(executors=["Default"])
+@python_app(executors=["default_threads"])
 def molecular_dynamics_yaff_post(
     inputs: list[File] = [],
     outputs: list[File] = [],
@@ -167,7 +167,7 @@ def molecular_dynamics_openmm(
     return " ".join(command_list)
 
 
-@python_app(executors=["Default"])
+@python_app(executors=["default_threads"])
 def molecular_dynamics_openmm_post(
     inputs: list[File] = [],
     outputs: list[File] = [],

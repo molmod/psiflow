@@ -16,6 +16,7 @@ dependencies = [
     "wandb>=0.14.0",
     "pymatgen>=2023.3.23",
     "parsl",
+    "prettytable",
     ]
 
 [project.optional-dependencies]

@@ -193,6 +193,7 @@ class ExecutionContextLoader:
     @staticmethod
     def parse_config(yaml_dict: dict):
         definitions = []
+
         for name in ["ModelEvaluation", "ModelTraining", "ReferenceEvaluation"]:
             if name in yaml_dict:
                 _dict = yaml_dict.pop(name)
@@ -218,18 +219,11 @@ class ExecutionContextLoader:
                 s = _dict["mpi_command"]
                 _dict["mpi_command"] = lambda x, s=s: s.format(x)
 
-            # check if container is requested
-            container_kwargs = None
-            if "apptainer" in _dict:
-                container_kwargs = _dict.pop("apptainer")
-                container_kwargs["apptainer_or_singularity"] = "apptainer"
-            elif "singularity" in _dict:
-                container_kwargs = _dict.pop("singularity")
-                container_kwargs["apptainer_or_singularity"] = "singularity"
-            if container_kwargs is not None:
+            if "container" in yaml_dict:
                 assert not _dict["use_threadpool"]  # not possible with container
-                container_kwargs["enable_gpu"] = _dict["gpu"]
-                launcher = ContainerizedLauncher(**container_kwargs)
+                launcher = ContainerizedLauncher(
+                    **yaml_dict["container"], enable_gpu=_dict["gpu"]
+                )
             else:
                 launcher = SimpleLauncher()
 
@@ -321,7 +315,7 @@ ReferenceEvaluation:
             format_string="%(levelname)s - %(name)s - %(message)s",
         )
 
-        # create parsl executors and config
+        # create main parsl executors
         executors = []
         for definition in definitions:
             if not definition.use_threadpool:
@@ -339,16 +333,28 @@ ReferenceEvaluation:
                     label=definition.name(),
                 )
             executors.append(executor)
-        executors.append(
-            ThreadPoolExecutor(
-                max_threads=psiflow_config.pop("default_threads"),
-                working_dir=str(path),
-                label="Default",
-            )
+
+        # create default executors
+        if "container" in psiflow_config:
+            launcher = ContainerizedLauncher(**psiflow_config["container"])
+        else:
+            launcher = SimpleLauncher()
+        htex = HighThroughputExecutor(
+            label="default_htex",
+            address=psiflow_config.pop("htex_address"),
+            working_dir=str(path / "default_htex"),
+            cores_per_worker=1,
+            provider=LocalProvider(launcher=launcher),  # noqa: F405
         )
+        executors.append(htex)
+        threadpool = ThreadPoolExecutor(
+            label="default_threads",
+            max_threads=psiflow_config.pop("default_threads"),
+            working_dir=str(path),
+        )
+        executors.append(threadpool)
 
         # remove additional kwargs
-        psiflow_config.pop("htex_address")
         config = Config(
             executors=executors,
             run_dir=str(path),

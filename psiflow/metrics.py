@@ -33,7 +33,7 @@ def _trace_identifier(
     return identifier_traces
 
 
-trace_identifier = python_app(_trace_identifier, executors=["Default"])
+trace_identifier = python_app(_trace_identifier, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -67,7 +67,7 @@ def _save_walker_logs(data: dict[str, list], path: Path) -> str:
     return s
 
 
-save_walker_logs = python_app(_save_walker_logs, executors=["Default"])
+save_walker_logs = python_app(_save_walker_logs, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -96,7 +96,7 @@ def _save_dataset_log(data: dict[str, list], path: Path) -> str:
     return s
 
 
-save_dataset_log = python_app(_save_dataset_log, executors=["Default"])
+save_dataset_log = python_app(_save_dataset_log, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -136,7 +136,7 @@ def _log_walker(
     return data
 
 
-log_walker = python_app(_log_walker, executors=["Default"])
+log_walker = python_app(_log_walker, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -151,7 +151,7 @@ def _gather_walker_logs(*walker_data: dict) -> dict[str, list]:
     return data
 
 
-gather_walker_logs = python_app(_gather_walker_logs, executors=["Default"])
+gather_walker_logs = python_app(_gather_walker_logs, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -237,7 +237,7 @@ def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
     return data
 
 
-log_dataset = python_app(_log_dataset, executors=["Default"])
+log_dataset = python_app(_log_dataset, executors=["default_threads"])
 
 
 def fix_plotly_layout(figure):
@@ -347,7 +347,7 @@ def _to_wandb(
     wandb.finish()
 
 
-to_wandb = python_app(_to_wandb, executors=["Default"])
+to_wandb = python_app(_to_wandb, executors=["default_threads"])
 
 
 @typeguard.typechecked

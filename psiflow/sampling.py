@@ -69,7 +69,7 @@ def _assign_identifier(state: FlowAtoms, identifier: int):
     return state, identifier
 
 
-assign_identifier = python_app(_assign_identifier, executors=["Default"])
+assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
 
 
 @join_app
@@ -141,7 +141,7 @@ def _compute_error(
     return None, None
 
 
-compute_error = python_app(_compute_error, executors=["Default"])
+compute_error = python_app(_compute_error, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -158,7 +158,7 @@ def _check_error(
     return False
 
 
-check_error = python_app(_check_error, executors=["Default"])
+check_error = python_app(_check_error, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -224,7 +224,7 @@ def _reset_condition(
     return False
 
 
-reset_condition = python_app(_reset_condition, executors=["Default"])
+reset_condition = python_app(_reset_condition, executors=["default_threads"])
 
 
 @join_app

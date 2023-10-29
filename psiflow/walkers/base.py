@@ -31,7 +31,7 @@ def _conditioned_reset(
         return deepcopy(state), counter
 
 
-conditioned_reset = python_app(_conditioned_reset, executors=["Default"])
+conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -39,7 +39,7 @@ def _is_reset(counter: int) -> bool:
     return counter == 0
 
 
-is_reset = python_app(_is_reset, executors=["Default"])
+is_reset = python_app(_is_reset, executors=["default_threads"])
 
 
 @typeguard.typechecked

@@ -49,7 +49,7 @@ class EMTReference(BaseReference):
 
     @classmethod
     def create_apps(cls) -> None:
-        app_evaluate_single = python_app(evaluate_emt, executors=["Default"])
+        app_evaluate_single = python_app(evaluate_emt, executors=["default_threads"])
         context = psiflow.context()
         context.register_app(cls, "evaluate_single", app_evaluate_single)
         # see https://stackoverflow.com/questions/1817183/using-super-with-a-class-method

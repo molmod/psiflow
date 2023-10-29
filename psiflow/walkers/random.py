@@ -53,7 +53,7 @@ def random_perturbation(
     return state, 1, False
 
 
-app_random_perturbation = python_app(random_perturbation, executors=["Default"])
+app_random_perturbation = python_app(random_perturbation, executors=["default_threads"])
 
 
 @typeguard.typechecked

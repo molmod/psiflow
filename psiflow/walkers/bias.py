@@ -198,7 +198,7 @@ def evaluate_bias(
     return values
 
 
-app_evaluate = python_app(evaluate_bias, executors=["Default"])
+app_evaluate = python_app(evaluate_bias, executors=["default_htex"])
 
 
 @typeguard.typechecked
@@ -215,7 +215,7 @@ def _gather_partitions(
     return final
 
 
-gather_partitions = python_app(_gather_partitions, executors=["Default"])
+gather_partitions = python_app(_gather_partitions, executors=["default_threads"])
 
 
 @join_app
@@ -282,7 +282,7 @@ def _reset_mtd(
         f.write(content)
 
 
-reset_mtd = python_app(_reset_mtd, executors=["Default"])
+reset_mtd = python_app(_reset_mtd, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -314,7 +314,7 @@ def extract_grid(
     return to_extract
 
 
-app_extract_grid = python_app(extract_grid, executors=["Default"])
+app_extract_grid = python_app(extract_grid, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -333,7 +333,7 @@ def extract_between(
     return [int(index) for index in indices]
 
 
-app_extract_between = python_app(extract_between, executors=["Default"])
+app_extract_between = python_app(extract_between, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -342,7 +342,7 @@ def extract_column(array: np.ndarray, index: int) -> np.ndarray:
     return array[:, index].reshape(-1, 1)  # maintain shape
 
 
-app_extract_column = python_app(extract_column, executors=["Default"])
+app_extract_column = python_app(extract_column, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -363,7 +363,7 @@ def insert_cv_values(
     return state
 
 
-app_insert_cv_values = python_app(insert_cv_values, executors=["Default"])
+app_insert_cv_values = python_app(insert_cv_values, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -380,7 +380,9 @@ def insert_cv_values_data(
     write_dataset(data, outputs=[outputs[0]])
 
 
-app_insert_cv_values_data = python_app(insert_cv_values_data, executors=["Default"])
+app_insert_cv_values_data = python_app(
+    insert_cv_values_data, executors=["default_threads"]
+)
 
 
 @typeguard.typechecked

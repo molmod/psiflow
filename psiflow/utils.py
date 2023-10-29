@@ -52,7 +52,7 @@ def _sum_integers(a: int, b: int) -> int:
     return a + b
 
 
-sum_integers = python_app(_sum_integers, executors=["Default"])
+sum_integers = python_app(_sum_integers, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -60,7 +60,7 @@ def _combine_futures(inputs: List[Any]) -> List[Any]:
     return list(inputs)
 
 
-combine_futures = python_app(_combine_futures, executors=["Default"])
+combine_futures = python_app(_combine_futures, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -98,7 +98,7 @@ def _copy_data_future(inputs: List[File] = [], outputs: List[File] = []) -> None
         pass
 
 
-copy_data_future = python_app(_copy_data_future, executors=["Default"])
+copy_data_future = python_app(_copy_data_future, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -108,14 +108,14 @@ def _copy_app_future(future: Any) -> Any:
     return deepcopy(future)
 
 
-copy_app_future = python_app(_copy_app_future, executors=["Default"])
+copy_app_future = python_app(_copy_app_future, executors=["default_threads"])
 
 
 def _pack(*args):
     return args
 
 
-pack = python_app(_pack, executors=["Default"])
+pack = python_app(_pack, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -124,7 +124,7 @@ def _unpack_i(result: Union[np.ndarray, List, Tuple], i: int) -> Any:
     return result[i]
 
 
-unpack_i = python_app(_unpack_i, executors=["Default"])
+unpack_i = python_app(_unpack_i, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -154,7 +154,7 @@ def _save_yaml(
         yaml.dump(input_dict, f, default_flow_style=False)
 
 
-save_yaml = python_app(_save_yaml, executors=["Default"])
+save_yaml = python_app(_save_yaml, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -166,7 +166,7 @@ def _read_yaml(inputs: List[File] = [], outputs: List[File] = []) -> dict:
     return config_dict
 
 
-read_yaml = python_app(_read_yaml, executors=["Default"])
+read_yaml = python_app(_read_yaml, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -175,7 +175,7 @@ def _save_txt(data: str, outputs: List[File] = []) -> None:
         f.write(data)
 
 
-save_txt = python_app(_save_txt, executors=["Default"])
+save_txt = python_app(_save_txt, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -196,7 +196,9 @@ def _app_train_valid_indices(
     return [int(i) for i in train_list], [int(i) for i in valid_list]
 
 
-app_train_valid_indices = python_app(_app_train_valid_indices, executors=["Default"])
+app_train_valid_indices = python_app(
+    _app_train_valid_indices, executors=["default_threads"]
+)
 
 
 @typeguard.typechecked
@@ -429,7 +431,7 @@ def _check_distances(state: Atoms, threshold: float):
         return NullState
 
 
-check_distances = python_app(_check_distances, executors=["Default"])
+check_distances = python_app(_check_distances, executors=["default_threads"])
 
 
 @typeguard.typechecked

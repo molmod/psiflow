@@ -334,7 +334,7 @@ class CP2KReference(BaseReference):
         )
         singlepoint_post = python_app(
             cp2k_singlepoint_post,
-            executors=["Default"],
+            executors=["default_threads"],
             cache=False,
         )
 

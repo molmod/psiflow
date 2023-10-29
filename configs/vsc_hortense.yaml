@@ -1,10 +1,10 @@
 ---
+container:
+  engine: "apptainer"
+  uri: "oras://ghcr.io/molmod/psiflow:2.0.0-cuda"
 ModelEvaluation:
   cores_per_worker: 1
-  max_walltime: 0.3
   simulation_engine: 'openmm'
-  apptainer:
-    uri: "oras://ghcr.io/molmod/psiflow:2.0.0-cuda"
   SlurmProvider:
     partition: "cpu_rome"
     account: "2022_069"
@@ -17,10 +17,7 @@ ModelEvaluation:
     scheduler_options: "#SBATCH --clusters=dodrio\n"
 ModelTraining:
   cores_per_worker: 12
-  max_walltime: 1
   gpu: true
-  apptainer:
-    uri: "oras://ghcr.io/molmod/psiflow:2.0.0-cuda"
   SlurmProvider:
     partition: "gpu_rome_a100"
     account: "2022_069"
@@ -32,9 +29,7 @@ ModelTraining:
     exclusive: false
     scheduler_options: "#SBATCH --clusters=dodrio\n#SBATCH --gpus=1\n"
 ReferenceEvaluation:
-  max_walltime: 0.3
-  apptainer:
-    uri: "oras://ghcr.io/molmod/psiflow:2.0.0-cuda"
+  max_walltime: 20
   SlurmProvider:
     partition: "cpu_rome"
     account: "2022_069"

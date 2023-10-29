@@ -51,7 +51,9 @@ def _compute_disagreements(
     return disagreements
 
 
-compute_disagreements = python_app(_compute_disagreements, executors=["Default"])
+compute_disagreements = python_app(
+    _compute_disagreements, executors=["default_threads"]
+)
 
 
 # expose outside filter app to reproduce filtering behavior elsewhere
@@ -64,7 +66,7 @@ def _filter_disagreements(disagreements: np.ndarray, nstates: int):
     return indices
 
 
-filter_disagreements = python_app(_filter_disagreements, executors=["Default"])  # fmt: skip
+filter_disagreements = python_app(_filter_disagreements, executors=["default_threads"])  # fmt: skip
 
 
 @typeguard.typechecked
@@ -86,7 +88,7 @@ def _extract_highest(
     )
 
 
-extract_highest = python_app(_extract_highest, executors=["Default"])
+extract_highest = python_app(_extract_highest, executors=["default_threads"])
 
 
 @typeguard.typechecked

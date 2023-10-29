@@ -24,20 +24,20 @@ class ContainerizedLauncher(Launcher):
     def __init__(
         self,
         uri: str,
-        apptainer_or_singularity: str = "apptainer",
+        engine: str = "apptainer",  # or singularity
         addopts: str = ADDOPTS,
         entrypoint: str = ENTRYPOINT,
         enable_gpu: Optional[bool] = False,
     ) -> None:
         super().__init__(debug=True)
         self.uri = uri  # required by Parsl parent class to assign attributes
-        self.apptainer_or_singularity = apptainer_or_singularity
+        self.engine = engine
         self.addopts = addopts
         self.entrypoint = entrypoint
         self.enable_gpu = enable_gpu
 
         self.launch_command = ""
-        self.launch_command += apptainer_or_singularity
+        self.launch_command += engine
         self.launch_command += " exec "
         self.launch_command += addopts
         self.launch_command += " --bind {}".format(

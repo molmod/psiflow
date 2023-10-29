@@ -70,7 +70,6 @@ def test_nequip_train(gpu, nequip_config, dataset, tmp_path):
 def test_nequip_save_load(nequip_config, dataset, tmp_path):
     model = NequIPModel(nequip_config)
     future_raw, _, _ = model.save(tmp_path)
-    assert not future_raw.done()
     assert _ is None
     model.initialize(dataset[:2])
     e0 = model.evaluate(dataset.get(indices=[3]))[0].result().info["energy"]
@@ -190,7 +189,6 @@ def test_allegro_train(gpu, allegro_config, dataset, tmp_path):
 def test_allegro_save_load(allegro_config, dataset, tmp_path):
     model = AllegroModel(allegro_config)
     future_raw, _, _ = model.save(tmp_path)
-    assert not future_raw.done()
     assert _ is None
     model.initialize(dataset[:2])
     e0 = model.evaluate(dataset.get(indices=[3]))[0].result().info["energy"]
@@ -287,7 +285,6 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     model.add_atomic_energy("H", 3)
     model.add_atomic_energy("Cu", 4)
     future_raw, _, _ = model.save(tmp_path)
-    assert not future_raw.done()  # do not wait for result by default
     assert _ is None
     model.initialize(dataset[:2])
     e0 = model.evaluate(dataset.get(indices=[3]))[0].result().info["energy"]

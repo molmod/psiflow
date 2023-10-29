@@ -227,7 +227,7 @@ class NWChemReference(BaseReference):
         )
         singlepoint_post = python_app(
             nwchem_singlepoint_post,
-            executors=["Default"],
+            executors=["default_threads"],
         )
 
         @join_app

@@ -164,7 +164,9 @@ def _canonical_orientation(
         write_extxyz(f, data)
 
 
-canonical_orientation = python_app(_canonical_orientation, executors=["Default"])
+canonical_orientation = python_app(
+    _canonical_orientation, executors=["default_threads"]
+)
 
 
 @typeguard.typechecked
@@ -180,7 +182,7 @@ def reset_atoms(
     return _atoms
 
 
-app_reset_atoms = python_app(reset_atoms, executors=["Default"])
+app_reset_atoms = python_app(reset_atoms, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -204,7 +206,7 @@ def write_dataset(
         return _data
 
 
-app_write_dataset = python_app(write_dataset, executors=["Default"])
+app_write_dataset = python_app(write_dataset, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -214,7 +216,7 @@ def _write_atoms(atoms: FlowAtoms, outputs=[]):
     write(outputs[0].filepath, atoms)
 
 
-write_atoms = python_app(_write_atoms, executors=["Default"])
+write_atoms = python_app(_write_atoms, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -248,7 +250,7 @@ def read_dataset(
     return data
 
 
-app_read_dataset = python_app(read_dataset, executors=["Default"])
+app_read_dataset = python_app(read_dataset, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -267,7 +269,7 @@ def reset_dataset(
         write_extxyz(f, data)
 
 
-app_reset_dataset = python_app(reset_dataset, executors=["Default"])
+app_reset_dataset = python_app(reset_dataset, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -278,7 +280,7 @@ def join_dataset(inputs: List[File] = [], outputs: List[File] = []) -> None:
     write_dataset(data, outputs=[outputs[0]])
 
 
-app_join_dataset = python_app(join_dataset, executors=["Default"])
+app_join_dataset = python_app(join_dataset, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -287,7 +289,7 @@ def get_length_dataset(inputs: List[File] = []) -> int:
     return len(data)
 
 
-app_length_dataset = python_app(get_length_dataset, executors=["Default"])
+app_length_dataset = python_app(get_length_dataset, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -311,7 +313,7 @@ def _get_indices(
     return indices
 
 
-get_indices = python_app(_get_indices, executors=["Default"])
+get_indices = python_app(_get_indices, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -372,7 +374,7 @@ def compute_errors(
     return errors[outer_mask]
 
 
-app_compute_errors = python_app(compute_errors, executors=["Default"])
+app_compute_errors = python_app(compute_errors, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -414,7 +416,7 @@ def apply_offset(
     write_dataset(data, outputs=[outputs[0]])
 
 
-app_apply_offset = python_app(apply_offset, executors=["Default"])
+app_apply_offset = python_app(apply_offset, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -423,7 +425,7 @@ def get_elements(inputs=[]) -> set[str]:
     return set([e for atoms in data for e in atoms.elements])
 
 
-app_get_elements = python_app(get_elements, executors=["Default"])
+app_get_elements = python_app(get_elements, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -459,7 +461,7 @@ def assign_identifiers(
         return identifier
 
 
-app_assign_identifiers = python_app(assign_identifiers, executors=["Default"])
+app_assign_identifiers = python_app(assign_identifiers, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -467,7 +469,7 @@ class Dataset:
     """Container to represent a dataset of atomic structures
 
     Args:
-        context: an `ExecutionContext` instance with a 'Default' executor.
+        context: an `ExecutionContext` instance with a 'default_threads' executor.
         atoms_list: a list of `Atoms` instances which represent the dataset.
         data_future: a `parsl.app.futures.DataFuture` instance that points
             to an `.xyz` file.
