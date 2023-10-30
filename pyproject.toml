@@ -17,9 +17,12 @@ dependencies = [
     "pymatgen>=2023.3.23",
     "parsl",
     "prettytable",
+    "psutil",
+    "colorcet",
     ]
 
 [project.optional-dependencies]
+parsl = ['parsl==2023.10.23']
 test = [
     "pytest>=7.2.0",
     "coverage>=6.5.0",

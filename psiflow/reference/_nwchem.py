@@ -133,6 +133,7 @@ def nwchem_singlepoint_pre(
         command_cd,
         command_write,
         command_mkdir,
+        "export OMP_NUM_THREADS=2;",
         "timeout -k 5 {}s".format(max(walltime - 20, 0)),
         nwchem_command + " nwchem.nwi || true",
     ]
@@ -157,8 +158,7 @@ def nwchem_singlepoint_post(
         else:
             atoms.arrays["forces"] = None
         atoms.reference_status = True
-    except Exception as e:
-        print(e)
+    except Exception:
         atoms.reference_status = False
     return atoms
 

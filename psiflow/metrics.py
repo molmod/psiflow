@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple, Optional, Union
 
+import numpy as np
 import typeguard
 import wandb
 from parsl.app.app import python_app
@@ -24,12 +25,21 @@ def _trace_identifier(
     iteration: int,
     walker_index: int,
     nsteps: int,
+    condition: bool,
+    temperature: float,
 ) -> dict:
     if not state == NullState:  # same checks as sampling.py:assign_identifier
         if state.reference_status:
             identifier = state.info["identifier"]
+            print(identifier, condition)
             assert identifier not in identifier_traces
-            identifier_traces[identifier] = (iteration, walker_index, nsteps)
+            identifier_traces[identifier] = (
+                iteration,
+                walker_index,
+                nsteps,
+                condition,
+                temperature,
+            )
     return identifier_traces
 
 
@@ -241,7 +251,7 @@ log_dataset = python_app(_log_dataset, executors=["default_threads"])
 
 
 def fix_plotly_layout(figure):
-    figure.update_layout(plot_bgcolor="white")
+    figure.update_layout(plot_bgcolor="white", showlegend=False)
     figure.update_xaxes(
         mirror=True,
         ticks="inside",
@@ -257,6 +267,26 @@ def fix_plotly_layout(figure):
         gridcolor="lightgrey",
         tickformat=".1f",
     )
+    text = """
+<b>circle marker</b>: walker OK <br>
+<b>diamond marker</b>:  walker reset <br>
+symbols are colored based on average temperature
+"""
+    figure.add_annotation(
+        text=text,
+        xref="paper",
+        yref="paper",
+        x=0.02,  # x position
+        y=0.98,  # y position
+        showarrow=False,
+        font=dict(size=12, color="black"),
+        align="left",
+        bordercolor="black",
+        borderwidth=2,
+        borderpad=7,
+        bgcolor="white",
+        opacity=0.7,
+    )
 
 
 @typeguard.typechecked
@@ -270,6 +300,8 @@ def _to_wandb(
     import os
     import tempfile
 
+    import colorcet as cc
+    import matplotlib.colors as mcolors
     import numpy as np
     import pandas as pd
     import plotly.express as px
@@ -301,12 +333,19 @@ def _to_wandb(
     customdata = []
     identifiers = dataset_log["identifier"]
     for index in identifiers:
-        customdata.append(identifier_traces.get(index, (np.nan,) * 3))
+        customdata.append(identifier_traces.get(index, (np.nan,) * 5))
     customdata = np.array(customdata, dtype=np.float32)
     dataset_log["iteration"] = customdata[:, 0]
     dataset_log["walker_index"] = customdata[:, 1]
     dataset_log["nsteps"] = customdata[:, 2]
+    dataset_log["marker_symbol"] = 1 * customdata[:, 3]
+    dataset_log["temperature"] = customdata[:, 4]
     df = pd.DataFrame.from_dict(dataset_log)
+
+    df_na = df[df["temperature"].isna()]
+    df_not_na = df[df["temperature"].notna()]
+    cmap = cc.cm.CET_I1
+    colors = [mcolors.to_hex(cmap(i)) for i in np.linspace(0, 1, cmap.N)]
 
     if dataset_log is not None:
         for x_axis in dataset_log:
@@ -314,20 +353,57 @@ def _to_wandb(
                 for y_axis in dataset_log:
                     if (y_axis == "e_rmse") or y_axis.startswith("f_rmse"):
                         figure = px.scatter(
-                            data_frame=df,
+                            data_frame=df_not_na,
                             x=x_axis,
                             y=y_axis,
-                            custom_data=["iteration", "walker_index", "nsteps"],
-                            color="nsteps",
-                            color_continuous_scale=px.colors.sequential.Turbo,
-                            # color_continuous_scale=['darkcyan', 'darkgoldenrod', 'crimson'],
+                            custom_data=[
+                                "iteration",
+                                "walker_index",
+                                "nsteps",
+                                "identifier",
+                                "marker_symbol",
+                                "temperature",
+                            ],
+                            symbol="marker_symbol",
+                            symbol_sequence=["star-diamond", "circle"],
+                            color="temperature",
+                            color_continuous_scale=colors,
+                        )
+                        # Overlay the scatter plot for missing values
+                        figure_ = px.scatter(
+                            data_frame=df_na,
+                            x=x_axis,
+                            y=y_axis,
+                            custom_data=[
+                                "iteration",
+                                "walker_index",
+                                "nsteps",
+                                "identifier",
+                                "marker_symbol",
+                            ],
+                            symbol="marker_symbol",
+                            symbol_sequence=["star-diamond", "circle"],
+                            color_discrete_sequence=["darkgray"],
+                        )
+                        for trace in figure_.data:
+                            figure.add_trace(trace)
+                        figure.update_traces(
+                            marker={
+                                "size": 11,
+                                "line": dict(width=1.2, color="DarkSlateGray"),
+                            },
+                            selector=dict(marker_symbol="circle"),
+                        )
+                        figure.update_traces(  # wandb cannot deal with lines in non-circle symbols!
+                            marker={"size": 15},
+                            selector=dict(marker_symbol="star-diamond"),
                         )
                         figure.update_traces(
-                            marker={"size": 8},
                             hovertemplate=(
                                 "<b>iteration</b>: %{customdata[0]}<br>"
                                 + "<b>walker index</b>: %{customdata[1]}<br>"
                                 + "<b>steps</b>: %{customdata[2]}<br>"
+                                + "<b>identifier</b>: %{customdata[3]}<br>"
                                 + "<extra></extra>"
                             ),
                         )
@@ -335,9 +411,14 @@ def _to_wandb(
                         title = "dataset_" + y_axis + "_" + x_axis
                         fix_plotly_layout(figure)
                         if "e_rmse" in y_axis:
-                            figure.update_layout(yaxis_title="energy RMSE [meV/atom]")
+                            figure.update_layout(
+                                yaxis_title="<b>energy RMSE [meV/atom]</b>"
+                            )
                         else:
-                            figure.update_layout(yaxis_title="forces RMSE [meV/atom]")
+                            figure.update_layout(
+                                yaxis_title="<b>forces RMSE [meV/atom]</b>"
+                            )
+                        figure.update_layout(xaxis_title="<b>" + x_axis + "</b>")
                         figures[title] = figure
     os.environ["WANDB_SILENT"] = "True"
     path_wandb = Path(tempfile.mkdtemp())
@@ -418,12 +499,18 @@ class Metrics:
             **metadata_dict,
         )
         self.walker_logs.append(log)
+        if hasattr(metadata, "temperature"):
+            temperature = metadata.temperature
+        else:
+            temperature = np.nan
         self.identifier_traces = trace_identifier(
             self.identifier_traces,
             state,
             self.iteration,
             i,
             metadata.counter,
+            condition,
+            temperature,
         )
 
     def save(

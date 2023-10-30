@@ -27,7 +27,7 @@ def _conditioned_reset(
 
     if condition:
         return deepcopy(state0), 0
-    else:  # reset if unsafe
+    else:
         return deepcopy(state), counter
 
 

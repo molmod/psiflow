@@ -3,6 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import atexit
 import copy
 import logging
+import math
 import shutil
 import sys
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ from typing import Any, Callable, Optional, Type, Union
 from warnings import warn
 
 import parsl
+import psutil
 import typeguard
 import yaml
 from parsl.config import Config
@@ -326,11 +328,19 @@ ReferenceEvaluation:
         executors = []
         for definition in definitions:
             if not definition.use_threadpool:
+                if type(definition.parsl_provider) is LocalProvider:  # noqa: F405
+                    cores_available = psutil.cpu_count(logical=False)
+                    max_workers = max(
+                        1, math.floor(cores_available / definition.cores_per_worker)
+                    )
+                else:
+                    max_workers = float("inf")
                 executor = HighThroughputExecutor(
                     address=psiflow_config["htex_address"],
                     label=definition.name(),
                     working_dir=str(path / definition.name()),
                     cores_per_worker=definition.cores_per_worker,
+                    max_workers=max_workers,
                     provider=definition.parsl_provider,
                 )
             else:
@@ -351,6 +361,7 @@ ReferenceEvaluation:
             address=psiflow_config.pop("htex_address"),
             working_dir=str(path / "default_htex"),
             cores_per_worker=1,
+            max_workers=1,
             provider=LocalProvider(launcher=launcher),  # noqa: F405
         )
         executors.append(htex)

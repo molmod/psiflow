@@ -43,7 +43,10 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
         reference,
         walkers,
         identifier,
-        error_thresholds_for_reset=(1e9, 1e9),
+        error_thresholds_for_reset=(
+            200,
+            1e9,
+        ),  # some will reset; marker should change in wwandb
         metrics=metrics,
     )
     assert data.length().result() == 6  # one state should have failed
