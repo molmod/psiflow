@@ -34,7 +34,7 @@ class BaseLearning:
     pretraining_nstates: int = 50
     pretraining_amplitude_pos: float = 0.05
     pretraining_amplitude_box: float = 0.0
-    metrics: Optional[Metrics] = Metrics()
+    metrics: Metrics = Metrics()
     atomic_energies: dict[str, Union[float, AppFuture]] = field(
         default_factory=lambda: {}
     )
@@ -51,8 +51,7 @@ class BaseLearning:
         self.atomic_energies = atomic_energies
         config["path_output"] = str(self.path_output)  # yaml requires str
         config.pop("metrics")
-        if self.metrics is not None:
-            config["Metrics"] = self.metrics.as_dict()
+        config["Metrics"] = self.metrics.as_dict()
         path_config = self.path_output / (self.__class__.__name__ + ".yaml")
         if path_config.is_file():
             logger.warning("overriding learning config file {}".format(path_config))
@@ -67,6 +66,7 @@ class BaseLearning:
         reference: BaseReference,
         walkers: list[BaseWalker],
     ) -> Dataset:
+        self.metrics.iteration = "pretraining"
         nstates = self.pretraining_nstates
         amplitude_pos = self.pretraining_amplitude_pos
         amplitude_box = self.pretraining_amplitude_box
@@ -110,12 +110,11 @@ class BaseLearning:
             data_train=data_train,
             data_valid=data_valid,
         )
-        if self.metrics is not None:
-            self.metrics.save(
-                self.path_output / "pretraining",
-                model=model,
-                dataset=data,
-            )
+        self.metrics.save(
+            self.path_output / "pretraining",
+            model=model,
+            dataset=data,
+        )
         psiflow.wait()
         return data
 
@@ -140,8 +139,7 @@ class BaseLearning:
             continue with online learning, build on top of initial data
 
         """
-        if self.metrics is not None:
-            self.metrics.insert_name(model)
+        self.metrics.insert_name(model)
         if len(self.atomic_energies) > 0:
             for element, energy in self.atomic_energies.items():
                 model.add_atomic_energy(element, energy)
@@ -227,6 +225,7 @@ class SequentialLearning(BaseLearning):
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue  # skip iterations in case of restarted run
+            self.metrics.iteration = i
             self.update_walkers(walkers, initialize=(i == 0))
             new_data, self.identifier = sample_with_model(
                 model,
@@ -254,8 +253,7 @@ class SequentialLearning(BaseLearning):
                 data_train=data_train,
                 data_valid=data_valid,
             )
-            if self.metrics is not None:
-                self.metrics.save(self.path_output / str(i), model, data)
+            self.metrics.save(self.path_output / str(i), model, data)
             psiflow.wait()
         return data
 
@@ -280,6 +278,7 @@ class CommitteeLearning(SequentialLearning):
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue  # skip iterations in case of restarted run
+            self.metrics.iteration = i
             self.update_walkers(walkers, initialize=(i == 0))
             new_data, self.identifier = sample_with_committee(
                 committee,
@@ -302,8 +301,7 @@ class CommitteeLearning(SequentialLearning):
                 data_train=data_train,
                 data_valid=data_valid,
             )
-            if self.metrics is not None:
-                self.metrics.save(self.path_output / str(i), committee.models[0], data)
+            self.metrics.save(self.path_output / str(i), committee.models[0], data)
             committee.save(self.path_output / str(i) / "committee")
             psiflow.wait()
         return data
@@ -372,6 +370,7 @@ class IncrementalLearning(BaseLearning):
         for i in range(self.niterations):
             if self.output_exists(str(i)):
                 continue  # skip iterations in case of restarted run
+            self.metrics.iteration = i
             self.update_walkers(walkers, initialize=(i == 0))
             new_data, self.identifier = sample_with_model(
                 model,
@@ -399,8 +398,7 @@ class IncrementalLearning(BaseLearning):
                 data_train=data_train,
                 data_valid=data_valid,
             )
-            if self.metrics is not None:
-                self.metrics.save(self.path_output / str(i), model, data)
+            self.metrics.save(self.path_output / str(i), model, data)
             psiflow.wait()
         return data
 
@@ -429,9 +427,6 @@ def load_learning(path_output: Union[Path, str]):
             atomic_energies[element] = energy
     config["atomic_energies"] = atomic_energies
     config["path_output"] = str(path_output)
-    if "Metrics" in config.keys():
-        metrics = Metrics(**config.pop("Metrics"))
-    else:
-        metrics = None
+    metrics = Metrics(**config.pop("Metrics", {}))
     learning = learning_cls(metrics=metrics, **config)
     return learning

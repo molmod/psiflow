@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)  # logging per module
 def _trace_identifier(
     identifier_traces: dict,
     state: FlowAtoms,
-    iteration: int,
+    iteration: Union[str, int],
     walker_index: int,
     nsteps: int,
     condition: bool,
@@ -31,7 +31,6 @@ def _trace_identifier(
     if not state == NullState:  # same checks as sampling.py:assign_identifier
         if state.reference_status:
             identifier = state.info["identifier"]
-            print(identifier, condition)
             assert identifier not in identifier_traces
             identifier_traces[identifier] = (
                 iteration,
@@ -352,6 +351,21 @@ def _to_wandb(
             if x_axis.startswith("CV") or (x_axis == "identifier"):
                 for y_axis in dataset_log:
                     if (y_axis == "e_rmse") or y_axis.startswith("f_rmse"):
+                        figure_ = px.scatter(
+                            data_frame=df_na,
+                            x=x_axis,
+                            y=y_axis,
+                            custom_data=[
+                                "iteration",
+                                "walker_index",
+                                "nsteps",
+                                "identifier",
+                                "marker_symbol",
+                            ],
+                            symbol="marker_symbol",
+                            symbol_sequence=["star-diamond", "circle"],
+                            color_discrete_sequence=["darkgray"],
+                        )
                         figure = px.scatter(
                             data_frame=df_not_na,
                             x=x_axis,
@@ -369,33 +383,17 @@ def _to_wandb(
                             color="temperature",
                             color_continuous_scale=colors,
                         )
-                        # Overlay the scatter plot for missing values
-                        figure_ = px.scatter(
-                            data_frame=df_na,
-                            x=x_axis,
-                            y=y_axis,
-                            custom_data=[
-                                "iteration",
-                                "walker_index",
-                                "nsteps",
-                                "identifier",
-                                "marker_symbol",
-                            ],
-                            symbol="marker_symbol",
-                            symbol_sequence=["star-diamond", "circle"],
-                            color_discrete_sequence=["darkgray"],
-                        )
                         for trace in figure_.data:
                             figure.add_trace(trace)
                         figure.update_traces(
                             marker={
-                                "size": 11,
-                                "line": dict(width=1.2, color="DarkSlateGray"),
+                                "size": 10,
+                                "line": dict(width=1.0, color="DarkSlateGray"),
                             },
                             selector=dict(marker_symbol="circle"),
                         )
                         figure.update_traces(  # wandb cannot deal with lines in non-circle symbols!
-                            marker={"size": 15},
+                            marker={"size": 12},
                             selector=dict(marker_symbol="star-diamond"),
                         )
                         figure.update_traces(
@@ -508,7 +506,7 @@ class Metrics:
             state,
             self.iteration,
             i,
-            metadata.counter,
+            walker.counter,
             condition,
             temperature,
         )
