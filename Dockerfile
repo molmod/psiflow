@@ -45,9 +45,9 @@ RUN micromamba install --yes --name base --channel conda-forge \
     micromamba clean --all --yes
 
 RUN CONDA_OVERRIDE_CUDA="11.8" micromamba install -n base --yes -c conda-forge \
-    python=3.9 pip ndcctools=7.6.1 \
+    python=3.9 pip \
     openmm-plumed openmm-torch pytorch=1.13.1=cuda* \
-    nwchem py-plumed && \
+    py-plumed && \
     micromamba clean -af --yes
 ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
 
@@ -60,9 +60,10 @@ RUN pip install git+https://github.com/acesuit/MACE.git@55f7411 && \
     pip install git+https://github.com/mir-group/nequip.git@develop --no-deps && \
     pip install git+https://github.com/mir-group/allegro --no-deps && \
     pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
+RUN pip install pyscf
 
 ARG GIT_COMMIT_SHA
-RUN pip install git+https://github.com/molmod/psiflow
+RUN pip install 'psiflow[parsl] @ git+https://github.com/molmod/psiflow'
 RUN pip cache purge
 
 ENV OMPI_MCA_plm_rsh_agent=

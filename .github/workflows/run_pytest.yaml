@@ -24,7 +24,6 @@ jobs:
             py-plumed
             cp2k
             spglib=2.0.*
-            nwchem
             pip
             -c conda-forge
           init-shell: bash
@@ -41,6 +40,7 @@ jobs:
           pip install git+https://github.com/mir-group/nequip.git@develop --no-deps
           pip install git+https://github.com/mir-group/allegro --no-deps
           pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
+          pip install pyscf
           pip install 'psiflow[test] @ git+https://github.com/molmod/psiflow.git'
           cd ${{ runner.temp }} && git clone https://github.com/molmod/psiflow
           cd psiflow

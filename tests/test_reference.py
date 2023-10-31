@@ -4,14 +4,16 @@ import molmod
 import numpy as np
 import pytest
 import requests
-from ase.units import Pascal
+from ase import Atoms
+from ase.units import Bohr, Ha, Pascal
 from parsl.dataflow.futures import AppFuture
 from pymatgen.io.cp2k.inputs import Cp2kInput
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
-from psiflow.reference import CP2KReference, EMTReference, NWChemReference
+from psiflow.reference import CP2KReference, EMTReference, PySCFReference
 from psiflow.reference._cp2k import insert_filepaths_in_input
+from psiflow.reference._pyscf import generate_script, parse_energy_forces
 
 
 @pytest.fixture
@@ -407,31 +409,111 @@ def test_cp2k_atomic_energies(cp2k_reference, dataset):
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
 
 
+# @pytest.fixture
+# def nwchem_reference(context):
+#    calculator_kwargs = {
+#        "basis": {"H": "cc-pvqz"},
+#        "dft": {
+#            "xc": "pbe96",
+#            "mult": 1,
+#            "convergence": {
+#                "energy": 1e-6,
+#                "density": 1e-6,
+#                "gradient": 1e-6,
+#            },
+#            "disp": {"vdw": 3},
+#        },
+#    }
+#    return NWChemReference(**calculator_kwargs)
+#
+#
+# def test_nwchem_success(nwchem_reference):
+#    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+#        numbers=np.ones(2),
+#        positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
+#    )
+#    dataset = Dataset([atoms])
+#    evaluated = nwchem_reference.evaluate(dataset[0])
+#    assert isinstance(evaluated, AppFuture)
+#    assert evaluated.result().reference_status
+#    assert Path(evaluated.result().reference_stdout).is_file()
+#    assert Path(evaluated.result().reference_stderr).is_file()
+#    assert "energy" in evaluated.result().info.keys()
+#    assert "stress" not in evaluated.result().info.keys()
+#    assert "forces" in evaluated.result().arrays.keys()
+#    assert evaluated.result().arrays["forces"][0, 0] < 0
+#    assert evaluated.result().arrays["forces"][1, 0] > 0
+#
+#    nwchem_reference.evaluate(dataset)
+#    assert nwchem_reference.compute_atomic_energy("H").result() < 0
+
+
 @pytest.fixture
-def nwchem_reference(context):
-    calculator_kwargs = {
-        "basis": {"H": "cc-pvqz"},
-        "dft": {
-            "xc": "pbe96",
-            "mult": 1,
-            "convergence": {
-                "energy": 1e-6,
-                "density": 1e-6,
-                "gradient": 1e-6,
-            },
-            "disp": {"vdw": 3},
-        },
-    }
-    return NWChemReference(**calculator_kwargs)
+def pyscf_reference(context):
+    routine = """
+from pyscf import dft
+
+mf = dft.RKS(molecule)
+mf.xc = 'pbe,pbe'
+
+energy = mf.kernel()
+forces = -mf.nuc_grad_method().kernel()
+"""
+    basis = "cc-pvtz"
+    spin = 0
+    return PySCFReference(routine, basis, spin)
 
 
-def test_nwchem_success(nwchem_reference):
+def test_pyscf_generate_script(pyscf_reference):
+    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.75]], pbc=False)
+    _ = generate_script(
+        atoms,
+        pyscf_reference.routine,
+        pyscf_reference.basis,
+        pyscf_reference.spin,
+    )
+
+
+def test_pyscf_extract_energy_forces():
+    stdout = """
+total energy = as;ldkfj
+tion, you can put the setting "B3LYP_WITH_VWN5 = True" in pyscf_conf.py
+  warnings.warn('Since PySCF-2.3, B3LYP (and B3P86) are changed to the VWN-RPA variant, '
+converged SCF energy = -1.16614771756639
+total forces = ;s';dlfkj
+--------------- RKS gradients ---------------
+         x                y                z
+0 H    -0.0000000000     0.0000000000     0.0005538080
+1 H    -0.0000000000     0.0000000000    -0.0005538080
+----------------------------------------------
+total energy = -31.73249570413387
+total forces =
+8.504463377857879e-16 -6.70273006321553e-16 -0.02847795118636264
+1.9587146782865252e-16 -2.135019926691156e-15 0.028477951186359783
+"""
+    energy, forces = parse_energy_forces(stdout)
+    assert np.allclose(energy, -1.16614771756639 * Ha)
+    forces_ = (
+        (-1.0)
+        * np.array(
+            [
+                [-0.0000000000, 0.0000000000, 0.0005538080],
+                [-0.0000000000, 0.0000000000, -0.0005538080],
+            ]
+        )
+        * Ha
+        / Bohr
+    )
+    assert np.allclose(forces, forces_)
+
+
+def test_pyscf_success(pyscf_reference):
     atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
     )
     dataset = Dataset([atoms])
-    evaluated = nwchem_reference.evaluate(dataset[0])
+    evaluated = pyscf_reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status
     assert Path(evaluated.result().reference_stdout).is_file()
@@ -442,5 +524,26 @@ def test_nwchem_success(nwchem_reference):
     assert evaluated.result().arrays["forces"][0, 0] < 0
     assert evaluated.result().arrays["forces"][1, 0] > 0
 
-    nwchem_reference.evaluate(dataset)
-    assert nwchem_reference.compute_atomic_energy("H").result() < 0
+    pyscf_reference.evaluate(dataset)
+    assert pyscf_reference.compute_atomic_energy("H").result() < 0
+
+
+def test_pyscf_timeout(context):
+    routine = """
+from pyscf import scf, cc
+
+mf = scf.HF(molecule).run()
+mycc = cc.CCSD(mf)
+mycc.kernel()
+energy = mycc.e_tot
+forces = -mycc.nuc_grad_method().kernel()
+"""
+    basis = "cc-pvqz"
+    spin = 0
+    reference = PySCFReference(routine, basis, spin)
+    atoms = FlowAtoms(
+        numbers=np.ones(4),
+        positions=np.array([[0, 0, 0], [0.74, 0, 0], [0, 3, 0], [0.74, 3, 0]]),
+    )
+    reference.evaluate(atoms).result()
+    assert not atoms.reference_status

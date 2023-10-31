@@ -133,7 +133,7 @@ def nwchem_singlepoint_pre(
         command_cd,
         command_write,
         command_mkdir,
-        "export OMP_NUM_THREADS=2;",
+        "export OMP_NUM_THREADS=1;",
         "timeout -k 5 {}s".format(max(walltime - 20, 0)),
         nwchem_command + " nwchem.nwi || true",
     ]
