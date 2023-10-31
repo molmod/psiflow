@@ -19,7 +19,7 @@ Its features include:
 
 - active learning algorithms with enhanced sampling using PLUMED
 - [Weights & Biases](wandb.ai) logging for easy monitoring and analysis
-- periodic (CP2K) and nonperiodic (NWChem) systems
+- periodic (CP2K) and nonperiodic (PySCF, NWChem) systems
 - efficient GPU-accelerated molecular dynamics using OpenMM
 - the latest equivariant potentials such as MACE and NequIP
 
