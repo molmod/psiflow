@@ -1,6 +1,6 @@
 ---
 ModelEvaluation:
-  max_walltime: 0.3
+  max_walltime: 0.5
   simulation_engine: 'openmm'
   gpu: false
   use_threadpool: true
