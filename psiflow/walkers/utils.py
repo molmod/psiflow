@@ -1,9 +1,9 @@
-import molmod
 import numpy as np
 import yaff
 from ase import Atoms
 from ase.geometry import Cell
 from ase.io import write
+from ase.units import Bohr, Ha
 from scipy.stats import chi2
 
 
@@ -73,20 +73,18 @@ class ForcePartASE(yaff.pes.ForcePart):
         self.atoms = atoms
 
     def _internal_compute(self, gpos=None, vtens=None):
-        self.atoms.set_positions(self.system.pos / molmod.units.angstrom)
+        self.atoms.set_positions(self.system.pos * Bohr)
         if self.atoms.pbc.all():
-            self.atoms.set_cell(
-                Cell(self.system.cell._get_rvecs() / molmod.units.angstrom)
-            )
-        energy = self.atoms.get_potential_energy() * molmod.units.electronvolt
+            self.atoms.set_cell(Cell(self.system.cell._get_rvecs() * Bohr))
+        energy = self.atoms.get_potential_energy() / Ha
         if gpos is not None:
             forces = self.atoms.get_forces()
-            gpos[:] = -forces * molmod.units.electronvolt / molmod.units.angstrom
+            gpos[:] = -forces / (Ha / Bohr)
         if vtens is not None:
             if self.atoms.pbc.all():
                 stress = self.atoms.get_stress(voigt=False)
                 volume = np.linalg.det(self.atoms.get_cell())
-                vtens[:] = volume * stress * molmod.units.electronvolt
+                vtens[:] = volume * stress / Ha
             else:
                 vtens[:] = 0.0
         return energy
@@ -104,7 +102,7 @@ class ForceField(yaff.pes.ForceField):
             self.nlist.update()
             self.needs_nlist_update = False
         result = sum([part.compute(gpos, vtens) for part in self.parts])
-        forces = (-1.0) / molmod.units.electronvolt * molmod.units.angstrom * gpos
+        forces = (-1.0) * gpos * (Ha / Bohr)
         self.check_threshold(forces)
         return result
 
@@ -120,12 +118,12 @@ class ForceField(yaff.pes.ForceField):
 def create_forcefield(atoms, force_threshold):
     """Creates force field from ASE atoms instance"""
     if atoms.pbc.all():
-        rvecs = atoms.get_cell() * molmod.units.angstrom
+        rvecs = atoms.get_cell() / Bohr
     else:
         rvecs = None
     system = yaff.System(
         numbers=atoms.get_atomic_numbers(),
-        pos=atoms.get_positions() * molmod.units.angstrom,
+        pos=atoms.get_positions() / Bohr,
         rvecs=rvecs,
     )
     system.set_standard_masses()
@@ -141,12 +139,12 @@ class DataHook(yaff.VerletHook):
 
     def init(self, iterative):
         if iterative.ff.system.cell.nvec > 0:
-            cell = iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom
+            cell = iterative.ff.system.cell._get_rvecs() * Bohr
         else:
             cell = None
         self.atoms = Atoms(
             numbers=iterative.ff.system.numbers.copy(),
-            positions=iterative.ff.system.pos / molmod.units.angstrom,
+            positions=iterative.ff.system.pos * Bohr,
             cell=cell,
             pbc=cell is not None,
         )
@@ -158,11 +156,9 @@ class DataHook(yaff.VerletHook):
         pass
 
     def __call__(self, iterative):
-        self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
+        self.atoms.set_positions(iterative.ff.system.pos * Bohr)
         if self.atoms.pbc.all():
-            self.atoms.set_cell(
-                iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom
-            )
+            self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() * Bohr)
         self.data.append(self.atoms.copy())
 
 
@@ -176,12 +172,12 @@ class ExtXYZHook(yaff.VerletHook):  # xyz file writer; obsolete
 
     def init(self, iterative):
         if iterative.ff.system.cell.nvec > 0:
-            cell = iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom
+            cell = iterative.ff.system.cell._get_rvecs() * Bohr
         else:
             cell = None
         self.atoms = Atoms(
             numbers=iterative.ff.system.numbers.copy(),
-            positions=iterative.ff.system.pos / molmod.units.angstrom,
+            positions=iterative.ff.system.pos * Bohr,
             cell=cell,
             pbc=cell is not None,
         )
@@ -194,11 +190,9 @@ class ExtXYZHook(yaff.VerletHook):  # xyz file writer; obsolete
 
     def __call__(self, iterative):
         if iterative.counter > 0:  # first write is manual
-            self.atoms.set_positions(iterative.ff.system.pos / molmod.units.angstrom)
+            self.atoms.set_positions(iterative.ff.system.pos * Bohr)
             if self.atoms.pbc.all():
-                self.atoms.set_cell(
-                    iterative.ff.system.cell._get_rvecs() / molmod.units.angstrom
-                )
+                self.atoms.set_cell(iterative.ff.system.cell._get_rvecs() * Bohr)
             write(self.path_xyz, self.atoms, append=True)
             self.nwrites += 1
             self.temperatures.append(iterative.temp)
