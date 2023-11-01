@@ -16,7 +16,6 @@ def test_learning_save_load(gpu, tmp_path):
     path_output.mkdir()
     SequentialLearning(
         path_output=path_output,
-        metrics=None,
         pretraining_nstates=100,
     )
     learning_ = load_learning(path_output)

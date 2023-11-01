@@ -34,7 +34,7 @@ class BaseLearning:
     pretraining_nstates: int = 50
     pretraining_amplitude_pos: float = 0.05
     pretraining_amplitude_box: float = 0.0
-    metrics: Metrics = Metrics()
+    metrics: Metrics = field(default_factory=lambda: Metrics())  # mutable default
     atomic_energies: dict[str, Union[float, AppFuture]] = field(
         default_factory=lambda: {}
     )
