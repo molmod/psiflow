@@ -37,7 +37,6 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
 
     identifier = 4
     metrics = Metrics(wandb_group="test_sample_metrics", wandb_project="psiflow")
-    print(dataset[0].result())
     data, identifier = sample_with_model(
         mace_model,
         reference,
@@ -46,7 +45,7 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
         error_thresholds_for_reset=(
             200,
             1e9,
-        ),  # some will reset; marker should change in wwandb
+        ),  # some will reset; marker should change in wandb
         metrics=metrics,
     )
     assert data.length().result() == 6  # one state should have failed

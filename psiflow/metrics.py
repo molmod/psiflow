@@ -25,7 +25,7 @@ def _trace_identifier(
     iteration: Union[str, int],
     walker_index: int,
     nsteps: int,
-    condition: bool,
+    is_reset: bool,
     temperature: float,
 ) -> dict:
     if not state == NullState:  # same checks as sampling.py:assign_identifier
@@ -36,7 +36,7 @@ def _trace_identifier(
                 iteration,
                 walker_index,
                 nsteps,
-                condition,
+                is_reset,
                 temperature,
             )
     return identifier_traces
@@ -363,7 +363,7 @@ def _to_wandb(
                                 "marker_symbol",
                             ],
                             symbol="marker_symbol",
-                            symbol_sequence=["star-diamond", "circle"],
+                            symbol_sequence=["star-diamond", "circle"],  # reversed?
                             color_discrete_sequence=["darkgray"],
                         )
                         figure = px.scatter(
@@ -491,7 +491,7 @@ class Metrics:
             i,
             state,
             error,
-            condition,
+            walker.is_reset(),
             identifier,
             disagreement,
             **metadata_dict,
@@ -507,7 +507,7 @@ class Metrics:
             self.iteration,
             i,
             walker.counter,
-            condition,
+            walker.is_reset(),
             temperature,
         )
 
