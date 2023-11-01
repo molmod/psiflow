@@ -342,6 +342,7 @@ ReferenceEvaluation:
                     cores_per_worker=definition.cores_per_worker,
                     max_workers=max_workers,
                     provider=definition.parsl_provider,
+                    cpu_affinity="block",
                 )
             else:
                 executor = ThreadPoolExecutor(

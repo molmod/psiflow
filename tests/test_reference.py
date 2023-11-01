@@ -541,9 +541,18 @@ forces = -mycc.nuc_grad_method().kernel()
     basis = "cc-pvqz"
     spin = 0
     reference = PySCFReference(routine, basis, spin)
-    atoms = FlowAtoms(
-        numbers=np.ones(4),
-        positions=np.array([[0, 0, 0], [0.74, 0, 0], [0, 3, 0], [0.74, 3, 0]]),
+    atoms = FlowAtoms(  # 3 x H2
+        numbers=np.ones(6),
+        positions=np.array(
+            [
+                [0, 0, 0],
+                [0.74, 0, 0],
+                [0, 3, 0],
+                [0.74, 3, 0],
+                [0, 6, 0],
+                [0.74, 6, 0],
+            ]
+        ),
     )
     reference.evaluate(atoms).result()
     assert not atoms.reference_status
