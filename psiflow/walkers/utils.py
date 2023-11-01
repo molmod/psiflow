@@ -267,27 +267,6 @@ def parse_yaff_output(stdout):
     return counter, np.mean(np.array(temperatures)), time
 
 
-def parse_openmm_output(stdout):
-    temperatures = []
-    counter = 0
-    time = 0
-    start = False
-    for line in stdout.split("\n"):
-        if start:
-            try:
-                metrics = [s for s in line.split(",")]
-                time = float(metrics[-1])
-                counter = int(metrics[0])
-                temperatures.append(float(metrics[2]))
-            except ValueError:
-                break
-        if '#"Step","Potential Energy (kJ/mole)"' in line:
-            start = True
-    if len(temperatures) == 0:
-        temperatures.append(-1)
-    return counter, np.mean(np.array(temperatures)), time
-
-
 def max_temperature(temperature: float, natoms: int, quantile: float) -> float:
     ndof = 3 * natoms
     return chi2.ppf(1 - quantile, ndof) * temperature / ndof

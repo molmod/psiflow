@@ -167,6 +167,27 @@ def molecular_dynamics_openmm(
     return " ".join(command_list)
 
 
+def parse_openmm_output(stdout):
+    temperatures = []
+    counter = 0
+    time = 0
+    start = False
+    for line in stdout.split("\n"):
+        if start:
+            try:
+                metrics = [s for s in line.split(",")]
+                time = float(metrics[-1])
+                counter = int(metrics[0])
+                temperatures.append(float(metrics[2]))
+            except ValueError:
+                break
+        if '#"Step","Potential Energy (kJ/mole)"' in line:
+            start = True
+    if len(temperatures) == 0:
+        temperatures.append(-1)
+    return counter, np.mean(np.array(temperatures)), time
+
+
 @python_app(executors=["default_threads"])
 def molecular_dynamics_openmm_post(
     inputs: list[File] = [],
@@ -175,7 +196,7 @@ def molecular_dynamics_openmm_post(
     from ase.io import read
 
     from psiflow.data import FlowAtoms, NullState
-    from psiflow.walkers.utils import parse_openmm_output
+    from psiflow.walkers.dynamic import parse_openmm_output
 
     with open(inputs[1], "r") as f:
         stdout = f.read()
