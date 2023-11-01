@@ -1,4 +1,5 @@
 import ast
+import copy
 import os
 
 import numpy as np
@@ -225,7 +226,11 @@ def test_mace_init(mace_config, dataset):
     assert "1:" in initialized_config["E0s"]
     assert "29:" in initialized_config["E0s"]
 
-    model = MACEModel(mace_config)
+    config = copy.deepcopy(mace_config)
+    config[
+        "batch_size"
+    ] = 100000  # bigger than ntrain --> should get reduced internally
+    model = MACEModel(config)
     model.seed = 1
     model.initialize(dataset[:3])
     assert isinstance(model.model_future, DataFuture)

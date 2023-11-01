@@ -213,6 +213,8 @@ def train(args, path_model, init_only) -> None:
         )
         logging.info(f"Atomic energies: {atomic_energies.tolist()}")
 
+    args.batch_size = min(len(collections.train), args.batch_size)
+    print("actual batch size: {}".format(args.batch_size))
     train_loader = torch_geometric.dataloader.DataLoader(
         dataset=[
             data.AtomicData.from_config(
