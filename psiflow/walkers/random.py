@@ -3,6 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 from collections import namedtuple
 from typing import Any, Union
 
+import numpy as np
 import typeguard
 from ase import Atoms
 from parsl.app.app import python_app
@@ -15,6 +16,55 @@ from psiflow.walkers import BaseWalker
 Metadata = namedtuple("Metadata", ["state", "counter", "reset"])
 
 
+def apply_strain(strain, box0):
+    """Applies a strain tensor to a reference box
+
+    The resulting strained box matrix is obtained based on:
+
+        box = box0 @ sqrt(2 * strain + I)
+
+    where the second argument is computed based on a diagonalization of
+    2 * strain + I.
+
+    Parameters
+    ----------
+
+    strain : ndarray of shape (3, 3)
+        desired strain matrix
+
+    box0 : ndarray of shape (3, 3)
+        reference box matrix
+
+    """
+    assert np.allclose(strain, strain.T)
+    A = 2 * strain + np.eye(3)
+    values, vectors = np.linalg.eigh(A)
+    sqrtA = vectors @ np.sqrt(np.diag(values)) @ vectors.T
+    box = box0 @ sqrtA
+    return box
+
+
+def compute_strain(box, box0):
+    """Computes the strain of a given box with respect to a reference
+
+    The strain matrix is defined by the following expression
+
+        strain = 0.5 * (inv(box0) @ box @ box.T @ inv(box0).T - I)
+
+    Parameters
+    ----------
+
+    box : ndarray of shape (3, 3)
+        box matrix for which to compute the strain
+
+    box0 : ndarray of shape (3, 3)
+        reference box matrix
+
+    """
+    box0inv = np.linalg.inv(box0)
+    return 0.5 * (box0inv @ box @ box.T @ box0inv.T - np.eye(3))
+
+
 @typeguard.typechecked
 def random_perturbation(
     state: FlowAtoms,
@@ -24,7 +74,7 @@ def random_perturbation(
 
     import numpy as np
 
-    from psiflow.walkers.utils import apply_strain
+    from psiflow.walkers.random import apply_strain
 
     state = copy.deepcopy(state)
     np.random.seed(parameters["seed"])

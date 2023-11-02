@@ -19,8 +19,8 @@ from psiflow.walkers import (  # noqa: F401
     RandomWalker,
     load_walker,
 )
-from psiflow.walkers.dynamic import parse_openmm_output
-from psiflow.walkers.utils import get_velocities_at_temperature, parse_yaff_output
+from psiflow.walkers.dynamic import parse_openmm_output, parse_yaff_output
+from psiflow.walkers.utils import get_velocities_at_temperature
 
 
 def test_random_walker_multiply(dataset, tmp_path):

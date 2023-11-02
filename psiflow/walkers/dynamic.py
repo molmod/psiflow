@@ -84,6 +84,26 @@ def molecular_dynamics_yaff(
     return " ".join(command_list)
 
 
+def parse_yaff_output(stdout):
+    temperatures = []
+    counter = 0
+    time = 0
+    for line in stdout.split("\n"):
+        if "VERLET" in line:
+            try:
+                _ = [float(s) for s in line.split()[1:]]
+            except ValueError:
+                continue
+            temperatures.append(float(line.split()[3]))
+            counter = int(line.split()[1])
+            time = float(line.split()[6])
+        else:
+            pass
+    if len(temperatures) == 0:
+        temperatures.append(-1)
+    return counter, np.mean(np.array(temperatures)), time
+
+
 @python_app(executors=["default_threads"])
 def molecular_dynamics_yaff_post(
     inputs: list[File] = [],
@@ -92,7 +112,7 @@ def molecular_dynamics_yaff_post(
     from ase.io import read
 
     from psiflow.data import FlowAtoms, NullState
-    from psiflow.walkers.utils import parse_yaff_output
+    from psiflow.walkers.dynamic import parse_yaff_output
 
     with open(inputs[1], "r") as f:
         stdout = f.read()
