@@ -40,6 +40,7 @@ class ExecutionDefinition:
     cores_per_worker: int = 1
     max_walltime: Optional[float] = None
     use_threadpool: bool = False
+    cpu_affinity: str = "block"
 
     def __post_init__(self):
         if hasattr(self.parsl_provider, "walltime"):
@@ -214,6 +215,7 @@ class ExecutionContextLoader:
                 "use_threadpool": False,
                 "cores_per_worker": 1,
                 "max_walltime": None,
+                "cpu_affinity": "block",
             }
             _dict = dict(defaults, **_dict)
 
@@ -342,7 +344,7 @@ ReferenceEvaluation:
                     cores_per_worker=definition.cores_per_worker,
                     max_workers=max_workers,
                     provider=definition.parsl_provider,
-                    cpu_affinity="block",
+                    cpu_affinity=definition.cpu_affinity,
                 )
             else:
                 executor = ThreadPoolExecutor(

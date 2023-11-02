@@ -152,7 +152,9 @@ def pyscf_singlepoint_pre(
         command_tmp,
         command_cd,
         command_write,
-        "export OMP_NUM_THREADS={};".format(omp_num_threads),
+        "export OMP_PROC_BIND=close; export OMP_NUM_THREADS={};".format(
+            omp_num_threads
+        ),
         "timeout -s 9 {}s python generated.py || true".format(max(walltime - 2, 0)),
     ]
     return " ".join(command_list)
