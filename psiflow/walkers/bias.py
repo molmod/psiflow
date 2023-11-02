@@ -228,6 +228,7 @@ def partitioned_evaluate_bias(
 ) -> AppFuture:
     import psiflow
     from psiflow.data import NullState, read_dataset, write_dataset
+    from psiflow.walkers.bias import app_evaluate
 
     dataset = read_dataset(slice(None), inputs=[data_future])
 
@@ -250,7 +251,7 @@ def partitioned_evaluate_bias(
             [dataset[i] for i in partition],
             outputs=[data_future],
         )
-        futures[key] = evaluate_bias(
+        futures[key] = app_evaluate(
             plumed_input,
             variables,
             inputs=[data_future] + inputs[1:],
