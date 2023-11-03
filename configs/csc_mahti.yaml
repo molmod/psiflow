@@ -13,7 +13,6 @@ ModelEvaluation:
     init_blocks: 0
     max_blocks: 1         # do not use more than one block
     walltime: "01:00:00"  # walltime per block
-    exclusive: false      # rest of compute node free to use
 ModelTraining:
   cores_per_worker: 32
   gpu: true
@@ -25,12 +24,11 @@ ModelTraining:
     init_blocks: 0
     max_blocks: 1
     walltime: "00:15:00"
-    exclusive: false
     scheduler_options: "#SBATCH --gres=gpu:a100:1"
 ReferenceEvaluation:
   cores_per_worker: 4
   max_walltime: 20
-  mpi_command: 'mpirun -np {}'
+  cpu_affinity: 'alternating'
   SlurmProvider:
     partition: "interactive"
     account: "project_2008666"
@@ -39,5 +37,4 @@ ReferenceEvaluation:
     init_blocks: 0
     max_blocks: 1         # do not use more than one block
     walltime: "01:00:00"  # walltime per block
-    exclusive: false      # rest of compute node free to use
 ...
