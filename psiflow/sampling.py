@@ -112,6 +112,7 @@ def log_evaluation_model(
                     *errors
                 )
         else:
+            assert condition
             s += "\twalker reset"
         s += "\n"
     logger.info(s)
@@ -188,7 +189,6 @@ def sample_with_model(
             error=errors[i],
             error_thresholds=error_thresholds_for_reset,
         )
-        walkers[i].reset(condition)
         log_evaluation_model(
             i, metadatas[i], states[i], errors[i], condition, identifier
         )
@@ -196,6 +196,7 @@ def sample_with_model(
             metrics.log_walker(
                 i, walkers[i], metadatas[i], states[i], errors[i], condition, identifier
             )
+        walkers[i].reset(condition)
     return Dataset(states).labeled(), identifier
 
 

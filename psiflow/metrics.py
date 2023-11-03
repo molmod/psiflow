@@ -343,6 +343,11 @@ def _to_wandb(
 
     df_na = df[df["temperature"].isna()]
     df_not_na = df[df["temperature"].notna()]
+
+    # sort to get markers right!
+    df_not_na = df_not_na.sort_values(by="marker_symbol")
+    df_na = df_na.sort_values(by="marker_symbol")
+
     cmap = cc.cm.CET_I1
     colors = [mcolors.to_hex(cmap(i)) for i in np.linspace(0, 1, cmap.N)]
 
@@ -363,7 +368,7 @@ def _to_wandb(
                                 "marker_symbol",
                             ],
                             symbol="marker_symbol",
-                            symbol_sequence=["star-diamond", "circle"],  # reversed?
+                            symbol_sequence=["circle", "star-diamond"],
                             color_discrete_sequence=["darkgray"],
                         )
                         figure = px.scatter(
@@ -379,22 +384,22 @@ def _to_wandb(
                                 "temperature",
                             ],
                             symbol="marker_symbol",
-                            symbol_sequence=["star-diamond", "circle"],
+                            symbol_sequence=["circle", "star-diamond"],
                             color="temperature",
                             color_continuous_scale=colors,
                         )
                         for trace in figure_.data:
                             figure.add_trace(trace)
+                        figure.update_traces(  # wandb cannot deal with lines in non-circle symbols!
+                            marker={"size": 12},
+                            selector=dict(marker_symbol="star-diamond"),
+                        )
                         figure.update_traces(
                             marker={
                                 "size": 10,
                                 "line": dict(width=1.0, color="DarkSlateGray"),
                             },
                             selector=dict(marker_symbol="circle"),
-                        )
-                        figure.update_traces(  # wandb cannot deal with lines in non-circle symbols!
-                            marker={"size": 12},
-                            selector=dict(marker_symbol="star-diamond"),
                         )
                         figure.update_traces(
                             hovertemplate=(
@@ -491,7 +496,7 @@ class Metrics:
             i,
             state,
             error,
-            walker.is_reset(),
+            condition,
             identifier,
             disagreement,
             **metadata_dict,
@@ -507,7 +512,7 @@ class Metrics:
             self.iteration,
             i,
             walker.counter,
-            walker.is_reset(),
+            condition,
             temperature,
         )
 
