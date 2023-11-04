@@ -326,11 +326,9 @@ class IncrementalLearning(BaseLearning):
             assert "MOVINGRESTRAINT" in walker.bias.keys
             _, kappas, centers = walker.bias.get_moving_restraint(self.cv_name)
             steps = walker.steps
-            if initialize:
+            if initialize or walker.is_reset().result():
                 new_centers = (self.cv_start, self.cv_start + self.cv_delta)
             else:
-                if walker.is_reset().result():
-                    continue
                 new_centers = (
                     centers[1],
                     centers[1] + self.cv_delta,
