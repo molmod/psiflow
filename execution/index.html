@@ -263,29 +263,9 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuration" class="md-nav__link">
-    Configuration
+  <a href="#remote-execution" class="md-nav__link">
+    Remote execution
   </a>
-  
-    <nav class="md-nav" aria-label="Configuration">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#local" class="md-nav__link">
-    Local
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#remote-hpccloud" class="md-nav__link">
-    Remote (HPC/Cloud)
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -350,7 +330,7 @@ from the main Python script that defines the workflow, in line with Parsl's phil
 To execute the zeolite reaction example not on your local computer, but on remote compute resources
 (e.g. the Frontier exascale system at OLCF), you simply have to <strong>pass the relevant psiflow configuration
 file as an argument</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="go">python my_workflow.py --psiflow-config frontier.py      # executes exact same workflow on Frontier</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="go">python my_workflow.py --psiflow-config frontier.yaml      # executes exact same workflow on Frontier</span>
 </code></pre></div>
 <p>The following sections will explain in more detail how remote execution is configured.</p>
 <div class="admonition note">
@@ -361,7 +341,7 @@ first in order to get acquainted with the <code>executor</code>, <code>provider<
 concepts.</p>
 </div>
 <h2 id="execution-definitions">Execution definitions</h2>
-<p>The definition of all execution-side parameters happens in the psiflow configuration file.
+<p>All execution-side parameters are defined in a configuration file using concise YAML syntax.
 Its contents are divided in so-called execution definitions, each of which specifies how and where
 a certain type of calculation will be executed. Each definition accepts at least the following arguments:</p>
 <ul>
@@ -369,12 +349,12 @@ a certain type of calculation will be executed. Each definition accepts at least
 <li><code>cores_per_worker: int = 1</code>: how many cores each individual calculation requires</li>
 <li><code>max_walltime: float = None</code>: specifies a maximum duration of each calculation before it gets gracefully killed.</li>
 <li><code>parsl_provider: parsl.providers.ExecutionProvider</code>: a Parsl provider which psiflow can use to get compute time.
-For a <code>ClusterProvider</code>, this involves submitting a job to the queueing system; for a <code>GoogleCloudProvider</code>,
+For a <code>ClusterProvider</code> (e.g. <code>SlurmProvider</code>), this involves submitting a job to the queueing system; for a <code>GoogleCloudProvider</code>,
 this involves provisioning and connecting to a node in the cloud; for a <code>LocalProvider</code>, this just means "use the resources
 available on the current system". See <a href="https://parsl.readthedocs.io/en/stable/userguide/execution.html#execution-providers">this section</a>
 in the Parsl documentation for more details.</li>
 </ul>
-<p>Psiflow introduces four different execution definitions:</p>
+<p>Psiflow introduces three different execution definitions:</p>
 <ol>
 <li><strong>model evaluation</strong>: this determines how and where the trainable models (i.e. <code>BaseModel</code> instances) are
 executed. In addition to the common arguments above, it allows the user to specify a <code>simulation_engine</code>, with possible
@@ -389,190 +369,101 @@ It should be a function with a single argument, which returns (as string) the MP
 Its default value is the following <code>lambda</code> expression (for MPICH as included in the container):
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">mpi_command</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;mpirun -np </span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1"> -bind-to core -rmk user -launcher fork&#39;</span>
 </code></pre></div></li>
-<li><strong>default execution</strong>: this determines where the lightweight/administrative operations get executed (dataset copying, basic numpy operations, ...).
-Typically, this requires only a few cores and a few GBs of memory.</li>
 </ol>
-<h2 id="configuration">Configuration</h2>
-<p>Let's illustrate how the execution definitions can be used to construct a psiflow configuration file.
-Essentially, such files consist of a single <code>get_config()</code> method which should return a Parsl <code>Config</code> object
-as well as a list of psiflow <code>ExecutionDefinition</code> instances as discussed above.</p>
-<h3 id="local">Local</h3>
-<p>For simplicity, let us assume for now that all of the required compute resources are available locally,
-which means we can use parsl's <code>LocalProvider</code> in the various definitions:
-<div class="highlight"><span class="filename">local_htex.py</span><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span> <span class="nn">parsl.providers</span> <span class="kn">import</span> <span class="n">LocalProvider</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span> <span class="nn">psiflow.execution</span> <span class="kn">import</span> <span class="n">Default</span><span class="p">,</span> <span class="n">ModelTraining</span><span class="p">,</span> <span class="n">ModelEvaluation</span><span class="p">,</span> \
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="n">ReferenceEvaluation</span><span class="p">,</span> <span class="n">generate_parsl_config</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">default</span> <span class="o">=</span> <span class="n">Default</span><span class="p">()</span>                         <span class="c1"># subclass of ExecutionDefinition</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">model_evaluation</span> <span class="o">=</span> <span class="n">ModelEvaluation</span><span class="p">(</span>         <span class="c1"># subclass of ExecutionDefinition</span>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="n">parsl_provider</span><span class="o">=</span><span class="n">LocalProvider</span><span class="p">(),</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="n">cores_per_worker</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="n">max_walltime</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>                    <span class="c1"># in minutes!</span>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>        <span class="n">simulation_engine</span><span class="o">=</span><span class="s1">&#39;openmm&#39;</span><span class="p">,</span>         <span class="c1"># or yaff; openmm is faster</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                       
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>        <span class="p">)</span>
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="n">model_training</span> <span class="o">=</span> <span class="n">ModelTraining</span><span class="p">(</span>             <span class="c1"># subclass of ExecutionDefinition</span>
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="n">parsl_provider</span><span class="o">=</span><span class="n">LocalProvider</span><span class="p">(),</span>     <span class="c1"># or SlurmProvider / GoogleCloudProvider / ...</span>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>        <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>        <span class="n">max_walltime</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>                
-<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>        <span class="p">)</span>
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="n">reference_evaluation</span> <span class="o">=</span> <span class="n">ReferenceEvaluation</span><span class="p">(</span> <span class="c1"># subclass of ExecutionDefinition</span>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>        <span class="n">parsl_provider</span><span class="o">=</span><span class="n">LocalProvider</span><span class="p">(),</span>
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>        <span class="n">cores_per_worker</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>
-<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>        <span class="n">max_walltime</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span>                    <span class="c1"># kill after this amount of time, in minutes</span>
-<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>        <span class="n">mpi_command</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;mpirun -np </span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1"> -bind-to core -rmk user -launcher fork&#39;</span><span class="p">,</span>
-<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>        <span class="p">)</span>
-<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="n">definitions</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a>        <span class="n">default</span><span class="p">,</span>
-<a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a>        <span class="n">model_evaluation</span><span class="p">,</span>
-<a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a>        <span class="n">model_training</span><span class="p">,</span>
-<a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>        <span class="n">reference_evaluation</span><span class="p">,</span>
-<a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a>        <span class="p">]</span>
-<a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a>
-<a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a>
-<a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a><span class="k">def</span> <span class="nf">get_config</span><span class="p">(</span><span class="n">path_internal</span><span class="p">):</span>
-<a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">generate_parsl_config</span><span class="p">(</span>
-<a id="__codelineno-3-36" name="__codelineno-3-36" href="#__codelineno-3-36"></a>            <span class="n">path_internal</span><span class="p">,</span>
-<a id="__codelineno-3-37" name="__codelineno-3-37" href="#__codelineno-3-37"></a>            <span class="n">definitions</span><span class="p">,</span>
-<a id="__codelineno-3-38" name="__codelineno-3-38" href="#__codelineno-3-38"></a>            <span class="n">use_work_queue</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>           <span class="c1"># can improve the scheduling of jobs but also slows down</span>
-<a id="__codelineno-3-39" name="__codelineno-3-39" href="#__codelineno-3-39"></a>            <span class="n">parsl_max_idletime</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
-<a id="__codelineno-3-40" name="__codelineno-3-40" href="#__codelineno-3-40"></a>            <span class="n">parsl_retries</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>                <span class="c1"># retry at least once in case the error happened randomly</span>
-<a id="__codelineno-3-41" name="__codelineno-3-41" href="#__codelineno-3-41"></a>            <span class="p">)</span>
-<a id="__codelineno-3-42" name="__codelineno-3-42" href="#__codelineno-3-42"></a>    <span class="k">return</span> <span class="n">config</span><span class="p">,</span> <span class="n">definitions</span>
+<p>For example: the following configuration ensures we're executing molecular dynamics sampling using OpenMM as engine and on 1 GPU / 4 cores,
+whereas reference evaluation is performed on 4 cores. If a QM singlepoint takes longer than 10 minutes (because our system is too big or 
+the SCF has trouble converging), the evaluation is gracefully killed.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nn">---</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nt">ModelEvaluation</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">cores_per_worker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">simulation_engine</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;openmm&#39;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nt">ModelTraining</span><span class="p">:</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nt">ReferenceEvaluation</span><span class="p">:</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">cores_per_worker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="nt">max_walltime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="nn">...</span>
 </code></pre></div>
-These definitions imply that:</p>
-<ul>
-<li>molecular dynamics will be performed using the OpenMM engine, one two cores and one GPU,
-and will be gracefully killed after 30 minutes;</li>
-<li>model training is allowed to run for a maximum of 10 minutes;</li>
-<li>reference QM evaluations will be performed using 6 cores per singlepoint, and with a specific MPI command.
-If a singlepoint takes longer than 60 minutes, it is killed. No energy labels will be stored in the state,
-and the corresponding FlowAtoms instance will have <code>reference_status = False</code>.</li>
-</ul>
-<p>The <code>get_config()</code> method takes a single argument (a cache directory shared by all compute resources) and builds a
-Parsl <code>Config</code> based on the provided definitions and a few additional parameters, such the maximum number of retries
-that Parsl may attempt for a specific task
-(which can be useful e.g. when the cluster you're using contains a few faulty nodes).</p>
-<h3 id="remote-hpccloud">Remote (HPC/Cloud)</h3>
-<p>As mentioned before, psiflow is designed to support remote execution on vast amounts of
-compute resources.
+whereas this one ensures we're using YAFF as backend, on a single core, without GPU.
+In addition, it ensures that all nontrivial operations are executed using psiflow's container image 
+(because you rightfully don't want to bother installing PyTorch/OpenMM/CP2K/PLUMED/... on your local workstation).
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nn">---</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;apptainer&#39;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;oras://ghcr.io/molmod/psiflow:3.0.0-cuda&#39;</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nt">ModelEvaluation</span><span class="p">:</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">cores_per_worker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="nt">simulation_engine</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;yaff&#39;</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="nt">ModelTraining</span><span class="p">:</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="nt">ReferenceEvaluation</span><span class="p">:</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span><span class="nt">cores_per_worker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">  </span><span class="nt">max_walltime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="nn">...</span>
+</code></pre></div></p>
+<h2 id="remote-execution">Remote execution</h2>
+<p>The above example is concise and elegant, but not very useful.
+As mentioned before, psiflow is designed to support remote execution on vast amounts of
+compute resources, not just the cores/GPU on our local workstation.
 This is particularly convenient in a containerized fashion, since this alleviates the
 need to install all of its dependencies on each of the compute resources.
 As an example of this, consider the following configuration:</p>
-<p><div class="highlight"><span class="filename">vsc_hortense.py</span><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span> <span class="nn">parsl.providers</span> <span class="kn">import</span> <span class="n">SlurmProvider</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span> <span class="nn">parsl.launchers</span> <span class="kn">import</span> <span class="n">SimpleLauncher</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kn">from</span> <span class="nn">psiflow.execution</span> <span class="kn">import</span> <span class="n">Default</span><span class="p">,</span> <span class="n">ModelTraining</span><span class="p">,</span> <span class="n">ModelEvaluation</span><span class="p">,</span> \
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">ReferenceEvaluation</span><span class="p">,</span> <span class="n">generate_parsl_config</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="kn">from</span> <span class="nn">psiflow.parsl_utils</span> <span class="kn">import</span> <span class="n">ContainerizedLauncher</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># The ContainerizedLauncher is a subclass of Parsl Launchers, which simply</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># wraps all commands to be executed inside a container.</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="c1"># The ORAS containers are downloaded from Github -- though it&#39;s best to cache</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="c1"># them beforehand (e.g. by executing &#39;apptainer exec &lt;uri&gt; pwd&#39;).</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="n">launcher_cpu</span> <span class="o">=</span> <span class="n">ContainerizedLauncher</span><span class="p">(</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="s1">&#39;oras://ghcr.io/molmod/psiflow:2.0.0-cuda&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>        <span class="n">apptainer_or_singularity</span><span class="o">=</span><span class="s1">&#39;apptainer&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>        <span class="p">)</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="n">launcher_gpu</span> <span class="o">=</span> <span class="n">ContainerizedLauncher</span><span class="p">(</span>
-<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a>        <span class="s1">&#39;oras://ghcr.io/molmod/psiflow:2.0.0-cuda&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a>        <span class="n">apptainer_or_singularity</span><span class="o">=</span><span class="s1">&#39;apptainer&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a>        <span class="n">enable_gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>            <span class="c1"># binds GPU in container</span>
-<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a>        <span class="p">)</span>
-<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a>
-<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="n">default</span> <span class="o">=</span> <span class="n">Default</span><span class="p">(</span>
-<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a>        <span class="n">cores_per_worker</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>         <span class="c1"># 8 / 4 = 2 workers per slurm job</span>
-<a id="__codelineno-4-25" name="__codelineno-4-25" href="#__codelineno-4-25"></a>        <span class="n">parsl_provider</span><span class="o">=</span><span class="n">SlurmProvider</span><span class="p">(</span>
-<a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a>            <span class="n">partition</span><span class="o">=</span><span class="s1">&#39;cpu_rome&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a>            <span class="n">account</span><span class="o">=</span><span class="s1">&#39;2022_050&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a>            <span class="n">nodes_per_block</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>      <span class="c1"># each block fits on (less than) one node</span>
-<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>            <span class="n">cores_per_node</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>       <span class="c1"># number of cores per slurm job</span>
-<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a>            <span class="n">init_blocks</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>          <span class="c1"># initialize a block at the start of the workflow</span>
-<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a>            <span class="n">min_blocks</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>           <span class="c1"># always keep at least one block open</span>
-<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a>            <span class="n">max_blocks</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>           <span class="c1"># do not use more than one block</span>
-<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a>            <span class="n">walltime</span><span class="o">=</span><span class="s1">&#39;72:00:00&#39;</span><span class="p">,</span>    <span class="c1"># walltime per block</span>
-<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a>            <span class="n">exclusive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a>            <span class="n">scheduler_options</span><span class="o">=</span><span class="s1">&#39;#SBATCH --clusters=dodrio</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="c1"># specify the cluster</span>
-<a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a>            <span class="n">launcher</span><span class="o">=</span><span class="n">launcher_cpu</span><span class="p">,</span>  <span class="c1"># no GPU needed</span>
-<a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a>            <span class="p">)</span>
-<a id="__codelineno-4-38" name="__codelineno-4-38" href="#__codelineno-4-38"></a>        <span class="p">)</span>
-<a id="__codelineno-4-39" name="__codelineno-4-39" href="#__codelineno-4-39"></a><span class="n">model_evaluation</span> <span class="o">=</span> <span class="n">ModelEvaluation</span><span class="p">(</span>
-<a id="__codelineno-4-40" name="__codelineno-4-40" href="#__codelineno-4-40"></a>        <span class="n">cores_per_worker</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>        <span class="c1"># ncores per GPU</span>
-<a id="__codelineno-4-41" name="__codelineno-4-41" href="#__codelineno-4-41"></a>        <span class="n">max_walltime</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>          <span class="c1"># kill gracefully before end of slurm job</span>
-<a id="__codelineno-4-42" name="__codelineno-4-42" href="#__codelineno-4-42"></a>        <span class="n">simulation_engine</span><span class="o">=</span><span class="s1">&#39;openmm&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-43" name="__codelineno-4-43" href="#__codelineno-4-43"></a>        <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-4-44" name="__codelineno-4-44" href="#__codelineno-4-44"></a>        <span class="n">parsl_provider</span><span class="o">=</span><span class="n">SlurmProvider</span><span class="p">(</span>
-<a id="__codelineno-4-45" name="__codelineno-4-45" href="#__codelineno-4-45"></a>            <span class="n">partition</span><span class="o">=</span><span class="s1">&#39;gpu_rome_a100&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-46" name="__codelineno-4-46" href="#__codelineno-4-46"></a>            <span class="n">account</span><span class="o">=</span><span class="s1">&#39;2023_006&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-47" name="__codelineno-4-47" href="#__codelineno-4-47"></a>            <span class="n">nodes_per_block</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-4-48" name="__codelineno-4-48" href="#__codelineno-4-48"></a>            <span class="n">cores_per_node</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
-<a id="__codelineno-4-49" name="__codelineno-4-49" href="#__codelineno-4-49"></a>            <span class="n">init_blocks</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-4-50" name="__codelineno-4-50" href="#__codelineno-4-50"></a>            <span class="n">max_blocks</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
-<a id="__codelineno-4-51" name="__codelineno-4-51" href="#__codelineno-4-51"></a>            <span class="n">walltime</span><span class="o">=</span><span class="s1">&#39;12:00:00&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-52" name="__codelineno-4-52" href="#__codelineno-4-52"></a>            <span class="n">exclusive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-4-53" name="__codelineno-4-53" href="#__codelineno-4-53"></a>            <span class="n">scheduler_options</span><span class="o">=</span><span class="s1">&#39;#SBATCH --gpus=1</span><span class="se">\n</span><span class="s1">#SBATCH --clusters=dodrio&#39;</span><span class="p">,</span> <span class="c1"># ask for a GPU!</span>
-<a id="__codelineno-4-54" name="__codelineno-4-54" href="#__codelineno-4-54"></a>            <span class="n">launcher</span><span class="o">=</span><span class="n">launcher_gpu</span><span class="p">,</span>  <span class="c1"># binds GPU in container!</span>
-<a id="__codelineno-4-55" name="__codelineno-4-55" href="#__codelineno-4-55"></a>            <span class="p">)</span>
-<a id="__codelineno-4-56" name="__codelineno-4-56" href="#__codelineno-4-56"></a>        <span class="p">)</span>
-<a id="__codelineno-4-57" name="__codelineno-4-57" href="#__codelineno-4-57"></a><span class="n">model_training</span> <span class="o">=</span> <span class="n">ModelTraining</span><span class="p">(</span>
-<a id="__codelineno-4-58" name="__codelineno-4-58" href="#__codelineno-4-58"></a>        <span class="n">cores_per_worker</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
-<a id="__codelineno-4-59" name="__codelineno-4-59" href="#__codelineno-4-59"></a>        <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-4-60" name="__codelineno-4-60" href="#__codelineno-4-60"></a>        <span class="n">max_walltime</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>          <span class="c1"># kill gracefully before end of slurm job</span>
-<a id="__codelineno-4-61" name="__codelineno-4-61" href="#__codelineno-4-61"></a>        <span class="n">parsl_provider</span><span class="o">=</span><span class="n">SlurmProvider</span><span class="p">(</span>
-<a id="__codelineno-4-62" name="__codelineno-4-62" href="#__codelineno-4-62"></a>            <span class="n">partition</span><span class="o">=</span><span class="s1">&#39;gpu_rome_a100&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-63" name="__codelineno-4-63" href="#__codelineno-4-63"></a>            <span class="n">account</span><span class="o">=</span><span class="s1">&#39;2023_006&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-64" name="__codelineno-4-64" href="#__codelineno-4-64"></a>            <span class="n">nodes_per_block</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-4-65" name="__codelineno-4-65" href="#__codelineno-4-65"></a>            <span class="n">cores_per_node</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
-<a id="__codelineno-4-66" name="__codelineno-4-66" href="#__codelineno-4-66"></a>            <span class="n">init_blocks</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-4-67" name="__codelineno-4-67" href="#__codelineno-4-67"></a>            <span class="n">max_blocks</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-<a id="__codelineno-4-68" name="__codelineno-4-68" href="#__codelineno-4-68"></a>            <span class="n">walltime</span><span class="o">=</span><span class="s1">&#39;12:00:00&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-69" name="__codelineno-4-69" href="#__codelineno-4-69"></a>            <span class="n">exclusive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-4-70" name="__codelineno-4-70" href="#__codelineno-4-70"></a>            <span class="n">scheduler_options</span><span class="o">=</span><span class="s1">&#39;#SBATCH --gpus=1</span><span class="se">\n</span><span class="s1">#SBATCH --clusters=dodrio&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-71" name="__codelineno-4-71" href="#__codelineno-4-71"></a>            <span class="n">launcher</span><span class="o">=</span><span class="n">launcher_gpu</span><span class="p">,</span>
-<a id="__codelineno-4-72" name="__codelineno-4-72" href="#__codelineno-4-72"></a>            <span class="p">)</span>
-<a id="__codelineno-4-73" name="__codelineno-4-73" href="#__codelineno-4-73"></a>        <span class="p">)</span>
-<a id="__codelineno-4-74" name="__codelineno-4-74" href="#__codelineno-4-74"></a><span class="n">reference_evaluation</span> <span class="o">=</span> <span class="n">ReferenceEvaluation</span><span class="p">(</span>
-<a id="__codelineno-4-75" name="__codelineno-4-75" href="#__codelineno-4-75"></a>        <span class="n">cores_per_worker</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
-<a id="__codelineno-4-76" name="__codelineno-4-76" href="#__codelineno-4-76"></a>        <span class="n">max_walltime</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>            <span class="c1"># singlepoints should finish in less than 20 mins</span>
-<a id="__codelineno-4-77" name="__codelineno-4-77" href="#__codelineno-4-77"></a>        <span class="n">parsl_provider</span><span class="o">=</span><span class="n">SlurmProvider</span><span class="p">(</span>
-<a id="__codelineno-4-78" name="__codelineno-4-78" href="#__codelineno-4-78"></a>            <span class="n">partition</span><span class="o">=</span><span class="s1">&#39;cpu_milan&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-79" name="__codelineno-4-79" href="#__codelineno-4-79"></a>            <span class="n">account</span><span class="o">=</span><span class="s1">&#39;2022_050&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-80" name="__codelineno-4-80" href="#__codelineno-4-80"></a>            <span class="n">nodes_per_block</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-4-81" name="__codelineno-4-81" href="#__codelineno-4-81"></a>            <span class="n">cores_per_node</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>      <span class="c1"># 1 reference evaluation per SLURM job</span>
-<a id="__codelineno-4-82" name="__codelineno-4-82" href="#__codelineno-4-82"></a>            <span class="n">init_blocks</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-<a id="__codelineno-4-83" name="__codelineno-4-83" href="#__codelineno-4-83"></a>            <span class="n">max_blocks</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
-<a id="__codelineno-4-84" name="__codelineno-4-84" href="#__codelineno-4-84"></a>            <span class="n">walltime</span><span class="o">=</span><span class="s1">&#39;12:00:00&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-85" name="__codelineno-4-85" href="#__codelineno-4-85"></a>            <span class="n">exclusive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-4-86" name="__codelineno-4-86" href="#__codelineno-4-86"></a>            <span class="n">scheduler_options</span><span class="o">=</span><span class="s1">&#39;#SBATCH --clusters=dodrio</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span>
-<a id="__codelineno-4-87" name="__codelineno-4-87" href="#__codelineno-4-87"></a>            <span class="n">launcher</span><span class="o">=</span><span class="n">launcher_cpu</span><span class="p">,</span>
-<a id="__codelineno-4-88" name="__codelineno-4-88" href="#__codelineno-4-88"></a>            <span class="p">)</span>
-<a id="__codelineno-4-89" name="__codelineno-4-89" href="#__codelineno-4-89"></a>        <span class="p">)</span>
-<a id="__codelineno-4-90" name="__codelineno-4-90" href="#__codelineno-4-90"></a>
-<a id="__codelineno-4-91" name="__codelineno-4-91" href="#__codelineno-4-91"></a>
-<a id="__codelineno-4-92" name="__codelineno-4-92" href="#__codelineno-4-92"></a><span class="k">def</span> <span class="nf">get_config</span><span class="p">(</span><span class="n">path_internal</span><span class="p">):</span>
-<a id="__codelineno-4-93" name="__codelineno-4-93" href="#__codelineno-4-93"></a>    <span class="n">definitions</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-4-94" name="__codelineno-4-94" href="#__codelineno-4-94"></a>            <span class="n">default</span><span class="p">,</span>
-<a id="__codelineno-4-95" name="__codelineno-4-95" href="#__codelineno-4-95"></a>            <span class="n">model_evaluation</span><span class="p">,</span>
-<a id="__codelineno-4-96" name="__codelineno-4-96" href="#__codelineno-4-96"></a>            <span class="n">model_training</span><span class="p">,</span>
-<a id="__codelineno-4-97" name="__codelineno-4-97" href="#__codelineno-4-97"></a>            <span class="n">reference_evaluation</span><span class="p">,</span>
-<a id="__codelineno-4-98" name="__codelineno-4-98" href="#__codelineno-4-98"></a>            <span class="p">]</span>
-<a id="__codelineno-4-99" name="__codelineno-4-99" href="#__codelineno-4-99"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">generate_parsl_config</span><span class="p">(</span>
-<a id="__codelineno-4-100" name="__codelineno-4-100" href="#__codelineno-4-100"></a>            <span class="n">path_internal</span><span class="p">,</span>
-<a id="__codelineno-4-101" name="__codelineno-4-101" href="#__codelineno-4-101"></a>            <span class="n">definitions</span><span class="p">,</span>
-<a id="__codelineno-4-102" name="__codelineno-4-102" href="#__codelineno-4-102"></a>            <span class="n">use_work_queue</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<a id="__codelineno-4-103" name="__codelineno-4-103" href="#__codelineno-4-103"></a>            <span class="n">parsl_max_idletime</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
-<a id="__codelineno-4-104" name="__codelineno-4-104" href="#__codelineno-4-104"></a>            <span class="n">parsl_retries</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-4-105" name="__codelineno-4-105" href="#__codelineno-4-105"></a>            <span class="p">)</span>
-<a id="__codelineno-4-106" name="__codelineno-4-106" href="#__codelineno-4-106"></a>    <span class="k">return</span> <span class="n">config</span><span class="p">,</span> <span class="n">definitions</span>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nn">---</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;apptainer&quot;</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;oras://ghcr.io/molmod/psiflow:2.0.0-cuda&quot;</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="nt">ModelEvaluation</span><span class="p">:</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">cores_per_worker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">simulation_engine</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;openmm&#39;</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">SlurmProvider</span><span class="p">:</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;cpu_rome&quot;</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2022_069&quot;</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="nt">nodes_per_block</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">    </span><span class="c1"># each block fits on (less than) one node</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="nt">cores_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span><span class="w">     </span><span class="c1"># number of cores per slurm job</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">    </span><span class="nt">init_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">        </span><span class="c1"># initialize a block at the start of the workflow</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">    </span><span class="nt">max_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># do not use more than one block</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">    </span><span class="nt">walltime</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;01:00:00&quot;</span><span class="w">  </span><span class="c1"># walltime per block</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">    </span><span class="nt">exclusive</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">      </span><span class="c1"># rest of compute node free to use</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">    </span><span class="nt">scheduler_options</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;#SBATCH</span><span class="nv"> </span><span class="s">--clusters=dodrio\n&quot;</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="nt">ModelTraining</span><span class="p">:</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="w">  </span><span class="nt">cores_per_worker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="w">  </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">  </span><span class="nt">SlurmProvider</span><span class="p">:</span>
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">    </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;gpu_rome_a100&quot;</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">    </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2022_069&quot;</span>
+<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">    </span><span class="nt">nodes_per_block</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a><span class="w">    </span><span class="nt">cores_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span><span class="w">  </span>
+<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="w">    </span><span class="nt">init_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">      </span>
+<a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="w">    </span><span class="nt">max_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">       </span>
+<a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="w">    </span><span class="nt">walltime</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;01:00:00&quot;</span>
+<a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a><span class="w">    </span><span class="nt">exclusive</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a><span class="w">    </span><span class="nt">scheduler_options</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;#SBATCH</span><span class="nv"> </span><span class="s">--clusters=dodrio\n#SBATCH</span><span class="nv"> </span><span class="s">--gpus=1\n&quot;</span>
+<a id="__codelineno-5-31" name="__codelineno-5-31" href="#__codelineno-5-31"></a><span class="nt">ReferenceEvaluation</span><span class="p">:</span>
+<a id="__codelineno-5-32" name="__codelineno-5-32" href="#__codelineno-5-32"></a><span class="w">  </span><span class="nt">max_walltime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-5-33" name="__codelineno-5-33" href="#__codelineno-5-33"></a><span class="w">  </span><span class="nt">SlurmProvider</span><span class="p">:</span>
+<a id="__codelineno-5-34" name="__codelineno-5-34" href="#__codelineno-5-34"></a><span class="w">    </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;cpu_rome&quot;</span>
+<a id="__codelineno-5-35" name="__codelineno-5-35" href="#__codelineno-5-35"></a><span class="w">    </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2022_069&quot;</span>
+<a id="__codelineno-5-36" name="__codelineno-5-36" href="#__codelineno-5-36"></a><span class="w">    </span><span class="nt">nodes_per_block</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-5-37" name="__codelineno-5-37" href="#__codelineno-5-37"></a><span class="w">    </span><span class="nt">cores_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<a id="__codelineno-5-38" name="__codelineno-5-38" href="#__codelineno-5-38"></a><span class="w">    </span><span class="nt">init_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-5-39" name="__codelineno-5-39" href="#__codelineno-5-39"></a><span class="w">    </span><span class="nt">min_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w"> </span>
+<a id="__codelineno-5-40" name="__codelineno-5-40" href="#__codelineno-5-40"></a><span class="w">    </span><span class="nt">max_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w"> </span>
+<a id="__codelineno-5-41" name="__codelineno-5-41" href="#__codelineno-5-41"></a><span class="w">    </span><span class="nt">walltime</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;01:00:00&quot;</span>
+<a id="__codelineno-5-42" name="__codelineno-5-42" href="#__codelineno-5-42"></a><span class="w">    </span><span class="nt">exclusive</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-5-43" name="__codelineno-5-43" href="#__codelineno-5-43"></a><span class="w">    </span><span class="nt">scheduler_options</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;#SBATCH</span><span class="nv"> </span><span class="s">--clusters=dodrio\n&quot;</span>
+<a id="__codelineno-5-44" name="__codelineno-5-44" href="#__codelineno-5-44"></a><span class="nn">...</span>
 </code></pre></div>
-Check out the <a href="https://github.com/molmod/psiflow/tree/main/configs">configs</a> directory for more example configurations.</p>
+Each execution definition receives an additional keyword which contains all information related to the 'provider' of execution resources.
+In this case, the provider is a SLURM cluster system, and 'blocks' denote individual SLURM jobs (which can run one or more workers).
+The keyword-value pairs given in the <code>SlurmProvider</code> section are forwarded to the corresponding <code>__init__</code> method of the Parsl provider
+(<a href="https://github.com/Parsl/parsl/blob/ea54919b6a85056a084e9dad9bc030806bc58fc0/parsl/providers/slurm/slurm.py#L36">here</a> for SLURM).
+Check out the <a href="https://github.com/molmod/psiflow/tree/main/configs">configs</a> directory for more example configurations.
+since you do not need to take care that all software is installed in the same way on multiple partitions.
+This setup is especially convenient to combine with containerized execution.</p>
 <p>For people who chose to install psiflow and its dependencies <a href="../installation/#manual">manually</a>,
-there's no need to define custom Parsl Launchers.
-Instead, they need to take care that all manually installed packages can be found by each of the workers;
-this is possible using the <code>worker_init</code> argument of Parsl providers, which can be used to 
+it's important to take care that all manually installed packages can be found by each of the providers.
+This is possible using the <code>worker_init</code> argument of Parsl providers, which can be used to 
 activate specific Python environments or execute <code>module load</code> commands.</p>
 
 
