@@ -34,7 +34,7 @@ To execute the zeolite reaction example not on your local computer, but on remot
 file as an argument__:
 
 ```console
-python my_workflow.py --psiflow-config frontier.yaml      # executes exact same workflow on Frontier
+python my_workflow.py frontier.yaml      # executes exact same workflow on Frontier
 ```
 
 The following sections will explain in more detail how remote execution is configured.
