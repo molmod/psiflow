@@ -34,7 +34,7 @@ To execute the zeolite reaction example not on your local computer, but on remot
 file as an argument__:
 
 ```console
-python my_workflow.py --psiflow-config frontier.py      # executes exact same workflow on Frontier
+python my_workflow.py --psiflow-config frontier.yaml      # executes exact same workflow on Frontier
 ```
 
 The following sections will explain in more detail how remote execution is configured.
@@ -48,7 +48,7 @@ The following sections will explain in more detail how remote execution is confi
     concepts.
 
 ## Execution definitions
-The definition of all execution-side parameters happens in the psiflow configuration file.
+All execution-side parameters are defined in a configuration file using concise YAML syntax.
 Its contents are divided in so-called execution definitions, each of which specifies how and where
 a certain type of calculation will be executed. Each definition accepts at least the following arguments:
 
@@ -56,12 +56,12 @@ a certain type of calculation will be executed. Each definition accepts at least
 - `cores_per_worker: int = 1`: how many cores each individual calculation requires
 - `max_walltime: float = None`: specifies a maximum duration of each calculation before it gets gracefully killed.
 - `parsl_provider: parsl.providers.ExecutionProvider`: a Parsl provider which psiflow can use to get compute time.
-For a `ClusterProvider`, this involves submitting a job to the queueing system; for a `GoogleCloudProvider`,
+For a `ClusterProvider` (e.g. `SlurmProvider`), this involves submitting a job to the queueing system; for a `GoogleCloudProvider`,
 this involves provisioning and connecting to a node in the cloud; for a `LocalProvider`, this just means "use the resources
 available on the current system". See [this section](https://parsl.readthedocs.io/en/stable/userguide/execution.html#execution-providers)
 in the Parsl documentation for more details.
 
-Psiflow introduces four different execution definitions:
+Psiflow introduces three different execution definitions:
 
 1. __model evaluation__: this determines how and where the trainable models (i.e. `BaseModel` instances) are
 executed. In addition to the common arguments above, it allows the user to specify a `simulation_engine`, with possible
@@ -77,196 +77,105 @@ Its default value is the following `lambda` expression (for MPICH as included in
 ```py
 mpi_command = lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork'
 ```
-4. __default execution__: this determines where the lightweight/administrative operations get executed (dataset copying, basic numpy operations, ...).
-Typically, this requires only a few cores and a few GBs of memory.
 
-## Configuration
-Let's illustrate how the execution definitions can be used to construct a psiflow configuration file.
-Essentially, such files consist of a single `get_config()` method which should return a Parsl `Config` object
-as well as a list of psiflow `ExecutionDefinition` instances as discussed above.
-### Local
-For simplicity, let us assume for now that all of the required compute resources are available locally,
-which means we can use parsl's `LocalProvider` in the various definitions:
-```py title="local_htex.py"
-from parsl.providers import LocalProvider
-
-from psiflow.execution import Default, ModelTraining, ModelEvaluation, \
-        ReferenceEvaluation, generate_parsl_config
-
-
-default = Default()                         # subclass of ExecutionDefinition
-model_evaluation = ModelEvaluation(         # subclass of ExecutionDefinition
-        parsl_provider=LocalProvider(),
-        cores_per_worker=2,
-        max_walltime=30,                    # in minutes!
-        simulation_engine='openmm',         # or yaff; openmm is faster
-        gpu=True,                       
-        )
-model_training = ModelTraining(             # subclass of ExecutionDefinition
-        parsl_provider=LocalProvider(),     # or SlurmProvider / GoogleCloudProvider / ...
-        gpu=True,
-        max_walltime=10,                
-        )
-reference_evaluation = ReferenceEvaluation( # subclass of ExecutionDefinition
-        parsl_provider=LocalProvider(),
-        cores_per_worker=6,
-        max_walltime=60,                    # kill after this amount of time, in minutes
-        mpi_command=lambda x: f'mpirun -np {x} -bind-to core -rmk user -launcher fork',
-        )
-definitions = [
-        default,
-        model_evaluation,
-        model_training,
-        reference_evaluation,
-        ]
-
-
-def get_config(path_internal):
-    config = generate_parsl_config(
-            path_internal,
-            definitions,
-            use_work_queue=False,           # can improve the scheduling of jobs but also slows down
-            parsl_max_idletime=20,
-            parsl_retries=1,                # retry at least once in case the error happened randomly
-            )
-    return config, definitions
-
+For example: the following configuration ensures we're executing molecular dynamics sampling using OpenMM as engine and on 1 GPU / 4 cores,
+whereas reference evaluation is performed on 4 cores. If a QM singlepoint takes longer than 10 minutes (because our system is too big or 
+the SCF has trouble converging), the evaluation is gracefully killed.
+```yaml
+---
+ModelEvaluation:
+  cores_per_worker: 4
+  simulation_engine: 'openmm'
+  gpu: True
+ModelTraining:
+  gpu: true
+ReferenceEvaluation:
+  cores_per_worker: 4
+  max_walltime: 10
+...
 ```
-These definitions imply that:
+whereas this one ensures we're using YAFF as backend, on a single core, without GPU.
+In addition, it ensures that all nontrivial operations are executed using psiflow's container image 
+(because you rightfully don't want to bother installing PyTorch/OpenMM/CP2K/PLUMED/... on your local workstation).
+```yaml
+---
+container:
+  engine: 'apptainer'
+  uri: 'oras://ghcr.io/molmod/psiflow:3.0.0-cuda'
+ModelEvaluation:
+  cores_per_worker: 1
+  simulation_engine: 'yaff'
+ModelTraining:
+  gpu: true
+ReferenceEvaluation:
+  cores_per_worker: 4
+  max_walltime: 10
+...
+```
 
-- molecular dynamics will be performed using the OpenMM engine, one two cores and one GPU,
-and will be gracefully killed after 30 minutes;
-- model training is allowed to run for a maximum of 10 minutes;
-- reference QM evaluations will be performed using 6 cores per singlepoint, and with a specific MPI command.
-If a singlepoint takes longer than 60 minutes, it is killed. No energy labels will be stored in the state,
-and the corresponding FlowAtoms instance will have `reference_status = False`.
-
-The `get_config()` method takes a single argument (a cache directory shared by all compute resources) and builds a
-Parsl `Config` based on the provided definitions and a few additional parameters, such the maximum number of retries
-that Parsl may attempt for a specific task
-(which can be useful e.g. when the cluster you're using contains a few faulty nodes).
-
-
-### Remote (HPC/Cloud)
-
+## Remote execution
+The above example is concise and elegant, but not very useful.
 As mentioned before, psiflow is designed to support remote execution on vast amounts of
-compute resources.
+compute resources, not just the cores/GPU on our local workstation.
 This is particularly convenient in a containerized fashion, since this alleviates the
 need to install all of its dependencies on each of the compute resources.
 As an example of this, consider the following configuration:
 
-```py title="vsc_hortense.py"
-from parsl.providers import SlurmProvider
-from parsl.launchers import SimpleLauncher
-
-from psiflow.execution import Default, ModelTraining, ModelEvaluation, \
-        ReferenceEvaluation, generate_parsl_config
-from psiflow.parsl_utils import ContainerizedLauncher
-
-
-# The ContainerizedLauncher is a subclass of Parsl Launchers, which simply
-# wraps all commands to be executed inside a container.
-# The ORAS containers are downloaded from Github -- though it's best to cache
-# them beforehand (e.g. by executing 'apptainer exec <uri> pwd').
-launcher_cpu = ContainerizedLauncher(
-        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
-        apptainer_or_singularity='apptainer',
-        )
-launcher_gpu = ContainerizedLauncher(
-        'oras://ghcr.io/molmod/psiflow:2.0.0-cuda',
-        apptainer_or_singularity='apptainer',
-        enable_gpu=True,            # binds GPU in container
-        )
-
-default = Default(
-        cores_per_worker=4,         # 8 / 4 = 2 workers per slurm job
-        parsl_provider=SlurmProvider(
-            partition='cpu_rome',
-            account='2022_050',
-            nodes_per_block=1,      # each block fits on (less than) one node
-            cores_per_node=8,       # number of cores per slurm job
-            init_blocks=1,          # initialize a block at the start of the workflow
-            min_blocks=1,           # always keep at least one block open
-            max_blocks=1,           # do not use more than one block
-            walltime='72:00:00',    # walltime per block
-            exclusive=False,
-            scheduler_options='#SBATCH --clusters=dodrio\n', # specify the cluster
-            launcher=launcher_cpu,  # no GPU needed
-            )
-        )
-model_evaluation = ModelEvaluation(
-        cores_per_worker=12,        # ncores per GPU
-        max_walltime=None,          # kill gracefully before end of slurm job
-        simulation_engine='openmm',
-        gpu=True,
-        parsl_provider=SlurmProvider(
-            partition='gpu_rome_a100',
-            account='2023_006',
-            nodes_per_block=1,
-            cores_per_node=12,
-            init_blocks=0,
-            max_blocks=32,
-            walltime='12:00:00',
-            exclusive=False,
-            scheduler_options='#SBATCH --gpus=1\n#SBATCH --clusters=dodrio', # ask for a GPU!
-            launcher=launcher_gpu,  # binds GPU in container!
-            )
-        )
-model_training = ModelTraining(
-        cores_per_worker=12,
-        gpu=True,
-        max_walltime=None,          # kill gracefully before end of slurm job
-        parsl_provider=SlurmProvider(
-            partition='gpu_rome_a100',
-            account='2023_006',
-            nodes_per_block=1,
-            cores_per_node=12,
-            init_blocks=0,
-            max_blocks=4,
-            walltime='12:00:00',
-            exclusive=False,
-            scheduler_options='#SBATCH --gpus=1\n#SBATCH --clusters=dodrio',
-            launcher=launcher_gpu,
-            )
-        )
-reference_evaluation = ReferenceEvaluation(
-        cores_per_worker=64,
-        max_walltime=20,            # singlepoints should finish in less than 20 mins
-        parsl_provider=SlurmProvider(
-            partition='cpu_milan',
-            account='2022_050',
-            nodes_per_block=1,
-            cores_per_node=64,      # 1 reference evaluation per SLURM job
-            init_blocks=0,
-            max_blocks=12,
-            walltime='12:00:00',
-            exclusive=True,
-            scheduler_options='#SBATCH --clusters=dodrio\n',
-            launcher=launcher_cpu,
-            )
-        )
-
-
-def get_config(path_internal):
-    definitions = [
-            default,
-            model_evaluation,
-            model_training,
-            reference_evaluation,
-            ]
-    config = generate_parsl_config(
-            path_internal,
-            definitions,
-            use_work_queue=False,
-            parsl_max_idletime=10,
-            parsl_retries=1,
-            )
-    return config, definitions
+```yaml
+---
+container:
+  engine: "apptainer"
+  uri: "oras://ghcr.io/molmod/psiflow:2.0.0-cuda"
+ModelEvaluation:
+  cores_per_worker: 1
+  simulation_engine: 'openmm'
+  SlurmProvider:
+    partition: "cpu_rome"
+    account: "2022_069"
+    nodes_per_block: 1    # each block fits on (less than) one node
+    cores_per_node: 8     # number of cores per slurm job
+    init_blocks: 1        # initialize a block at the start of the workflow
+    max_blocks: 1         # do not use more than one block
+    walltime: "01:00:00"  # walltime per block
+    exclusive: false      # rest of compute node free to use
+    scheduler_options: "#SBATCH --clusters=dodrio\n"
+ModelTraining:
+  cores_per_worker: 12
+  gpu: true
+  SlurmProvider:
+    partition: "gpu_rome_a100"
+    account: "2022_069"
+    nodes_per_block: 1
+    cores_per_node: 12  
+    init_blocks: 1      
+    max_blocks: 1       
+    walltime: "01:00:00"
+    exclusive: false
+    scheduler_options: "#SBATCH --clusters=dodrio\n#SBATCH --gpus=1\n"
+ReferenceEvaluation:
+  max_walltime: 20
+  SlurmProvider:
+    partition: "cpu_rome"
+    account: "2022_069"
+    nodes_per_block: 1
+    cores_per_node: 64
+    init_blocks: 1
+    min_blocks: 0 
+    max_blocks: 10 
+    walltime: "01:00:00"
+    exclusive: false
+    scheduler_options: "#SBATCH --clusters=dodrio\n"
+...
 ```
+Each execution definition receives an additional keyword which contains all information related to the 'provider' of execution resources.
+In this case, the provider is a SLURM cluster system, and 'blocks' denote individual SLURM jobs (which can run one or more workers).
+The keyword-value pairs given in the `SlurmProvider` section are forwarded to the corresponding `__init__` method of the Parsl provider
+([here](https://github.com/Parsl/parsl/blob/ea54919b6a85056a084e9dad9bc030806bc58fc0/parsl/providers/slurm/slurm.py#L36) for SLURM).
 Check out the [configs](https://github.com/molmod/psiflow/tree/main/configs) directory for more example configurations.
+since you do not need to take care that all software is installed in the same way on multiple partitions.
+This setup is especially convenient to combine with containerized execution.
 
 For people who chose to install psiflow and its dependencies [manually](installation.md#manual),
-there's no need to define custom Parsl Launchers.
-Instead, they need to take care that all manually installed packages can be found by each of the workers;
-this is possible using the `worker_init` argument of Parsl providers, which can be used to 
+it's important to take care that all manually installed packages can be found by each of the providers.
+This is possible using the `worker_init` argument of Parsl providers, which can be used to 
 activate specific Python environments or execute `module load` commands.
