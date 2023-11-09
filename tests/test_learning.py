@@ -177,4 +177,4 @@ def test_temperature_ramp(context):
     assert not T == 500
     T = apply_temperature_ramp(100, 500, 5, T)
     assert T == 500
-    print(apply_temperature_ramp(50, 2000, 5))
+    print(apply_temperature_ramp(50, 2000, 5, 100))
