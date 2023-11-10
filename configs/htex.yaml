@@ -8,5 +8,6 @@ ModelTraining:
   gpu: true
 ReferenceEvaluation:
   max_walltime: 0.3
+  cpu_affinity: 'alternating'
   mpi_command: 'mpirun -np {}'
 ...

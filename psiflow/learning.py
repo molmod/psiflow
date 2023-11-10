@@ -200,14 +200,16 @@ class SequentialLearning(BaseLearning):
             for walker in walkers:
                 if hasattr(walker, "temperature"):
                     if initialize:
-                        temperature = self.temperature_ramp[0]  # initial temperature
+                        walker.temperature = self.temperature_ramp[
+                            0
+                        ]  # initial temperature
                     else:
                         temperature = apply_temperature_ramp(
                             *self.temperature_ramp,
                             walker.temperature,
                         )
-                    if not walker.is_reset().result():
-                        walker.temperature = temperature
+                        if not walker.is_reset().result():
+                            walker.temperature = temperature
 
     def run(
         self,
