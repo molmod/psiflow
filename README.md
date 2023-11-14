@@ -5,7 +5,7 @@
 ![License](https://flat.badgen.net/github/license/molmod/psiflow)
 [![Docs](https://flat.badgen.net/static/docs/passing/green)](https://molmod.github.io/psiflow)
 [![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Fmolmod%2Fpsiflow%2Fbadge%3Fref%3Dmain&style=flat-square)](https://actions-badge.atrox.dev/molmod/psiflow/goto?ref=main)
-![Python](https://flat.badgen.net/static/python/3.9/blue)
+![Python](https://flat.badgen.net/static/python/3.9%20|%203.10/blue)
 ![Code style](https://flat.badgen.net/static/code%20style/black/black)
 [![DOI](https://flat.badgen.net/static/DOI/10.1038%2Fs41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
