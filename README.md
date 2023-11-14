@@ -9,10 +9,6 @@
 ![Code style](https://flat.badgen.net/static/code%20style/black/black)
 [![DOI](https://flat.badgen.net/static/DOI/10.1038%2Fs41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
-<a target="_blank" href="https://colab.research.google.com/github/molmod/psiflow/blob/main/examples/notebook/tutorial.ipynb">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
-</a>
-
 
 Nov 3, 2023: We're preparing v3.0.0, which introduces some breaking changes that are not yet reflected in the docs (mostly with respect to the execution configuration) -- we will fix this soon.
 
