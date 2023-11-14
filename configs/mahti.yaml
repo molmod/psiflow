@@ -1,0 +1,40 @@
+---
+container:
+  engine: "apptainer"
+  uri: "oras://ghcr.io/molmod/psiflow:3.0.0-cuda"
+ModelEvaluation:
+  cores_per_worker: 1
+  simulation_engine: 'openmm'
+  SlurmProvider:
+    partition: "interactive"
+    account: "project_2008666"
+    nodes_per_block: 1    # each block fits on (less than) one node
+    cores_per_node: 4     # number of cores per slurm job
+    init_blocks: 0
+    max_blocks: 1         # do not use more than one block
+    walltime: "01:00:00"  # walltime per block
+ModelTraining:
+  cores_per_worker: 32
+  gpu: true
+  SlurmProvider:
+    partition: "gputest"
+    account: "project_2008666"
+    nodes_per_block: 1
+    cores_per_node: 32
+    init_blocks: 0
+    max_blocks: 1
+    walltime: "00:15:00"
+    scheduler_options: "#SBATCH --gres=gpu:a100:1"
+ReferenceEvaluation:
+  cores_per_worker: 4
+  max_walltime: 20
+  cpu_affinity: 'alternating'
+  SlurmProvider:
+    partition: "interactive"
+    account: "project_2008666"
+    nodes_per_block: 1    # each block fits on (less than) one node
+    cores_per_node: 16     # number of cores per slurm job
+    init_blocks: 0
+    max_blocks: 1         # do not use more than one block
+    walltime: "01:00:00"  # walltime per block
+...
