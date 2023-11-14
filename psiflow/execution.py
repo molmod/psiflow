@@ -337,6 +337,12 @@ ReferenceEvaluation:
                     )
                 else:
                     max_workers = float("inf")
+                if definition.cores_per_worker == 1:  # anticipate parsl assertion
+                    definition.cpu_affinity = "none"
+                    logger.info(
+                        'setting cpu_affinity of definition "{}" to none'
+                        "because cores_per_worker=1".format(definition.name())
+                    )
                 executor = HighThroughputExecutor(
                     address=psiflow_config["htex_address"],
                     label=definition.name(),
