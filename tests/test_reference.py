@@ -36,7 +36,7 @@ def fake_cp2k_input():
       &END XC
    &END DFT
    &SUBSYS
-      &KIND Al
+      &KIND F
          ELEMENT  H
          BASIS_SET foo
          POTENTIAL bar
@@ -141,11 +141,11 @@ def cp2k_input():
          BASIS_SET TZVP-MOLOPT-PBE-GTH-q4
          POTENTIAL GTH-PBE-q4
       &END KIND
-      &KIND Al
-         ELEMENT  Al
-         BASIS_SET TZVP-MOLOPT-PBE-GTH-q3
-         POTENTIAL GTH-PBE-q3
-      &END KIND
+      !&KIND F
+      !   ELEMENT  F
+      !   BASIS_SET TZVP-MOLOPT-PBE-GTH-q7
+      !   POTENTIAL GTH-PBE-q7
+      !&END KIND
    &END SUBSYS
 !   &PRINT
 !      &STRESS_TENSOR ON
@@ -212,7 +212,7 @@ def test_cp2k_insert_filepaths(fake_cp2k_input):
       &END XC
    &END DFT
    &SUBSYS
-      &KIND Al
+      &KIND F
          ELEMENT  H
          BASIS_SET foo
          POTENTIAL bar
@@ -407,6 +407,15 @@ def test_cp2k_atomic_energies(cp2k_reference, dataset):
     element = "H"
     energy = cp2k_reference.compute_atomic_energy(element, box_size=4)
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
+
+
+# @pytest.mark.filterwarnings("ignore:Original input file not found")
+@pytest.mark.skip
+def test_cp2k_fluor(cp2k_reference, dataset):
+    # tests for shitty bug in pymatgen
+    element = "F"
+    energy = cp2k_reference.compute_atomic_energy(element, box_size=4)
+    assert energy.result() < 1
 
 
 # @pytest.fixture
