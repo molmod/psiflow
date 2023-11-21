@@ -1,10 +1,6 @@
 ---
-container:
-  engine: "apptainer"
-  uri: "/home/sandervandenhaute/doctorate/source/psiflow/psiflow_python3.10_cuda_latest.sif"
 ModelEvaluation:
   cores_per_worker: 2
-  max_walltime: 0.3
   simulation_engine: 'openmm'
   gpu: false
 ModelTraining:
@@ -13,7 +9,4 @@ ModelTraining:
   gpu: true
 ReferenceEvaluation:
   cores_per_worker: 1
-  max_walltime: 0.3
-  cpu_affinity: 'block'
-  #mpi_command: 'mpirun -np {}'
 ...

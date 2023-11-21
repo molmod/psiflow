@@ -10,6 +10,6 @@ ModelTraining:
   use_threadpool: true
 ReferenceEvaluation:
   max_walltime: 0.3
-  mpi_command: 'mpirun -np {}'
+  mpi_command: 'mpirun -np {}' # cp2k on conda-forge comes with OpenMPI (not MPICH as in container)
   use_threadpool: true
 ...
