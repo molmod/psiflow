@@ -101,7 +101,7 @@ In addition, it ensures that all nontrivial operations are executed using psiflo
 ---
 container:
   engine: 'apptainer'
-  uri: 'oras://ghcr.io/molmod/psiflow:3.0.0-cuda'
+  uri: 'oras://ghcr.io/molmod/psiflow:3.0.0_python3.9_cuda'
 ModelEvaluation:
   cores_per_worker: 1
   simulation_engine: 'yaff'
@@ -125,7 +125,7 @@ As an example of this, consider the following configuration:
 ---
 container:
   engine: "apptainer"
-  uri: "oras://ghcr.io/molmod/psiflow:2.0.0-cuda"
+  uri: "oras://ghcr.io/molmod/psiflow:3.0.0_python3.9_cuda"
 ModelEvaluation:
   cores_per_worker: 1
   simulation_engine: 'openmm'
@@ -154,6 +154,7 @@ ModelTraining:
     scheduler_options: "#SBATCH --clusters=dodrio\n#SBATCH --gpus=1\n"
 ReferenceEvaluation:
   max_walltime: 20
+  cpu_affinity: "alternating"  # avoid performance decrease in CP2K
   SlurmProvider:
     partition: "cpu_rome"
     account: "2022_069"

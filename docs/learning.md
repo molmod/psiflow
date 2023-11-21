@@ -92,7 +92,7 @@ The following keyword arguments are specific to `SequentialLearning`:
 
 - `niterations: int` : the number of active learning iterations to perform. Each iterations starts with phase space
 sampling, followed by reference evaluation and model training.
-- `temperature_ramp: Optional[tuple[float]] = None`: (new in v2.0.0) whether to gradually increase the temperature of the walkers 
+- `temperature_ramp: Optional[tuple[float, float, float]] = None`: (new in v2.0.0) whether to gradually increase the temperature of the walkers 
 over a certain number of iterations. If not `None`, this keyword argument expects a tuple of floats: (initial T, final T, nsteps).
 If this is `None`, then the temperature of the walkers is left as-is. 
 - `error_thresholds_for_reset: tuple[float, float] = (10, 200)` : (new in v2.0.0) determines the (energy, force)

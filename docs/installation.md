@@ -10,17 +10,18 @@ the main dependencies according to how they are used in psiflow:
 | --------------------  | --------  | -------   | :---------------: | :--------:  |
 | **QM evaluation**         | CP2K      | 2023.1    |  | :material-check: |
 |                       | NWChem    | 7.2       |  | :material-check: |
+|                       | PySCF     | 2.4       |  | |
 | **trainable potentials**  | MACE      | 0.2.0     | :material-check:  |
 |                       | NequIP    | 0.5.6     | :material-check:  |
 |                       | Allegro   | 0.2.0     | :material-check:  |
 | **molecular dynamics**| OpenMM    | 8.0       | :material-check:  |
 |                       | PLUMED    | 2.9.0     |  |
 |                       | YAFF      | 1.6.0     |  |
-| **miscellaneous**     | Parsl     | 2023.8.28 |  |
+| **miscellaneous**     | Parsl     | 2023.10.23 |  |
 |                       | e3nn      | 0.4.4     | :material-check:  |
 |                       | PyTorch   | 1.13.1    | :material-check:  |
 |                       | ASE       | 3.22.1    |  |
-|                       | Pymatgen  | 2023.8.10 |  |
+|                       | Pymatgen  | 2023.11.12 |  |
 |                       | wandb     | 0.15.8    |  |
 |                       | Python    | 3.9       |  |
 
@@ -47,9 +48,9 @@ Python environment requires barely anything, and is straightforward to install
 using `micromamba` -- a blazingly fast drop-in replacement for `conda`:
 
 ```console
-micromamba create -n psiflow_env -c conda-forge -y python=3.9 ndcctools=7.6.1 
+micromamba create -n psiflow_env -c conda-forge -y python=3.9
 micromamba activate psiflow_env
-pip install git+https://github.com/molmod/psiflow
+pip install parsl==2023.10.23 git+https://github.com/molmod/psiflow
 ```
 That's it! Before running actual calculations, it is still necessary to set up Parsl
 to use the compute resources you have at your disposal -- whether it's a local GPU,
@@ -61,15 +62,15 @@ a SLURM cluster, or a cloud computing provider; check out the
     Apptainer -- now the most widely used container system for HPCs -- is part of the
     Linux Foundation. It is easy to set up on most Linux distributions, as explained in the [Apptainer documentation](https://apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages).
 
-    Psiflow's containers are hosted on the GitHub Container Registry (GHCR).
+    Psiflow's containers are hosted on the GitHub Container Registry (GHCR), for both Python 3.9 and 3.10.
     To download and run commands in them, simply execute:
 
     ```console
     # show available pip packages
-    apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh pip list
+    apptainer exec oras://ghcr.io/molmod/psiflow:3.0.0_python3.9_cuda /usr/local/bin/entry.sh pip list
 
     # inspect cp2k version
-    apptainer exec oras://ghcr.io/molmod/psiflow:2.0.0-cuda11.8 /usr/local/bin/entry.sh cp2k.pmsp --version
+    apptainer exec oras://ghcr.io/molmod/psiflow:3.0.0_python3.9_cuda /usr/local/bin/entry.sh cp2k.pmsp --version
     ```
 
     Internally, Apptainer will store the container in a local cache directory such that it does not have to
@@ -131,4 +132,4 @@ pip install git+https://github.com/acesuit/MACE.git@55f7411 && \
     pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
 pip install git+https://github.com/molmod/psiflow
 ```
-This is mostly a copy-paste from psiflow's [Dockerfile](https://github.com/molmod/psiflow/blob/main/Dockerfile).
+This is mostly a copy-paste from psiflow's [Dockerfiles](https://github.com/molmod/psiflow/blob/main/container).

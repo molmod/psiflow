@@ -16,12 +16,25 @@ To achieve this, psiflow implements the following high-level abstractions:
 - one or more **phase space sampling** algorithms (e.g. biased NPT, geometry optimization)
 - a reference **level of theory** (e.g. CP2K using PBE-D3(BJ) + TZVP)
 
+
 These three components are used to implement **online learning** algorithms,
 which essentially interleave phase space sampling with
 quantum mechanical energy evaluations and model training.
 In this way, the entire (relevant part of the) phase space of the system(s)
 of interest may be explored and learned by the model without ever having to
 perform *ab initio* molecular dynamics.
+
+!!! success  "**See what it looks like on [Weights & Biases](https://wandb.ai/svandenhaute/formic_acid?workspace=user-svandenhaute)!**"
+
+    The main channel through which you will analyze psiflow's output is Weights & Biases.
+    Click [here](https://wandb.ai/svandenhaute/formic_acid?workspace=user-svandenhaute)
+    to check out a few completed runs, in which we learn the energetics of the molecular
+    proton transfer reaction in a formic acid dimer!
+    For more information on the example as well as a full walkthrough on how to obtain
+    the reaction free energy based on a single input structure as starting point, check out the 
+    Jupyter [notebook](https://github.com/molmod/psiflow/blob/main/examples/notebook/tutorial.ipynb).
+
+---
 
 <!---
 ## Core functionality 
@@ -62,6 +75,7 @@ As such, we ensure that execution-side details are strictly separated from
 the definition of the computational graph itself.
 For more information, check out the psiflow [Configuration](config.md) page.
 --->
+
 
 !!! note "Citing psiflow"
 
@@ -657,7 +671,32 @@ reference.add_file('potential', 'POTENTIAL_UZH')
 reference.add_file('dftd3', 'dftd3.dat')
 ```
 
-### NWChem
+### PySCF
+The `PySCFReference` expects a string representation of the Python code that should be executed.
+You may assume that this piece of code will be executed in a larger Python script in which the correct
+PySCF `molecule` object has been initialized. The script should define the `energy` and `forces` Python
+variables (respectively `float` and `numpy.ndarray`) which should contain the energy and negative gradient
+in atomic units.
+
+See below for an example:
+```py
+from psiflow.reference import PySCFReference
+
+routine = """
+from pyscf import dft
+
+mf = dft.RKS(molecule)
+mf.xc = 'pbe,pbe'
+
+energy = mf.kernel()
+forces = -mf.nuc_grad_method().kernel()
+"""
+basis = 'cc-pvtz'
+spin = 0
+reference = PySCFReference(routine, basis, spin)
+```
+
+### NWChem (deprecated)
 For nonperiodic systems, psiflow provides an interface with [NWChem](https://nwchemgit.github.io/Home.html),
 which implements a plethora of DFT and post-HF methods for both periodic and nonperiodic systems.
 The `NWChemReference` class essentially wraps around the ASE calculator, and is similarly easy to use:
