@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 import requests
 from ase.io import read
 
@@ -102,10 +101,10 @@ def main(path_output):
         step=50,
         start=0,
         temperature=300,
-        temperature_threshold=3,  # reset if T > T_0 + 3 * sigma
+        max_excess_temperature=1000,  # reset if T > T_0 + 1000
         pressure=0,
     )
-    data = learning.run(
+    data = learning.run(  # noqa: F841
         model=model,
         reference=reference,
         walkers=walkers,

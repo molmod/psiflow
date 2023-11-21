@@ -1,19 +1,16 @@
-import logging
 from pathlib import Path
 
 import numpy as np
-import requests
 from ase.build import bulk, make_supercell
 
 import psiflow
 from psiflow.committee import Committee
-from psiflow.data import Dataset, FlowAtoms
-from psiflow.learning import CommitteeLearning, SequentialLearning, load_learning
+from psiflow.data import Dataset
+from psiflow.learning import CommitteeLearning, SequentialLearning
 from psiflow.metrics import Metrics
 from psiflow.models import MACEConfig, MACEModel
 from psiflow.reference import EMTReference
-from psiflow.state import load_state
-from psiflow.walkers import DynamicWalker, PlumedBias
+from psiflow.walkers import DynamicWalker
 
 
 def main(path_output):
@@ -22,7 +19,7 @@ def main(path_output):
     path_committee = path_output / "learn_committee"
     path_committee.mkdir(parents=True)
 
-    reference = EMTReference()  # CP2K; PBE-D3(BJ); TZVP
+    reference = EMTReference()
     atoms = make_supercell(bulk("Cu", "fcc", a=3.6, cubic=True), 3 * np.eye(3))
 
     config = MACEConfig()
@@ -56,7 +53,7 @@ def main(path_output):
         step=40,
         start=0,
         temperature=100,
-        temperature_threshold=300,  # reset if T > T_0 + 300 K
+        max_excess_temperature=300,  # reset if T > T_0 + 300 K
         pressure=0,
     )
     data = learning.run(
@@ -90,3 +87,4 @@ if __name__ == "__main__":
     psiflow.load()
     path_output = Path.cwd() / "output"  # stores learning results
     main(path_output)
+    psiflow.wait()

@@ -97,7 +97,7 @@ def main(path_output):
         step=50,
         start=0,
         temperature=100,
-        temperature_threshold=300,  # reset if T > T_0 + 300 K
+        max_excess_temperature=300,  # reset if T > T_0 + 300 K
         pressure=0,
     )
     metrics = Metrics("perovskite_defect", "psiflow_examples")

@@ -7,25 +7,23 @@ from psiflow.data import Dataset, FlowAtoms
 from psiflow.learning import SequentialLearning
 from psiflow.metrics import Metrics
 from psiflow.models import NequIPConfig, NequIPModel
-from psiflow.reference import NWChemReference
+from psiflow.reference import PySCFReference
 from psiflow.walkers import BiasedDynamicWalker, DynamicWalker, PlumedBias
 
 
 def get_reference():
-    calculator_kwargs = {
-        "basis": {e: "3-21g" for e in ["H", "C", "O", "N"]},
-        "dft": {
-            "xc": "pw91lda",
-            "mult": 1,
-            "convergence": {
-                "energy": 1e-6,
-                "density": 1e-6,
-                "gradient": 1e-6,
-            },
-            #'disp': {'vdw': 3},
-        },
-    }
-    return NWChemReference(**calculator_kwargs)
+    routine = """
+from pyscf import dft
+
+mf = dft.RKS(molecule)
+mf.xc = 'pbe,pbe'
+
+energy = mf.kernel()
+forces = -mf.nuc_grad_method().kernel()
+"""
+    basis = "cc-pvtz"
+    spin = 0
+    return PySCFReference(routine, basis, spin)
 
 
 def get_bias():
@@ -93,7 +91,7 @@ def main(path_output):
 
     # this is mostly a toy script to test code paths rather
     # than an actually working example
-    data = learning.run(
+    data = learning.run(  # noqa: F841
         model=model,
         reference=reference,
         walkers=walkers_md + walkers_mtd,
@@ -104,3 +102,4 @@ if __name__ == "__main__":
     psiflow.load()
     path_output = Path.cwd() / "output"
     main(path_output)
+    psiflow.wait()
