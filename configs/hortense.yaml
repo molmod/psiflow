@@ -1,7 +1,7 @@
 ---
 container:
   engine: "apptainer"
-  uri: "oras://ghcr.io/molmod/psiflow:3.0.0-python3.9-cuda"
+  uri: "oras://ghcr.io/molmod/psiflow:3.0.0_python3.9_cuda"
 ModelEvaluation:
   cores_per_worker: 1
   simulation_engine: 'openmm'
