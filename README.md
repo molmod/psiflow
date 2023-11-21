@@ -10,9 +10,6 @@
 [![DOI](https://flat.badgen.net/static/DOI/10.1038%2Fs41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
 
-Nov 3, 2023: We're preparing v3.0.0, which introduces some breaking changes that are not yet reflected in the docs (mostly with respect to the execution configuration) -- we will fix this soon.
-
-
 # Interatomic potentials using online learning
 
 Psiflow is a **modular** and **scalable** library for developing interatomic potentials. It interfaces popular trainable interaction potentials with quantum chemistry software and is designed to support computational workflows on hundreds or thousands of nodes. Psiflow is designed as an end-to-end framework; it can orchestrate all computational components between an initial atomic structure and the final trained potential. In particular, it implements a variety of **active learning** algorithms which allow for efficient exploration of the system's phase space **without requiring ab initio molecular dynamics**.
@@ -29,12 +26,15 @@ Execution is massively parallel and powered by [Parsl](https://parsl-project.org
 While psiflow exposes an intuitive and concise API for defining complex molecular simulation workflows in a single Python script, Parsl ensures that the execution is automatically offloaded to arbitrarily large amounts of compute resources.
 Visit the [documentation](https://molmod.github.io/psiflow) for more details.
 
+---
+
+**PREVIEW**: click [here](https://wandb.ai/svandenhaute/formic_acid?workspace=user-svandenhaute) for a sneak peak into a few psiflow-generated training sets for the formic acid proton transfer!
+
 ___
 
-Check out this seven-minute introduction to psiflow:
+Check out this seven-minute introduction which was recorded at [ParslFest 2023](https://parsl-project.org/parslfest/parslfest2023.html):
 
 <a href="https://www.youtube.com/watch?v=mQC7VomFjYQ">
   <img src="./docs/parslfest_thumbnail.png" alt="drawing" width="450"/>
 </a>
 
-which was recorded at [ParslFest 2023](https://parsl-project.org/parslfest/parslfest2023.html)
