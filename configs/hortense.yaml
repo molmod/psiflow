@@ -29,6 +29,7 @@ ModelTraining:
     exclusive: false
     scheduler_options: "#SBATCH --clusters=dodrio\n#SBATCH --gpus=1\n"
 ReferenceEvaluation:
+  cores_per_worker: 32
   max_walltime: 20
   cpu_affinity: 'alternating'
   SlurmProvider:
