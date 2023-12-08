@@ -120,7 +120,7 @@ class MACEConfig:
     )
 
 
-@typeguard.typechecked
+# @typeguard.typechecked
 def initialize(
     mace_config: dict,
     stdout: str = "",
@@ -174,14 +174,14 @@ def train(
         command_write,
         "timeout -s 15 {}s psiflow-train-mace".format(max(walltime - 15, 0)),
         "--config config.yaml",
-        "--model {};".format(inputs[0].filepath),
+        "--model {} || true;".format(inputs[0].filepath),
         "ls *;",
         "cp model/mace.model {};".format(outputs[0].filepath),  # no swa
     ]
     return " ".join(command_list)
 
 
-@typeguard.typechecked
+# @typeguard.typechecked
 def deploy(
     device: str,
     inputs: List[File] = [],

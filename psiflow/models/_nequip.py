@@ -184,7 +184,7 @@ class AllegroConfig(NequIPConfig):
     r_max: float = 5.0
 
 
-@typeguard.typechecked
+# @typeguard.typechecked
 def initialize(
     nequip_config: dict,
     stdout: str = "",
@@ -214,7 +214,7 @@ def initialize(
     return " ".join(command_list)
 
 
-@typeguard.typechecked
+# @typeguard.typechecked
 def deploy(
     nequip_config: dict,
     inputs: List[File] = [],
@@ -265,7 +265,7 @@ def train(
         "timeout -s 15 {}s".format(max(walltime - 15, 0)),  # 15 s slack
         "psiflow-train-nequip",
         "--config config.yaml",
-        "--model {};".format(inputs[0].filepath),
+        "--model {} || true;".format(inputs[0].filepath),
         "ls;",
         "cp {}/best_model.pth {}".format(
             nequip_config["run_name"], outputs[0].filepath

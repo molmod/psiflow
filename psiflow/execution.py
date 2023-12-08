@@ -11,7 +11,6 @@ from pathlib import Path
 
 # see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
 from typing import Any, Callable, Optional, Type, Union
-from warnings import warn
 
 import parsl
 import psutil
@@ -25,7 +24,7 @@ from parsl.providers import *  # noqa: F403
 from parsl.providers.base import ExecutionProvider
 
 from psiflow.models import BaseModel
-from psiflow.parsl_utils import ContainerizedLauncher
+from psiflow.parsl_utils import ContainerizedLauncher, MyWorkQueueExecutor
 from psiflow.reference import BaseReference
 from psiflow.utils import resolve_and_check, set_logger
 
@@ -63,9 +62,9 @@ class ExecutionDefinition:
             self.max_walltime = 1e9
 
     def generate_parsl_resource_specification(self):
-        warn("use of the WQ executor is deprecated!")
         resource_specification = {}
         resource_specification["cores"] = self.cores_per_worker
+        # add random disk and mem usage because this is somehow required
         resource_specification["disk"] = 1000
         memory = 2000 * self.cores_per_worker
         resource_specification["memory"] = int(memory)
@@ -257,8 +256,10 @@ class ExecutionContextLoader:
             "retries": 1,
             "strategy": "simple",
             "max_idletime": 20,
-            "htex_address": None,
             "default_threads": 1,
+            "htex_address": None,
+            # "use_workqueue": False,
+            "mode": "taskvine",
         }
         forced = {
             "initialize_logging": False,  # manual; to move parsl.log one level up
@@ -328,8 +329,15 @@ ReferenceEvaluation:
 
         # create main parsl executors
         executors = []
+        mode = psiflow_config.pop("mode")
         for definition in definitions:
-            if not definition.use_threadpool:
+            if definition.use_threadpool:
+                executor = ThreadPoolExecutor(
+                    max_threads=definition.cores_per_worker,
+                    working_dir=str(path),
+                    label=definition.name(),
+                )
+            elif mode == "htex":
                 if type(definition.parsl_provider) is LocalProvider:  # noqa: F405
                     cores_available = psutil.cpu_count(logical=False)
                     max_workers = max(
@@ -352,12 +360,61 @@ ReferenceEvaluation:
                     provider=definition.parsl_provider,
                     cpu_affinity=definition.cpu_affinity,
                 )
-            else:
-                executor = ThreadPoolExecutor(
-                    max_threads=definition.cores_per_worker,
-                    working_dir=str(path),
-                    label=definition.name(),
+            elif mode == "workqueue":
+                worker_options = []
+                if hasattr(definition.parsl_provider, "cores_per_node"):
+                    worker_options.append(
+                        "--cores={}".format(definition.parsl_provider.cores_per_node),
+                    )
+                else:
+                    worker_options.append(
+                        "--cores={}".format(psutil.cpu_count(logical=False)),
+                    )
+                if hasattr(definition.parsl_provider, "walltime"):
+                    walltime_hhmmss = definition.parsl_provider.walltime.split(":")
+                    assert len(walltime_hhmmss) == 3
+                    walltime = 0
+                    walltime += 60 * float(walltime_hhmmss[0])
+                    walltime += float(walltime_hhmmss[1])
+                    walltime += 1  # whatever seconds are present
+                    walltime -= (
+                        5  # add 5 minutes of slack, e.g. for container downloading
+                    )
+                    worker_options.append("--wall-time={}".format(walltime * 60))
+                worker_options.append("--parent-death")
+                worker_options.append(
+                    "--timeout={}".format(psiflow_config["max_idletime"])
                 )
+                # manager_config = TaskVineManagerConfig(
+                #        shared_fs=True,
+                #        max_retries=1,
+                #        autocategory=False,
+                #        enable_peer_transfers=False,
+                #        port=0,
+                #        )
+                # factory_config = TaskVineFactoryConfig(
+                #        factory_timeout=20,
+                #        worker_options=' '.join(worker_options),
+                #        )
+                executor = MyWorkQueueExecutor(
+                    label=definition.name(),
+                    working_dir=str(path / definition.name()),
+                    provider=definition.parsl_provider,
+                    shared_fs=True,
+                    autocategory=False,
+                    port=0,
+                    max_retries=0,
+                    coprocess=False,
+                    worker_options=" ".join(worker_options),
+                )
+            else:
+                raise ValueError("Unknown mode {}".format(mode))
+                # executor = TaskVineExecutor(
+                #    label=definition.name(),
+                #    provider=definition.parsl_provider,
+                #    manager_config=manager_config,
+                #    factory_config=factory_config,
+                #    )
             executors.append(executor)
 
         # create default executors

@@ -8,5 +8,7 @@ ModelTraining:
   max_walltime: 1
   gpu: true
 ReferenceEvaluation:
+  mpi_command: 'mpirun -np {}' # cp2k on conda-forge comes with OpenMPI (not MPICH as in container)
   cores_per_worker: 1
+mode: 'htex'
 ...
