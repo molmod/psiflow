@@ -29,13 +29,14 @@ ModelTraining:
     exclusive: false
     scheduler_options: "#SBATCH --clusters=dodrio\n#SBATCH --gpus=1\n"
 ReferenceEvaluation:
+  cores_per_worker: 32
   max_walltime: 20
-  cpu_affinity: 'alternating'
+  cpu_affinity: 'none'
   SlurmProvider:
     partition: "cpu_rome"
     account: "2022_069"
     nodes_per_block: 1
-    cores_per_node: 64
+    cores_per_node: 32
     init_blocks: 1
     min_blocks: 0 
     max_blocks: 10 

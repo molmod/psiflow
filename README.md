@@ -17,7 +17,7 @@ Psiflow is a **modular** and **scalable** library for developing interatomic pot
 Its features include:
 
 - active learning algorithms with enhanced sampling using PLUMED
-- [Weights & Biases](wandb.ai) logging for easy monitoring and analysis
+- [Weights & Biases](https://wandb.ai) logging for easy monitoring and analysis
 - periodic (CP2K) and nonperiodic (PySCF, NWChem) systems
 - efficient GPU-accelerated molecular dynamics using OpenMM
 - the latest equivariant potentials such as MACE and NequIP
