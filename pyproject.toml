@@ -22,7 +22,7 @@ dependencies = [
     ]
 
 [project.optional-dependencies]
-parsl = ['parsl==2023.10.23']
+parsl = ['parsl==2023.12.04']
 docs = [
     "mkdocs>=1.4.2",
     "mkdocs-autorefs>=0.4.1",
