@@ -255,10 +255,10 @@ class ExecutionContextLoader:
             "psiflow_log_level": "INFO",
             "usage_tracking": True,
             "retries": 1,
-            "strategy": "htex_auto_scale",
+            "strategy": "simple",
             "max_idletime": 20,
             "htex_address": None,
-            "default_threads": 4,
+            "default_threads": 1,
         }
         forced = {
             "initialize_logging": False,  # manual; to move parsl.log one level up
@@ -340,7 +340,7 @@ ReferenceEvaluation:
                 if definition.cores_per_worker == 1:  # anticipate parsl assertion
                     definition.cpu_affinity = "none"
                     logger.info(
-                        'setting cpu_affinity of definition "{}" to none'
+                        'setting cpu_affinity of definition "{}" to none '
                         "because cores_per_worker=1".format(definition.name())
                     )
                 executor = HighThroughputExecutor(
