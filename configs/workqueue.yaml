@@ -12,4 +12,5 @@ ReferenceEvaluation:
  cores_per_worker: 1
  mpi_command: 'mpirun -np {}' # cp2k on conda-forge comes with OpenMPI (not MPICH as in container)
 mode: 'workqueue'
+workqueue_use_coprocess: false
 ...

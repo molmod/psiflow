@@ -253,13 +253,13 @@ class ExecutionContextLoader:
             "parsl_log_level": "INFO",
             "psiflow_log_level": "INFO",
             "usage_tracking": True,
-            "retries": 1,
+            "retries": 2,
             "strategy": "simple",
             "max_idletime": 20,
             "default_threads": 1,
             "htex_address": None,
             "mode": "workqueue",
-            "workqueue_use_coprocess": True,
+            "workqueue_use_coprocess": False,  # CP2K doesn't like this
         }
         forced = {
             "initialize_logging": False,  # manual; to move parsl.log one level up
