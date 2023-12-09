@@ -1,6 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
+from typing import Optional
 
 import numpy as np
 import parsl
@@ -8,11 +9,12 @@ from ase import Atoms
 from ase.data import atomic_numbers
 from parsl.app.app import bash_app, join_app, python_app
 from parsl.data_provider.files import File
+from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import FlowAtoms, NullState
 from psiflow.reference.base import BaseReference
-from psiflow.utils import copy_app_future
+from psiflow.utils import copy_app_future, get_active_executor
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -141,6 +143,7 @@ def pyscf_singlepoint_pre(
     stdout: str = "",
     stderr: str = "",
     walltime: int = 0,
+    parsl_resource_specification: Optional[dict] = None,
     **parameters,
 ) -> str:
     from psiflow.reference._pyscf import generate_script
@@ -232,6 +235,11 @@ class PySCFReference(BaseReference):
         ncores = definition.cores_per_worker
         walltime = definition.max_walltime
 
+        if isinstance(get_active_executor(label), WorkQueueExecutor):
+            resource_specification = definition.generate_parsl_resource_specification()
+        else:
+            resource_specification = {}
+
         singlepoint_pre = bash_app(
             pyscf_singlepoint_pre,
             executors=[label],
@@ -253,6 +261,7 @@ class PySCFReference(BaseReference):
                     stdout=parsl.AUTO_LOGNAME,
                     stderr=parsl.AUTO_LOGNAME,
                     walltime=60 * walltime,  # killed after walltime - 10s
+                    parsl_resource_specification=resource_specification,
                     **parameters,
                 )
                 return singlepoint_post(
