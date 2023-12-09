@@ -258,8 +258,8 @@ class ExecutionContextLoader:
             "max_idletime": 20,
             "default_threads": 1,
             "htex_address": None,
-            # "use_workqueue": False,
-            "mode": "taskvine",
+            "mode": "workqueue",
+            "workqueue_use_coprocess": True,
         }
         forced = {
             "initialize_logging": False,  # manual; to move parsl.log one level up
@@ -330,6 +330,7 @@ ReferenceEvaluation:
         # create main parsl executors
         executors = []
         mode = psiflow_config.pop("mode")
+        use_coprocess = psiflow_config.pop("workqueue_use_coprocess")
         for definition in definitions:
             if definition.use_threadpool:
                 executor = ThreadPoolExecutor(
@@ -404,7 +405,7 @@ ReferenceEvaluation:
                     autocategory=False,
                     port=0,
                     max_retries=0,
-                    coprocess=False,
+                    coprocess=use_coprocess,
                     worker_options=" ".join(worker_options),
                 )
             else:
