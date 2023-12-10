@@ -45,7 +45,7 @@ RUN micromamba install --yes --name base --channel conda-forge \
     micromamba clean --all --yes
 
 RUN CONDA_OVERRIDE_CUDA="11.8" micromamba install -n base --yes -c conda-forge \
-    python=3.10 pip \
+    python=3.10 pip ndcctools \
     openmm-plumed openmm-torch pytorch=1.13.1=cuda* \
     py-plumed && \
     micromamba clean -af --yes

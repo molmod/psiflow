@@ -258,7 +258,7 @@ class ExecutionContextLoader:
             "max_idletime": 20,
             "default_threads": 1,
             "htex_address": None,
-            "mode": "workqueue",
+            "mode": "htex",
             "workqueue_use_coprocess": False,  # CP2K doesn't like this
         }
         forced = {
