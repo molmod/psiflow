@@ -249,6 +249,7 @@ def train(
 ) -> str:
     import yaml
 
+    actual_walltime = int(0.9 * walltime)  # reserve 10 % for safe shutdown
     nequip_config["dataset_file_name"] = inputs[1].filepath
     nequip_config["validation_dataset"] = "ase"
     nequip_config["validation_dataset_file_name"] = inputs[2].filepath
@@ -262,7 +263,7 @@ def train(
         command_cd,
         command_env,
         command_write,
-        "timeout -s 15 {}s".format(max(walltime - 15, 0)),  # 15 s slack
+        "timeout -s 15 {}s".format(actual_walltime),  # 15 s slack
         "psiflow-train-nequip",
         "--config config.yaml",
         "--model {} || true;".format(inputs[0].filepath),

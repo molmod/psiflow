@@ -162,6 +162,7 @@ def train(
 ) -> str:
     import yaml
 
+    actual_walltime = int(0.9 * walltime)  # reserve 10 % for safe shutdown
     mace_config["train_file"] = inputs[1].filepath
     mace_config["valid_file"] = inputs[2].filepath
     config_str = yaml.dump(dict(mace_config))
@@ -172,7 +173,7 @@ def train(
         command_tmp,
         command_cd,
         command_write,
-        "timeout -s 15 {}s psiflow-train-mace".format(max(walltime - 15, 0)),
+        "timeout -s 15 {}s psiflow-train-mace".format(actual_walltime),
         "--config config.yaml",
         "--model {} || true;".format(inputs[0].filepath),
         "ls *;",
