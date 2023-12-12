@@ -1,6 +1,5 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import atexit
 import copy
 import logging
 import math
@@ -447,7 +446,6 @@ ReferenceEvaluation:
         )
         path_context = path / "context_dir"
         cls._context = ExecutionContext(config, definitions, path_context)
-        atexit.register(parsl.wait_for_current_tasks)
         return cls._context
 
     @classmethod
@@ -455,6 +453,10 @@ ReferenceEvaluation:
         if cls._context is None:
             raise RuntimeError("No ExecutionContext is currently loaded")
         return cls._context
+
+    @classmethod
+    def wait(cls):
+        parsl.wait_for_current_tasks()
 
 
 def load_from_yaml(path: Union[str, Path]) -> ExecutionContext:
