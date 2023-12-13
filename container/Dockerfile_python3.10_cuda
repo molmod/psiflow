@@ -63,7 +63,7 @@ RUN pip install git+https://github.com/acesuit/MACE.git@55f7411 && \
 RUN pip install pyscf
 
 ARG GIT_COMMIT_SHA
-RUN pip install 'psiflow[parsl] @ git+https://github.com/molmod/psiflow'
+RUN pip install 'psiflow[parsl] @ git+https://github.com/molmod/psiflow@v3.0.1'
 RUN pip cache purge
 
 ENV OMPI_MCA_plm_rsh_agent=

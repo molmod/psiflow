@@ -258,8 +258,8 @@ def compute_error(
 
     errors = np.zeros(len(properties))
     assert mask.dtype == bool
-    if not np.any(mask):
-        return np.nan
+    if not np.any(mask):  # should still return a tuple
+        return tuple([np.nan for i in range(len(properties))])
     if "energy" in properties:
         assert "energy" in atoms_0.info.keys()
         assert "energy" in atoms_1.info.keys()
