@@ -72,8 +72,8 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
     data = learning.run(model, reference, walkers, dataset)
     psiflow.wait()
     assert data.labeled().length().result() == len(walkers) + dataset.length().result()
-    assert learning.identifier.result() == 25
-    assert data.assign_identifiers().result() == 25
+    assert learning.identifier.result() == 5 + dataset.length().result()
+    assert data.assign_identifiers().result() == 5 + dataset.length().result()
 
     data = learning.run(model, reference, walkers)
     assert data.length().result() == 0  # iteration 0 already performed

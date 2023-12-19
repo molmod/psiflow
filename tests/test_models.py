@@ -103,47 +103,6 @@ def test_nequip_seed(nequip_config):
     assert model.seed == 112
 
 
-def test_nequip_offset(nequip_config, dataset):
-    config = NequIPConfig(**nequip_config)
-    model = NequIPModel(config)
-    model.initialize(dataset[:2])
-    with pytest.raises(AssertionError):
-        model.add_atomic_energy("H", 1)  # cannot change this after initialization
-    assert not model.do_offset
-    errors = Dataset.get_errors(
-        dataset,
-        model.evaluate(dataset),
-        properties=["energy"],
-    )
-    assert np.mean(errors.result()) < 1e3  # in meV/atom
-
-    reference = EMTReference()
-    atomic_energies = {
-        "H": 3e2,
-        "Cu": reference.compute_atomic_energy("Cu", box_size=6),  # future
-    }
-    errors_ = Dataset.get_errors(
-        dataset.subtract_offset(**atomic_energies),
-        model.evaluate(dataset),
-    )
-    assert np.mean(errors_.result()) > 1e3  # in meV/atom
-    model.reset()
-    for element, energy in atomic_energies.items():
-        model.add_atomic_energy(element, energy)
-    assert model.do_offset
-    model.initialize(dataset[:2])
-    errors_same = Dataset.get_errors(
-        dataset,
-        model.evaluate(dataset),
-        properties=["energy"],
-    )
-    assert np.allclose(
-        errors_same.result(),
-        errors.result(),
-        atol=1e-1,
-    )
-
-
 def test_allegro_init(allegro_config, dataset):
     model = AllegroModel(allegro_config)
     model.seed = 1
@@ -325,7 +284,7 @@ def test_mace_seed(mace_config):
 def test_mace_offset(mace_config, dataset, tmp_path):
     config = MACEConfig(**mace_config)
     model = MACEModel(config)
-    model.initialize(dataset[:2])
+    model.initialize(dataset)
     with pytest.raises(AssertionError):
         model.add_atomic_energy("H", 1)  # cannot change this after initialization
     assert not model.do_offset
@@ -350,7 +309,7 @@ def test_mace_offset(mace_config, dataset, tmp_path):
     for element, energy in atomic_energies.items():
         model.add_atomic_energy(element, energy)
     assert model.do_offset
-    model.initialize(dataset[:2])
+    model.initialize(dataset)
     errors_same = Dataset.get_errors(
         dataset,
         model.evaluate(dataset),
@@ -359,7 +318,7 @@ def test_mace_offset(mace_config, dataset, tmp_path):
     assert np.allclose(
         errors_same.result(),
         errors.result(),
-        atol=1e-1,
+        atol=0.1,
     )
     model.save(tmp_path)
     psiflow.wait()

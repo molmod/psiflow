@@ -49,21 +49,21 @@ def test_dataset_empty(tmp_path):
 
 
 def test_dataset_append(dataset):
-    assert 20 == dataset.length().result()
+    l = dataset.length().result()  # noqa: E741
     atoms_list = dataset.as_list().result()
-    assert len(atoms_list) == 20
+    assert len(atoms_list) == l
     assert type(atoms_list) is list
     assert type(atoms_list[0]) is FlowAtoms
     empty = Dataset([])  # use [] instead of None
     empty.append(dataset)
-    assert 20 == empty.length().result()
+    assert l == empty.length().result()
     dataset.append(dataset)
-    assert 40 == dataset.length().result()
+    assert 2 * l == dataset.length().result()
     added = dataset + dataset
-    assert added.length().result() == 80
-    assert dataset.length().result() == 40  # may not changed
+    assert added.length().result() == 4 * l
+    assert dataset.length().result() == 2 * l  # must not have changed
     dataset += dataset
-    assert dataset.length().result() == 80  # may not changed
+    assert dataset.length().result() == 4 * l  # must not have changed
 
     # test canonical transformation
     transformed = dataset.canonical_orientation()
@@ -90,10 +90,12 @@ def test_dataset_slice(dataset):
     dataset_ = dataset.shuffle()
     equal = np.array([False] * dataset.length().result())
     for i in range(dataset.length().result()):
-        equal[i] = np.allclose(
-            dataset_[i].result().get_positions(),
-            dataset[i].result().get_positions(),
-        )
+        pos0 = dataset_[i].result().get_positions()
+        pos1 = dataset[i].result().get_positions()
+        if pos0.shape == pos1.shape:
+            equal[i] = np.allclose(pos0, pos1)
+        else:
+            equal[i] = False
     assert not np.all(equal)
 
 
@@ -104,7 +106,7 @@ def test_dataset_from_xyz(tmp_path, dataset):
     loaded = Dataset.load(path_xyz)
     data = read(path_xyz, index=":")
 
-    for i in range(20):
+    for i in range(dataset.length().result()):
         assert np.allclose(
             dataset[i].result().get_positions(),
             loaded[i].result().get_positions(),
@@ -266,9 +268,9 @@ def test_data_offset(dataset):
     }
     data = dataset.subtract_offset(**atomic_energies)
     data_ = data.add_offset(**atomic_energies)
-    natoms = len(dataset[0].result())
-    offset = (natoms - 1) * atomic_energies["Cu"] + atomic_energies["H"]
     for i in range(dataset.length().result()):
+        natoms = len(dataset[i].result())
+        offset = (natoms - 1) * atomic_energies["Cu"] + atomic_energies["H"]
         assert np.allclose(
             data[i].result().info["energy"],
             dataset[i].result().info["energy"] - offset,

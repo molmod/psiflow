@@ -6,7 +6,7 @@ import parsl
 import pytest
 import yaml
 from ase import Atoms
-from ase.build import bulk
+from ase.build import bulk, make_supercell
 from ase.calculators.emt import EMT
 
 import psiflow
@@ -94,8 +94,10 @@ def mace_config():
     return asdict(mace_config)
 
 
-def generate_emt_cu_data(nstates, amplitude):
-    atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
+def generate_emt_cu_data(nstates, amplitude, supercell=None):
+    if supercell is None:
+        supercell = np.eye(3)
+    atoms = make_supercell(bulk("Cu", "fcc", a=3.6, cubic=True), supercell)
     atoms.calc = EMT()
     pos = atoms.get_positions()
     box = atoms.get_cell()
@@ -120,6 +122,7 @@ def generate_emt_cu_data(nstates, amplitude):
 @pytest.fixture
 def dataset(context):
     data = generate_emt_cu_data(20, 0.2)
+    data += generate_emt_cu_data(5, 0.15, supercell=np.diag([1, 2, 1]))
     data_ = [FlowAtoms.from_atoms(atoms) for atoms in data]
     for atoms in data_:
         atoms.reference_status = True

@@ -37,12 +37,12 @@ def _compute_disagreements(
     disagreements = np.zeros(lengths[0])
     if metric == "mean_force":
         for i in range(lengths[0]):
-            forces = np.zeros((len(inputs), len(data[0][0]), 3))
+            forces = np.zeros((len(inputs), len(data[0][i]), 3))
             for j in range(len(inputs)):
                 if data[j][i] == NullState:
                     assert j == 0  # nullstates do not depend on j
                     break
-                forces[j] = data[j][i].arrays["forces"]
+                forces[j, :] = data[j][i].arrays["forces"]
             SE = (forces - np.mean(forces, axis=0, keepdims=True)) ** 2
             RMSE = np.sqrt(np.mean(SE))
             disagreements[i] = RMSE
