@@ -191,7 +191,7 @@ class BaseLearning:
 @typeguard.typechecked
 @dataclass
 class SequentialLearning(BaseLearning):
-    temperature_ramp: Optional[tuple[float]] = None
+    temperature_ramp: Optional[tuple[float, float, int]] = None
     niterations: int = 10
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
 
