@@ -1,0 +1,30 @@
+---
+ModelEvaluation:
+  cores_per_worker: 7
+  simulation_engine: 'yaff'
+  SlurmProvider:
+    partition: "dev-g"
+    account: "project_*"
+    nodes_per_block: 1
+    cores_per_node: 7
+    init_blocks: 0
+    max_blocks: 20
+    walltime: "00:30:00"
+    exclusive: false
+    scheduler_options: "#SBATCH --gres=gpu:1\n"
+    worker_init: "ml rocm/5.2.3\n"
+ModelTraining:
+  cores_per_worker: 7
+  gpu: true
+  SlurmProvider:
+    partition: "dev-g"
+    account: "project_*"
+    nodes_per_block: 1
+    cores_per_node: 7
+    init_blocks: 0
+    max_blocks: 20
+    walltime: "00:30:00"
+    exclusive: false
+    scheduler_options: "#SBATCH --gres=gpu:1\n"
+    worker_init: "ml rocm/5.2.3\n"
+...
