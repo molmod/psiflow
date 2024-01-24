@@ -57,6 +57,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
         train_from_scratch=True,
         train_valid_split=0.8,
         niterations=1,
+        error_thresholds_for_discard=(1e9, 1e9),
     )
     model = MACEModel(mace_config)
     model.config_raw["max_num_epochs"] = 1
@@ -94,6 +95,7 @@ METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=1 LABEL=metad FILE=test_hills
         train_from_scratch=True,
         train_valid_split=0.8,
         niterations=1,
+        error_thresholds_for_discard=(1e9, 1e9),
     )
     walkers = BiasedDynamicWalker.multiply(
         5,
@@ -153,6 +155,7 @@ MOVINGRESTRAINT ARG=CV STEP0=0 AT0=150 KAPPA0=1 STEP1=1000 AT1=200 KAPPA1=1
         cv_delta=30,
         niterations=1,
         error_thresholds_for_reset=(1e9, 1e12),  # never reset
+        error_thresholds_for_discard=(1e9, 1e12),  # never discard
     )
     data = learning.run(
         model,

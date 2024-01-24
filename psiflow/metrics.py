@@ -8,7 +8,7 @@ from typing import NamedTuple, Optional, Union
 import numpy as np
 import typeguard
 import wandb
-from parsl.app.app import python_app
+from parsl.app.app import join_app, python_app
 from parsl.data_provider.files import File
 
 import psiflow
@@ -53,6 +53,7 @@ def _save_walker_logs(data: dict[str, list], path: Path) -> str:
     field_names = [
         "walker_index",
         "counter",
+        "is_discarded",
         "is_reset",
         "e_rsme",
         "f_rmse",
@@ -113,6 +114,7 @@ def _log_walker(
     walker_index: int,
     evaluated_state: FlowAtoms,
     error: tuple[Optional[float], Optional[float]],
+    discard: bool,
     condition: bool,
     identifier: int,
     disagreement: Optional[float] = None,
@@ -123,6 +125,7 @@ def _log_walker(
     data = {}
     data["walker_index"] = walker_index
     data["counter"] = metadata["counter"]
+    data["is_discarded"] = discard
     data["is_reset"] = condition
     data["e_rmse"] = error[0]
     data["f_rmse"] = error[1]
@@ -484,6 +487,7 @@ class Metrics:
         metadata,
         state,
         error,
+        discard,
         condition,
         identifier,
         disagreement=None,
@@ -496,6 +500,7 @@ class Metrics:
             i,
             state,
             error,
+            discard,
             condition,
             identifier,
             disagreement,
@@ -522,6 +527,10 @@ class Metrics:
         model: Optional[BaseModel] = None,
         dataset: Optional[Dataset] = None,
     ):
+        @join_app
+        def log_string(s: str) -> None:
+            logger.info(s)
+
         path = Path(path)
         if not path.exists():
             path.mkdir()
@@ -529,13 +538,15 @@ class Metrics:
         dataset_log = None
         if len(self.walker_logs) > 0:
             walker_logs = gather_walker_logs(*self.walker_logs)
-            save_walker_logs(walker_logs, path / "walkers.log")
+            walker_logs_str = save_walker_logs(walker_logs, path / "walkers.log")
+            log_string(walker_logs_str)
             self.walker_logs = []
         if model is not None:
             assert dataset is not None
             inputs = [dataset.data_future, model.evaluate(dataset).data_future]
             dataset_log = log_dataset(inputs=inputs)
-            save_dataset_log(dataset_log, path / "dataset.log")
+            dataset_log_str = save_dataset_log(dataset_log, path / "dataset.log")
+            log_string(dataset_log_str)
         if self.wandb_group is not None:
             #  typically needs a result() from caller
             return to_wandb(  # noqa: F841

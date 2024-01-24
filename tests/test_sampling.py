@@ -42,10 +42,8 @@ restraint: RESTRAINT ARG=CV1 AT=150 KAPPA=1
         reference,
         walkers,
         identifier,
-        error_thresholds_for_reset=(
-            200,
-            1e9,
-        ),  # some will reset; marker should change in wandb
+        error_thresholds_for_reset=(2000, 1e9),
+        error_thresholds_for_discard=(2000, 1e9),
         metrics=metrics,
     )
     assert data.length().result() == 6  # one state should have failed
@@ -104,6 +102,7 @@ def test_sample_committee(gpu, mace_config, dataset, tmp_path):
         identifier,
         nstates=3,
         error_thresholds_for_reset=(1e9, 1e9),
+        error_thresholds_for_discard=(1e9, 1e9),
         metrics=metrics,
     )
     for i in range(3):

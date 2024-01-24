@@ -194,6 +194,7 @@ class SequentialLearning(BaseLearning):
     temperature_ramp: Optional[tuple[float, float, int]] = None
     niterations: int = 10
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
+    error_thresholds_for_discard: tuple[float, float] = (20, 500)
 
     def update_walkers(self, walkers: list[BaseWalker], initialize=False):
         if self.temperature_ramp is not None:
@@ -235,6 +236,7 @@ class SequentialLearning(BaseLearning):
                 walkers,
                 self.identifier,
                 self.error_thresholds_for_reset,
+                self.error_thresholds_for_discard,
                 self.metrics,
             )
             assert new_data.length().result() > 0, "no new states were generated!"
@@ -289,6 +291,7 @@ class CommitteeLearning(SequentialLearning):
                 self.identifier,
                 self.nstates_per_iteration,
                 self.error_thresholds_for_reset,
+                self.error_thresholds_for_discard,
                 self.metrics,
             )
             assert new_data.length().result() > 0, "no new states were generated!"
@@ -318,6 +321,7 @@ class IncrementalLearning(BaseLearning):
     cv_delta: Optional[float] = None
     niterations: int = 10
     error_thresholds_for_reset: tuple[float, float] = (10, 200)
+    error_thresholds_for_discard: tuple[float, float] = (10, 200)
 
     def update_walkers(self, walkers: list[BaseWalker], initialize=False):
         for walker in walkers:  # may not all contain bias
@@ -378,6 +382,7 @@ class IncrementalLearning(BaseLearning):
                 walkers,
                 self.identifier,
                 self.error_thresholds_for_reset,
+                self.error_thresholds_for_discard,
                 self.metrics,
             )
             assert new_data.length().result() > 0, "no new states were generated!"

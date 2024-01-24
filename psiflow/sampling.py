@@ -1,7 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from typing import NamedTuple, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 import typeguard
@@ -19,104 +19,18 @@ from psiflow.walkers import BaseWalker
 logger = logging.getLogger(__name__)  # logging per module
 
 
-formatted_keys = {
-    "counter": lambda x: "{:7} steps".format(x),
-    "temperature": lambda x: "avg temp [K]: {:<6.1f}".format(x),
-    "time": lambda x: "elapsed time [s]: {:<7.1f}".format(x),
-    "reset": lambda x: "reset: {:<5}".format(str(x)),
-}
-
-
 @typeguard.typechecked
-def log_metadata(
-    i: int,
-    metadata: NamedTuple,
-    state: FlowAtoms,
-    condition: bool,
-) -> str:
-    from pathlib import Path
-
-    s = "WALKER {:>5}:".format(i)
-    metadata_dict = metadata._asdict()
-    for key in metadata_dict:
-        if (key in formatted_keys) and (key != "reset"):
-            s += formatted_keys[key](metadata_dict[key].result())
-            s += " " * 8
-        else:
-            pass
-    s += "\n"
-    if metadata.reset.result():
-        assert state == NullState
-        assert metadata.state.result() == NullState
-        s += "\tpropagation failed"
-        if "stdout" in metadata_dict:
-            s += "; see {} in the task_logs directory".format(
-                Path(metadata.stdout).stem
-            )
-        s += "\n\twalker reset\n"
-        assert condition
-    return s
-
-
-@typeguard.typechecked
-def _assign_identifier(state: FlowAtoms, identifier: int):
+def _assign_identifier(state: FlowAtoms, discard: bool, identifier: int):
+    if discard:
+        state = NullState
     if not state == NullState:
         if state.reference_status:
             state.info["identifier"] = identifier
             identifier += 1
-        else:
-            pass
     return state, identifier
 
 
 assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
-
-
-@join_app
-@typeguard.typechecked
-def log_evaluation_model(
-    i: int,
-    metadata: NamedTuple,
-    state: FlowAtoms,
-    errors: tuple[Optional[float], Optional[float]],
-    condition: bool,
-    identifier: int,
-) -> AppFuture:
-    from pathlib import Path
-
-    from psiflow.utils import copy_app_future
-
-    s = log_metadata(i, metadata, state, condition)
-    if not metadata.reset.result():
-        if not state.reference_status:
-            if state.reference_stderr:
-                s += "\tevaluation failed; see {} in the task_logs directory".format(
-                    Path(state.reference_stderr).stem
-                )
-            else:
-                s += "\tevaluation failed; no task log available"
-            assert condition
-        else:
-            s += "\tevaluation successful; state received unique id {}".format(
-                identifier - 1
-            )
-            assert errors is not None
-        s += "\n"
-        if errors[0] is not None:
-            if condition:
-                s += "\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (above threshold)\n\twalker reset".format(
-                    *errors
-                )
-            else:
-                s += "\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A (below threshold)".format(
-                    *errors
-                )
-        else:
-            assert condition
-            s += "\twalker reset"
-        s += "\n"
-    logger.info(s)
-    return copy_app_future(s)
 
 
 @typeguard.typechecked
@@ -169,6 +83,7 @@ def sample_with_model(
     walkers: list[BaseWalker],
     identifier: Union[AppFuture, int],
     error_thresholds_for_reset: tuple[float, float] = (10, 200),  # (e_rmse, f_rmse)
+    error_thresholds_for_discard: tuple[float, float] = (20, 500),  # (e_rmse, f_rmse)
     metrics: Optional[Metrics] = None,
 ) -> tuple[Dataset, AppFuture]:
     assert len(error_thresholds_for_reset) == 2
@@ -181,20 +96,28 @@ def sample_with_model(
     )  # evaluate in batches
     errors = [compute_error(labeled[i], state) for i, state in enumerate(states)]
     for i in range(len(states)):
-        f = assign_identifier(states[i], identifier)
-        state = unpack_i(f, 0)
-        identifier = unpack_i(f, 1)
-        states[i] = state
+        discard = check_error(
+            error=errors[i],
+            error_thresholds=error_thresholds_for_discard,
+        )
         condition = check_error(
             error=errors[i],
             error_thresholds=error_thresholds_for_reset,
         )
-        log_evaluation_model(
-            i, metadatas[i], states[i], errors[i], condition, identifier
-        )
+        f = assign_identifier(states[i], discard, identifier)
+        state = unpack_i(f, 0)
+        identifier = unpack_i(f, 1)
+        states[i] = state
         if metrics is not None:
             metrics.log_walker(
-                i, walkers[i], metadatas[i], states[i], errors[i], condition, identifier
+                i,
+                walkers[i],
+                metadatas[i],
+                states[i],
+                errors[i],
+                discard,
+                condition,
+                identifier,
             )
         walkers[i].reset(condition)
     return Dataset(states).labeled(), identifier
@@ -228,53 +151,6 @@ def _reset_condition(
 reset_condition = python_app(_reset_condition, executors=["default_threads"])
 
 
-@join_app
-@typeguard.typechecked
-def log_evaluation_committee(
-    i: int,
-    metadata: NamedTuple,
-    state: FlowAtoms,
-    errors: tuple[Optional[float], Optional[float]],
-    condition: bool,
-    identifier: int,
-    disagreement: float,
-    indices: np.ndarray,
-) -> AppFuture:
-    from pathlib import Path
-
-    from psiflow.utils import copy_app_future
-
-    s = log_metadata(i, metadata, state, condition)
-    if not metadata.reset.result():
-        s += "\tcommittee disagreement: RMSE(F - mean(F)) = {} eV/A".format(
-            disagreement
-        )
-        if i in indices:
-            s += " (high)\n"  # state selected for evaluation
-            assert condition
-            if not state.reference_status:
-                s += "\tevaluation failed; see {} in the task_logs directory".format(
-                    Path(state.reference_stderr).stem
-                )
-            else:
-                assert errors[0] is not None
-                assert errors[1] is not None
-                s += "\tevaluation successful; state received unique id {}\n".format(
-                    identifier - 1
-                )
-                s += "\tenergy/force RMSE: {:7.1f} meV/atom  | {:5.0f} meV/A\n".format(
-                    *errors
-                )
-                if condition:
-                    s += "\twalker reset"
-        else:
-            s += " (low)\n\tevaluation skipped"  # state not selected
-            assert errors[0] is None
-        s += "\n"
-    logger.info(s)
-    return copy_app_future(s)
-
-
 @typeguard.typechecked
 def sample_with_committee(
     committee: Committee,
@@ -283,6 +159,7 @@ def sample_with_committee(
     identifier: Union[AppFuture, int],
     nstates: int,
     error_thresholds_for_reset: tuple[float, float] = (10, 200),  # (e_rmse, f_rmse)
+    error_thresholds_for_discard: tuple[float, float] = (20, 500),  # (e_rmse, f_rmse)
     metrics: Optional[Metrics] = None,
 ) -> tuple[Dataset, AppFuture]:
     logger.info("")
@@ -293,30 +170,24 @@ def sample_with_committee(
     indices = filter_disagreements(disagreements, nstates)
     states = [evaluate_subset(s, reference, i, indices) for i, s in enumerate(states)]
 
-    # compute errors for state which were evaluated
+    # compute errors for states which were evaluated
     labeled = committee.models[0].evaluate(Dataset([m.state for m in metadatas]))
     errors = [compute_error(labeled[i], state) for i, state in enumerate(states)]
     for i in range(len(metadatas)):
-        f = assign_identifier(states[i], identifier)
-        state = unpack_i(f, 0)
-        identifier = unpack_i(f, 1)
-        states[i] = state
+        discard = check_error(
+            error=errors[i],
+            error_thresholds=error_thresholds_for_discard,
+        )
         checked_error = check_error(
             error=errors[i],
             error_thresholds=error_thresholds_for_reset,
         )
+        f = assign_identifier(states[i], discard, identifier)
+        state = unpack_i(f, 0)
+        identifier = unpack_i(f, 1)
+        states[i] = state
         condition = reset_condition(i, states[i], indices, checked_error)
         walkers[i].reset(condition)
-        log_evaluation_committee(
-            i,
-            metadatas[i],
-            states[i],
-            errors[i],
-            condition,
-            identifier,
-            unpack_i(disagreements, i),
-            indices,
-        )
         if metrics is not None:
             metrics.log_walker(
                 i,
@@ -324,6 +195,7 @@ def sample_with_committee(
                 metadatas[i],
                 states[i],
                 errors[i],
+                discard,
                 condition,
                 identifier,
                 unpack_i(disagreements, i),

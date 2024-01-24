@@ -447,7 +447,7 @@ def assign_identifiers(
         identifier += 1
         for atoms in data:  # assign those which were not yet assigned
             if ("identifier" not in atoms.info) and atoms.reference_status:
-                state, identifier = _assign_identifier(atoms, identifier)
+                state, identifier = _assign_identifier(atoms, False, identifier)
                 states.append(state)
             else:
                 states.append(atoms)
@@ -455,7 +455,7 @@ def assign_identifiers(
         return identifier
     else:
         for atoms in data:
-            state, identifier = _assign_identifier(atoms, identifier)
+            state, identifier = _assign_identifier(atoms, False, identifier)
             states.append(state)
         write_dataset(states, outputs=[outputs[0]])
         return identifier

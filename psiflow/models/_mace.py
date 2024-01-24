@@ -100,7 +100,7 @@ class MACEConfig:
     save_cpu: bool = True
     clip_grad: Optional[float] = 10
     wandb: bool = True
-    wandb_project: str = "psiflow"
+    wandb_project: Optional[str] = "psiflow"
     wandb_group: Optional[str] = None
     wandb_name: str = "mace_training"
     wandb_log_hypers: list = field(
