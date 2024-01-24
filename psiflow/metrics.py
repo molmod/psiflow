@@ -545,8 +545,7 @@ class Metrics:
             assert dataset is not None
             inputs = [dataset.data_future, model.evaluate(dataset).data_future]
             dataset_log = log_dataset(inputs=inputs)
-            dataset_log_str = save_dataset_log(dataset_log, path / "dataset.log")
-            log_string(dataset_log_str)
+            save_dataset_log(dataset_log, path / "dataset.log")
         if self.wandb_group is not None:
             #  typically needs a result() from caller
             return to_wandb(  # noqa: F841
