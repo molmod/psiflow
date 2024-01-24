@@ -529,7 +529,7 @@ class Metrics:
     ):
         @join_app
         def log_string(s: str) -> None:
-            logger.info(s)
+            logger.info("\n" + s + "\n")
 
         path = Path(path)
         if not path.exists():
