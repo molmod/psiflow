@@ -161,10 +161,12 @@ class BaseWalker:
     def multiply(cls, nwalkers: int, data_start: Dataset, **kwargs) -> list[BaseWalker]:
         walkers = [cls(data_start[0], **kwargs) for i in range(nwalkers)]
         length = data_start.length().result()
+        data_in_memory = data_start.as_list()
         for i, walker in enumerate(walkers):
+            state = unpack_i(data_in_memory, i % length)
             walker.seed = i
-            walker.set_initial_state(data_start[i % length])
-            walker.set_state(data_start[i % length])
+            walker.set_initial_state(state)
+            walker.set_state(state)
         return walkers
 
     @classmethod

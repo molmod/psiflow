@@ -234,11 +234,12 @@ def read_dataset(
             atoms = list(read_extxyz(f, index=index_or_indices))[0]
             data = FlowAtoms.from_atoms(atoms)  # single atoms instance
             data.calc = None
-        else:
+        else:  # read data all at once in memory, then extract whatever we need
+            all_data = list(read_extxyz(f, index=slice(None)))
             if type(index_or_indices) is list:
-                data = [list(read_extxyz(f, index=i))[0] for i in index_or_indices]
+                data = [all_data[i] for i in index_or_indices]
             elif type(index_or_indices) is slice:
-                data = list(read_extxyz(f, index=index_or_indices))
+                data = all_data[index_or_indices]
             else:
                 raise ValueError
             data = [FlowAtoms.from_atoms(a) for a in data]  # list of atoms
@@ -285,8 +286,17 @@ app_join_dataset = python_app(join_dataset, executors=["default_threads"])
 
 @typeguard.typechecked
 def get_length_dataset(inputs: List[File] = []) -> int:
-    data = read_dataset(slice(None), inputs=[inputs[0]])
-    return len(data)
+    nframes = 0
+    with open(inputs[0], "r") as f:
+        while True:
+            try:
+                natoms = int(f.readline())
+            except ValueError:
+                break
+            nframes += 1
+            for i in range(natoms + 1):  # skip ahead
+                f.readline()
+    return nframes
 
 
 app_length_dataset = python_app(get_length_dataset, executors=["default_threads"])
