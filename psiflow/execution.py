@@ -324,7 +324,7 @@ ReferenceEvaluation:
             str(path / "parsl.log"),
             "parsl",
             getattr(logging, psiflow_config.pop("parsl_log_level")),
-            format_string="%(levelname)s - %(name)s - %(message)s",
+            # format_string="%(levelname)s - %(name)s - %(message)s",
         )
 
         # create main parsl executors
