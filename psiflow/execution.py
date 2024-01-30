@@ -256,7 +256,6 @@ class ExecutionContextLoader:
             "strategy": "simple",
             "max_idletime": 20,
             "default_threads": 1,
-            "htex_address": None,
             "mode": "htex",
             "workqueue_use_coprocess": False,  # CP2K doesn't like this
         }
@@ -352,7 +351,7 @@ ReferenceEvaluation:
                         "because cores_per_worker=1".format(definition.name())
                     )
                 executor = HighThroughputExecutor(
-                    address=psiflow_config["htex_address"],
+                    address=None,
                     label=definition.name(),
                     working_dir=str(path / definition.name()),
                     cores_per_worker=definition.cores_per_worker,
@@ -424,7 +423,7 @@ ReferenceEvaluation:
             launcher = SimpleLauncher()
         htex = HighThroughputExecutor(
             label="default_htex",
-            address=psiflow_config.pop("htex_address"),
+            address="127.0.0.1",
             working_dir=str(path / "default_htex"),
             cores_per_worker=1,
             max_workers=1,
