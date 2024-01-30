@@ -15,6 +15,7 @@ import parsl
 import psutil
 import typeguard
 import yaml
+from parsl.addresses import address_by_hostname
 from parsl.config import Config
 from parsl.data_provider.files import File
 from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
@@ -257,6 +258,7 @@ class ExecutionContextLoader:
             "max_idletime": 20,
             "default_threads": 1,
             "mode": "htex",
+            "htex_address": address_by_hostname(),
             "workqueue_use_coprocess": False,  # CP2K doesn't like this
         }
         forced = {
@@ -329,6 +331,7 @@ ReferenceEvaluation:
         executors = []
         mode = psiflow_config.pop("mode")
         use_coprocess = psiflow_config.pop("workqueue_use_coprocess")
+        htex_address = psiflow_config.pop("htex_address")
         for definition in definitions:
             if definition.use_threadpool:
                 executor = ThreadPoolExecutor(
@@ -351,7 +354,7 @@ ReferenceEvaluation:
                         "because cores_per_worker=1".format(definition.name())
                     )
                 executor = HighThroughputExecutor(
-                    address=None,
+                    address=htex_address,
                     label=definition.name(),
                     working_dir=str(path / definition.name()),
                     cores_per_worker=definition.cores_per_worker,
@@ -423,7 +426,7 @@ ReferenceEvaluation:
             launcher = SimpleLauncher()
         htex = HighThroughputExecutor(
             label="default_htex",
-            address="127.0.0.1",
+            address=htex_address,
             working_dir=str(path / "default_htex"),
             cores_per_worker=1,
             max_workers=1,
