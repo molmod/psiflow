@@ -142,7 +142,7 @@ def evaluate_bias(
 
     from psiflow.data import read_dataset
     from psiflow.walkers.bias import try_manual_plumed_linking
-    from psiflow.walkers.utils import ForcePartPlumed
+    from psiflow.walkers.molecular_dynamics_yaff import ForcePartPlumed
 
     dataset = read_dataset(slice(None), inputs=[inputs[0]])
     values = np.zeros((len(dataset), len(variables) + 1))  # column 0 for CV, 1 for bias
