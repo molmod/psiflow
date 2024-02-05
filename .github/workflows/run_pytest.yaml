@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main ]
 jobs:
-  test-py39:
+  test-py310:
     runs-on: ubuntu-latest
     steps:
       - uses: mamba-org/setup-micromamba@v1
@@ -49,7 +49,7 @@ jobs:
           export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
           pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
         shell: micromamba-shell {0}
-  test-py310:
+  test-py311:
     runs-on: ubuntu-latest
     steps:
       - uses: mamba-org/setup-micromamba@v1
