@@ -18,6 +18,7 @@ dependencies = [
     "prettytable",
     "psutil",
     "colorcet",
+    "cp2k-input-tools",
     ]
 
 [project.optional-dependencies]
