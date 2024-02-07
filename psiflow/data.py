@@ -294,7 +294,7 @@ def get_length_dataset(inputs: List[File] = []) -> int:
             except ValueError:
                 break
             nframes += 1
-            for i in range(natoms + 1):  # skip ahead
+            for _i in range(natoms + 1):  # skip ahead
                 f.readline()
     return nframes
 

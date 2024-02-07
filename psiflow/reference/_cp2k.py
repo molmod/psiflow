@@ -1,217 +1,161 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import copy
+import io
 import logging
-import shutil
-from pathlib import Path
-from typing import Optional, Union
 
+import numpy as np
 import parsl
 import typeguard
 from ase.data import atomic_numbers
+from ase.units import Bohr, Ha
+from cp2k_input_tools.generator import CP2KInputGenerator
+from cp2k_input_tools.parser import CP2KInputParserSimplified
 from parsl.app.app import bash_app, join_app, python_app
 from parsl.data_provider.files import File
-from parsl.executors import WorkQueueExecutor
 
 import psiflow
 from psiflow.data import FlowAtoms, NullState
 from psiflow.reference.base import BaseReference
-from psiflow.utils import copy_app_future, get_active_executor
+from psiflow.utils import copy_app_future
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
-def insert_filepaths_in_input(
-    cp2k_input: str, files: dict[str, Union[str, Path, File]]
-) -> str:
-    from pymatgen.io.cp2k.inputs import Cp2kInput, Keyword, KeywordList
-
-    inp = Cp2kInput.from_str(cp2k_input)
-    # merge basis set files into list
-    basis = []
-    for name in list(files.keys()):
-        if name.startswith("basis"):
-            basis.append(files.pop(name))  # delete key from dict
-    files["basis"] = basis
-    for name, path in files.items():
-        if name == "basis":
-            key = "BASIS_SET_FILE_NAME"
-        elif name == "potential":
-            key = "POTENTIAL_FILE_NAME"
-        elif name == "dftd3":
-            key = "PARAMETER_FILE_NAME"
-        elif name == "tcg_data":
-            key = "T_C_G_DATA"
-        else:
-            raise ValueError("input file {} not recognized".format(name))
-
-        if isinstance(path, list):  # set as KeywordList
-            keywords = []
-            for _path in path:
-                keywords.append(Keyword(key, _path, repeats=True))
-            to_add = KeywordList(keywords)
-        else:
-            to_add = Keyword(key, path, repeats=False)
-        if key == "BASIS_SET_FILE_NAME":
-            inp.update({"FORCE_EVAL": {"DFT": {key: to_add}}}, strict=True)
-        elif key == "POTENTIAL_FILE_NAME":
-            inp.update({"FORCE_EVAL": {"DFT": {key: to_add}}}, strict=True)
-        elif key == "PARAMETER_FILE_NAME":
-            inp.update(
-                {
-                    "FORCE_EVAL": {
-                        "DFT": {
-                            "XC": {"VDW_POTENTIAL": {"PAIR_POTENTIAL": {key: to_add}}}
-                        }
-                    }
-                },
-                strict=True,
-            )
-        elif key == "T_C_G_DATA":
-            inp.update(
-                {
-                    "FORCE_EVAL": {
-                        "DFT": {"XC": {"HF": {"INTERACTION_POTENTIAL": {key: to_add}}}}
-                    }
-                },
-                strict=True,
-            )
-        else:
-            raise ValueError("File key {} not recognized".format(key))
-    return str(inp)
+def check_input(cp2k_input_str: str):
+    pass
 
 
 @typeguard.typechecked
-def insert_atoms_in_input(cp2k_input: str, atoms: FlowAtoms) -> str:
+def str_to_dict(cp2k_input_str: str) -> dict:
+    return CP2KInputParserSimplified(
+        repeated_section_unpack=True,
+        # multi_value_unpack=False,
+        # level_reduction_blacklist=['KIND'],
+    ).parse(io.StringIO(cp2k_input_str))
+
+
+@typeguard.typechecked
+def dict_to_str(cp2k_input_dict: dict) -> str:
+    return "\n".join(list(CP2KInputGenerator().line_iter(cp2k_input_dict)))
+
+
+@typeguard.typechecked
+def insert_atoms_in_input(cp2k_input_dict: dict, atoms: FlowAtoms):
     from ase.data import chemical_symbols
-    from pymatgen.io.cp2k.inputs import Cp2kInput
 
-    inp = Cp2kInput.from_str(cp2k_input)
-    if "SUBSYS" not in inp["FORCE_EVAL"].subsections.keys():
-        raise ValueError("No subsystem present in cp2k input: {}".format(cp2k_input))
-    try:
-        del inp["FORCE_EVAL"]["SUBSYS"]["TOPOLOGY"]  # remove just to be safety
-    except KeyError:
-        pass
-    try:
-        del inp["FORCE_EVAL"]["SUBSYS"]["COORD"]  # remove just to be safety
-    except KeyError:
-        pass
-    try:
-        del inp["FORCE_EVAL"]["SUBSYS"]["CELL"]  # remove just to be safety
-    except KeyError:
-        pass
-    cp2k_input = str(inp)
-
-    for line in cp2k_input.splitlines():
-        assert "&COORD" not in line
-        assert "&TOPOLOGY" not in line
-        assert "&CELL" not in line
-
-    # insert atomic positions
-    atoms_str = ""
+    coord = []
+    cell = {}
     for i in range(len(atoms)):
-        n = atoms.numbers[i]
-        pos = [str(c) for c in atoms.positions[i]]
-        atoms_str += str(chemical_symbols[n]) + " " + " ".join(pos) + "\n"
-    atoms_str += "\n"
-    for _i, line in enumerate(cp2k_input.splitlines()):
-        if tuple(line.split()) == ("&END", "SUBSYS"):  # insert before here
-            break
-    assert _i != len(cp2k_input.splitlines()) - 1
-    new_input = "\n".join(cp2k_input.splitlines()[:_i]) + "\n"
-    new_input += "&COORD\n" + atoms_str + "&END COORD\n"
-    new_input += "\n".join(cp2k_input.splitlines()[_i:])
-    cp2k_input = new_input
-
-    # insert box vectors
-    cell_str = ""
-    for index, name in [(0, "A"), (1, "B"), (2, "C")]:
-        vector = [str(c) for c in atoms.cell[index]]
-        cell_str += name + " " + " ".join(vector) + "\n"
-    cell_str += "\n"
-    for _i, line in enumerate(cp2k_input.splitlines()):
-        if tuple(line.split()) == ("&END", "SUBSYS"):  # insert before here
-            break
-    new_input = "\n".join(cp2k_input.splitlines()[:_i]) + "\n"
-    new_input += "&CELL\n" + cell_str + "&END CELL\n"
-    new_input += "\n".join(cp2k_input.splitlines()[_i:])
-    cp2k_input = new_input
-
-    return cp2k_input
+        coord.append(
+            "{} {} {} {}".format(
+                chemical_symbols[atoms.numbers[i]], *atoms.positions[i]
+            )
+        )
+    cp2k_input_dict["force_eval"]["subsys"]["coord"] = {"*": coord}
+    if atoms.pbc.any():
+        for i, vector in enumerate(["A", "B", "C"]):
+            cell[vector] = "{} {} {}".format(*atoms.cell[i])
+        #    cell.append('{} {} {} {}'.format(vector, *atoms.cell[i]))
+        cp2k_input_dict["force_eval"]["subsys"]["cell"] = cell
 
 
 @typeguard.typechecked
-def regularize_input(cp2k_input: str) -> str:
-    """Ensures forces and stress are printed; removes topology/cell info"""
-    from pymatgen.io.cp2k.inputs import Cp2kInput
+def set_global_section(cp2k_input_dict: dict, properties: tuple):
+    global_dict = {}
+    if properties == ("energy",):
+        global_dict["run_type"] = "ENERGY"
+    elif properties == ("energy", "forces"):
+        global_dict["run_type"] = "ENERGY_FORCE"
+    else:
+        raise ValueError("invalid properties: {}".format(properties))
 
-    inp = Cp2kInput.from_str(cp2k_input)
-    inp.update({"FORCE_EVAL": {"SUBSYS": {"CELL": {}}}})
-    inp.update({"FORCE_EVAL": {"SUBSYS": {"TOPOLOGY": {}}}})
-    inp.update({"FORCE_EVAL": {"SUBSYS": {"COORD": {}}}})
-    inp.update({"FORCE_EVAL": {"PRINT": {"FORCES": {}}}})
-    inp.update({"FORCE_EVAL": {"PRINT": {"STRESS_TENSOR": {}}}})
-    if "STRESS_TENSOR" not in inp["FORCE_EVAL"].subsections.keys():
-        logger.info("adding stress tensor calculation to cp2k input")
-        inp.update({"FORCE_EVAL": {"STRESS_TENSOR": "ANALYTICAL"}})
-    return str(inp)
+    global_dict["preferred_diag_library"] = "SL"
+    global_dict["fm"] = {"type_of_matrix_multiplication": "SCALAPACK"}
+    cp2k_input_dict["global"] = global_dict
 
 
-@typeguard.typechecked
-def set_global_section(cp2k_input: str) -> str:
-    from pymatgen.io.cp2k.inputs import Cp2kInput, Global
+def parse_cp2k_output(
+    cp2k_output_str: str, properties: tuple, atoms: FlowAtoms
+) -> FlowAtoms:
+    natoms = len(atoms)
+    all_lines = cp2k_output_str.split("\n")
 
-    inp = Cp2kInput.from_str(cp2k_input)
-    inp.subsections["GLOBAL"] = Global(project_name="cp2k_project")
-    inp.update({"GLOBAL": {"PREFERRED_DIAG_LIBRARY": "SL"}})
-    # remove useless keyword from pymatgen's default GLOBAL section
-    inp.subsections["GLOBAL"].keywords.pop("EXTENDED_FFT_LENGTHS")
-    return str(inp)
+    # read coordinates
+    lines = None
+    for i, line in enumerate(all_lines):
+        if line.strip().startswith("MODULE QUICKSTEP: ATOMIC COORDINATES IN ANGSTROM"):
+            skip = 3
+            lines = all_lines[i + skip : i + skip + natoms]
+    if lines is None:
+        atoms.reference_status = False
+        return atoms
+    assert len(lines) == natoms
+    positions = np.zeros((natoms, 3))
+    for j, line in enumerate(lines):
+        positions[j, :] = np.array([float(f) for f in line.split()[4:7]])
+    assert np.allclose(atoms.get_positions(), positions)
+
+    # try and read energy
+    energy = None
+    for line in all_lines:
+        if line.strip().startswith("ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]"):
+            energy = float(line.split()[-1]) * Ha
+    if energy is None:
+        atoms.reference_status = False
+        return atoms
+    atoms.reference_status = True
+    atoms.info["energy"] = energy
+    atoms.arrays.pop("forces", None)  # remove if present for some reason
+
+    # try and read forces if requested
+    if "forces" in properties:
+        lines = None
+        for i, line in enumerate(all_lines):
+            if line.strip().startswith("ATOMIC FORCES in [a.u.]"):
+                skip = 3
+                lines = all_lines[i + skip : i + skip + natoms]
+        if lines is None:
+            atoms.reference_status = False
+            return atoms
+        assert len(lines) == natoms
+        forces = np.zeros((natoms, 3))
+        for j, line in enumerate(lines):
+            forces[j, :] = np.array([float(f) for f in line.split()[3:6]])
+        forces *= Ha / Bohr
+        atoms.arrays["forces"] = forces
+    atoms.info.pop("stress", None)  # remove if present for some reason
+    return atoms
 
 
 # typeguarding not compatible with parsl WQEX for some reason
 def cp2k_singlepoint_pre(
     atoms: FlowAtoms,
-    cp2k_input: str,
+    cp2k_input_dict: dict,
+    properties: tuple,
     cp2k_command: str,
-    file_names: list[str],
     omp_num_threads: int,
     walltime: int = 0,
-    inputs: list = [],
     stdout: str = "",
     stderr: str = "",
-    parsl_resource_specification: Optional[dict] = None,
 ):
-    import tempfile
-
     from psiflow.reference._cp2k import (
+        dict_to_str,
         insert_atoms_in_input,
-        insert_filepaths_in_input,
         set_global_section,
     )
 
-    filepaths = {}  # cp2k cannot deal with long filenames; copy into local dir
-    for name, file in zip(file_names, inputs):
-        tmp = tempfile.NamedTemporaryFile(delete=False, mode="w+")
-        tmp.close()
-        shutil.copyfile(file.filepath, tmp.name)
-        filepaths[name] = tmp.name
-    cp2k_input = insert_filepaths_in_input(
-        cp2k_input,
-        filepaths,
-    )
-    # cp2k_input = regularize_input(cp2k_input) # before insert_atoms_in_input
-    cp2k_input = set_global_section(cp2k_input)
-    cp2k_input = insert_atoms_in_input(
-        cp2k_input,
-        atoms,
-    )
+    set_global_section(cp2k_input_dict, properties)
+    insert_atoms_in_input(cp2k_input_dict, atoms)
+    if "forces" in properties:
+        cp2k_input_dict["force_eval"]["print"] = {"FORCES": {}}
+    cp2k_input_str = dict_to_str(cp2k_input_dict)
+
     # see https://unix.stackexchange.com/questions/30091/fix-or-alternative-for-mktemp-in-os-x
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd = "cd $mytmpdir;"
-    command_write = 'echo "{}" > cp2k.inp;'.format(cp2k_input)
+    command_write = 'echo "{}" > cp2k.inp;'.format(cp2k_input_str)
     command_list = [
         command_tmp,
         command_cd,
@@ -227,32 +171,16 @@ def cp2k_singlepoint_pre(
 
 def cp2k_singlepoint_post(
     atoms: FlowAtoms,
+    properties: tuple,
     inputs: list[File] = [],
 ) -> FlowAtoms:
-    import numpy as np
-    from ase.units import Bohr, Hartree, Pascal
-    from pymatgen.io.cp2k.outputs import Cp2kOutput
+    from psiflow.reference._cp2k import parse_cp2k_output
 
     atoms.reference_stdout = inputs[0]
     atoms.reference_stderr = inputs[1]
-    try:
-        out = Cp2kOutput(inputs[0])
-        out.parse_energies()
-        out.parse_forces()
-        out.parse_stresses()
-        out.convergence()  # check SCF convergence
-        assert all(out.data["scf_converged"])
-        energy_ = out.data["total_energy"][0]  # already in eV
-        forces_ = np.array(out.data["forces"][0]) * (Hartree / Bohr)  # to eV/A
-        stress_ = np.array(out.data["stress_tensor"][0]) * (1e9 * Pascal)
-        stress_ *= -1.0  # cp2k uses opposite sign convention!
-        atoms.info["energy"] = energy_
-        atoms.info["stress"] = stress_
-        atoms.arrays["forces"] = forces_
-        atoms.reference_status = True
-    except Exception:
-        atoms.reference_status = False
-    return atoms
+    with open(atoms.reference_stdout, "r") as f:
+        cp2k_output_str = f.read()
+    return parse_cp2k_output(cp2k_output_str, properties, atoms)
 
 
 @typeguard.typechecked
@@ -267,15 +195,13 @@ class CP2KReference(BaseReference):
 
     """
 
-    required_files = ["basis_set", "potential", "dftd3"]
-
-    def __init__(self, cp2k_input: str):
-        self.cp2k_input = regularize_input(cp2k_input)
-        super().__init__()
+    def __init__(self, cp2k_input_str: str, **kwargs):
+        check_input(cp2k_input_str)
+        self.cp2k_input_str = cp2k_input_str
+        self.cp2k_input_dict = str_to_dict(cp2k_input_str)
+        super().__init__(**kwargs)
 
     def get_single_atom_references(self, element):
-        from pymatgen.io.cp2k.inputs import Cp2kInput
-
         number = atomic_numbers[element]
         references = []
         for mult in range(1, 16):
@@ -283,29 +209,35 @@ class CP2KReference(BaseReference):
                 continue  # not 2N + 1 is never even
             if mult - 1 > number:
                 continue  # max S = 2 * (N * 1/2) + 1
-            config = {"UKS": "TRUE", "MULTIPLICITY": mult}
-            inp = Cp2kInput.from_str(self.cp2k_input)
-            inp.update({"FORCE_EVAL": {"DFT": {"UKS": config["UKS"]}}})
-            inp.update(
-                {"FORCE_EVAL": {"DFT": {"CHARGE": 0}}}
-            )  # do not apply charge for formation energies
-            inp.update(
-                {"FORCE_EVAL": {"DFT": {"MULTIPLICITY": config["MULTIPLICITY"]}}}
-            )
-            inp.update(
-                {"FORCE_EVAL": {"DFT": {"XC": {"VDW_POTENTIAL": {}}}}}
-            )  # disable d3
-            inp.update(
-                {"FORCE_EVAL": {"DFT": {"SCF": {"OT": {"MINIMIZER": "CG"}}}}}
-            )  # use more robust CG
-            reference = self.__class__(str(inp))
-            reference.files = copy.deepcopy(self.files)
-            references.append((config, reference))
+            cp2k_input_dict = copy.deepcopy(self.cp2k_input_dict)
+            cp2k_input_dict["force_eval"]["dft"]["uks"] = "TRUE"
+            cp2k_input_dict["force_eval"]["dft"]["multiplicity"] = mult
+            cp2k_input_dict["force_eval"]["dft"]["charge"] = 0
+            cp2k_input_dict["force_eval"]["dft"]["xc"].pop("vdw_potential", None)
+            if "scf" in cp2k_input_dict["force_eval"]["dft"]:
+                if "ot" in cp2k_input_dict["force_eval"]["dft"]["scf"]:
+                    cp2k_input_dict["force_eval"]["dft"]["scf"]["ot"][
+                        "minimizer"
+                    ] = "CG"
+                else:
+                    cp2k_input_dict["force_eval"]["dft"]["scf"]["ot"] = {
+                        "minimizer": "CG"
+                    }
+            else:
+                cp2k_input_dict["force_eval"]["dft"]["scf"] = {
+                    "ot": {"minimizer": "CG"}
+                }
+
+            reference = CP2KReference(dict_to_str(cp2k_input_dict))
+            references.append((mult, reference))
         return references
 
     @property
     def parameters(self):
-        return {"cp2k_input": self.cp2k_input}
+        return {
+            "cp2k_input_dict": copy.deepcopy(self.cp2k_input_dict),
+            "properties": self.properties,
+        }
 
     @classmethod
     def create_apps(cls):
@@ -315,10 +247,6 @@ class CP2KReference(BaseReference):
         mpi_command = definition.mpi_command
         ncores = definition.cores_per_worker
         walltime = definition.max_walltime
-        if isinstance(get_active_executor(label), WorkQueueExecutor):
-            resource_specification = definition.generate_parsl_resource_specification()
-        else:
-            resource_specification = {}
 
         # parse full command
         omp_num_threads = 1
@@ -330,54 +258,35 @@ class CP2KReference(BaseReference):
         singlepoint_pre = bash_app(
             cp2k_singlepoint_pre,
             executors=[label],
-            cache=False,
         )
         singlepoint_post = python_app(
             cp2k_singlepoint_post,
             executors=["default_threads"],
-            cache=False,
         )
 
         @join_app
         def singlepoint_wrapped(
             atoms,
             parameters,
-            file_names,
-            inputs=[],
         ):
-            assert len(file_names) == len(inputs)
-            for name in cls.required_files:
-                assert name in file_names
             if atoms == NullState:
                 return copy_app_future(NullState)
             else:
                 pre = singlepoint_pre(
                     atoms,
-                    parameters["cp2k_input"],
+                    parameters["cp2k_input_dict"],
+                    parameters["properties"],
                     command,
-                    file_names,
                     omp_num_threads,
                     stdout=parsl.AUTO_LOGNAME,
                     stderr=parsl.AUTO_LOGNAME,
-                    walltime=60 * walltime,  # killed after walltime - 10s
-                    inputs=inputs,  # tmp Files
-                    parsl_resource_specification=resource_specification,
+                    walltime=60 * walltime,  # killed after walltime - 2s
                 )
                 return singlepoint_post(
                     atoms=atoms,
+                    properties=parameters["properties"],
                     inputs=[pre.stdout, pre.stderr, pre],  # wait for bash app
                 )
 
         context.register_app(cls, "evaluate_single", singlepoint_wrapped)
         super(CP2KReference, cls).create_apps()
-
-
-@typeguard.typechecked
-class HybridCP2KReference(CP2KReference):
-    required_files = [
-        "basis_set",
-        "basis_admm",
-        "potential",
-        "dftd3",
-        "tcg_data",
-    ]

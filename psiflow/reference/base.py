@@ -2,7 +2,6 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
 from copy import deepcopy
-from pathlib import Path
 from typing import Union
 
 import numpy as np
@@ -10,12 +9,11 @@ import typeguard
 from ase import Atoms
 from ase.data import atomic_numbers
 from parsl.app.app import join_app, python_app
-from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState, app_write_dataset, read_dataset
-from psiflow.utils import copy_app_future, resolve_and_check
+from psiflow.utils import copy_app_future
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -40,36 +38,23 @@ def get_minimum_energy(element, configs, *energies):
 
 @typeguard.typechecked
 class BaseReference:
-    required_files = []
-
-    def __init__(self) -> None:
-        self.files = {}
+    def __init__(self, properties: tuple = ("energy", "forces")) -> None:
+        self.properties = properties
         try:
             self.__class__.create_apps()
         except AssertionError:
             pass  # apps already created
 
-    def add_file(self, name: str, file: Union[Path, str, File]):
-        assert name in self.required_files
-        if not isinstance(file, File):
-            filepath = resolve_and_check(Path(file))
-            file = File(str(filepath))
-        self.files[name] = file
-
     def evaluate(
         self,
         arg: Union[Dataset, Atoms, FlowAtoms, AppFuture],
     ) -> Union[Dataset, AppFuture]:
-        for name in self.required_files:
-            assert name in self.files.keys()
-            assert Path(self.files[name].filepath).is_file()
         context = psiflow.context()
         if isinstance(arg, Dataset):
             data = context.apps(self.__class__, "evaluate_multiple")(
                 deepcopy(self.parameters),
                 arg.length(),
-                file_names=list(self.files.keys()),
-                inputs=[arg.data_future] + list(self.files.values()),
+                inputs=[arg.data_future],
                 outputs=[context.new_file("data_", ".xyz")],
             )
             # to ensure the correct dependencies, it is important that
@@ -82,8 +67,6 @@ class BaseReference:
             data = context.apps(self.__class__, "evaluate_single")(
                 arg,  # converts to FlowAtoms if necessary
                 deepcopy(self.parameters),
-                file_names=list(self.files.keys()),
-                inputs=list(self.files.values()),
             )
             retval = data
         return retval
@@ -124,12 +107,11 @@ class BaseReference:
         def evaluate_multiple(
             parameters,
             nstates,
-            file_names,
             inputs=[],
             outputs=[],
         ):
             assert len(outputs) == 1
-            assert len(inputs) == len(cls.required_files) + 1
+            assert len(inputs) == 1
             data = []
             for i in range(nstates):
                 state = read_dataset(i, inputs=[inputs[0]], outputs=[])
@@ -140,8 +122,6 @@ class BaseReference:
                         context.apps(cls, "evaluate_single")(
                             state,
                             parameters,
-                            file_names,
-                            inputs=inputs[1:],
                         )
                     )
             return app_write_dataset(

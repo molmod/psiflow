@@ -116,15 +116,7 @@ def check_walkers():
 def check_reference(mpi_command):
     import subprocess
 
-    report = "\tpymatgen:\t\t"
-    try:
-        import pymatgen  # noqa: F401
-
-        report += "OK"
-    except ModuleNotFoundError:
-        report += "module not found"
-    report += "\n"
-    report += "\tCP2K executable:\t"
+    report = "\tCP2K executable:\t"
     report += subprocess.run(
         ["which", "cp2k.psmp"], capture_output=True, text=True
     ).stdout

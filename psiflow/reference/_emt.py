@@ -15,7 +15,6 @@ from psiflow.reference.base import BaseReference
 def evaluate_emt(
     atoms: Union[Atoms, FlowAtoms],
     parameters: dict,
-    file_names,
     inputs: List = [],
     outputs: List = [],
 ) -> FlowAtoms:
@@ -23,7 +22,6 @@ def evaluate_emt(
 
     if type(atoms) is not FlowAtoms:
         atoms = FlowAtoms.from_atoms(atoms)
-    assert len(file_names) == 0
     try:
         atoms.calc = EMT()
         atoms.info["energy"] = atoms.get_potential_energy()

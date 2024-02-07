@@ -56,13 +56,6 @@ def serialize_atoms(atoms):
         atoms.get_pbc().tolist(),
     )
     return atoms_str
-    # atoms_dict = {
-    #    'symbols': atoms.get_chemical_symbols(),
-    #    'positions': atoms.get_positions().tolist(),  # Convert numpy array to list
-    #    'cell': atoms.get_cell().tolist(),
-    #    'pbc': atoms.get_pbc().tolist(),
-    # }
-    # return repr(atoms_dict)
 
 
 def deserialize_atoms(atoms_dict):
@@ -186,8 +179,6 @@ def pyscf_singlepoint_post(
 
 
 class PySCFReference(BaseReference):
-    required_files = []
-
     def __init__(self, routine, basis, spin):
         assert (
             "energy = " in routine
@@ -250,8 +241,7 @@ class PySCFReference(BaseReference):
         )
 
         @join_app
-        def singlepoint_wrapped(atoms, parameters, file_names, inputs=[]):
-            assert len(file_names) == 0
+        def singlepoint_wrapped(atoms, parameters):
             if atoms == NullState:
                 return copy_app_future(NullState)
             else:
