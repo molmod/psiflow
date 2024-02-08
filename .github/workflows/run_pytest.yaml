@@ -42,7 +42,7 @@ jobs:
           pip install git+https://github.com/mir-group/allegro --no-deps
           pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
           pip install pyscf
-          pip install 'psiflow[dev] @ git+https://github.com/molmod/psiflow.git'
+          pip install 'psiflow[parsl] @ git+https://github.com/molmod/psiflow.git'
           cd ${{ runner.temp }} && git clone https://github.com/molmod/psiflow
           cd psiflow
           which cp2k.psmp
@@ -85,7 +85,7 @@ jobs:
           pip install git+https://github.com/mir-group/allegro --no-deps
           pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
           pip install pyscf
-          pip install 'psiflow[dev] @ git+https://github.com/molmod/psiflow.git'
+          pip install 'psiflow[parsl] @ git+https://github.com/molmod/psiflow.git'
           cd ${{ runner.temp }} && git clone https://github.com/molmod/psiflow
           cd psiflow
           which cp2k.psmp
