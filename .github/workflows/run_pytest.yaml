@@ -47,7 +47,7 @@ jobs:
           cd psiflow
           which cp2k.psmp
           export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
-          export CP2K_DATA_DIR=ls $(dirname $(which python))/../share/cp2k/data
+          export CP2K_DATA_DIR=$(dirname $(which python))/../share/cp2k/data
           pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
         shell: micromamba-shell {0}
   test-py311:
@@ -91,6 +91,6 @@ jobs:
           cd psiflow
           which cp2k.psmp
           export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
-          export CP2K_DATA_DIR=ls $(dirname $(which python))/../share/cp2k/data
+          export CP2K_DATA_DIR=$(dirname $(which python))/../share/cp2k/data
           pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
         shell: micromamba-shell {0}
