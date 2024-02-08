@@ -19,12 +19,12 @@ from parsl.addresses import address_by_hostname
 from parsl.config import Config
 from parsl.data_provider.files import File
 from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
-from parsl.launchers.launchers import SimpleLauncher
+from parsl.launchers.launchers import SimpleLauncher, SrunLauncher
 from parsl.providers import *  # noqa: F403
 from parsl.providers.base import ExecutionProvider
 
 from psiflow.models import BaseModel
-from psiflow.parsl_utils import ContainerizedLauncher, MyWorkQueueExecutor
+from psiflow.parsl_utils import ContainerizedLauncher, ContainerizedSrunLauncher
 from psiflow.reference import BaseReference
 from psiflow.utils import resolve_and_check, set_logger
 
@@ -197,6 +197,7 @@ class ExecutionContextLoader:
     def parse_config(yaml_dict: dict):
         definitions = []
 
+        container_dict = yaml_dict.pop("container", None)
         for name in ["ModelEvaluation", "ModelTraining", "ReferenceEvaluation"]:
             if name in yaml_dict:
                 _dict = yaml_dict.pop(name)
@@ -223,25 +224,45 @@ class ExecutionContextLoader:
                 s = _dict["mpi_command"]
                 _dict["mpi_command"] = lambda x, s=s: s.format(x)
 
-            if "container" in yaml_dict:
-                assert not _dict["use_threadpool"]  # not possible with container
-                launcher = ContainerizedLauncher(
-                    **yaml_dict["container"], enable_gpu=_dict["gpu"]
-                )
-            else:
+            # set up containerized launcher if necessary
+            if ("container" not in _dict and container_dict is None) or _dict[
+                "use_threadpool"
+            ]:
                 launcher = SimpleLauncher()
+                _container_dict = None
+            else:
+                _container_dict = yaml_dict.pop("container", container_dict)
+                assert _container_dict is not None
+                launcher = ContainerizedLauncher(
+                    **_container_dict,
+                    enable_gpu=_dict["gpu"],
+                )
 
             # initialize provider
-            provider_dict = None
-            for key in _dict:
-                if "Provider" in key:
-                    assert provider_dict is None
-                    provider_dict = _dict[key]
-            if provider_dict is not None:
-                provider_cls = getattr(sys.modules[__name__], key)
-                provider = provider_cls(launcher=launcher, **_dict.pop(key))
-            else:
+            provider_keys = list(filter(lambda k: "Provider" in k, _dict.keys()))
+            if len(provider_keys) == 0:
                 provider = LocalProvider(launcher=launcher)  # noqa: F405
+            elif len(provider_keys) == 1:
+                provider_dict = _dict[provider_keys[0]]
+
+                # if provider requests multiple nodes, switch to (containerized) SrunLauncher
+                if (
+                    provider_dict.pop("nodes_per_block", 1) > 1
+                    and "container" in yaml_dict
+                ):
+                    assert (
+                        provider_keys[0] == "SlurmProvider"
+                    ), "multi-node blocks only supported for SLURM"
+                    if _container_dict is not None:
+                        launcher = ContainerizedSrunLauncher(
+                            **_container_dict, enable_gpu=_dict["gpu"]
+                        )
+                    else:
+                        launcher = SrunLauncher()
+                provider_cls = getattr(sys.modules[__name__], provider_keys[0])
+                provider = provider_cls(launcher=launcher, **provider_dict)
+            else:
+                raise ValueError("Can only have one provider per executor")
 
             # initialize definition
             definition_cls = getattr(sys.modules[__name__], name)
@@ -259,7 +280,6 @@ class ExecutionContextLoader:
             "default_threads": 1,
             "mode": "htex",
             "htex_address": address_by_hostname(),
-            "workqueue_use_coprocess": False,  # CP2K doesn't like this
         }
         forced = {
             "initialize_logging": False,  # manual; to move parsl.log one level up
@@ -319,18 +339,16 @@ ReferenceEvaluation:
                 path.iterdir()
             ), "internal directory {} should be empty".format(path)
         path.mkdir(parents=True, exist_ok=True)
-        set_logger(psiflow_config.pop("psiflow_log_level"))
         parsl.set_file_logger(
             str(path / "parsl.log"),
             "parsl",
             getattr(logging, psiflow_config.pop("parsl_log_level")),
-            # format_string="%(levelname)s - %(name)s - %(message)s",
         )
+        set_logger(psiflow_config.pop("psiflow_log_level"))
 
         # create main parsl executors
         executors = []
         mode = psiflow_config.pop("mode")
-        use_coprocess = psiflow_config.pop("workqueue_use_coprocess")
         htex_address = psiflow_config.pop("htex_address")
         for definition in definitions:
             if definition.use_threadpool:
@@ -362,61 +380,8 @@ ReferenceEvaluation:
                     provider=definition.parsl_provider,
                     cpu_affinity=definition.cpu_affinity,
                 )
-            elif mode == "workqueue":
-                worker_options = []
-                if hasattr(definition.parsl_provider, "cores_per_node"):
-                    worker_options.append(
-                        "--cores={}".format(definition.parsl_provider.cores_per_node),
-                    )
-                else:
-                    worker_options.append(
-                        "--cores={}".format(psutil.cpu_count(logical=False)),
-                    )
-                if hasattr(definition.parsl_provider, "walltime"):
-                    walltime_hhmmss = definition.parsl_provider.walltime.split(":")
-                    assert len(walltime_hhmmss) == 3
-                    walltime = 0
-                    walltime += 60 * float(walltime_hhmmss[0])
-                    walltime += float(walltime_hhmmss[1])
-                    walltime += 1  # whatever seconds are present
-                    walltime -= (
-                        5  # add 5 minutes of slack, e.g. for container downloading
-                    )
-                    worker_options.append("--wall-time={}".format(walltime * 60))
-                worker_options.append("--parent-death")
-                worker_options.append(
-                    "--timeout={}".format(psiflow_config["max_idletime"])
-                )
-                # manager_config = TaskVineManagerConfig(
-                #        shared_fs=True,
-                #        max_retries=1,
-                #        autocategory=False,
-                #        enable_peer_transfers=False,
-                #        port=0,
-                #        )
-                # factory_config = TaskVineFactoryConfig(
-                #        factory_timeout=20,
-                #        worker_options=' '.join(worker_options),
-                #        )
-                executor = MyWorkQueueExecutor(
-                    label=definition.name(),
-                    working_dir=str(path / definition.name()),
-                    provider=definition.parsl_provider,
-                    shared_fs=True,
-                    autocategory=False,
-                    port=0,
-                    max_retries=0,
-                    coprocess=use_coprocess,
-                    worker_options=" ".join(worker_options),
-                )
             else:
                 raise ValueError("Unknown mode {}".format(mode))
-                # executor = TaskVineExecutor(
-                #    label=definition.name(),
-                #    provider=definition.parsl_provider,
-                #    manager_config=manager_config,
-                #    factory_config=factory_config,
-                #    )
             executors.append(executor)
 
         # create default executors

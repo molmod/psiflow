@@ -4,15 +4,9 @@ from pathlib import Path
 from typing import Optional
 
 import typeguard
-from parsl.executors import WorkQueueExecutor
 from parsl.launchers.launchers import Launcher
 
 logger = logging.getLogger(__name__)
-
-
-class MyWorkQueueExecutor(WorkQueueExecutor):
-    def _get_launch_command(self, block_id):
-        return self.worker_command
 
 
 ADDOPTS = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs"
@@ -66,3 +60,38 @@ class ContainerizedLauncher(Launcher):
 
     def __call__(self, command: str, tasks_per_node: int, nodes_per_block: int) -> str:
         return self.launch_command + "{}".format(command)
+
+
+@typeguard.typechecked
+class ContainerizedSrunLauncher(ContainerizedLauncher):
+    def __init__(self, overrides: str = "", **kwargs):
+        self.overrides = overrides
+        super().__init__(**kwargs)
+
+    def __call__(self, command: str, tasks_per_node: int, nodes_per_block: int) -> str:
+        task_blocks = tasks_per_node * nodes_per_block
+        debug_num = int(self.debug)
+
+        x = """set -e
+export CORES=$SLURM_CPUS_ON_NODE
+export NODES=$SLURM_JOB_NUM_NODES
+
+[[ "{debug}" == "1" ]] && echo "Found cores : $CORES"
+[[ "{debug}" == "1" ]] && echo "Found nodes : $NODES"
+WORKERCOUNT={task_blocks}
+
+cat << SLURM_EOF > cmd_$SLURM_JOB_NAME.sh
+{command}
+SLURM_EOF
+chmod a+x cmd_$SLURM_JOB_NAME.sh
+
+srun --ntasks {task_blocks} -l {overrides} bash cmd_$SLURM_JOB_NAME.sh
+
+[[ "{debug}" == "1" ]] && echo "Done"
+""".format(
+            command=self.launch_command + "{}".format(command),
+            task_blocks=task_blocks,
+            overrides=self.overrides,
+            debug=debug_num,
+        )
+        return x
