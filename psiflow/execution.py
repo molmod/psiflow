@@ -243,7 +243,7 @@ class ExecutionContextLoader:
             if len(provider_keys) == 0:
                 provider = LocalProvider(launcher=launcher)  # noqa: F405
             elif len(provider_keys) == 1:
-                provider_dict = _dict[provider_keys[0]]
+                provider_dict = _dict.pop(provider_keys[0])
 
                 # if provider requests multiple nodes, switch to (containerized) SrunLauncher
                 if (
