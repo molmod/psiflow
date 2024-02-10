@@ -246,10 +246,7 @@ class ExecutionContextLoader:
                 provider_dict = _dict.pop(provider_keys[0])
 
                 # if provider requests multiple nodes, switch to (containerized) SrunLauncher
-                if (
-                    provider_dict.pop("nodes_per_block", 1) > 1
-                    and "container" in yaml_dict
-                ):
+                if provider_dict.pop("nodes_per_block", 1) > 1:
                     assert (
                         provider_keys[0] == "SlurmProvider"
                     ), "multi-node blocks only supported for SLURM"
