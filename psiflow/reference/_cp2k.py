@@ -45,6 +45,9 @@ def dict_to_str(cp2k_input_dict: dict) -> str:
 def insert_atoms_in_input(cp2k_input_dict: dict, atoms: FlowAtoms):
     from ase.data import chemical_symbols
 
+    # get rid of topology if it's there
+    cp2k_input_dict["force_eval"]["subsys"].pop("topology", None)
+
     coord = []
     cell = {}
     for i in range(len(atoms)):
@@ -54,11 +57,11 @@ def insert_atoms_in_input(cp2k_input_dict: dict, atoms: FlowAtoms):
             )
         )
     cp2k_input_dict["force_eval"]["subsys"]["coord"] = {"*": coord}
-    if atoms.pbc.any():
-        for i, vector in enumerate(["A", "B", "C"]):
-            cell[vector] = "{} {} {}".format(*atoms.cell[i])
-        #    cell.append('{} {} {} {}'.format(vector, *atoms.cell[i]))
-        cp2k_input_dict["force_eval"]["subsys"]["cell"] = cell
+
+    assert atoms.pbc.any()  # CP2K needs cell info!
+    for i, vector in enumerate(["A", "B", "C"]):
+        cell[vector] = "{} {} {}".format(*atoms.cell[i])
+    cp2k_input_dict["force_eval"]["subsys"]["cell"] = cell
 
 
 @typeguard.typechecked
