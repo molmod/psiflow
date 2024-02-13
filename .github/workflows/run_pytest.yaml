@@ -32,6 +32,7 @@ jobs:
           post-cleanup: 'all'
       - name: install pip dependencies and execute pytest
         run: |
+          pip install typeguard==2.13.3
           pip install cython==0.29.36 matscipy prettytable
           pip install git+https://github.com/molmod/molmod
           pip install git+https://github.com/molmod/yaff
@@ -76,6 +77,7 @@ jobs:
           post-cleanup: 'all'
       - name: install pip dependencies and execute pytest
         run: |
+          pip install typeguard==2.13.3
           pip install cython==0.29.36 matscipy prettytable
           pip install git+https://github.com/molmod/molmod
           pip install git+https://github.com/molmod/yaff
