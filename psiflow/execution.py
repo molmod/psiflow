@@ -383,8 +383,9 @@ ReferenceEvaluation:
             executors.append(executor)
 
         # create default executors
-        if "container" in psiflow_config:
-            launcher = ContainerizedLauncher(**psiflow_config.pop("container"))
+        container_dict = psiflow_config.get("container", None)
+        if container_dict is not None:
+            launcher = ContainerizedLauncher(**container_dict)
         else:
             launcher = SimpleLauncher()
         htex = HighThroughputExecutor(
