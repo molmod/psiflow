@@ -383,7 +383,7 @@ ReferenceEvaluation:
             executors.append(executor)
 
         # create default executors
-        container_dict = psiflow_config.get("container", None)
+        container_dict = psiflow_config.pop("container", None)
         if container_dict is not None:
             launcher = ContainerizedLauncher(**container_dict)
         else:
