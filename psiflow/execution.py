@@ -197,7 +197,7 @@ class ExecutionContextLoader:
     def parse_config(yaml_dict: dict):
         definitions = []
 
-        container_dict = yaml_dict.pop("container", None)
+        container_dict = yaml_dict.get("container", None)
         for name in ["ModelEvaluation", "ModelTraining", "ReferenceEvaluation"]:
             if name in yaml_dict:
                 _dict = yaml_dict.pop(name)
@@ -277,6 +277,7 @@ class ExecutionContextLoader:
             "default_threads": 1,
             "mode": "htex",
             "htex_address": address_by_hostname(),
+            "container": None,
         }
         forced = {
             "initialize_logging": False,  # manual; to move parsl.log one level up
