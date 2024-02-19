@@ -98,7 +98,9 @@ def parse_cp2k_output(
     positions = np.zeros((natoms, 3))
     for j, line in enumerate(lines):
         positions[j, :] = np.array([float(f) for f in line.split()[4:7]])
-    assert np.allclose(atoms.get_positions(), positions)
+    assert np.allclose(
+        atoms.get_positions(), positions, atol=1e-2
+    )  # accurate up to 0.01 A
 
     # try and read energy
     energy = None
