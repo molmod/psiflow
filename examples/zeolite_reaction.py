@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import requests
 from ase.io import read
 
 import psiflow
@@ -28,35 +27,9 @@ METAD ARG=CV SIGMA=0.2 HEIGHT=5 PACE=100
 
 
 def get_reference():
-    """Defines a generic PBE-D3/TZVP reference level of theory
-
-    Basis set, pseudopotentials, and D3 correction parameters are obtained from
-    the official CP2K repository, v2023.1, and saved in the internal directory of
-    psiflow. The input file is assumed to be available locally.
-
-    """
     with open(Path.cwd() / "data" / "cp2k_input.txt", "r") as f:
         cp2k_input = f.read()
-    reference = CP2KReference(cp2k_input=cp2k_input)
-    basis = requests.get(
-        "https://raw.githubusercontent.com/cp2k/cp2k/v2023.1/data/BASIS_MOLOPT_UZH"
-    ).text
-    dftd3 = requests.get(
-        "https://raw.githubusercontent.com/cp2k/cp2k/v2023.1/data/dftd3.dat"
-    ).text
-    potential = requests.get(
-        "https://raw.githubusercontent.com/cp2k/cp2k/v2023.1/data/POTENTIAL_UZH"
-    ).text
-    cp2k_data = {
-        "basis_set": basis,
-        "potential": potential,
-        "dftd3": dftd3,
-    }
-    for key, value in cp2k_data.items():
-        with open(psiflow.context().path / key, "w") as f:
-            f.write(value)
-        reference.add_file(key, psiflow.context().path / key)
-    return reference
+    return CP2KReference(cp2k_input=cp2k_input)
 
 
 def main(path_output):
