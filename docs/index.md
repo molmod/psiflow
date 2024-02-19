@@ -615,7 +615,7 @@ Its main functionality is provided by its
 `evaluate` method, which accepts both a `Dataset` as well as a (future of a)
 single `FlowAtoms` instance, and performs the single-point calculations.
 Depending on which argument it receives, it returns either a future or a `Dataset`
-which contain the QM energy, forces, and stress. 
+which contain the QM energy, forces, and/or stress. 
 
 ```py
 _, trajectory = walker.propagate(model=model, keep_trajectory=True)    # trajectory of states
@@ -651,9 +651,12 @@ energy_H.result()   # about -13.7 eV
 The `CP2KReference` expects a traditional CP2K
 [input file](https://github.com/molmod/psiflow/blob/main/examples/data/cp2k_input.txt)
 (again represented as a multi-line string in Python, just like the PLUMED input);
-it should only contain the FORCE_EVAL section.
-Additional input files which define the basis sets, pseudopotentials, and
-dispersion correction parameters have to be added to the calculator after initialization.
+it should only contain the `FORCE_EVAL` section, and any `TOPOLOGY` or `CELL` information
+will be automatically removed since this information may change from structure to structure
+and is automatically taken care of by psiflow internally.
+Do not use absolute filepaths to refer to basis set or pseudopotential input files.
+Instead, you can simply use the corresponding filenames as they appear within the
+[CP2K data directory](https://github.com/cp2k/cp2k/tree/master/data).
 ```py
 from psiflow.reference import CP2KReference
 
@@ -661,14 +664,22 @@ from psiflow.reference import CP2KReference
 cp2k_input = with file('cp2k_input.txt', 'r') as f: f.read()
 reference  = CP2KReference(cp2k_input)
 
-# register additional input files with the following mapping
-# if the corresponding keyword in the CP2K input file is X, use Y as key here:
-# X: BASIS_SET_FILE_NAME    ->   Y: basis_set
-# X: POTENTIAL_FILE_NAME    ->   Y: potential
-# X: PARAMETER_FILE_NAME    ->   Y: dftd3
-reference.add_file('basis_set', 'BASIS_MOLOPT_UZH')
-reference.add_file('potential', 'POTENTIAL_UZH')
-reference.add_file('dftd3', 'dftd3.dat')
+```
+
+Sometimes, you may wish to perform energy-only evaluations. For example, in some implementations
+of post-HF methods such as MP2 or RPA, evaluation of the forces can become much more expensive
+and is generally not efficient.
+In those cases, it is possible to perform energy-only evaluations of atomic structures, provided
+that you have expressed to psiflow that it should not try to parse any forces from the output file.
+This is done by providing a `properties` argument during initialization of the `Reference` instance.
+
+```py
+reference_Eonly = CP2KReference(cp2k_input, properties=('energy',))
+reference_Ef    = CP2KReference(cp2k_input, properties=('energy', 'forces'))
+
+state = reference_Eonly.evaluate(atoms)     # only contains the potential energy; not the forces
+state = reference_Ef.evaluate(atoms)        # contains both energy and forces (default behavior)
+
 ```
 
 ### PySCF
@@ -695,25 +706,3 @@ basis = 'cc-pvtz'
 spin = 0
 reference = PySCFReference(routine, basis, spin)
 ```
-
-### NWChem (deprecated)
-For nonperiodic systems, psiflow provides an interface with [NWChem](https://nwchemgit.github.io/Home.html),
-which implements a plethora of DFT and post-HF methods for both periodic and nonperiodic systems.
-The `NWChemReference` class essentially wraps around the ASE calculator, and is similarly easy to use:
-```py
-calculator_kwargs = {
-        'basis': {e: '3-21g' for e in ['H', 'C', 'O', 'N']},
-        'dft': {
-            'xc': 'pw91lda',
-            'mult': 1,
-            'convergence': {
-                'energy': 1e-6,
-                'density': 1e-6,
-                'gradient': 1e-6,
-                },
-            },
-        }
-reference = NWChemReference(**calculator_kwargs)
-
-```
-

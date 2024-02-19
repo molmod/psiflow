@@ -8,22 +8,20 @@ the main dependencies according to how they are used in psiflow:
 
 | category              | name      | version   | uses GPU          | uses MPI  |
 | --------------------  | --------  | -------   | :---------------: | :--------:  |
-| **QM evaluation**         | CP2K      | 2023.1    |  | :material-check: |
-|                       | NWChem    | 7.2       |  | :material-check: |
-|                       | PySCF     | 2.4       |  | |
+| **QM evaluation**         | CP2K      | >= 2023.1    |  | :material-check: |
+|                       | PySCF     | >=2.4       |  | |
 | **trainable potentials**  | MACE      | 0.2.0     | :material-check:  |
 |                       | NequIP    | 0.5.6     | :material-check:  |
 |                       | Allegro   | 0.2.0     | :material-check:  |
 | **molecular dynamics**| OpenMM    | 8.0       | :material-check:  |
 |                       | PLUMED    | 2.9.0     |  |
 |                       | YAFF      | 1.6.0     |  |
-| **miscellaneous**     | Parsl     | 2023.10.23 |  |
+| **miscellaneous**     | Parsl     | 2024.02.12 |  |
 |                       | e3nn      | 0.4.4     | :material-check:  |
 |                       | PyTorch   | 1.13.1    | :material-check:  |
-|                       | ASE       | 3.22.1    |  |
-|                       | Pymatgen  | 2023.11.12 |  |
+|                       | ASE       | >=3.22.1    |  |
 |                       | wandb     | 0.15.8    |  |
-|                       | Python    | 3.9       |  |
+|                       | Python    | 3.10, 3.11       |  |
 
 </center>
 
@@ -48,7 +46,7 @@ Python environment requires barely anything, and is straightforward to install
 using `micromamba` -- a blazingly fast drop-in replacement for `conda`:
 
 ```console
-micromamba create -n psiflow_env -c conda-forge -y python=3.9
+micromamba create -n psiflow_env -c conda-forge -y python=3.10
 micromamba activate psiflow_env
 pip install parsl==2023.10.23 git+https://github.com/molmod/psiflow
 ```
@@ -117,7 +115,7 @@ While this is not really necessary in the vast majority of cases, we mention for
 the following manual setup using `micromamba`:
 ```console
 CONDA_OVERRIDE_CUDA="11.8" micromamba create -p ./psiflow_env -y -c conda-forge \
-    python=3.9 pip ndcctools=7.6.1 \
+    python=3.10 pip \
     openmm-plumed openmm-torch pytorch=1.13.1=cuda* \
     nwchem py-plumed cp2k && \
     micromamba clean -af --yes
@@ -130,6 +128,6 @@ pip install git+https://github.com/acesuit/MACE.git@55f7411 && \
     pip install git+https://github.com/mir-group/nequip.git@develop --no-deps && \
     pip install git+https://github.com/mir-group/allegro --no-deps && \
     pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
-pip install git+https://github.com/molmod/psiflow
+pip install 'psiflow[parsl] @ git+https://github.com/molmod/psiflow'
 ```
 This is mostly a copy-paste from psiflow's [Dockerfiles](https://github.com/molmod/psiflow/blob/main/container).
