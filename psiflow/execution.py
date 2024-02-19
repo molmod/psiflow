@@ -1,15 +1,13 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import copy
 import logging
 import math
 import shutil
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 # see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
-from typing import Any, Callable, Optional, Type, Union
+from typing import Any, Optional, Union
 
 import parsl
 import psutil
@@ -19,29 +17,34 @@ from parsl.addresses import address_by_hostname
 from parsl.config import Config
 from parsl.data_provider.files import File
 from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
+from parsl.executors.base import ParslExecutor
 from parsl.launchers.launchers import SimpleLauncher, SrunLauncher
 from parsl.providers import *  # noqa: F403
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.models import BaseModel
 from psiflow.parsl_utils import ContainerizedLauncher, ContainerizedSrunLauncher
-from psiflow.reference import BaseReference
 from psiflow.utils import resolve_and_check, set_logger
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
-@dataclass
 class ExecutionDefinition:
-    parsl_provider: ExecutionProvider
-    gpu: bool = False
-    cores_per_worker: int = 1
-    max_walltime: Optional[float] = None
-    use_threadpool: bool = False
-    cpu_affinity: str = "block"
+    def __init__(
+        self,
+        parsl_provider: ExecutionProvider,
+        gpu: bool = False,
+        cores_per_worker: int = 1,
+        use_threadpool: bool = False,
+        cpu_affinity: str = "block",
+        max_walltime: Optional[float] = None,
+    ) -> None:
+        self.parsl_provider = parsl_provider
+        self.gpu = gpu
+        self.cores_per_worker = cores_per_worker
+        self.use_threadpool = use_threadpool
+        self.cpu_affinity = cpu_affinity
 
-    def __post_init__(self):
         if hasattr(self.parsl_provider, "walltime"):
             walltime_hhmmss = self.parsl_provider.walltime.split(":")
             assert len(walltime_hhmmss) == 3
@@ -61,50 +64,120 @@ class ExecutionDefinition:
         elif self.max_walltime is None:
             self.max_walltime = 1e9
 
-    def generate_parsl_resource_specification(self):
-        resource_specification = {}
-        resource_specification["cores"] = self.cores_per_worker
-        # add random disk and mem usage because this is somehow required
-        resource_specification["disk"] = 1000
-        memory = 2000 * self.cores_per_worker
-        resource_specification["memory"] = int(memory)
-        if self.max_walltime is not None:
-            resource_specification["running_time_min"] = self.max_walltime
-        return resource_specification
-
     def name(self):
         return self.__class__.__name__
 
+    def create_executor(
+        self, path: Path, htex_address: Optional[str] = None, **kwargs
+    ) -> ParslExecutor:
+        if self.use_threadpool:
+            executor = ThreadPoolExecutor(
+                max_threads=self.cores_per_worker,
+                working_dir=str(path),
+                label=self.name(),
+            )
+        else:
+            if type(self.parsl_provider) is LocalProvider:  # noqa: F405
+                cores_available = psutil.cpu_count(logical=False)
+                max_workers = max(
+                    1, math.floor(cores_available / self.cores_per_worker)
+                )
+            else:
+                max_workers = float("inf")
+            if self.cores_per_worker == 1:  # anticipate parsl assertion
+                self.cpu_affinity = "none"
+                logger.info(
+                    'setting cpu_affinity of definition "{}" to none '
+                    "because cores_per_worker=1".format(self.name())
+                )
+            executor = HighThroughputExecutor(
+                address=htex_address,
+                label=self.name(),
+                working_dir=str(path / self.name()),
+                cores_per_worker=self.cores_per_worker,
+                max_workers=max_workers,
+                provider=self.parsl_provider,
+                cpu_affinity=self.cpu_affinity,
+                **kwargs,
+            )
+            return executor
+
+    @classmethod
+    def from_config(
+        cls,
+        config_dict: dict,
+        container: Optional[dict] = None,
+    ):
+        if "container" in config_dict:
+            container = config_dict.pop("container")  # only used once
+
+        # search for any section in the config which defines the Parsl ExecutionProvider
+        # if none are found, default to LocalProvider
+        provider_keys = list(filter(lambda k: "Provider" in k, config_dict.keys()))
+        if len(provider_keys) == 0:
+            provider_cls = LocalProvider  # noqa: F405
+            provider_dict = {}
+        elif len(provider_keys) == 1:
+            provider_cls = getattr(sys.modules[__name__], provider_keys[0])
+            provider_dict = config_dict.pop(provider_keys[0])
+
+        # if multi-node blocks are requested, make sure we're using SlurmProvider
+        if provider_dict.get("nodes_per_block", 1) > 1:
+            assert (
+                provider_keys[0] == "SlurmProvider"
+            ), "multi-node blocks only supported for SLURM"
+            if container is not None:
+                launcher = ContainerizedSrunLauncher(
+                    **container,
+                    enable_gpu=config_dict.get("gpu", False),
+                )
+            else:
+                launcher = SrunLauncher()
+        else:
+            launcher = SimpleLauncher()
+
+        # initialize provider
+        parsl_provider = provider_cls(launcher=launcher, **provider_dict)
+        return cls(parsl_provider=parsl_provider, **config_dict)
+
 
 @typeguard.typechecked
-@dataclass
 class ModelEvaluation(ExecutionDefinition):
-    simulation_engine: str = "openmm"
-
-    def __post_init__(self) -> None:  # validate config
-        super().__post_init__()
-        assert self.simulation_engine in ["openmm", "yaff"]
+    def __init__(self, simulation_engine: str = "openmm", **kwargs) -> None:
+        super().__init__(**kwargs)
+        assert simulation_engine in ["openmm", "yaff"]
+        self.simulation_engine = simulation_engine
 
 
 @typeguard.typechecked
-@dataclass
 class ModelTraining(ExecutionDefinition):
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        assert self.gpu
+    def __init__(self, gpu=True, **kwargs) -> None:
+        super().__init__(gpu=gpu, **kwargs)
 
 
 @typeguard.typechecked
-@dataclass
 class ReferenceEvaluation(ExecutionDefinition):
-    mpi_command: Callable = (
-        lambda x: f"mpirun -np {x} -bind-to core -rmk user -launcher fork"
-    )
-    reference_calculator: Optional[Type[BaseReference]] = None
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        mpi_command: Optional[str] = None,
+        cpu_affinity: str = "none",  # better default for cp2k
+        **kwargs,
+    ) -> None:
+        super().__init__(cpu_affinity=cpu_affinity, **kwargs)
+        if mpi_command is None:  # parse
+            ranks = self.cores_per_worker  # use nprocs = ncores, nthreads = 1
+            mpi_command = "mpirun -np {} -bind-to core -rmk user -launcher fork".format(
+                ranks
+            )
+        self.mpi_command = mpi_command
+        self.name = (
+            name  # if not None, the name of the reference class, e.g. `CP2KReference`
+        )
 
     def name(self):
-        if self.reference_calculator is not None:
-            return self.reference_calculator.__name__
+        if self.name is not None:
+            return self.name
         else:
             return super().name()
 
@@ -131,47 +204,12 @@ class ExecutionContext:
         path: Union[Path, str],
     ) -> None:
         self.config = config
-        self.definitions = definitions
         self.path = Path(path).resolve()
         self.path.mkdir(parents=True, exist_ok=True)
-        self._apps = {}
+        self.definitions = {d.name(): d for d in definitions}
+        assert len(self.definitions) == len(definitions)
         self.file_index = {}
         parsl.load(config)
-
-    def __getitem__(self, Class):
-        if issubclass(Class, BaseReference):
-            for definition in self.definitions:
-                if isinstance(definition, ReferenceEvaluation):
-                    if definition.reference_calculator == Class:
-                        return definition
-            for definition in self.definitions:
-                if isinstance(definition, ReferenceEvaluation):
-                    if definition.reference_calculator is None:
-                        return definition
-        if issubclass(Class, BaseModel):
-            for evaluation in self.definitions:
-                if isinstance(evaluation, ModelEvaluation):
-                    for training in self.definitions:
-                        if isinstance(training, ModelTraining):
-                            return evaluation, training
-        raise ValueError(
-            "no available execution definition for {}".format(Class.__name__)
-        )
-
-    def apps(self, Class, app_name: str) -> Callable:
-        assert app_name in self._apps[Class].keys()
-        return self._apps[Class][app_name]
-
-    def register_app(
-        self,
-        Class,
-        app_name: str,
-        app: Callable,
-    ) -> None:
-        if Class not in self._apps.keys():
-            self._apps[Class] = {}
-        assert app_name not in self._apps[Class].keys()
-        self._apps[Class][app_name] = app
 
     def new_file(self, prefix: str, suffix: str) -> File:
         assert prefix[-1] == "_"
@@ -185,136 +223,138 @@ class ExecutionContext:
         self.file_index[key] += 1
         return File(str(self.path / (prefix + identifier + suffix)))
 
-    @property
-    def executor_labels(self):
-        return list(self.executors.keys())
+    @classmethod
+    def from_config(
+        cls,
+        path: Optional[str] = None,
+        parsl_log_level: str = "INFO",
+        psiflow_log_level: str = "INFO",
+        usage_tracking: bool = True,
+        retries: int = 2,
+        strategy: str = "simple",
+        max_idletime: float = 20,
+        internal_tasks_max_threads: int = 10,
+        default_threads: int = 1,
+        htex_address: Optional[str] = None,
+        container: Optional[dict] = None,
+        **kwargs: dict,
+    ) -> ExecutionContext:
+        if path is None:
+            path = Path.cwd().resolve() / "psiflow_internal"
+        resolve_and_check(path)
+        if path.exists():
+            assert not any(
+                path.iterdir()
+            ), "internal directory {} should be empty".format(path)
+        path.mkdir(parents=True, exist_ok=True)
+        parsl.set_file_logger(
+            str(path / "parsl.log"),
+            "parsl",
+            getattr(logging, parsl_log_level),
+        )
+        set_logger(psiflow_log_level)
+
+        # create definitions
+        model_evaluation = ModelEvaluation.from_config(
+            config_dict=kwargs.pop("ModelEvaluation", {}),
+            container=container,
+        )
+        model_training = ModelTraining.from_config(
+            config_dict=kwargs.pop("ModelTraining", {}),
+            container=container,
+        )
+        reference_evaluations = []  # reference evaluations might be class specific
+        for key in kwargs.keys():
+            if key.endswith("ReferenceEvaluation"):
+                config_dict = kwargs.pop(key)
+                config_dict["name"] = key
+                reference_evaluation = ReferenceEvaluation.from_config(
+                    config_dict=config_dict,
+                    container=container,
+                )
+                reference_evaluations.append(reference_evaluation)
+        if len(reference_evaluations) == 0:
+            reference_evaluation = ReferenceEvaluation.from_config(
+                config_dict={},
+                container=container,
+            )
+            reference_evaluations.append(reference_evaluation)
+        definitions = [model_evaluation, model_training, *reference_evaluations]
+
+        # create main parsl executors
+        if htex_address is None:
+            htex_address = address_by_hostname()
+        executors = [
+            d.create_executor(path=path, htex_address=htex_address) for d in definitions
+        ]
+
+        # create default executors
+        if container is not None:
+            launcher = ContainerizedLauncher(**container)
+        else:
+            launcher = SimpleLauncher()
+        htex = HighThroughputExecutor(
+            label="default_htex",
+            address=htex_address,
+            working_dir=str(path / "default_htex"),
+            cores_per_worker=1,
+            max_workers=1,
+            provider=LocalProvider(launcher=launcher),  # noqa: F405
+        )
+        executors.append(htex)
+        threadpool = ThreadPoolExecutor(
+            label="default_threads",
+            max_threads=default_threads,
+            working_dir=str(path),
+        )
+        executors.append(threadpool)
+
+        # remove additional kwargs
+        config = Config(
+            executors=executors,
+            run_dir=str(path),
+            initialize_logging=False,
+            app_cache=False,
+            usage_tracking=usage_tracking,
+            retries=retries,
+            strategy=strategy,
+            max_idletime=max_idletime,
+            internal_tasks_max_threads=internal_tasks_max_threads,
+        )
+        return ExecutionContext(config, definitions, path / "context_dir")
 
 
 class ExecutionContextLoader:
     _context: Optional[ExecutionContext] = None
 
-    @staticmethod
-    def parse_config(yaml_dict: dict):
-        definitions = []
-
-        container_dict = yaml_dict.get("container", None)
-        for name in ["ModelEvaluation", "ModelTraining", "ReferenceEvaluation"]:
-            if name in yaml_dict:
-                _dict = yaml_dict.pop(name)
-                if type(_dict) is not dict:
-                    raise NotImplementedError(
-                        "multiple execution definitions per "
-                        "category are not yet supported"
-                    )
-            else:
-                _dict = {}
-
-            # set necessary defaults (somewhat duplicate w.r.t. execution definitions)
-            defaults = {
-                "gpu": False,
-                "use_threadpool": False,
-                "cores_per_worker": 1,
-                "max_walltime": None,
-                "cpu_affinity": "block",
-            }
-            _dict = dict(defaults, **_dict)
-
-            # if mpi_command is in there, replace it with a lambda
-            if "mpi_command" in _dict:
-                s = _dict["mpi_command"]
-                _dict["mpi_command"] = lambda x, s=s: s.format(x)
-
-            # set up containerized launcher if necessary
-            if ("container" not in _dict and container_dict is None) or _dict[
-                "use_threadpool"
-            ]:
-                launcher = SimpleLauncher()
-                _container_dict = None
-            else:
-                _container_dict = _dict.pop("container", container_dict)
-                assert _container_dict is not None
-                launcher = ContainerizedLauncher(
-                    **_container_dict,
-                    enable_gpu=_dict["gpu"],
-                )
-
-            # initialize provider
-            provider_keys = list(filter(lambda k: "Provider" in k, _dict.keys()))
-            if len(provider_keys) == 0:
-                provider = LocalProvider(launcher=launcher)  # noqa: F405
-            elif len(provider_keys) == 1:
-                provider_dict = _dict.pop(provider_keys[0])
-
-                # if provider requests multiple nodes, switch to (containerized) SrunLauncher
-                if provider_dict.get("nodes_per_block", 1) > 1:
-                    assert (
-                        provider_keys[0] == "SlurmProvider"
-                    ), "multi-node blocks only supported for SLURM"
-                    if _container_dict is not None:
-                        launcher = ContainerizedSrunLauncher(
-                            **_container_dict, enable_gpu=_dict["gpu"]
-                        )
-                    else:
-                        launcher = SrunLauncher()
-                provider_cls = getattr(sys.modules[__name__], provider_keys[0])
-                provider = provider_cls(launcher=launcher, **provider_dict)
-            else:
-                raise ValueError("Can only have one provider per executor")
-
-            # initialize definition
-            definition_cls = getattr(sys.modules[__name__], name)
-            definitions.append(definition_cls(parsl_provider=provider, **_dict))
-
-        # define default values
-        defaults = {
-            "psiflow_internal": str(Path.cwd().resolve() / "psiflow_internal"),
-            "parsl_log_level": "INFO",
-            "psiflow_log_level": "INFO",
-            "usage_tracking": True,
-            "retries": 2,
-            "strategy": "simple",
-            "max_idletime": 20,
-            "default_threads": 1,
-            "mode": "htex",
-            "htex_address": address_by_hostname(),
-            "container": None,
-        }
-        forced = {
-            "initialize_logging": False,  # manual; to move parsl.log one level up
-            "app_cache": False,  # disabled; has introduced bugs in the past
-        }
-        psiflow_config = dict(defaults, **yaml_dict)
-        psiflow_config.update(forced)
-        return psiflow_config, definitions
-
     @classmethod
     def load(
         cls,
         psiflow_config: Optional[dict[str, Any]] = None,
-        definitions: Optional[list[ExecutionDefinition]] = None,
     ) -> ExecutionContext:
         if cls._context is not None:
             raise RuntimeError("ExecutionContext has already been loaded")
         if psiflow_config is None:  # assume yaml is passed as argument
-            if len(sys.argv) == 1:  # no config passed, use default:
-                yaml_dict_str = """
----
-ModelEvaluation:
-  max_walltime: 1000000
-  simulation_engine: 'openmm'
-  gpu: false
-  use_threadpool: true
-ModelTraining:
-  max_walltime: 1000000
-  gpu: true
-  use_threadpool: true
-ReferenceEvaluation:
-  max_walltime: 1000000
-  mpi_command: 'mpirun -np {}'
-  use_threadpool: true
-...
-                """
-                yaml_dict = yaml.safe_load(yaml_dict_str)
+            if len(sys.argv) == 1:  # no config passed, use threadpools:
+                yaml_dict = {
+                    "ModelEvaluation": {
+                        "max_walltime": 1e9,
+                        "simulation_engine": "openmm",
+                        "gpu": False,
+                        "use_threadpool": True,
+                    },
+                    "ModelTraining": {
+                        "max_walltime": 1e9,
+                        "gpu": True,
+                        "use_threadpool": True,
+                    },
+                    "ReferenceEvaluation": {
+                        "max_walltime": 1e9,
+                        "mpi_command": "mpirun -np 1",
+                        "use_threadpool": True,
+                    },
+                }
+                yaml_dict = {}
                 path_internal = Path.cwd() / ".psiflow_internal"
                 if path_internal.exists():
                     shutil.rmtree(path_internal)
@@ -329,90 +369,7 @@ ReferenceEvaluation:
                 )
                 with open(path_config, "r") as f:
                     yaml_dict = yaml.safe_load(f)
-            psiflow_config, definitions = cls.parse_config(yaml_dict)
-        psiflow_config = copy.deepcopy(psiflow_config)  # modified in place
-        path = resolve_and_check(Path(psiflow_config.pop("psiflow_internal")))
-        if path.exists():
-            assert not any(
-                path.iterdir()
-            ), "internal directory {} should be empty".format(path)
-        path.mkdir(parents=True, exist_ok=True)
-        parsl.set_file_logger(
-            str(path / "parsl.log"),
-            "parsl",
-            getattr(logging, psiflow_config.pop("parsl_log_level")),
-        )
-        set_logger(psiflow_config.pop("psiflow_log_level"))
-
-        # create main parsl executors
-        executors = []
-        mode = psiflow_config.pop("mode")
-        htex_address = psiflow_config.pop("htex_address")
-        for definition in definitions:
-            if definition.use_threadpool:
-                executor = ThreadPoolExecutor(
-                    max_threads=definition.cores_per_worker,
-                    working_dir=str(path),
-                    label=definition.name(),
-                )
-            elif mode == "htex":
-                if type(definition.parsl_provider) is LocalProvider:  # noqa: F405
-                    cores_available = psutil.cpu_count(logical=False)
-                    max_workers = max(
-                        1, math.floor(cores_available / definition.cores_per_worker)
-                    )
-                else:
-                    max_workers = float("inf")
-                if definition.cores_per_worker == 1:  # anticipate parsl assertion
-                    definition.cpu_affinity = "none"
-                    logger.info(
-                        'setting cpu_affinity of definition "{}" to none '
-                        "because cores_per_worker=1".format(definition.name())
-                    )
-                executor = HighThroughputExecutor(
-                    address=htex_address,
-                    label=definition.name(),
-                    working_dir=str(path / definition.name()),
-                    cores_per_worker=definition.cores_per_worker,
-                    max_workers=max_workers,
-                    provider=definition.parsl_provider,
-                    cpu_affinity=definition.cpu_affinity,
-                )
-            else:
-                raise ValueError("Unknown mode {}".format(mode))
-            executors.append(executor)
-
-        # create default executors
-        container_dict = psiflow_config.pop("container", None)
-        if container_dict is not None:
-            launcher = ContainerizedLauncher(**container_dict)
-        else:
-            launcher = SimpleLauncher()
-        htex = HighThroughputExecutor(
-            label="default_htex",
-            address=htex_address,
-            working_dir=str(path / "default_htex"),
-            cores_per_worker=1,
-            max_workers=1,
-            provider=LocalProvider(launcher=launcher),  # noqa: F405
-        )
-        executors.append(htex)
-        threadpool = ThreadPoolExecutor(
-            label="default_threads",
-            max_threads=psiflow_config.pop("default_threads"),
-            working_dir=str(path),
-        )
-        executors.append(threadpool)
-
-        # remove additional kwargs
-        config = Config(
-            executors=executors,
-            run_dir=str(path),
-            **psiflow_config,
-        )
-        path_context = path / "context_dir"
-        cls._context = ExecutionContext(config, definitions, path_context)
-        return cls._context
+        cls._context = ExecutionContext.from_config(yaml_dict)
 
     @classmethod
     def context(cls):
@@ -423,11 +380,3 @@ ReferenceEvaluation:
     @classmethod
     def wait(cls):
         parsl.wait_for_current_tasks()
-
-
-def load_from_yaml(path: Union[str, Path]) -> ExecutionContext:
-    assert ExecutionContextLoader._context is None  # no previously loaded context
-    with open(path, "r") as f:
-        config_dict = yaml.safe_load(f)
-    psiflow_config, definitions = ExecutionContextLoader.parse_config(config_dict)
-    return ExecutionContextLoader.load(psiflow_config, definitions)
