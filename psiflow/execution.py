@@ -231,7 +231,7 @@ class ExecutionContextLoader:
                 launcher = SimpleLauncher()
                 _container_dict = None
             else:
-                _container_dict = _dict.pop("container", None)
+                _container_dict = _dict.pop("container", container_dict)
                 assert _container_dict is not None
                 launcher = ContainerizedLauncher(
                     **_container_dict,
