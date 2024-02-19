@@ -288,13 +288,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#nwchem-deprecated" class="md-nav__link">
-    NWChem (deprecated)
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -940,7 +933,7 @@ Its main functionality is provided by its
 <code>evaluate</code> method, which accepts both a <code>Dataset</code> as well as a (future of a)
 single <code>FlowAtoms</code> instance, and performs the single-point calculations.
 Depending on which argument it receives, it returns either a future or a <code>Dataset</code>
-which contain the QM energy, forces, and stress. </p>
+which contain the QM energy, forces, and/or stress. </p>
 <p><div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="n">_</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>    <span class="c1"># trajectory of states</span>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
 <a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">reference</span> <span class="o">=</span> <span class="o">...</span>                           <span class="c1"># initialize some Reference instance, e.g. CP2KReference (see below)</span>
@@ -970,24 +963,30 @@ Reference instances provide a convenient interface of computing the absolute ene
 <p>The <code>CP2KReference</code> expects a traditional CP2K
 <a href="https://github.com/molmod/psiflow/blob/main/examples/data/cp2k_input.txt">input file</a>
 (again represented as a multi-line string in Python, just like the PLUMED input);
-it should only contain the FORCE_EVAL section.
-Additional input files which define the basis sets, pseudopotentials, and
-dispersion correction parameters have to be added to the calculator after initialization.
+it should only contain the <code>FORCE_EVAL</code> section, and any <code>TOPOLOGY</code> or <code>CELL</code> information
+will be automatically removed since this information may change from structure to structure
+and is automatically taken care of by psiflow internally.
+Do not use absolute filepaths to refer to basis set or pseudopotential input files.
+Instead, you can simply use the corresponding filenames as they appear within the
+<a href="https://github.com/cp2k/cp2k/tree/master/data">CP2K data directory</a>.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">CP2KReference</span>
 <a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
 <a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
 <a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">cp2k_input</span> <span class="o">=</span> <span class="k">with</span> <span class="n">file</span><span class="p">(</span><span class="s1">&#39;cp2k_input.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
 <a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="n">reference</span>  <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="p">)</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># register additional input files with the following mapping</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="c1"># if the corresponding keyword in the CP2K input file is X, use Y as key here:</span>
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="c1"># X: BASIS_SET_FILE_NAME    -&gt;   Y: basis_set</span>
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="c1"># X: POTENTIAL_FILE_NAME    -&gt;   Y: potential</span>
-<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="c1"># X: PARAMETER_FILE_NAME    -&gt;   Y: dftd3</span>
-<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;basis_set&#39;</span><span class="p">,</span> <span class="s1">&#39;BASIS_MOLOPT_UZH&#39;</span><span class="p">)</span>
-<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;potential&#39;</span><span class="p">,</span> <span class="s1">&#39;POTENTIAL_UZH&#39;</span><span class="p">)</span>
-<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="n">reference</span><span class="o">.</span><span class="n">add_file</span><span class="p">(</span><span class="s1">&#39;dftd3&#39;</span><span class="p">,</span> <span class="s1">&#39;dftd3.dat&#39;</span><span class="p">)</span>
 </code></pre></div></p>
+<p>Sometimes, you may wish to perform energy-only evaluations. For example, in some implementations
+of post-HF methods such as MP2 or RPA, evaluation of the forces can become much more expensive
+and is generally not efficient.
+In those cases, it is possible to perform energy-only evaluations of atomic structures, provided
+that you have expressed to psiflow that it should not try to parse any forces from the output file.
+This is done by providing a <code>properties</code> argument during initialization of the <code>Reference</code> instance.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="n">reference_Eonly</span> <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;energy&#39;</span><span class="p">,))</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">reference_Ef</span>    <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;energy&#39;</span><span class="p">,</span> <span class="s1">&#39;forces&#39;</span><span class="p">))</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="n">state</span> <span class="o">=</span> <span class="n">reference_Eonly</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>     <span class="c1"># only contains the potential energy; not the forces</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="n">state</span> <span class="o">=</span> <span class="n">reference_Ef</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>        <span class="c1"># contains both energy and forces (default behavior)</span>
+</code></pre></div>
 <h3 id="pyscf">PySCF</h3>
 <p>The <code>PySCFReference</code> expects a string representation of the Python code that should be executed.
 You may assume that this piece of code will be executed in a larger Python script in which the correct
@@ -995,38 +994,20 @@ PySCF <code>molecule</code> object has been initialized. The script should defin
 variables (respectively <code>float</code> and <code>numpy.ndarray</code>) which should contain the energy and negative gradient
 in atomic units.</p>
 <p>See below for an example:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">PySCFReference</span>
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
-<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="n">routine</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="s2">from pyscf import dft</span>
-<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>
-<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="s2">mf = dft.RKS(molecule)</span>
-<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="s2">mf.xc = &#39;pbe,pbe&#39;</span>
-<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>
-<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="s2">energy = mf.kernel()</span>
-<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="s2">forces = -mf.nuc_grad_method().kernel()</span>
-<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="n">basis</span> <span class="o">=</span> <span class="s1">&#39;cc-pvtz&#39;</span>
-<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="n">spin</span> <span class="o">=</span> <span class="mi">0</span>
-<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="n">reference</span> <span class="o">=</span> <span class="n">PySCFReference</span><span class="p">(</span><span class="n">routine</span><span class="p">,</span> <span class="n">basis</span><span class="p">,</span> <span class="n">spin</span><span class="p">)</span>
-</code></pre></div></p>
-<h3 id="nwchem-deprecated">NWChem (deprecated)</h3>
-<p>For nonperiodic systems, psiflow provides an interface with <a href="https://nwchemgit.github.io/Home.html">NWChem</a>,
-which implements a plethora of DFT and post-HF methods for both periodic and nonperiodic systems.
-The <code>NWChemReference</code> class essentially wraps around the ASE calculator, and is similarly easy to use:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="n">calculator_kwargs</span> <span class="o">=</span> <span class="p">{</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>        <span class="s1">&#39;basis&#39;</span><span class="p">:</span> <span class="p">{</span><span class="n">e</span><span class="p">:</span> <span class="s1">&#39;3-21g&#39;</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="s1">&#39;O&#39;</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">]},</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>        <span class="s1">&#39;dft&#39;</span><span class="p">:</span> <span class="p">{</span>
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>            <span class="s1">&#39;xc&#39;</span><span class="p">:</span> <span class="s1">&#39;pw91lda&#39;</span><span class="p">,</span>
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>            <span class="s1">&#39;mult&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>            <span class="s1">&#39;convergence&#39;</span><span class="p">:</span> <span class="p">{</span>
-<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>                <span class="s1">&#39;energy&#39;</span><span class="p">:</span> <span class="mf">1e-6</span><span class="p">,</span>
-<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>                <span class="s1">&#39;density&#39;</span><span class="p">:</span> <span class="mf">1e-6</span><span class="p">,</span>
-<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>                <span class="s1">&#39;gradient&#39;</span><span class="p">:</span> <span class="mf">1e-6</span><span class="p">,</span>
-<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>                <span class="p">},</span>
-<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>            <span class="p">},</span>
-<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a>        <span class="p">}</span>
-<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="n">reference</span> <span class="o">=</span> <span class="n">NWChemReference</span><span class="p">(</span><span class="o">**</span><span class="n">calculator_kwargs</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">PySCFReference</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="n">routine</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="s2">from pyscf import dft</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="s2">mf = dft.RKS(molecule)</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="s2">mf.xc = &#39;pbe,pbe&#39;</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="s2">energy = mf.kernel()</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="s2">forces = -mf.nuc_grad_method().kernel()</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="n">basis</span> <span class="o">=</span> <span class="s1">&#39;cc-pvtz&#39;</span>
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="n">spin</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a><span class="n">reference</span> <span class="o">=</span> <span class="n">PySCFReference</span><span class="p">(</span><span class="n">routine</span><span class="p">,</span> <span class="n">basis</span><span class="p">,</span> <span class="n">spin</span><span class="p">)</span>
 </code></pre></div></p>
 
 

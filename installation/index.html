@@ -348,21 +348,14 @@ the main dependencies according to how they are used in psiflow:</p>
 <tr>
 <td><strong>QM evaluation</strong></td>
 <td>CP2K</td>
-<td>2023.1</td>
-<td style="text-align: center;"></td>
-<td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
-</tr>
-<tr>
-<td></td>
-<td>NWChem</td>
-<td>7.2</td>
+<td>&gt;= 2023.1</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7Z"/></svg></span></td>
 </tr>
 <tr>
 <td></td>
 <td>PySCF</td>
-<td>2.4</td>
+<td>&gt;=2.4</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 </tr>
@@ -411,7 +404,7 @@ the main dependencies according to how they are used in psiflow:</p>
 <tr>
 <td><strong>miscellaneous</strong></td>
 <td>Parsl</td>
-<td>2023.10.23</td>
+<td>2024.02.12</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 </tr>
@@ -432,14 +425,7 @@ the main dependencies according to how they are used in psiflow:</p>
 <tr>
 <td></td>
 <td>ASE</td>
-<td>3.22.1</td>
-<td style="text-align: center;"></td>
-<td style="text-align: center;"></td>
-</tr>
-<tr>
-<td></td>
-<td>Pymatgen</td>
-<td>2023.11.12</td>
+<td>&gt;=3.22.1</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 </tr>
@@ -453,7 +439,7 @@ the main dependencies according to how they are used in psiflow:</p>
 <tr>
 <td></td>
 <td>Python</td>
-<td>3.9</td>
+<td>3.10, 3.11</td>
 <td style="text-align: center;"></td>
 <td style="text-align: center;"></td>
 </tr>
@@ -478,7 +464,7 @@ which needs to take care of possible job submissions and input/output writing.
 Since the actual calculations are performed inside the container, the standalone
 Python environment requires barely anything, and is straightforward to install
 using <code>micromamba</code> -- a blazingly fast drop-in replacement for <code>conda</code>:</p>
-<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="go">micromamba create -n psiflow_env -c conda-forge -y python=3.9</span>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="go">micromamba create -n psiflow_env -c conda-forge -y python=3.10</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="go">micromamba activate psiflow_env</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="go">pip install parsl==2023.10.23 git+https://github.com/molmod/psiflow</span>
 </code></pre></div>
@@ -533,7 +519,7 @@ over software versions or compiler flags.
 While this is not really necessary in the vast majority of cases, we mention for completeness
 the following manual setup using <code>micromamba</code>:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="go">CONDA_OVERRIDE_CUDA=&quot;11.8&quot; micromamba create -p ./psiflow_env -y -c conda-forge \</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="go">    python=3.9 pip ndcctools=7.6.1 \</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="go">    python=3.10 pip \</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="go">    openmm-plumed openmm-torch pytorch=1.13.1=cuda* \</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="go">    nwchem py-plumed cp2k &amp;&amp; \</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="go">    micromamba clean -af --yes</span>
@@ -546,7 +532,7 @@ the following manual setup using <code>micromamba</code>:
 <a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="go">    pip install git+https://github.com/mir-group/nequip.git@develop --no-deps &amp;&amp; \</span>
 <a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="go">    pip install git+https://github.com/mir-group/allegro --no-deps &amp;&amp; \</span>
 <a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="go">    pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="go">pip install git+https://github.com/molmod/psiflow</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="go">pip install &#39;psiflow[parsl] @ git+https://github.com/molmod/psiflow&#39;</span>
 </code></pre></div>
 This is mostly a copy-paste from psiflow's <a href="https://github.com/molmod/psiflow/blob/main/container">Dockerfiles</a>.</p>
 
