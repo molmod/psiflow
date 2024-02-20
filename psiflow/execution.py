@@ -44,6 +44,8 @@ class ExecutionDefinition:
         self.cores_per_worker = cores_per_worker
         self.use_threadpool = use_threadpool
         self.cpu_affinity = cpu_affinity
+        self.max_walltime = max_walltime
+        self.name = self.__class__.__name__
 
         if hasattr(self.parsl_provider, "walltime"):
             walltime_hhmmss = self.parsl_provider.walltime.split(":")
@@ -64,9 +66,6 @@ class ExecutionDefinition:
         elif self.max_walltime is None:
             self.max_walltime = 1e9
 
-    def name(self):
-        return self.__class__.__name__
-
     def create_executor(
         self, path: Path, htex_address: Optional[str] = None, **kwargs
     ) -> ParslExecutor:
@@ -74,7 +73,7 @@ class ExecutionDefinition:
             executor = ThreadPoolExecutor(
                 max_threads=self.cores_per_worker,
                 working_dir=str(path),
-                label=self.name(),
+                label=self.name,
             )
         else:
             if type(self.parsl_provider) is LocalProvider:  # noqa: F405
@@ -88,19 +87,19 @@ class ExecutionDefinition:
                 self.cpu_affinity = "none"
                 logger.info(
                     'setting cpu_affinity of definition "{}" to none '
-                    "because cores_per_worker=1".format(self.name())
+                    "because cores_per_worker=1".format(self.name)
                 )
             executor = HighThroughputExecutor(
                 address=htex_address,
-                label=self.name(),
-                working_dir=str(path / self.name()),
+                label=self.name,
+                working_dir=str(path / self.name),
                 cores_per_worker=self.cores_per_worker,
                 max_workers=max_workers,
                 provider=self.parsl_provider,
                 cpu_affinity=self.cpu_affinity,
                 **kwargs,
             )
-            return executor
+        return executor
 
     @classmethod
     def from_config(
@@ -171,15 +170,8 @@ class ReferenceEvaluation(ExecutionDefinition):
                 ranks
             )
         self.mpi_command = mpi_command
-        self.name = (
-            name  # if not None, the name of the reference class, e.g. `CP2KReference`
-        )
-
-    def name(self):
-        if self.name is not None:
-            return self.name
-        else:
-            return super().name()
+        if name is not None:
+            self.name = name  # if not None, the name of the reference class, e.g. `CP2KReference`
 
 
 @typeguard.typechecked
@@ -206,7 +198,7 @@ class ExecutionContext:
         self.config = config
         self.path = Path(path).resolve()
         self.path.mkdir(parents=True, exist_ok=True)
-        self.definitions = {d.name(): d for d in definitions}
+        self.definitions = {d.name: d for d in definitions}
         assert len(self.definitions) == len(definitions)
         self.file_index = {}
         parsl.load(config)
@@ -226,7 +218,7 @@ class ExecutionContext:
     @classmethod
     def from_config(
         cls,
-        path: Optional[str] = None,
+        path: Optional[Union[str, Path]] = None,
         parsl_log_level: str = "INFO",
         psiflow_log_level: str = "INFO",
         usage_tracking: bool = True,
@@ -237,7 +229,7 @@ class ExecutionContext:
         default_threads: int = 1,
         htex_address: Optional[str] = None,
         container: Optional[dict] = None,
-        **kwargs: dict,
+        **kwargs,
     ) -> ExecutionContext:
         if path is None:
             path = Path.cwd().resolve() / "psiflow_internal"
@@ -264,7 +256,7 @@ class ExecutionContext:
             container=container,
         )
         reference_evaluations = []  # reference evaluations might be class specific
-        for key in kwargs.keys():
+        for key in list(kwargs.keys()):
             if key.endswith("ReferenceEvaluation"):
                 config_dict = kwargs.pop(key)
                 config_dict["name"] = key
@@ -336,7 +328,7 @@ class ExecutionContextLoader:
             raise RuntimeError("ExecutionContext has already been loaded")
         if psiflow_config is None:  # assume yaml is passed as argument
             if len(sys.argv) == 1:  # no config passed, use threadpools:
-                yaml_dict = {
+                psiflow_config = {
                     "ModelEvaluation": {
                         "max_walltime": 1e9,
                         "simulation_engine": "openmm",
@@ -354,11 +346,11 @@ class ExecutionContextLoader:
                         "use_threadpool": True,
                     },
                 }
-                yaml_dict = {}
+                psiflow_config = {}
                 path_internal = Path.cwd() / ".psiflow_internal"
                 if path_internal.exists():
                     shutil.rmtree(path_internal)
-                yaml_dict["psiflow_internal"] = path_internal
+                psiflow_config["psiflow_internal"] = path_internal
             else:
                 assert len(sys.argv) == 2
                 path_config = resolve_and_check(Path(sys.argv[1]))
@@ -368,8 +360,8 @@ class ExecutionContextLoader:
                     " as a YAML file, but got {}".format(path_config)
                 )
                 with open(path_config, "r") as f:
-                    yaml_dict = yaml.safe_load(f)
-        cls._context = ExecutionContext.from_config(yaml_dict)
+                    psiflow_config = yaml.safe_load(f)
+        cls._context = ExecutionContext.from_config(**psiflow_config)
 
     @classmethod
     def context(cls):

@@ -41,10 +41,9 @@ def context(request, tmp_path_factory):
     except RuntimeError:
         path_config = Path(request.config.getoption("--psiflow-config"))
         with open(path_config, "r") as f:
-            yaml_dict = yaml.safe_load(f)
-        psiflow_config, definitions = psiflow.parse_config(yaml_dict)
-        psiflow_config["psiflow_internal"] = tmp_path_factory.mktemp("psiflow_internal")
-        psiflow.load(psiflow_config, definitions)
+            psiflow_config = yaml.safe_load(f)
+        psiflow_config["path"] = tmp_path_factory.mktemp("psiflow_internal")
+        psiflow.load(psiflow_config)
         context = psiflow.context()
 
     def cleanup():
