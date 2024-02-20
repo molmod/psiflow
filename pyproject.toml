@@ -58,9 +58,9 @@ psiflow-test         = 'psiflow.test:main'
 include = [
     "psiflow",
     "psiflow.models",
+    "psiflow.hamiltonians",
     "psiflow.reference",
-    "psiflow.walkers",
-    "psiflow.external",
+    "psiflow.sampling",
     ]
 
 
