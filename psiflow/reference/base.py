@@ -1,8 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from copy import deepcopy
-from typing import Union
+from typing import Callable, Union
 
 import numpy as np
 import typeguard
@@ -36,26 +35,53 @@ def get_minimum_energy(element, configs, *energies):
     return copy_app_future(energy)
 
 
+@join_app
+def evaluate_multiple(
+    reference: BaseReference,
+    nstates: int,
+    inputs: list = [],
+    outputs: list = [],
+):
+    assert len(outputs) == 1
+    assert len(inputs) == 1
+    data = []
+    for i in range(nstates):
+        state = read_dataset(i, inputs=[inputs[0]], outputs=[])
+        if state == NullState:
+            data.append(NullState)
+        else:
+            state = reference.evaluate_single(state)
+            data.append(state)
+    return app_write_dataset(
+        None,
+        return_data=True,
+        inputs=data,
+        outputs=[outputs[0]],
+    )
+
+
+@join_app
+def evaluate_single():
+    raise NotImplementedError
+
+
 @typeguard.typechecked
 class BaseReference:
+    evaluate_single: Callable = evaluate_single
+
     def __init__(self, properties: tuple = ("energy", "forces")) -> None:
         self.properties = properties
-        try:
-            self.__class__.create_apps()
-        except AssertionError:
-            pass  # apps already created
 
     def evaluate(
         self,
         arg: Union[Dataset, Atoms, FlowAtoms, AppFuture],
     ) -> Union[Dataset, AppFuture]:
-        context = psiflow.context()
         if isinstance(arg, Dataset):
-            data = context.apps(self.__class__, "evaluate_multiple")(
-                deepcopy(self.parameters),
+            data = evaluate_multiple(
+                self,
                 arg.length(),
                 inputs=[arg.data_future],
-                outputs=[context.new_file("data_", ".xyz")],
+                outputs=[psiflow.context().new_file("data_", ".xyz")],
             )
             # to ensure the correct dependencies, it is important that
             # the output future corresponds to the actual write_dataset app.
@@ -64,11 +90,7 @@ class BaseReference:
         else:  # Atoms, FlowAtoms, AppFuture
             if arg is Atoms:
                 arg = FlowAtoms.from_atoms(arg)
-            data = context.apps(self.__class__, "evaluate_single")(
-                arg,  # converts to FlowAtoms if necessary
-                deepcopy(self.parameters),
-            )
-            retval = data
+            retval = self.evaluate_single(arg)
         return retval
 
     def compute_atomic_energy(self, element, box_size=None):
@@ -94,42 +116,3 @@ class BaseReference:
 
     def get_single_atom_references(self, element):
         return [(None, self)]
-
-    @property
-    def parameters(self):
-        raise NotImplementedError
-
-    @classmethod
-    def create_apps(cls) -> None:
-        assert not (cls == BaseReference)  # should never be called directly
-        context = psiflow.context()
-
-        def evaluate_multiple(
-            parameters,
-            nstates,
-            inputs=[],
-            outputs=[],
-        ):
-            assert len(outputs) == 1
-            assert len(inputs) == 1
-            data = []
-            for i in range(nstates):
-                state = read_dataset(i, inputs=[inputs[0]], outputs=[])
-                if state == NullState:
-                    data.append(NullState)
-                else:
-                    data.append(
-                        context.apps(cls, "evaluate_single")(
-                            state,
-                            parameters,
-                        )
-                    )
-            return app_write_dataset(
-                None,
-                return_data=True,
-                inputs=data,
-                outputs=[outputs[0]],
-            )
-
-        app_evaluate_multiple = join_app(evaluate_multiple)
-        context.register_app(cls, "evaluate_multiple", app_evaluate_multiple)

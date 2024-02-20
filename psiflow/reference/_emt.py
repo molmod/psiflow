@@ -6,7 +6,6 @@ import typeguard
 from ase import Atoms
 from parsl.app.app import python_app
 
-import psiflow
 from psiflow.data import FlowAtoms
 from psiflow.reference.base import BaseReference
 
@@ -41,14 +40,6 @@ def evaluate_emt(
 class EMTReference(BaseReference):
     """Container class for EMT calculations (only used for testing purposes)"""
 
-    @property
-    def parameters(self):
-        return {}
-
-    @classmethod
-    def create_apps(cls) -> None:
-        app_evaluate_single = python_app(evaluate_emt, executors=["default_threads"])
-        context = psiflow.context()
-        context.register_app(cls, "evaluate_single", app_evaluate_single)
-        # see https://stackoverflow.com/questions/1817183/using-super-with-a-class-method
-        super(EMTReference, cls).create_apps()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.evaluate_single = python_app(evaluate_emt, executors=["default_threads"])

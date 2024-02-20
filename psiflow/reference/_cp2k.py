@@ -3,21 +3,23 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import copy
 import io
 import logging
+from functools import partial
+from typing import Union
 
 import numpy as np
-import parsl
 import typeguard
 from ase.data import atomic_numbers
 from ase.units import Bohr, Ha
 from cp2k_input_tools.generator import CP2KInputGenerator
 from cp2k_input_tools.parser import CP2KInputParserSimplified
-from parsl.app.app import bash_app, join_app, python_app
-from parsl.data_provider.files import File
+from parsl.app.app import bash_app, python_app
+from parsl.app.bash import BashApp
+from parsl.app.python import PythonApp
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import FlowAtoms, NullState
+from psiflow.data import FlowAtoms
 from psiflow.reference.base import BaseReference
-from psiflow.utils import copy_app_future
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -134,14 +136,12 @@ def parse_cp2k_output(
     return atoms
 
 
-# typeguarding not compatible with parsl WQEX for some reason
+# typeguarding incompatible with parsl WQEX for some reason
 def cp2k_singlepoint_pre(
     atoms: FlowAtoms,
     cp2k_input_dict: dict,
     properties: tuple,
     cp2k_command: str,
-    omp_num_threads: int,
-    walltime: int = 0,
     stdout: str = "",
     stderr: str = "",
 ):
@@ -158,18 +158,14 @@ def cp2k_singlepoint_pre(
     cp2k_input_str = dict_to_str(cp2k_input_dict)
 
     # see https://unix.stackexchange.com/questions/30091/fix-or-alternative-for-mktemp-in-os-x
-    command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
-    command_cd = "cd $mytmpdir;"
-    command_write = 'echo "{}" > cp2k.inp;'.format(cp2k_input_str)
+    tmp_command = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
+    cd_command = "cd $mytmpdir;"
+    write_command = 'echo "{}" > cp2k.inp;'.format(cp2k_input_str)
     command_list = [
-        command_tmp,
-        command_cd,
-        command_write,
-        "export OMP_NUM_THREADS={};".format(omp_num_threads),
-        "timeout -s 9 {}s".format(walltime - 2),  # kill right before parsl walltime
+        tmp_command,
+        cd_command,
+        write_command,
         cp2k_command,
-        "-i cp2k.inp",
-        " || true",
     ]
     return " ".join(command_list)
 
@@ -177,9 +173,13 @@ def cp2k_singlepoint_pre(
 def cp2k_singlepoint_post(
     atoms: FlowAtoms,
     properties: tuple,
-    inputs: list[File] = [],
+    inputs: list = [],
 ) -> FlowAtoms:
+    from psiflow.data import NullState
     from psiflow.reference._cp2k import parse_cp2k_output
+
+    if atoms == NullState:
+        return NullState.copy()
 
     atoms.reference_stdout = inputs[0]
     atoms.reference_stderr = inputs[1]
@@ -188,23 +188,58 @@ def cp2k_singlepoint_post(
     return parse_cp2k_output(cp2k_output_str, properties, atoms)
 
 
+def evaluate_single(
+    atoms: Union[FlowAtoms, AppFuture],
+    cp2k_input_dict: dict,
+    properties: tuple,
+    cp2k_command: str,
+    app_pre: BashApp,
+    app_post: PythonApp,
+) -> FlowAtoms:
+    import parsl
+
+    from psiflow.data import NullState
+    from psiflow.utils import copy_app_future
+
+    if atoms == NullState:
+        return copy_app_future(NullState)
+    else:
+        pre = app_pre(
+            atoms,
+            cp2k_input_dict,
+            properties,
+            cp2k_command=cp2k_command,
+            stdout=parsl.AUTO_LOGNAME,
+            stderr=parsl.AUTO_LOGNAME,
+        )
+        return app_post(
+            atoms=atoms,
+            properties=properties,
+            inputs=[pre.stdout, pre.stderr, pre],  # wait for bash app
+        )
+
+
 @typeguard.typechecked
 class CP2KReference(BaseReference):
-    """CP2K Reference
-
-    Arguments
-    ---------
-
-    cp2k_input : str
-        string representation of the cp2k input file.
-
-    """
-
     def __init__(self, cp2k_input_str: str, **kwargs):
+        super().__init__(**kwargs)
         check_input(cp2k_input_str)
         self.cp2k_input_str = cp2k_input_str
         self.cp2k_input_dict = str_to_dict(cp2k_input_str)
-        super().__init__(**kwargs)
+
+        # create apps with execution info and required inputs
+        cp2k_command = psiflow.context()["CP2KReference"].cp2k_command()
+        executor_label = psiflow.context()["CP2KReference"].name
+        app_pre = bash_app(cp2k_singlepoint_pre, executors=[executor_label])
+        app_post = python_app(cp2k_singlepoint_post, executors=["default_threads"])
+        self.evaluate_single = partial(
+            evaluate_single,
+            cp2k_input_dict=self.cp2k_input_dict,
+            properties=self.properties,
+            cp2k_command=cp2k_command,
+            app_pre=app_pre,
+            app_post=app_post,
+        )
 
     def get_single_atom_references(self, element):
         number = atomic_numbers[element]
@@ -236,62 +271,3 @@ class CP2KReference(BaseReference):
             reference = CP2KReference(dict_to_str(cp2k_input_dict))
             references.append((mult, reference))
         return references
-
-    @property
-    def parameters(self):
-        return {
-            "cp2k_input_dict": copy.deepcopy(self.cp2k_input_dict),
-            "properties": self.properties,
-        }
-
-    @classmethod
-    def create_apps(cls):
-        context = psiflow.context()
-        definition = context[cls]
-        label = definition.name()
-        mpi_command = definition.mpi_command
-        ncores = definition.cores_per_worker
-        walltime = definition.max_walltime
-
-        # parse full command
-        omp_num_threads = 1
-        command = ""
-        command += mpi_command(ncores)
-        command += " "
-        command += "cp2k.psmp"
-
-        singlepoint_pre = bash_app(
-            cp2k_singlepoint_pre,
-            executors=[label],
-        )
-        singlepoint_post = python_app(
-            cp2k_singlepoint_post,
-            executors=["default_threads"],
-        )
-
-        @join_app
-        def singlepoint_wrapped(
-            atoms,
-            parameters,
-        ):
-            if atoms == NullState:
-                return copy_app_future(NullState)
-            else:
-                pre = singlepoint_pre(
-                    atoms,
-                    parameters["cp2k_input_dict"],
-                    parameters["properties"],
-                    command,
-                    omp_num_threads,
-                    stdout=parsl.AUTO_LOGNAME,
-                    stderr=parsl.AUTO_LOGNAME,
-                    walltime=60 * walltime,  # killed after walltime - 2s
-                )
-                return singlepoint_post(
-                    atoms=atoms,
-                    properties=parameters["properties"],
-                    inputs=[pre.stdout, pre.stderr, pre],  # wait for bash app
-                )
-
-        context.register_app(cls, "evaluate_single", singlepoint_wrapped)
-        super(CP2KReference, cls).create_apps()

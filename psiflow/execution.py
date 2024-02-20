@@ -37,34 +37,34 @@ class ExecutionDefinition:
         cores_per_worker: int = 1,
         use_threadpool: bool = False,
         cpu_affinity: str = "block",
-        max_walltime: Optional[float] = None,
+        # max_walltime: Optional[float] = None,
     ) -> None:
         self.parsl_provider = parsl_provider
         self.gpu = gpu
         self.cores_per_worker = cores_per_worker
         self.use_threadpool = use_threadpool
         self.cpu_affinity = cpu_affinity
-        self.max_walltime = max_walltime
+        # self.max_walltime = max_walltime
         self.name = self.__class__.__name__
 
-        if hasattr(self.parsl_provider, "walltime"):
-            walltime_hhmmss = self.parsl_provider.walltime.split(":")
-            assert len(walltime_hhmmss) == 3
-            walltime = 0
-            walltime += 60 * float(walltime_hhmmss[0])
-            walltime += float(walltime_hhmmss[1])
-            walltime += 1  # whatever seconds are present
-            walltime -= 5  # add 5 minutes of slack, e.g. for container downloading
-            if self.max_walltime is None:
-                self.max_walltime = walltime
-            else:  # check whether it doesn't exceeed it
-                assert (
-                    walltime > self.max_walltime
-                ), "{} walltime must be larger than max_walltime".format(
-                    type(self.parsl_provider)
-                )
-        elif self.max_walltime is None:
-            self.max_walltime = 1e9
+        # if hasattr(self.parsl_provider, "walltime"):
+        #    walltime_hhmmss = self.parsl_provider.walltime.split(":")
+        #    assert len(walltime_hhmmss) == 3
+        #    walltime = 0
+        #    walltime += 60 * float(walltime_hhmmss[0])
+        #    walltime += float(walltime_hhmmss[1])
+        #    walltime += 1  # whatever seconds are present
+        #    walltime -= 5  # add 5 minutes of slack, e.g. for container downloading
+        #    if self.max_walltime is None:
+        #        self.max_walltime = walltime
+        #    else:  # check whether it doesn't exceeed it
+        #        assert (
+        #            walltime > self.max_walltime
+        #        ), "{} walltime must be larger than max_walltime".format(
+        #            type(self.parsl_provider)
+        #        )
+        # elif self.max_walltime is None:
+        #    self.max_walltime = 1e9
 
     def create_executor(
         self, path: Path, htex_address: Optional[str] = None, **kwargs
@@ -161,17 +161,40 @@ class ReferenceEvaluation(ExecutionDefinition):
         name: Optional[str] = None,
         mpi_command: Optional[str] = None,
         cpu_affinity: str = "none",  # better default for cp2k
+        max_evaluation_time: Optional[float] = None,
+        cp2k_executable: str = "cp2k.psmp",
         **kwargs,
     ) -> None:
         super().__init__(cpu_affinity=cpu_affinity, **kwargs)
+        self.max_evaluation_time = max_evaluation_time
+        self.cp2k_executable = cp2k_executable
         if mpi_command is None:  # parse
             ranks = self.cores_per_worker  # use nprocs = ncores, nthreads = 1
-            mpi_command = "mpirun -np {} -bind-to core -rmk user -launcher fork".format(
+            mpi_command = "mpirun -np {} -bind-to core -rmk user -launcher fork -x OMP_NUM_THREADS=1".format(
                 ranks
             )
         self.mpi_command = mpi_command
         if name is not None:
             self.name = name  # if not None, the name of the reference class, e.g. `CP2KReference`
+
+    def cp2k_command(self):
+        command = " ".join(
+            [
+                self.mpi_command,
+                self.cp2k_executable,
+                "-i cp2k.inp",
+            ]
+        )
+        if self.max_evaluation_time is not None:
+            max_time = 60 * self.max_evaluation_time
+            command = " ".join(
+                [
+                    "timeout -s 9 {}s".format(max_time),
+                    command,
+                    "|| true",
+                ]
+            )
+        return command
 
 
 @typeguard.typechecked
@@ -214,6 +237,18 @@ class ExecutionContext:
         identifier = "{0:0{1}x}".format(self.file_index[key], padding)
         self.file_index[key] += 1
         return File(str(self.path / (prefix + identifier + suffix)))
+
+    def __getitem__(self, key):
+        if "Reference" in key:  # either generic or class-specific
+            default = self.definitions.get("ReferenceEvaluation", None)
+            definition = self.definitions.get(key + "Evaluation", default)
+        else:  # either for training or evaluation
+            definition = self.definitions.get(key, None)
+        if definition is None:
+            raise ValueError(
+                "No execution definition found for " "for name {}".format(key)
+            )
+        return definition
 
     @classmethod
     def from_config(
@@ -330,18 +365,16 @@ class ExecutionContextLoader:
             if len(sys.argv) == 1:  # no config passed, use threadpools:
                 psiflow_config = {
                     "ModelEvaluation": {
-                        "max_walltime": 1e9,
                         "simulation_engine": "openmm",
                         "gpu": False,
                         "use_threadpool": True,
                     },
                     "ModelTraining": {
-                        "max_walltime": 1e9,
                         "gpu": True,
                         "use_threadpool": True,
                     },
                     "ReferenceEvaluation": {
-                        "max_walltime": 1e9,
+                        "max_evaluation_time": 1e9,
                         "mpi_command": "mpirun -np 1",
                         "use_threadpool": True,
                     },

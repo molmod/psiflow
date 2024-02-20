@@ -227,7 +227,7 @@ def test_cp2k_success(context, simple_cp2k_input):
     with open(evaluated.result().reference_stdout, "r") as f:
         content = f.read()
     context = psiflow.context()
-    ncores = context[CP2KReference].cores_per_worker
+    ncores = context["CP2KReference"].cores_per_worker
     lines = content.split("\n")
     for line in lines:
         if "Total number of message passing processes" in line:
