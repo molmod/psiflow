@@ -11,7 +11,7 @@ from ase.calculators.emt import EMT
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.models import AllegroConfig, MACEConfig, MACEModel, NequIPConfig
+from psiflow.models import MACEConfig, MACEModel
 
 
 def pytest_addoption(parser):
@@ -51,31 +51,6 @@ def context(request, tmp_path_factory):
 
     request.addfinalizer(cleanup)
     return context
-
-
-@pytest.fixture(scope="session")
-def nequip_config(tmp_path_factory):
-    nequip_config = NequIPConfig()
-    nequip_config.root = str(tmp_path_factory.mktemp("nequip_config_temp"))
-    nequip_config.wandb_group = "pytest_group"
-    nequip_config.num_layers = 1
-    nequip_config.num_features = 2
-    nequip_config.num_basis = 2
-    nequip_config.invariant_layers = 1
-    nequip_config.invariant_neurons = 2
-    nequip_config.r_max = 4
-    return asdict(nequip_config)
-
-
-@pytest.fixture(scope="session")
-def allegro_config(tmp_path_factory):
-    allegro_config = AllegroConfig()
-    allegro_config.root = str(tmp_path_factory.mktemp("allegro_config_temp"))
-    allegro_config.env_embed_multiplicity = 2
-    allegro_config.two_body_latent_mlp_latent_dimensions = [2, 2, 4]
-    allegro_config.mlp_latent_dimensions = [4]
-    allegro_config.r_max = 4
-    return asdict(allegro_config)
 
 
 @pytest.fixture(scope="session")

@@ -445,7 +445,7 @@ def assign_identifiers(
     outputs: list[File] = [],
 ) -> int:
     from psiflow.data import read_dataset, write_dataset
-    from psiflow.sampling import _assign_identifier
+    from psiflow.learning_utils import _assign_identifier
 
     data = read_dataset(slice(None), inputs=[inputs[0]])
     states = []
