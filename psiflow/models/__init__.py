@@ -8,12 +8,6 @@ import psiflow
 from psiflow.utils import resolve_and_check
 
 from ._mace import MACEConfig, MACEModel  # noqa: F401
-from ._nequip import (  # noqa: F401
-    AllegroConfig,
-    AllegroModel,
-    NequIPConfig,
-    NequIPModel,
-)
 from .base import BaseModel
 
 
@@ -29,8 +23,6 @@ def load_model(path: Union[Path, str]) -> BaseModel:
     path = resolve_and_check(Path(path))
     assert path.is_dir()
     classes = [
-        NequIPModel,
-        AllegroModel,
         MACEModel,
         None,
     ]
