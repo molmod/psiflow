@@ -280,21 +280,6 @@ class MACEModel(BaseModel):
     def create_hamiltonian(self):
         return MACEHamiltonian(self.model_future, self.atomic_energies)
 
-    # @classmethod
-    # def load_calculator(
-    #    cls,
-    #    path_model: Union[Path, str],
-    #    device: str,
-    #    set_global_options: str = "warn",
-    # ) -> BaseCalculator:
-    #    from mace.calculators import MACECalculator
-
-    #    return MACECalculator(
-    #        model_paths=path_model,
-    #        device=device,
-    #        default_dtype="float32",
-    #    )
-
     @property
     def seed(self) -> int:
         return self.config.seed
