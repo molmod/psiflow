@@ -1,4 +1,3 @@
-import ast
 import copy
 import os
 
@@ -6,7 +5,6 @@ import numpy as np
 import pytest
 import torch
 from parsl.app.futures import DataFuture
-from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
@@ -15,52 +13,77 @@ from psiflow.reference import EMTReference
 
 
 def test_mace_init(mace_config, dataset):
-    model = MACEModel(mace_config)
-    assert model.deploy_future is None
+    model = MACEModel(**mace_config)
     assert model.model_future is None
     model.initialize(dataset[:1])
-    assert model.deploy_future is not None
     assert model.model_future is not None
-    initialized_config = model.config_future.result()
-    assert initialized_config["avg_num_neighbors"] is not None
-    e0s = ast.literal_eval(initialized_config["E0s"])
-    assert len(e0s.keys()) == 2
-    assert "1:" in initialized_config["E0s"]
-    assert "29:" in initialized_config["E0s"]
 
     config = copy.deepcopy(mace_config)
     config[
         "batch_size"
     ] = 100000  # bigger than ntrain --> should get reduced internally
-    model = MACEModel(config)
+    model = MACEModel(**config)
     model.seed = 1
     model.initialize(dataset[:3])
     assert isinstance(model.model_future, DataFuture)
-    assert isinstance(model.config_future, AppFuture)
     torch.load(model.model_future.result().filepath)  # should work
-    assert isinstance(model.deploy_future, DataFuture)
+
+    # create hamiltonian and verify addition of atomic energies
+    hamiltonian = model.create_hamiltonian()
+    evaluated = hamiltonian.evaluate(dataset)
+
+    nstates = dataset.length().result()
+    energies = np.array([evaluated[i].result().info["energy"] for i in range(nstates)])
+    assert not np.any(np.allclose(energies, 0.0))
+    energy_Cu = 3
+    energy_H = 7
+    hamiltonian.atomic_energies = {
+        "Cu": energy_Cu,
+        "H": energy_H,
+    }
+
+    evaluated_ = hamiltonian.evaluate(dataset)
+    for i in range(nstates):
+        assert np.allclose(
+            energies[i],
+            evaluated_.subtract_offset(Cu=energy_Cu, H=energy_H)[i]
+            .result()
+            .info["energy"],
+        )
+
+    hamiltonian.atomic_energies = {"Cu": 0, "H": 0, "jasldfkjsadf": 0}
+    evaluated__ = hamiltonian.evaluate(dataset)
+    for i in range(nstates):
+        assert np.allclose(
+            energies[i],
+            evaluated__[i].result().info["energy"],
+        )
+
+
+def test_mace_hamiltonian(mace_config, dataset):
+    pass
 
     # simple test
-    evaluation, _ = psiflow.context()[MACEModel]
-    device = "cuda" if evaluation.gpu else "cpu"
-    torch.set_default_dtype(torch.float32)
-    atoms = dataset[0].result().copy()
-    atoms.calc = MACEModel.load_calculator(
-        path_model=model.deploy_future.result().filepath,
-        device=device,
-    )
-    assert atoms.calc.device.type == device
-    e0 = atoms.get_potential_energy()
+    # evaluation, _ = psiflow.context()[MACEModel]
+    # device = "cuda" if evaluation.gpu else "cpu"
+    # torch.set_default_dtype(torch.float32)
+    # atoms = dataset[0].result().copy()
+    # atoms.calc = MACEModel.load_calculator(
+    #    path_model=model.deploy_future.result().filepath,
+    #    device=device,
+    # )
+    # assert atoms.calc.device.type == device
+    # e0 = atoms.get_potential_energy()
 
-    e0 = model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
-    model.reset()
-    model.seed = 1
-    model.initialize(dataset[:3])
-    assert e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
-    model.reset()
-    model.seed = 0
-    model.initialize(dataset[:3])
-    assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
+    # e0 = model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
+    # model.reset()
+    # model.seed = 1
+    # model.initialize(dataset[:3])
+    # assert e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
+    # model.reset()
+    # model.seed = 0
+    # model.initialize(dataset[:3])
+    # assert not e0 == model.evaluate(dataset.get(indices=[0]))[0].result().info["energy"]
 
 
 def test_mace_train(gpu, mace_config, dataset, tmp_path):

@@ -3,16 +3,74 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import logging
 from dataclasses import dataclass, field
 from functools import partial
-from typing import List, Optional
+from typing import Optional, Union
 
+import numpy as np
 import typeguard
-from parsl.app.app import bash_app
+from ase.calculators.calculator import Calculator
+from parsl.app.app import bash_app, python_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
+from psiflow.data import FlowAtoms
+from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
 from psiflow.models.base import BaseModel
 
 logger = logging.getLogger(__name__)  # logging per module
+
+
+class MACEHamiltonian(Hamiltonian):
+    def __init__(
+        self,
+        model_future: Union[DataFuture, File],
+        atomic_energies: dict[str, float],
+    ) -> None:
+        super().__init__()
+        self.atomic_energies = atomic_energies
+        self.input_files = [model_future]
+
+        executor_name = psiflow.context()["ModelEvaluation"].name
+        ncores = psiflow.context()["ModelEvaluation"].cores_per_worker
+        if psiflow.context()["ModelEvaluation"].gpu:
+            device = "cuda"
+        else:
+            device = "cpu"
+        infused_evaluate = partial(
+            evaluate_function,
+            ncores=ncores,
+            device=device,
+            dtype="float32",
+        )
+        self.evaluate_app = python_app(infused_evaluate, executors=[executor_name])
+
+    @property
+    def parameters(self: Hamiltonian) -> dict:
+        return {"atomic_energies": self.atomic_energies}
+
+    @staticmethod
+    def load_calculators(
+        data: list[FlowAtoms],
+        model_future: Union[DataFuture, File],
+        atomic_energies: dict,
+        ncores: int,
+        device: str,
+        dtype: str,  # float64 for optimizations
+    ) -> tuple[list[Calculator, np.ndarray]]:
+        import numpy as np
+        import torch
+
+        from psiflow.models.mace_utils import MACECalculator
+
+        calculator = MACECalculator(
+            model_future,
+            device=device,
+            dtype=dtype,
+            atomic_energies=atomic_energies,
+        )
+        index_mapping = np.zeros(len(data), dtype=int)
+        torch.set_num_threads(ncores)
+        return [calculator], index_mapping
 
 
 @typeguard.typechecked
@@ -147,8 +205,8 @@ def initialize(
     command_train: str,
     stdout: str = "",
     stderr: str = "",
-    inputs: List[File] = [],
-    outputs: List[File] = [],
+    inputs: list[File] = [],
+    outputs: list[File] = [],
 ) -> str:
     from psiflow.models._mace import MACEConfig
 
@@ -174,8 +232,8 @@ def train(
     command_train: str,
     stdout: str = "",
     stderr: str = "",
-    inputs: List[File] = [],
-    outputs: List[File] = [],
+    inputs: list[File] = [],
+    outputs: list[File] = [],
 ) -> str:
     from psiflow.models._mace import MACEConfig
 
@@ -218,6 +276,9 @@ class MACEModel(BaseModel):
         app_train = bash_app(initialize, executors=[training])
         self._initialize = partial(app_initialize, command_train=command_init)
         self._train = partial(app_train, command_train=command_train)
+
+    def create_hamiltonian(self):
+        return MACEHamiltonian(self.model_future, self.atomic_energies)
 
     # @classmethod
     # def load_calculator(

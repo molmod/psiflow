@@ -12,6 +12,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
+from psiflow.hamiltonians import Hamiltonian
 from psiflow.utils import copy_data_future, log_message, resolve_and_check, save_yaml
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -118,6 +119,9 @@ class BaseModel:
                 outputs=[psiflow.context().new_file("model_", ".pth")],
             ).outputs[0]
         return model
+
+    def create_hamiltonian(self) -> Hamiltonian:
+        raise NotImplementedError
 
     @property
     def do_offset(self) -> bool:

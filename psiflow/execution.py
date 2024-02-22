@@ -37,34 +37,13 @@ class ExecutionDefinition:
         cores_per_worker: int = 1,
         use_threadpool: bool = False,
         cpu_affinity: str = "block",
-        # max_walltime: Optional[float] = None,
     ) -> None:
         self.parsl_provider = parsl_provider
         self.gpu = gpu
         self.cores_per_worker = cores_per_worker
         self.use_threadpool = use_threadpool
         self.cpu_affinity = cpu_affinity
-        # self.max_walltime = max_walltime
         self.name = self.__class__.__name__
-
-        # if hasattr(self.parsl_provider, "walltime"):
-        #    walltime_hhmmss = self.parsl_provider.walltime.split(":")
-        #    assert len(walltime_hhmmss) == 3
-        #    walltime = 0
-        #    walltime += 60 * float(walltime_hhmmss[0])
-        #    walltime += float(walltime_hhmmss[1])
-        #    walltime += 1  # whatever seconds are present
-        #    walltime -= 5  # add 5 minutes of slack, e.g. for container downloading
-        #    if self.max_walltime is None:
-        #        self.max_walltime = walltime
-        #    else:  # check whether it doesn't exceeed it
-        #        assert (
-        #            walltime > self.max_walltime
-        #        ), "{} walltime must be larger than max_walltime".format(
-        #            type(self.parsl_provider)
-        #        )
-        # elif self.max_walltime is None:
-        #    self.max_walltime = 1e9
 
     def create_executor(
         self, path: Path, htex_address: Optional[str] = None, **kwargs

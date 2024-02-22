@@ -119,6 +119,9 @@ class FlowAtoms(Atoms):
             self.set_positions(pos)
             self.set_cell(box)
 
+    def hash(self) -> tuple:
+        return tuple(self.numbers) + tuple(self.pbc)
+
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> FlowAtoms:
         """Generates a `FlowAtoms` object based on an existing `Atoms`
