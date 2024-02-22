@@ -9,10 +9,9 @@ import numpy as np
 import typeguard
 from ase import Atoms
 from ase.data import atomic_numbers
-from parsl.app.app import python_app
+from parsl.app.app import join_app, python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-from parsl.executors.base import ParslExecutor
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -117,6 +116,13 @@ def _copy_app_future(future: Any) -> Any:
 copy_app_future = python_app(_copy_app_future, executors=["default_threads"])
 
 
+@join_app
+@typeguard.typechecked
+def log_message(message, *futures):
+    logger.info(message.format(*futures))
+    return copy_app_future(0)
+
+
 def _pack(*args):
     return args
 
@@ -214,18 +220,6 @@ def get_train_valid_indices(
 ) -> Tuple[AppFuture, AppFuture]:
     future = app_train_valid_indices(effective_nstates, train_valid_split)
     return unpack_i(future, 0), unpack_i(future, 1)
-
-
-@typeguard.typechecked
-def get_active_executor(label: str) -> ParslExecutor:
-    from parsl.dataflow.dflow import DataFlowKernelLoader
-
-    dfk = DataFlowKernelLoader.dfk()
-    config = dfk.config
-    for executor in config.executors:
-        if executor.label == label:
-            return executor
-    raise ValueError("executor with label {} not found!".format(label))
 
 
 @typeguard.typechecked

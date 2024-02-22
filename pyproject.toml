@@ -45,13 +45,6 @@ dev = [
     ]
 
 
-[project.scripts]
-psiflow-train-mace   = 'psiflow.models.train_mace:main'
-psiflow-md-yaff      = 'psiflow.walkers.molecular_dynamics_yaff:main'
-psiflow-md-openmm    = 'psiflow.walkers.molecular_dynamics_openmm:main'
-psiflow-test         = 'psiflow.test:main'
-
-
 [tool.setuptools.packages.find]
 include = [
     "psiflow",

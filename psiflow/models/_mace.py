@@ -1,25 +1,16 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import List, Optional, Union
+from dataclasses import dataclass, field
+from functools import partial
+from typing import List, Optional
 
 import typeguard
-
-try:
-    from ase.calculators.calculator import BaseCalculator
-except ImportError:  # 3.22.1 and below still use Calculator
-    from ase.calculators.calculator import Calculator as BaseCalculator
-
-import parsl
-from parsl.app.app import bash_app, python_app
+from parsl.app.app import bash_app
 from parsl.data_provider.files import File
-from parsl.executors import WorkQueueExecutor
 
 import psiflow
-from psiflow.models.base import BaseModel, evaluate_dataset
-from psiflow.utils import get_active_executor, read_yaml
+from psiflow.models.base import BaseModel
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -27,28 +18,29 @@ logger = logging.getLogger(__name__)  # logging per module
 @typeguard.typechecked
 @dataclass
 class MACEConfig:
-    train_file: Optional[str] = None
-    valid_file: Optional[str] = None
     name: str = "mace"
     seed: int = 0
-    log_level: str = "INFO"
     log_dir: str = ""  # gets overwritten
     model_dir: str = ""
+    checkpoints_dir: str = ""
     results_dir: str = ""
     downloads_dir: str = ""
-    checkpoints_dir: str = ""
+    device: str = "cuda"
+    default_dtype: str = "float32"
+    log_level: str = "INFO"
     error_table: str = "PerAtomRMSE"
     model: str = "MACE"
     r_max: float = 5.0
+    radial_type: str = "bessel"
     num_radial_basis: int = 8
     num_cutoff_basis: int = 5
-    radial_MLP: str = "[64, 64, 64]"
     interaction: str = "RealAgnosticResidualInteractionBlock"
     interaction_first: str = "RealAgnosticResidualInteractionBlock"
     max_ell: int = 3
     correlation: int = 3
     num_interactions: int = 2
     MLP_irreps: str = "16x0e"
+    radial_MLP: str = "[64, 64, 64]"
     num_channels: int = 16  # hidden_irreps is determined by num_channels and max_L
     max_L: int = 1
     gate: str = "silu"
@@ -57,17 +49,16 @@ class MACEConfig:
     compute_avg_num_neighbors: bool = True
     compute_stress: bool = True
     compute_forces: bool = True
-    device: str = "cuda"
-    default_dtype: str = "float32"
-    model_dtype: str = "float32"
-    config_type_weights: str = '{"Default":1.0}'
+    train_file: Optional[str] = None
+    valid_file: Optional[str] = None
+    # model_dtype: str = "float32"
     valid_fraction: float = 1e-12  # never split training set
     test_file: Optional[str] = None
     E0s: Optional[str] = "average"
     energy_key: str = "energy"
     forces_key: str = "forces"
-    stress_key: str = "stress"
     virials_key: str = "virials"
+    stress_key: str = "stress"
     dipole_key: str = "dipole"
     charges_key: str = "charges"
     loss: str = "weighted"
@@ -75,8 +66,14 @@ class MACEConfig:
     swa_forces_weight: float = 1
     energy_weight: float = 10
     swa_energy_weight: float = 100
+    virials_weight: float = 0
+    swa_virials_weight: float = 0
     stress_weight: float = 0
     swa_stress_weight: float = 0
+    dipole_weight: float = 0
+    swa_dipole_weight: float = 0
+    config_type_weights: str = '{"Default":1.0}'
+    huber_delta: float = 0.01
     optimizer: str = "adam"
     batch_size: int = 1
     valid_batch_size: int = 8
@@ -119,211 +116,128 @@ class MACEConfig:
         ]
     )
 
+    @staticmethod
+    def serialize(config: dict):
+        store_true_keys = [
+            "amsgrad",
+            "swa",
+            "ema",
+            "keep_checkpoints",
+            "restart_latest",
+            "save_cpu",
+            "wandb",
+        ]
+        config_str = ""
+        for key, value in config.items():
+            if type(value) is bool:
+                if key in store_true_keys:
+                    if value:
+                        config_str += "--{} ".format(key)
+                    continue
+            if value is None:
+                continue
+            # get rid of any whitespace in str(value), as e.g. with lists
+            config_str += "".join("--{}={}".format(key, value).split()) + " "
+        return config_str
+
 
 # @typeguard.typechecked
 def initialize(
     mace_config: dict,
+    command_train: str,
     stdout: str = "",
     stderr: str = "",
     inputs: List[File] = [],
     outputs: List[File] = [],
 ) -> str:
-    import yaml
+    from psiflow.models._mace import MACEConfig
 
+    assert len(inputs) == 1
     mace_config["train_file"] = inputs[0].filepath
     mace_config["valid_file"] = None
-    config_str = yaml.dump(dict(mace_config))
+    config_str = MACEConfig.serialize(mace_config)
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd = "cd $mytmpdir;"
-    command_write = 'echo "{}" > config.yaml;'.format(config_str)
     command_list = [
         command_tmp,
         command_cd,
-        command_write,
-        "psiflow-train-mace",
-        "--config=config.yaml",
-        "--model=None",
-        "--init_only;",
-        "ls *;",
-        "cp undeployed.pth {};".format(outputs[0].filepath),
-        "cp config.yaml {};".format(outputs[1].filepath),
+        command_train,
+        config_str,
+        ";",
+        "cp model.pth {};".format(outputs[0].filepath),
     ]
     return " ".join(command_list)
 
 
 def train(
     mace_config: dict,
+    command_train: str,
     stdout: str = "",
     stderr: str = "",
     inputs: List[File] = [],
     outputs: List[File] = [],
-    walltime: float = 1e12,  # infinite by default
-    parsl_resource_specification: dict = None,
 ) -> str:
-    import yaml
+    from psiflow.models._mace import MACEConfig
 
-    actual_walltime = int(0.9 * walltime)  # reserve 10 % for safe shutdown
+    assert len(inputs) == 3
     mace_config["train_file"] = inputs[1].filepath
     mace_config["valid_file"] = inputs[2].filepath
-    config_str = yaml.dump(dict(mace_config))
+    config_str = MACEConfig.serialize(mace_config)
+    config_str += "--initialized_model={} ".format(inputs[0].filepath)
+
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd = "cd $mytmpdir;"
-    command_write = 'echo "{}" > config.yaml;'.format(config_str)
     command_list = [
         command_tmp,
         command_cd,
-        command_write,
-        "timeout -s 15 {}s psiflow-train-mace".format(actual_walltime),
-        "--config config.yaml",
-        "--model {} || true;".format(inputs[0].filepath),
-        "ls *;",
-        "cp model/mace.model {};".format(outputs[0].filepath),  # no swa
+        command_train,
+        config_str,
+        ";",
+        "cp model.pth {};".format(outputs[0].filepath),
     ]
     return " ".join(command_list)
 
 
-# @typeguard.typechecked
-def deploy(
-    device: str,
-    inputs: List[File] = [],
-    outputs: List[File] = [],
-) -> None:
-    import torch
-
-    # model always stored on CPU after training
-    model = torch.load(inputs[0].filepath, map_location="cpu")
-    model.to(device=torch.device(device), dtype=torch.float32)
-    torch.save(model, outputs[0].filepath)
-
-
 @typeguard.typechecked
 class MACEModel(BaseModel):
-    def __init__(self, config: Union[dict, MACEConfig]) -> None:
-        if isinstance(config, MACEConfig):
-            config = asdict(config)
-        else:
-            config = dict(config)
-        assert not config["swa"], "usage of SWA is currently not supported"
-        assert config["model_dtype"] == "float32", "dtype is enforced to float32"
-        assert config["save_cpu"]  # assert model is saved to CPU after training
-        assert "hidden_irreps" not in config.keys()  # old MACE API
-        config["device"] = "cpu"  # guarantee consistent initialization
-        super().__init__(config)
+    def __init__(self, **config) -> None:
+        super().__init__()
+        config = MACEConfig(**config)
+        assert not config.swa, "usage of SWA is currently not supported"
+        assert config.save_cpu  # assert model is saved to CPU after training
+        config.device = "cpu"
+        self.config = config
 
-    def deploy(self):
-        self.deploy_future = (
-            psiflow.context()
-            .apps(self.__class__, "deploy")(
-                inputs=[self.model_future],
-                outputs=[psiflow.context().new_file("deploy_", ".pth")],
-            )
-            .outputs[0]
-        )
+        # initialize apps
+        evaluation = psiflow.context()["ModelEvaluation"].name
+        training = psiflow.context()["ModelTraining"].name
+        command_init = psiflow.context()["ModelTraining"].train_command(True)
+        command_train = psiflow.context()["ModelTraining"].train_command(False)
 
-    @classmethod
-    def create_apps(cls) -> None:
-        context = psiflow.context()
-        evaluation, training = context[cls]
-        training_label = training.name()
-        training_walltime = training.max_walltime
-        if isinstance(get_active_executor(training_label), WorkQueueExecutor):
-            training_resource_specification = (
-                training.generate_parsl_resource_specification()
-            )
-        else:
-            training_resource_specification = {}
-        model_label = evaluation.name()
-        model_device = "cuda" if evaluation.gpu else "cpu"
-        model_ncores = evaluation.cores_per_worker
+        app_initialize = bash_app(initialize, executors=[evaluation])
+        app_train = bash_app(initialize, executors=[training])
+        self._initialize = partial(app_initialize, command_train=command_init)
+        self._train = partial(app_train, command_train=command_train)
 
-        app_initialize = bash_app(initialize, executors=[model_label])
+    # @classmethod
+    # def load_calculator(
+    #    cls,
+    #    path_model: Union[Path, str],
+    #    device: str,
+    #    set_global_options: str = "warn",
+    # ) -> BaseCalculator:
+    #    from mace.calculators import MACECalculator
 
-        def wrapped_deploy(inputs=[], outputs=[]):
-            assert len(inputs) == 1
-            assert len(outputs) == 1
-            return deploy(model_device, inputs=inputs, outputs=outputs)
-
-        app_deploy = python_app(wrapped_deploy, executors=[model_label])
-        context.register_app(cls, "deploy", app_deploy)
-
-        def initialize_wrapped(config_raw, inputs=[], outputs=[]):
-            assert len(inputs) == 1
-            outputs = [
-                context.new_file("model_", ".pth"),
-                context.new_file("config_", ".yaml"),
-            ]
-            init_future = app_initialize(
-                config_raw,
-                inputs=inputs,
-                outputs=outputs,
-                stdout=parsl.AUTO_LOGNAME,
-                stderr=parsl.AUTO_LOGNAME,
-            )
-            future = read_yaml(inputs=[init_future.outputs[1]])
-            deploy_future = app_deploy(
-                inputs=[init_future.outputs[0]],
-                outputs=[context.new_file("deploy_", ".pth")],
-            )
-            return future, init_future.outputs[0], deploy_future.outputs[0]
-
-        context.register_app(cls, "initialize", initialize_wrapped)
-
-        train_unwrapped = bash_app(train, executors=[training_label])
-
-        def train_wrapped(config, inputs=[], outputs=[]):
-            outputs = [context.new_file("model_", ".pth")]
-            future = train_unwrapped(
-                config,
-                stdout=parsl.AUTO_LOGNAME,
-                stderr=parsl.AUTO_LOGNAME,
-                inputs=inputs,
-                outputs=outputs,
-                walltime=training_walltime * 60,
-                parsl_resource_specification=training_resource_specification,
-            )
-            deploy_future = app_deploy(
-                inputs=[future.outputs[0]],
-                outputs=[context.new_file("deploy_", ".pth")],
-            )
-            return future.outputs[0], deploy_future.outputs[0]
-
-        context.register_app(cls, "train", train_wrapped)
-        evaluate_unwrapped = python_app(
-            evaluate_dataset,
-            executors=[model_label],
-            cache=False,
-        )
-
-        def evaluate_wrapped(inputs=[], outputs=[]):
-            return evaluate_unwrapped(
-                model_device,
-                model_ncores,
-                cls.load_calculator,
-                inputs=inputs,
-                outputs=outputs,
-            )
-
-        context.register_app(cls, "evaluate", evaluate_wrapped)
-
-    @classmethod
-    def load_calculator(
-        cls,
-        path_model: Union[Path, str],
-        device: str,
-        set_global_options: str = "warn",
-    ) -> BaseCalculator:
-        from mace.calculators import MACECalculator
-
-        return MACECalculator(
-            model_paths=path_model,
-            device=device,
-            default_dtype="float32",
-        )
+    #    return MACECalculator(
+    #        model_paths=path_model,
+    #        device=device,
+    #        default_dtype="float32",
+    #    )
 
     @property
     def seed(self) -> int:
-        return self.config_raw["seed"]
+        return self.config.seed
 
     @seed.setter
     def seed(self, arg: int) -> None:
-        self.config_raw["seed"] = arg
+        self.config.seed = arg

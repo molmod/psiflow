@@ -150,8 +150,22 @@ class ModelEvaluation(ExecutionDefinition):
 
 @typeguard.typechecked
 class ModelTraining(ExecutionDefinition):
-    def __init__(self, gpu=True, **kwargs) -> None:
+    def __init__(
+        self,
+        gpu=True,
+        max_training_time: Optional[float] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(gpu=gpu, **kwargs)
+        self.max_training_time = max_training_time
+
+    def train_command(self, initialize: bool = False):
+        script = "$(python -c 'import psiflow.models.mace_utils; print(psiflow.models.mace_utils.__file__)')"
+        command_list = ["python", script]
+        if (self.max_training_time is not None) and not initialize:
+            max_time = 0.9 * (60 * self.max_training_time)
+            command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
+        return " ".join(command_list)
 
 
 @typeguard.typechecked
