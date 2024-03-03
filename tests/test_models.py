@@ -27,6 +27,7 @@ def test_mace_init(mace_config, dataset):
 
     # create hamiltonian and verify addition of atomic energies
     hamiltonian = model.create_hamiltonian()
+    assert hamiltonian == model.create_hamiltonian()
     evaluated = hamiltonian.evaluate(dataset)
 
     nstates = dataset.length().result()
@@ -38,6 +39,7 @@ def test_mace_init(mace_config, dataset):
         "Cu": energy_Cu,
         "H": energy_H,
     }
+    assert hamiltonian != model.create_hamiltonian()  # atomic energies
 
     evaluated_ = hamiltonian.evaluate(dataset)
     for i in range(nstates):
@@ -55,6 +57,10 @@ def test_mace_init(mace_config, dataset):
             energies[i],
             evaluated__[i].result().info["energy"],
         )
+    hamiltonian = model.create_hamiltonian()
+    model.reset()
+    model.initialize(dataset[:3])
+    assert hamiltonian != model.create_hamiltonian()
 
 
 def test_mace_train(gpu, mace_config, dataset, tmp_path):

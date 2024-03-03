@@ -48,6 +48,21 @@ class MACEHamiltonian(Hamiltonian):
     def parameters(self: Hamiltonian) -> dict:
         return {"atomic_energies": self.atomic_energies}
 
+    def __eq__(self, hamiltonian) -> bool:
+        if type(hamiltonian) is not MACEHamiltonian:
+            return False
+        if self.input_files[0] != hamiltonian.input_files[0]:
+            return False
+        if len(self.atomic_energies) != len(hamiltonian.atomic_energies):
+            return False
+        for symbol, energy in self.atomic_energies:
+            if not np.allclose(
+                energy,
+                hamiltonian.atomic_energies[symbol],
+            ):
+                return False
+        return True
+
     @staticmethod
     def load_calculators(
         data: list[FlowAtoms],

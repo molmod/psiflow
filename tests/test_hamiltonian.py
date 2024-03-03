@@ -133,7 +133,7 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
     )
     hamiltonian = PlumedHamiltonian(plumed_input)
     evaluated = hamiltonian.evaluate(dataset).as_list().result()
-    for i, atoms in enumerate(evaluated):
+    for atoms in evaluated:
         assert np.allclose(
             atoms.info["energy"],
             kappa / 2 * (atoms.get_volume() - center) ** 2,
