@@ -26,25 +26,18 @@ def set_logger(  # hacky
     names = [
         "psiflow.data",
         "psiflow.committee",
-        "psiflow.sampling",
         "psiflow.metrics",
         "psiflow.execution",
         "psiflow.state",
         "psiflow.learning",
+        "psiflow.learning_utils",
         "psiflow.utils",
         "psiflow.parsl_utils",
-        "psiflow.models.base",
-        "psiflow.models._mace",
-        "psiflow.models._nequip",
+        "psiflow.models.model",
+        "psiflow.models.mace",
         "psiflow.reference._cp2k",
         "psiflow.reference._emt",
         "psiflow.reference._pyscf",
-        "psiflow.walkers.base",
-        "psiflow.walkers.bias",
-        "psiflow.walkers.dynamic",
-        "psiflow.walkers.optimization",
-        "psiflow.walkers.random",
-        "psiflow.walkers.utils",
     ]
     for name in names:
         logger = logging.getLogger(name)

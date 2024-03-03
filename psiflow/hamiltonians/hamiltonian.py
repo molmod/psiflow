@@ -1,19 +1,13 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
-import numpy as np
 import typeguard
-from ase import Atoms
 from parsl.app.app import join_app, python_app
-from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.utils import copy_app_future
-
-from .utils import EinsteinCalculator
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -111,40 +105,98 @@ class Hamiltonian:
     def parameters(self: Hamiltonian) -> dict:
         raise NotImplementedError
 
+    @staticmethod
+    def load_calculators(data: list[FlowAtoms], *inputs, **parameters) -> tuple:
+        raise NotImplementedError
+
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+        raise NotImplementedError
+
+    def __mul__(self, a: float) -> Hamiltonian:
+        return MixtureHamiltonian([self], [a])
+
+    def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+        if type(hamiltonian) is MixtureHamiltonian:
+            return hamiltonian.__add__(self)
+        return 1.0 * self + 1.0 * hamiltonian
+
+    __rmul__ = __mul__  # handle float * Hamiltonian
+
 
 @typeguard.typechecked
-class EinsteinCrystal(Hamiltonian):
-    """Dummy hamiltonian which represents a simple harmonic interaction"""
+def add_contributions(
+    coefficients: tuple[float, ...],
+    inputs: list = [],
+    outputs: list = [],
+) -> None:
+    from psiflow.data import read_dataset, write_dataset
 
-    def __init__(self, atoms: Union[FlowAtoms, AppFuture], force_constant: float):
-        super().__init__()
-        self.reference_geometry = copy_app_future(atoms)
-        self.force_constant = force_constant
-        self.input_files = []
+    contributions = [read_dataset(slice(None), inputs=[i]) for i in inputs]
+    assert len(contributions) == len(coefficients)
+    length = len(contributions[0])
+    for contribution in contributions:
+        assert len(contribution) == length
 
-        self.evaluate_app = python_app(evaluate_function, executors=["default_threads"])
+    data = []
+    for i in range(length):
+        atoms_list = [contribution[i] for contribution in contributions]
+        energy_list = [atoms.info["energy"] for atoms in atoms_list]
+        forces_list = [atoms.arrays["forces"] for atoms in atoms_list]
 
-    @property
-    def parameters(self: Hamiltonian) -> dict:
-        return {
-            "reference_geometry": self.reference_geometry,
-            "force_constant": self.force_constant,
-        }
+        energy = sum([energy_list[i] * c for i, c in enumerate(coefficients)])
+        forces = sum([forces_list[i] * c for i, c in enumerate(coefficients)])
+        atoms = atoms_list[0].copy()
+        atoms.info["energy"] = energy
+        atoms.arrays["forces"] = forces
 
-    @staticmethod
-    def load_calculators(
-        data: list[FlowAtoms],
-        reference_geometry: Atoms,
-        force_constant: float,
-    ) -> tuple[list[EinsteinCalculator], np.ndarray]:
-        import numpy as np
+        if atoms_list[0].pbc.any():
+            stress_list = [atoms.info["stress"] for atoms in atoms_list]
+            stress = sum([stress_list[i] * c for i, c in enumerate(coefficients)])
+            atoms.info["stress"] = stress
+        data.append(atoms)
+    write_dataset(data, outputs=[outputs[0]])
 
-        from psiflow.hamiltonians.utils import EinsteinCalculator
 
-        assert sum([len(a) == len(reference_geometry) for a in data])
-        assert sum([np.all(a.numbers == reference_geometry.numbers) for a in data])
-        calculators = [
-            EinsteinCalculator(reference_geometry.get_positions(), force_constant)
-        ]
-        index_mapping = np.zeros(len(data), dtype=int)
-        return calculators, index_mapping
+app_add_contributions = python_app(add_contributions, executors=["default_threads"])
+
+
+class MixtureHamiltonian(Hamiltonian):
+    def __init__(
+        self,
+        hamiltonians: list[Hamiltonian, ...],
+        coefficients: list[float, ...],
+    ) -> None:
+        self.hamiltonians = hamiltonians
+        self.coefficients = coefficients
+
+    def evaluate(self, dataset: Dataset, batch_size: Optional[int] = 100) -> Dataset:
+        evaluated = [h.evaluate(dataset) for h in self.hamiltonians]
+        future = app_add_contributions(
+            tuple(self.coefficients),
+            inputs=[e.data_future for e in evaluated],
+            outputs=[psiflow.context().new_file("data_", ".xyz")],
+        )
+        return Dataset(None, data_future=future.outputs[0])
+
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+        raise NotImplementedError
+
+    def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+        if type(hamiltonian) is not MixtureHamiltonian:
+            try:
+                index = self.hamiltonians.index(hamiltonian)
+                self.coefficients[index] += 1.0
+            except ValueError:
+                self.hamiltonians.append(hamiltonian)
+                self.coefficients.append(1.0)
+        else:
+            coefficients = list(hamiltonian.coefficients)
+            hamiltonians = list(hamiltonian.hamiltonians)
+            for c, h in zip(self.coefficients, self.hamiltonians):
+                try:
+                    index = hamiltonians.index(h)
+                    coefficients[index] += c
+                except ValueError:
+                    hamiltonians.append(h)
+                    coefficients.append(c)
+            return MixtureHamiltonian(hamiltonians, coefficients)

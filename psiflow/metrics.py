@@ -13,7 +13,7 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
-from psiflow.models import BaseModel
+from psiflow.models import Model
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -476,7 +476,7 @@ class Metrics:
             "wandb_id": self.wandb_id,
         }
 
-    def insert_name(self, model: BaseModel):
+    def insert_name(self, model: Model):
         model.config_raw["wandb_project"] = self.wandb_project
         model.config_raw["wandb_group"] = self.wandb_group
 
@@ -524,7 +524,7 @@ class Metrics:
     def save(
         self,
         path: Union[str, Path],
-        model: Optional[BaseModel] = None,
+        model: Optional[Model] = None,
         dataset: Optional[Dataset] = None,
     ):
         @join_app

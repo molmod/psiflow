@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset, NullState
-from psiflow.models import BaseModel, load_model
+from psiflow.models import Model, load_model
 
 
 @typeguard.typechecked
@@ -95,7 +95,7 @@ extract_highest = python_app(_extract_highest, executors=["default_threads"])
 class Committee:
     def __init__(
         self,
-        models: list[BaseModel],
+        models: list[Model],
         metric: str = "mean_force",
     ):
         self.models = models

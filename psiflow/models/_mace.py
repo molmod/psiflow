@@ -15,7 +15,7 @@ from parsl.data_provider.files import File
 import psiflow
 from psiflow.data import FlowAtoms
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
-from psiflow.models.base import BaseModel
+from psiflow.models.model import Model
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -244,7 +244,7 @@ def train(
 
 
 @typeguard.typechecked
-class MACEModel(BaseModel):
+class MACEModel(Model):
     def __init__(self, **config) -> None:
         super().__init__()
         config = MACEConfig(**config)

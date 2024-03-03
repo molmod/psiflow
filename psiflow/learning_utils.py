@@ -11,7 +11,7 @@ from parsl.dataflow.futures import AppFuture
 from psiflow.committee import Committee, filter_disagreements
 from psiflow.data import Dataset, FlowAtoms, NullState
 from psiflow.metrics import Metrics
-from psiflow.models import BaseModel
+from psiflow.models import Model
 from psiflow.reference import BaseReference
 from psiflow.utils import copy_app_future, unpack_i
 from psiflow.walkers import BaseWalker
@@ -78,7 +78,7 @@ check_error = python_app(_check_error, executors=["default_threads"])
 
 @typeguard.typechecked
 def sample_with_model(
-    model: BaseModel,
+    model: Model,
     reference: BaseReference,
     walkers: list[BaseWalker],
     identifier: Union[AppFuture, int],

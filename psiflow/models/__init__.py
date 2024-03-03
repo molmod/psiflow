@@ -5,14 +5,13 @@ import typeguard
 from ase.data import chemical_symbols
 
 import psiflow
+from psiflow.models._mace import MACEConfig, MACEModel  # noqa: F401
+from psiflow.models.model import Model
 from psiflow.utils import resolve_and_check
-
-from ._mace import MACEConfig, MACEModel  # noqa: F401
-from .base import BaseModel
 
 
 @typeguard.typechecked
-def load_model(path: Union[Path, str]) -> BaseModel:
+def load_model(path: Union[Path, str]) -> Model:
     from pathlib import Path
 
     import yaml

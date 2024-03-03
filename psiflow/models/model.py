@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
-class BaseModel:
+class Model:
     """Base Container for a trainable interaction potential"""
 
     def __init__(self) -> None:
@@ -115,7 +115,7 @@ class BaseModel:
                 outputs=[File(str(path_model))],
             )
 
-    def copy(self) -> BaseModel:
+    def copy(self) -> Model:
         model = self.__class__(**asdict(self.config))
         for element, energy in self.atomic_energies.items():
             model.add_atomic_energy(element, energy)

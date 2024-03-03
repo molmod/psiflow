@@ -17,7 +17,7 @@ from psiflow.committee import Committee
 from psiflow.data import Dataset
 from psiflow.learning_utils import sample_with_committee, sample_with_model
 from psiflow.metrics import Metrics
-from psiflow.models import BaseModel
+from psiflow.models import Model
 from psiflow.reference import BaseReference
 from psiflow.state import save_state
 from psiflow.utils import apply_temperature_ramp, resolve_and_check, save_yaml
@@ -62,7 +62,7 @@ class BaseLearning:
 
     def run_pretraining(
         self,
-        model: BaseModel,
+        model: Model,
         reference: BaseReference,
         walkers: list[BaseWalker],
     ) -> Dataset:
@@ -120,7 +120,7 @@ class BaseLearning:
 
     def initialize_run(
         self,
-        model: BaseModel,
+        model: Model,
         reference: BaseReference,
         walkers: list[BaseWalker],
         initial_data: Optional[Dataset] = None,
@@ -214,7 +214,7 @@ class SequentialLearning(BaseLearning):
 
     def run(
         self,
-        model: BaseModel,
+        model: Model,
         reference: BaseReference,
         walkers: list[BaseWalker],
         initial_data: Optional[Dataset] = None,
@@ -356,7 +356,7 @@ class IncrementalLearning(BaseLearning):
 
     def run(
         self,
-        model: BaseModel,
+        model: Model,
         reference: BaseReference,
         walkers: list[BaseWalker],
         initial_data: Optional[Dataset] = None,
