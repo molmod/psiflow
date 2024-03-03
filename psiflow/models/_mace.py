@@ -1,7 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from typing import Optional, Union
 
@@ -154,25 +154,10 @@ class MACEConfig:
     restart_latest: bool = False
     save_cpu: bool = True
     clip_grad: Optional[float] = 10
-    wandb: bool = True
+    wandb: bool = False
     wandb_project: Optional[str] = "psiflow"
     wandb_group: Optional[str] = None
     wandb_name: str = "mace_training"
-    wandb_log_hypers: list = field(
-        default_factory=lambda: [
-            "num_channels",
-            "max_L",
-            "correlation",
-            "lr",
-            "swa_lr",
-            "weight_decay",
-            "batch_size",
-            "max_num_epochs",
-            "start_swa",
-            "energy_weight",
-            "forces_weight",
-        ]
-    )
 
     @staticmethod
     def serialize(config: dict):
@@ -194,6 +179,7 @@ class MACEConfig:
                     continue
             if value is None:
                 continue
+
             # get rid of any whitespace in str(value), as e.g. with lists
             config_str += "".join("--{}={}".format(key, value).split()) + " "
         return config_str
@@ -240,6 +226,7 @@ def train(
     assert len(inputs) == 3
     mace_config["train_file"] = inputs[1].filepath
     mace_config["valid_file"] = inputs[2].filepath
+    mace_config["device"] = "cuda"
     config_str = MACEConfig.serialize(mace_config)
     config_str += "--initialized_model={} ".format(inputs[0].filepath)
 
@@ -273,7 +260,7 @@ class MACEModel(BaseModel):
         command_train = psiflow.context()["ModelTraining"].train_command(False)
 
         app_initialize = bash_app(initialize, executors=[evaluation])
-        app_train = bash_app(initialize, executors=[training])
+        app_train = bash_app(train, executors=[training])
         self._initialize = partial(app_initialize, command_train=command_init)
         self._train = partial(app_train, command_train=command_train)
 

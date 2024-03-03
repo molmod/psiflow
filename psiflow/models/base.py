@@ -96,14 +96,20 @@ class BaseModel:
         path = resolve_and_check(Path(path))
         path.mkdir(exist_ok=True)
 
-        path_config = path / "config.yaml"
+        name = self.__class__.__name__
+        path_config = path / "{}.yaml".format(name)
 
+        atomic_energies = {
+            "atomic_energies_" + key: value
+            for key, value in self.atomic_energies.items()
+        }
         save_yaml(
             asdict(self.config),
             outputs=[File(str(path_config))],
+            **atomic_energies,
         )
         if self.model_future is not None:
-            path_model = path / "model.pth"
+            path_model = path / "{}.pth".format(name)
             copy_data_future(
                 inputs=[self.model_future],
                 outputs=[File(str(path_model))],

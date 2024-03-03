@@ -18,36 +18,34 @@ def load_model(path: Union[Path, str]) -> BaseModel:
     import yaml
     from parsl.data_provider.files import File
 
-    from psiflow.utils import copy_app_future, copy_data_future
+    from psiflow.utils import copy_data_future
 
     path = resolve_and_check(Path(path))
     assert path.is_dir()
     classes = [
         MACEModel,
-        None,
     ]
-    for model_cls in classes:
+    for model_cls in classes + [None]:
         assert model_cls is not None
-        path_config_raw = path / (model_cls.__name__ + ".yaml")
-        if path_config_raw.is_file():
+        name = model_cls.__name__
+        path_config = path / (name + ".yaml")
+        if path_config.is_file():
             break
-    with open(path_config_raw, "r") as f:
+    with open(path_config, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
-    model = model_cls(config)
-    for element in chemical_symbols:
-        energy = model.config_raw.pop("atomic_energies_" + element, None)
-        if energy is not None:
-            model.add_atomic_energy(element, energy)
-    path_config = path / "config_after_init.yaml"
-    path_model = path / "model_undeployed.pth"
+    atomic_energies = {}
+    for key in list(config):
+        if key.startswith("atomic_energies_"):
+            element = key.split("atomic_energies_")[-1]
+            assert element in chemical_symbols
+            atomic_energies[element] = config.pop(key)
+    model = model_cls(**config)
+    for element, energy in atomic_energies.items():
+        model.add_atomic_energy(element, energy)
+    path_model = path / "{}.pth".format(name)
     if path_model.is_file():
-        assert path_config.is_file()
-        with open(path_config, "r") as f:
-            config_init = yaml.load(f, Loader=yaml.FullLoader)
-        model.config_future = copy_app_future(config_init)
         model.model_future = copy_data_future(
             inputs=[File(str(path_model))],
             outputs=[psiflow.context().new_file("model_", ".pth")],
         ).outputs[0]
-        model.deploy()
     return model

@@ -1,4 +1,5 @@
 ---
+retries: 0
 ModelEvaluation:
   simulation_engine: 'openmm'
   gpu: false
@@ -6,6 +7,7 @@ ModelEvaluation:
 ModelTraining:
   gpu: true
   use_threadpool: true
+  max_training_time: 1
 ReferenceEvaluation:
   cores_per_worker: 2
   max_evaluation_time: 0.3

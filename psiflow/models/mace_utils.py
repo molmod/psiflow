@@ -78,25 +78,6 @@ class MACECalculator(Calculator):
         # store atomic energies from psiflow in calculator
         self.atomic_energies = atomic_energies
 
-    def as_data(self, atoms):
-        config = data.config_from_atoms(atoms)
-        data_loader = torch_geometric.dataloader.DataLoader(
-            dataset=[
-                data.AtomicData.from_config(
-                    config,
-                    z_table=self.z_table,
-                    p_table=self.p_table,
-                    cutoff=self.r_max,
-                )
-            ],
-            batch_size=1,
-            shuffle=False,
-            drop_last=False,
-        )
-        batch = next(iter(data_loader))
-        batch.to(self.device)
-        return batch
-
     def get_atomic_energy(self, atoms):
         total = 0
         natoms = len(atoms)
@@ -190,7 +171,7 @@ def main() -> None:
     args = parser.parse_args()
 
     args.log_dir = os.path.join(os.getcwd(), "log")
-    args.model_dir = os.path.join(os.getcwd(), "model")
+    args.model_dir = os.path.join(os.getcwd())
     args.results_dir = os.path.join(os.getcwd(), "results")
     args.downloads_dir = os.path.join(os.getcwd(), "downloads")
     args.checkpoints_dir = os.path.join(os.getcwd(), "checkpoints")
@@ -663,27 +644,31 @@ def main() -> None:
         )
         wandb.run.summary["params"] = args_dict_json
 
-    tools.train(
-        model=model,
-        loss_fn=loss_fn,
-        train_loader=train_loader,
-        valid_loader=valid_loader,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
-        checkpoint_handler=checkpoint_handler,
-        eval_interval=args.eval_interval,
-        start_epoch=start_epoch,
-        max_num_epochs=args.max_num_epochs,
-        logger=logger,
-        patience=args.patience,
-        output_args=output_args,
-        device=device,
-        swa=swa,
-        ema=ema,
-        max_grad_norm=args.clip_grad,
-        log_errors=args.error_table,
-        log_wandb=args.wandb,
-    )
+    try:
+        tools.train(
+            model=model,
+            loss_fn=loss_fn,
+            train_loader=train_loader,
+            valid_loader=valid_loader,
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+            checkpoint_handler=checkpoint_handler,
+            eval_interval=args.eval_interval,
+            start_epoch=start_epoch,
+            max_num_epochs=args.max_num_epochs,
+            logger=logger,
+            patience=args.patience,
+            output_args=output_args,
+            device=device,
+            swa=swa,
+            ema=ema,
+            max_grad_norm=args.clip_grad,
+            log_errors=args.error_table,
+            log_wandb=args.wandb,
+        )
+    except TimeoutException:
+        logging.info("received SIGTERM!")
+        pass
 
     # Evaluation on test datasets
     logging.info("Computing metrics for training, validation, and test sets")
@@ -726,7 +711,7 @@ def main() -> None:
         logging.info(f"Saving model to {model_path}")
         if args.save_cpu:
             model = model.to("cpu")
-        torch.save(model, model_path)
+        torch.save(model, "model.pth")
 
         if swa_eval:
             torch.save(model, Path(args.model_dir) / (args.name + "_swa.model"))
