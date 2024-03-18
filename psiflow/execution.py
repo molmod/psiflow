@@ -121,10 +121,15 @@ class ExecutionDefinition:
 
 @typeguard.typechecked
 class ModelEvaluation(ExecutionDefinition):
-    def __init__(self, simulation_engine: str = "openmm", **kwargs) -> None:
+    def __init__(
+        self,
+        replicas_per_gpu: int = 1,
+        max_simulation_time: Optional[int] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
-        assert simulation_engine in ["openmm", "yaff"]
-        self.simulation_engine = simulation_engine
+        self.replicas_per_gpu = replicas_per_gpu
+        self.max_simulation_time = max_simulation_time
 
 
 @typeguard.typechecked

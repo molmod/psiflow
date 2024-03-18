@@ -704,7 +704,3 @@ class Dataset:
         path_xyz = resolve_and_check(Path(path_xyz))
         assert os.path.isfile(path_xyz)  # needs to be locally accessible
         return cls(None, data_future=File(str(path_xyz)))
-
-    @staticmethod
-    def create_apps() -> None:
-        pass  # no apps beyond default executor
