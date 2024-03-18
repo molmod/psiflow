@@ -17,6 +17,7 @@ dependencies = [
     "plotly",
     "parsl",
     "prettytable",
+    "pandas",
     "psutil",
     "colorcet",
     "cp2k-input-tools",
