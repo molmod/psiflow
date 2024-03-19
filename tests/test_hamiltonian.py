@@ -1,8 +1,11 @@
 import numpy as np
 from ase.units import kJ, mol
+from parsl.data_provider.files import File
 
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
 from psiflow.hamiltonians._plumed import evaluate_plumed
+from psiflow.hamiltonians.hamiltonian import Zero
+from psiflow.utils import copy_data_future
 
 
 def test_einstein(context, dataset):
@@ -29,7 +32,11 @@ def test_einstein(context, dataset):
 
     # consider linear combination
     scaled = 0.5 * hamiltonian
+    assert len(scaled) == 1
+    assert scaled.get_coefficient(hamiltonian) == 0.5
     actually_scaled = EinsteinCrystal(dataset[0], force_constant=0.5)
+    assert scaled.get_coefficient(actually_scaled) is None
+
     evaluated_scaled = scaled.evaluate(dataset[:10])
     evaluated_actually = actually_scaled.evaluate(dataset[:10])
     for i in range(1, 10):
@@ -42,6 +49,11 @@ def test_einstein(context, dataset):
     other = EinsteinCrystal(dataset[0], 4.0)
     evaluated_other = other.evaluate(dataset[:10])
     mixture = hamiltonian + other
+    assert len(mixture) == 2
+    assert mixture == 0.9 * other + 0.1 * other + 1.0 * hamiltonian
+    _ = mixture + other
+    assert mixture.get_coefficients(mixture) == (1, 1)
+    assert mixture.get_coefficients(hamiltonian + actually_scaled) is None
     evaluated_mixture = mixture.evaluate(dataset[:10])
     for i in range(1, 10):
         e = evaluated[i].result().info["energy"]
@@ -56,6 +68,13 @@ def test_einstein(context, dataset):
             f_mixture,
             f + f_other,
         )
+
+    zero = Zero()
+    evaluated_zero = zero.evaluate(evaluated)
+    for i in range(evaluated_zero.length().result()):
+        assert "energy" not in evaluated_zero[i].result().info
+    assert hamiltonian == hamiltonian + zero
+    assert 2 * hamiltonian + zero == 2 * hamiltonian
 
 
 def test_plumed_evaluate(context, dataset, tmp_path):
@@ -121,7 +140,7 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
         assert f.read() == hills
 
 
-def test_plumed_hamiltonian(context, dataset):
+def test_plumed_hamiltonian(context, dataset, tmp_path):
     kappa = 1
     center = 100
     plumed_input = """
@@ -138,3 +157,33 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
             atoms.info["energy"],
             kappa / 2 * (atoms.get_volume() - center) ** 2,
         )
+
+    # use external grid as bias, check that file is read
+    hills = """#! FIELDS time CV sigma_CV height biasf
+#! SET multivariate false
+#! SET kerneltype gaussian
+     1.00000     2.1     2.0     7  0
+     2.00000     2.2     2.0     7  0
+"""
+    path_hills = tmp_path / "hills"
+    with open(path_hills, "w") as f:
+        f.write(hills)
+    data_future = copy_data_future(
+        inputs=[File(path_hills)],
+        outputs=[File(str(path_hills) + "_")],
+    ).outputs[0]
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: DISTANCE ATOMS=1,2 NOPBC
+METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
+""".format(
+        data_future.filepath
+    )
+    hamiltonian = PlumedHamiltonian(plumed_input, data_future)
+    data = hamiltonian.evaluate(dataset)
+    for i in range(data.length().result()):
+        assert data[i].result().info["energy"] > 0
+    hamiltonian = PlumedHamiltonian(plumed_input, File(path_hills))
+    data = hamiltonian.evaluate(dataset)
+    for i in range(data.length().result()):
+        assert data[i].result().info["energy"] > 0

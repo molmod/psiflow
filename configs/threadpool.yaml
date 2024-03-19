@@ -1,7 +1,6 @@
 ---
 retries: 0
 ModelEvaluation:
-  simulation_engine: 'openmm'
   gpu: false
   use_threadpool: true
 ModelTraining:

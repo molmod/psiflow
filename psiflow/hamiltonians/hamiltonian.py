@@ -116,9 +116,30 @@ class Hamiltonian:
         return MixtureHamiltonian([self], [a])
 
     def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+        if type(hamiltonian) is Zero:
+            return self
         if type(hamiltonian) is MixtureHamiltonian:
             return hamiltonian.__add__(self)
         return 1.0 * self + 1.0 * hamiltonian
+
+    __rmul__ = __mul__  # handle float * Hamiltonian
+
+
+@typeguard.typechecked
+class Zero(Hamiltonian):
+    def single_evaluate(self, dataset: Dataset) -> Dataset:
+        return dataset.reset()
+
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+        if type(hamiltonian) is Zero:
+            return True
+        return False
+
+    def __mul__(self, a: float) -> Hamiltonian:
+        return Zero()
+
+    def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+        return hamiltonian
 
     __rmul__ = __mul__  # handle float * Hamiltonian
 
@@ -160,6 +181,7 @@ def add_contributions(
 app_add_contributions = python_app(add_contributions, executors=["default_threads"])
 
 
+@typeguard.typechecked
 class MixtureHamiltonian(Hamiltonian):
     def __init__(
         self,
@@ -179,16 +201,39 @@ class MixtureHamiltonian(Hamiltonian):
         return Dataset(None, data_future=future.outputs[0])
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        raise NotImplementedError
+        if type(hamiltonian) is not MixtureHamiltonian:
+            return False
+        if len(self.coefficients) != len(hamiltonian.coefficients):
+            return False
+        for i, h in enumerate(self.hamiltonians):
+            if h not in hamiltonian.hamiltonians:
+                return False
+            coefficient = hamiltonian.coefficients[hamiltonian.hamiltonians.index(h)]
+            if self.coefficients[i] != coefficient:
+                return False
+        return True
+
+    def __mul__(self, a: float) -> Hamiltonian:
+        return MixtureHamiltonian(
+            self.hamiltonians,
+            [c * a for c in self.coefficients],
+        )
+
+    def __len__(self) -> int:
+        return len(self.coefficients)
 
     def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+        if type(hamiltonian) is Zero:
+            return self
         if type(hamiltonian) is not MixtureHamiltonian:
+            coefficients = list(self.coefficients)
+            hamiltonians = list(self.hamiltonians)
             try:
-                index = self.hamiltonians.index(hamiltonian)
-                self.coefficients[index] += 1.0
+                index = hamiltonians.index(hamiltonian)
+                coefficients[index] += 1.0
             except ValueError:
-                self.hamiltonians.append(hamiltonian)
-                self.coefficients.append(1.0)
+                hamiltonians.append(hamiltonian)
+                coefficients.append(1.0)
         else:
             coefficients = list(hamiltonian.coefficients)
             hamiltonians = list(hamiltonian.hamiltonians)
@@ -199,4 +244,26 @@ class MixtureHamiltonian(Hamiltonian):
                 except ValueError:
                     hamiltonians.append(h)
                     coefficients.append(c)
-            return MixtureHamiltonian(hamiltonians, coefficients)
+        return MixtureHamiltonian(hamiltonians, coefficients)
+
+    def get_coefficient(self, hamiltonian) -> Optional[float]:
+        assert type(hamiltonian) is not MixtureHamiltonian
+        if hamiltonian in self.hamiltonians:
+            return self.coefficients[self.hamiltonians.index(hamiltonian)]
+        else:
+            return None
+
+    def get_coefficients(self, mixture) -> Optional[tuple]:
+        assert type(mixture) is MixtureHamiltonian
+        for h in mixture.hamiltonians:
+            if h not in self.hamiltonians:
+                return None
+        coefficients = []
+        for h in self.hamiltonians:
+            coefficient = mixture.get_coefficient(h)
+            if coefficient is None:
+                coefficient = 0.0
+            coefficients.append(coefficient)
+        return tuple(coefficients)
+
+    __rmul__ = __mul__  # handle float * Hamiltonian

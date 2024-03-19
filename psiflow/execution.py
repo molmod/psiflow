@@ -131,6 +131,9 @@ class ModelEvaluation(ExecutionDefinition):
         self.replicas_per_gpu = replicas_per_gpu
         self.max_simulation_time = max_simulation_time
 
+    def get_resource_spec():
+        pass
+
 
 @typeguard.typechecked
 class ModelTraining(ExecutionDefinition):
@@ -363,7 +366,6 @@ class ExecutionContextLoader:
             if len(sys.argv) == 1:  # no config passed, use threadpools:
                 psiflow_config = {
                     "ModelEvaluation": {
-                        "simulation_engine": "openmm",
                         "gpu": False,
                         "use_threadpool": True,
                     },

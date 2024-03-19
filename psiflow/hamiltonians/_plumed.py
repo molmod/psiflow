@@ -148,13 +148,30 @@ class PlumedHamiltonian(Hamiltonian):
         for i, input_file in enumerate(input_files):
             if type(input_file) is File:
                 assert input_file.filepath in bare_input
+                assert Path(input_file.filepath).exists()
             elif type(input_file) is DataFuture:
                 assert input_file.file_obj.filepath in bare_input
             else:
+                assert type(input_file) in [str, Path]
+                if type(input_file) is str:
+                    input_file = Path.cwd() / input_file
+                assert input_file.exists()
                 input_files[i] = File(input_file)
         self.input_files = input_files
 
         self.evaluate_app = python_app(evaluate_function, executors=["default_htex"])
+
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if type(other) is not type(self):
+            return False
+        if self.plumed_input != other.plumed_input:
+            return False
+        if len(self.input_files) != len(other.input_files):
+            return False
+        for file, file_ in zip(self.input_files, other.input_files):
+            if file.filepath != file_.filepath:
+                return False
+        return True
 
     @property
     def parameters(self: Hamiltonian) -> dict:
