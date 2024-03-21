@@ -52,17 +52,17 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     assert len(partitions[2]) == 2
 
     # nvt partition
-    hamiltonians, weights_table = template(partitions[0])
+    hamiltonians_map, weights_table = template(partitions[0])
     assert partitions[0][0].nvt
-    assert len(hamiltonians) == 1
+    assert len(hamiltonians_map) == 1
     assert weights_table[0] == ("TEMP", "EinsteinCrystal0")
     assert weights_table[1] == (300, 1.0)
     assert weights_table[2] == (600, 1.0)
 
     # pimd partition
-    hamiltonians, weights_table = template(partitions[1])
+    hamiltonians_map, weights_table = template(partitions[1])
     assert partitions[1][0].pimd
-    assert len(hamiltonians) == 3
+    assert len(hamiltonians_map) == 3
     assert weights_table[0] == (
         "TEMP",
         "EinsteinCrystal0",
@@ -73,9 +73,9 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     assert weights_table[2] == (300, 1.0, 0.0, 1.0)
 
     # npt partition
-    hamiltonians, weights_table = template(partitions[2])
+    hamiltonians_map, weights_table = template(partitions[2])
     assert partitions[2][0].npt
-    assert len(hamiltonians) == 2
+    assert len(hamiltonians_map) == 2
     assert weights_table[0] == (
         "TEMP",
         "PRESSURE",

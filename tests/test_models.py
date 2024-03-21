@@ -6,6 +6,7 @@ from parsl.app.futures import DataFuture
 
 import psiflow
 from psiflow.data import Dataset
+from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models import MACEModel, load_model
 
 
@@ -26,8 +27,8 @@ def test_mace_init(mace_config, dataset):
     torch.load(model.model_future.result().filepath)  # should work
 
     # create hamiltonian and verify addition of atomic energies
-    hamiltonian = model.create_hamiltonian()
-    assert hamiltonian == model.create_hamiltonian()
+    hamiltonian = MACEHamiltonian.from_model(model)
+    assert hamiltonian == MACEHamiltonian.from_model(model)
     evaluated = hamiltonian.evaluate(dataset)
 
     nstates = dataset.length().result()
@@ -39,7 +40,7 @@ def test_mace_init(mace_config, dataset):
         "Cu": energy_Cu,
         "H": energy_H,
     }
-    assert hamiltonian != model.create_hamiltonian()  # atomic energies
+    assert hamiltonian != MACEHamiltonian.from_model(model)  # atomic energies
 
     evaluated_ = hamiltonian.evaluate(dataset)
     for i in range(nstates):
@@ -57,10 +58,10 @@ def test_mace_init(mace_config, dataset):
             energies[i],
             evaluated__[i].result().info["energy"],
         )
-    hamiltonian = model.create_hamiltonian()
+    hamiltonian = MACEHamiltonian.from_model(model)
     model.reset()
     model.initialize(dataset[:3])
-    assert hamiltonian != model.create_hamiltonian()
+    assert hamiltonian != MACEHamiltonian.from_model(model)
 
 
 def test_mace_train(gpu, mace_config, dataset, tmp_path):
@@ -71,10 +72,10 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     validation = dataset[-5:]
     model = MACEModel(**mace_config)
     model.initialize(training)
-    hamiltonian0 = model.create_hamiltonian()
+    hamiltonian0 = MACEHamiltonian.from_model(model)
     errors0 = Dataset.get_errors(validation, hamiltonian0.evaluate(validation))
     model.train(training, validation)
-    hamiltonian1 = model.create_hamiltonian()
+    hamiltonian1 = MACEHamiltonian.from_model(model)
     errors1 = Dataset.get_errors(validation, hamiltonian1.evaluate(validation))
     assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
 
@@ -86,7 +87,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     model.save(tmp_path)
     model.initialize(dataset[:2])
     e0 = (
-        model.create_hamiltonian()
+        MACEHamiltonian.from_model(model)
         .evaluate(dataset.get(indices=[3]))[0]
         .result()
         .info["energy"]
@@ -104,7 +105,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     assert type(model_) is MACEModel
     assert model_.model_future is not None
     e1 = (
-        model_.create_hamiltonian()
+        MACEHamiltonian.from_model(model_)
         .evaluate(dataset.get(indices=[3]))[0]
         .result()
         .info["energy"]

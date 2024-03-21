@@ -5,6 +5,7 @@ from typing import Callable, Optional
 
 import typeguard
 from parsl.app.app import join_app, python_app
+from parsl.app.futures import DataFuture
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
@@ -100,6 +101,9 @@ class Hamiltonian:
             **self.parameters,
         )
         return Dataset(None, data_future=future.outputs[0])
+
+    def serialize(self) -> DataFuture:
+        pass
 
     @property
     def parameters(self: Hamiltonian) -> dict:

@@ -7,11 +7,13 @@ import typeguard
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 from parsl.app.app import python_app
+from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.data import FlowAtoms
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
-from psiflow.utils import copy_app_future
+from psiflow.utils import copy_app_future, dump_json
 
 
 class EinsteinCalculator(Calculator):
@@ -88,3 +90,22 @@ class EinsteinCrystal(Hamiltonian):
         if self.reference_geometry.result() != hamiltonian.reference_geometry.result():
             return False
         return True
+
+    def serialize(self) -> DataFuture:
+        @python_app(executors=["default_threads"])
+        def get_positions(atoms):
+            return atoms.get_positions()
+
+        return dump_json(
+            hamiltonian=self.__class__.__name__,
+            centers=get_positions(self.reference_geometry),
+            force_constant=self.force_constant,
+            outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
+        ).outputs[0]
+
+    @staticmethod
+    def deserialize(centers: list[list[float]], force_constant: float):
+        return EinsteinCalculator(
+            np.array(centers),
+            force_constant,
+        )

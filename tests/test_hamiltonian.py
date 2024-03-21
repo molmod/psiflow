@@ -1,11 +1,14 @@
+import json
+
 import numpy as np
 from ase.units import kJ, mol
 from parsl.data_provider.files import File
 
-from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
+import psiflow
+from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, deserialize
 from psiflow.hamiltonians._plumed import evaluate_plumed
 from psiflow.hamiltonians.hamiltonian import Zero
-from psiflow.utils import copy_data_future
+from psiflow.utils import copy_app_future, copy_data_future, dump_json
 
 
 def test_einstein(context, dataset):
@@ -187,3 +190,48 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     data = hamiltonian.evaluate(dataset)
     for i in range(data.length().result()):
         assert data[i].result().info["energy"] > 0
+
+
+def test_json_dump(context):
+    data = {
+        "a": np.ones((3, 3, 3, 2)),
+        "b": [1, 2, 3],
+        "c": (1, 2, 4),
+        "d": "asdf",
+        "e": copy_app_future(False),
+    }
+    data_future = dump_json(
+        **data,
+        outputs=[psiflow.context().new_file("bla_", ".json")],
+    ).outputs[0]
+    psiflow.wait()
+    with open(data_future.filepath, "r") as f:
+        data_ = json.loads(f.read())
+
+    new_a = np.array(data_["a"])
+    assert len(new_a.shape) == 4
+    assert np.allclose(
+        data["a"],
+        new_a,
+    )
+    assert data_["e"] is False
+    assert type(data_["b"]) is list
+    assert type(data_["c"]) is list
+
+
+def test_serialization(context, dataset):
+    hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
+    evaluated = hamiltonian.evaluate(dataset[:3])
+
+    # manual
+    data_future = hamiltonian.serialize()
+    psiflow.wait()
+    calculator = deserialize(data_future.filepath)
+    atoms = dataset[0].result()
+    atoms.calc = calculator
+    for i in range(3):
+        state = dataset[i].result()
+        atoms.set_positions(state.get_positions())
+        atoms.set_cell(state.get_cell())
+        e = atoms.get_potential_energy()
+        assert e == evaluated[i].result().info["energy"]

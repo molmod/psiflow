@@ -84,6 +84,36 @@ def get_index_element_mask(
 
 
 @typeguard.typechecked
+def _dump_json(
+    inputs: list = [],
+    outputs: list = [],
+    **kwargs,
+) -> None:
+    import json
+
+    import numpy as np
+
+    def convert_to_list(array):
+        if not type(array) is np.ndarray:
+            return array
+        as_list = []
+        for item in array:
+            as_list.append(convert_to_list(item))
+        return as_list
+
+    for name in list(kwargs.keys()):
+        value = kwargs[name]
+        if type(value) is np.ndarray:
+            value = convert_to_list(value)
+        kwargs[name] = value
+    with open(outputs[0], "w") as f:
+        f.write(json.dumps(kwargs))
+
+
+dump_json = python_app(_dump_json, executors=["default_threads"])
+
+
+@typeguard.typechecked
 def _copy_data_future(inputs: List[File] = [], outputs: List[File] = []) -> None:
     import shutil
     from pathlib import Path
