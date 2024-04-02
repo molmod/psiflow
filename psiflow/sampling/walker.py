@@ -19,6 +19,7 @@ class Walker:
     temperature: Optional[float] = 300
     pressure: Optional[float] = None
     nbeads: int = 1
+    replica_exchange: int = -1
 
     def reset(self):
         pass

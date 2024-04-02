@@ -65,7 +65,7 @@ class MACECalculator(Calculator):
         self.device = torch_tools.init_device(device)
         self.energy_units_to_eV = energy_units_to_eV
         self.length_units_to_A = length_units_to_A
-        self.model = torch.load(f=model_path.filepath, map_location=device)
+        self.model = torch.load(f=model_path, map_location=device)
         if dtype == "float64":
             self.model = self.model.double()
         self.model.to(device)

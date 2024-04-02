@@ -4,6 +4,7 @@ from functools import partial
 from typing import Union
 
 import numpy as np
+import typeguard
 from ase.calculators.calculator import Calculator
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
@@ -13,8 +14,10 @@ import psiflow
 from psiflow.data import FlowAtoms
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
 from psiflow.models import MACEModel
+from psiflow.utils import dump_json
 
 
+@typeguard.typechecked
 class MACEHamiltonian(Hamiltonian):
     def __init__(
         self,
@@ -38,6 +41,32 @@ class MACEHamiltonian(Hamiltonian):
             dtype="float32",
         )
         self.evaluate_app = python_app(infused_evaluate, executors=[executor_name])
+
+    def serialize(self) -> DataFuture:
+        return dump_json(
+            hamiltonian=self.__class__.__name__,
+            model_path=self.input_files[0].filepath,
+            atomic_energies=self.atomic_energies,
+            inputs=self.input_files,
+            outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
+        ).outputs[0]
+
+    @staticmethod
+    def deserialize(
+        model_path: str,
+        atomic_energies: dict,
+        device: str,
+        dtype: str,
+    ) -> Calculator:
+        from psiflow.models.mace_utils import MACECalculator
+
+        calculator = MACECalculator(
+            model_path=model_path,
+            device=device,
+            dtype=dtype,
+            atomic_energies=atomic_energies,
+        )
+        return calculator
 
     @property
     def parameters(self: Hamiltonian) -> dict:
@@ -66,14 +95,14 @@ class MACEHamiltonian(Hamiltonian):
         ncores: int,
         device: str,
         dtype: str,  # float64 for optimizations
-    ) -> tuple[list[Calculator, np.ndarray]]:
+    ) -> tuple[list[Calculator], np.ndarray]:
         import numpy as np
         import torch
 
         from psiflow.models.mace_utils import MACECalculator
 
         calculator = MACECalculator(
-            model_future,
+            model_future.filepath,
             device=device,
             dtype=dtype,
             atomic_energies=atomic_energies,

@@ -1,3 +1,4 @@
+import xml.etree.ElementTree as ET
 from dataclasses import asdict
 from pathlib import Path
 
@@ -111,7 +112,7 @@ def mace_model(mace_config):
     for atoms in data_:
         atoms.reference_status = True
     dataset = Dataset(data_)
-    model = MACEModel(mace_config)
+    model = MACEModel(**mace_config)
     # add additional state to initialize other atomic numbers
     # mace cannot handle partially periodic datasets
     atoms = Atoms(
@@ -125,7 +126,7 @@ def mace_model(mace_config):
     atoms = FlowAtoms.from_atoms(atoms)
     atoms.reference_status = True
     model.initialize(dataset[:5] + Dataset([atoms]))
-    psiflow.wait()
+    # psiflow.wait()
     return model
 
 
@@ -142,3 +143,103 @@ def dataset_h2(context):
             atoms.get_positions() + np.random.uniform(-0.05, 0.05, size=(2, 3))
         )
     return Dataset(data)
+
+
+@pytest.fixture
+def checkpoint():
+    checkpoint_str = """
+<simulation>
+   <output prefix='output'>
+      <checkpoint filename='checkpoint' stride='10'>1</checkpoint>
+      <properties shape='(3)' filename='properties' stride='10'> [ time, temperature, potential ] </properties>
+   </output>
+   <total_steps>100</total_steps>
+   <ffsocket mode='unix' name='EinsteinCrystal0'>
+      <address>cSzwsJ2A/einsteincrystal0</address>
+      <timeout>  8.33333333e-02</timeout>
+   </ffsocket>
+   <ffsocket mode='unix' name='PlumedHamiltonian0'>
+      <address>cSzwsJ2A/plumedhamiltonian0</address>
+      <timeout>  8.33333333e-02</timeout>
+   </ffsocket>
+   <system prefix='walker-0'>
+      <forces>
+         <force forcefield='EinsteinCrystal0'>
+         </force>
+         <force forcefield='PlumedHamiltonian0'>
+         </force>
+      </forces>
+      <ensemble>
+         <temperature>  9.50044560e-04</temperature>
+         <hamiltonian_weights shape='(2)'> [   1.00000000e+00,   1.00000000e+00 ] </hamiltonian_weights>
+      </ensemble>
+      <motion mode='dynamics'>
+         <dynamics mode='nvt'>
+            <thermostat mode='langevin'>
+               <tau>  4.13413730e+03</tau>
+            </thermostat>
+            <timestep>  2.06706865e+01</timestep>
+            <nmts shape='(1)'> [ 1 ] </nmts>
+         </dynamics>
+      </motion>
+      <beads natoms='4' nbeads='1'>
+         <q shape='(1, 12)'>
+          [   1.44513572e-01,  -2.22608601e-02,   6.90340566e-02,  -1.48068714e-01,   3.67026570e+00,
+              3.24415892e+00,   3.09455639e+00,  -2.66306646e-01,   3.36282329e+00,   3.54200180e+00,
+              3.39685661e+00,   5.46722856e-01 ]
+         </q>
+         <p shape='(1, 12)'>
+          [   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+              0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+              0.00000000e+00,   0.00000000e+00 ]
+         </p>
+         <m shape='(4)'> [   1.83747161e+03,   1.15837273e+05,   1.15837273e+05,   1.15837273e+05 ] </m>
+         <names shape='(4)'> [ H, Cu, Cu, Cu ] </names>
+      </beads>
+      <cell shape='(3, 3)'>
+       [   1e+00,   1e-01,  0,   0.00000000e+00,   2e+00,
+          0,   0.00000000e+00,   0.00000000e+00,   3e+00 ]
+      </cell>
+   </system>
+   <system prefix='walker-1'>
+      <forces>
+         <force forcefield='EinsteinCrystal0'>
+         </force>
+         <force weight='  0.00000000e+00' forcefield='PlumedHamiltonian0'>
+         </force>
+      </forces>
+      <ensemble>
+         <temperature>  1.90008912e-03</temperature>
+         <hamiltonian_weights shape='(2)'> [   1.00000000e+00,   1.00000000e+00 ] </hamiltonian_weights>
+      </ensemble>
+      <motion mode='dynamics'>
+         <dynamics mode='nvt'>
+            <thermostat mode='langevin'>
+               <tau>  4.13413730e+03</tau>
+            </thermostat>
+            <timestep>  2.06706865e+01</timestep>
+            <nmts shape='(1)'> [ 1 ] </nmts>
+         </dynamics>
+      </motion>
+      <beads natoms='4' nbeads='1'>
+         <q shape='(1, 12)'>
+          [   1.44513572e-01,  -2.22608601e-02,   6.90340566e-02,  -1.48068714e-01,   3.67026570e+00,
+              3.24415892e+00,   3.09455639e+00,  -2.66306646e-01,   3.36282329e+00,   3.54200180e+00,
+              3.39685661e+00,   5.46722856e-01 ]
+         </q>
+         <p shape='(1, 12)'>
+          [   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+              0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   0.00000000e+00,
+              0.00000000e+00,   0.00000000e+00 ]
+         </p>
+         <m shape='(4)'> [   1.83747161e+03,   1.15837273e+05,   1.15837273e+05,   1.15837273e+05 ] </m>
+         <names shape='(4)'> [ H, Cu, Cu, Cu ] </names>
+      </beads>
+      <cell shape='(3, 3)'>
+       [   6.92067797e+00,   1.35926184e-01,  -3.29542567e-02,   0.00000000e+00,   6.46614176e+00,
+          -3.74701247e-01,   0.00000000e+00,   0.00000000e+00,   6.45073059e+00 ]
+      </cell>
+   </system>
+</simulation>
+"""
+    return ET.ElementTree(element=ET.fromstring(checkpoint_str))

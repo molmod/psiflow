@@ -3,6 +3,7 @@ retries: 0
 ModelEvaluation:
   gpu: false
   use_threadpool: true
+  max_simulation_time: 0.4
 ModelTraining:
   gpu: true
   use_threadpool: true

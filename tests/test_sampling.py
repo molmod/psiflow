@@ -1,17 +1,11 @@
-from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
-from psiflow.sampling.ipi_utils import template
+import numpy as np
+from ase.units import Bohr
+
+from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
+from psiflow.models import MACEModel
+from psiflow.sampling.propagate import _propagate, template
+from psiflow.sampling.server import parse_checkpoint
 from psiflow.sampling.walker import Walker, partition
-
-
-def test_setup_motion():
-    pass
-    # xml_str = "<data T="200"><test>4</test></data>"
-    # assert ET.fromstring(xml_str).tag == 'data'
-    # assert ET.fromstring(xml_str).attrib['T'] == '200'
-
-    # element = ET.Element('data', attrib={'T': '200'})
-    # element.append(ET.Element('test'))
-    # tree = ET.ElementTree(element)
 
 
 def test_walkers(dataset):
@@ -84,3 +78,90 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     )
     assert weights_table[1] == (300, 0, 0.0, 1.0)
     assert weights_table[2] == (600, 100, 1.0, 0.0)
+
+
+def test_parse_checkpoint(checkpoint):
+    states, temperatures = parse_checkpoint(checkpoint)
+    assert np.allclose(
+        states[0].cell,
+        np.array([[1, 0.0, 0], [0.1, 2, 0], [0, 0, 3]]) / Bohr,
+    )
+    assert np.allclose(temperatures, 0.0)
+
+
+def test_propagate(dataset, mace_config):
+    plumed_str = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: DISTANCE ATOMS=1,2 NOPBC
+RESTRAINT ARG=CV AT=1 KAPPA=1
+"""
+    plumed = PlumedHamiltonian(plumed_str)
+    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
+
+    walker0 = Walker(
+        start=dataset[0],
+        state=dataset[0],
+        temperature=300,
+        pressure=None,
+        hamiltonian=plumed + einstein,
+    )
+    walker1 = Walker(
+        start=dataset[0],
+        state=dataset[0],
+        temperature=600,
+        pressure=None,
+        hamiltonian=einstein,
+    )
+    simulation_outputs = _propagate(
+        [walker0, walker1],
+        steps=100,
+        step=10,
+        timestep=0.5,
+        keep_trajectory=True,
+    )
+    assert len(simulation_outputs) == 2
+    energies = [
+        simulation_outputs[0]["potential{electronvolt}"].result(),
+        simulation_outputs[1]["potential{electronvolt}"].result(),
+    ]
+    evaluated = [
+        (plumed + einstein).evaluate(simulation_outputs[0].trajectory),
+        einstein.evaluate(simulation_outputs[1].trajectory),
+    ]
+    energies_ = [
+        np.array([a.info["energy"] for a in evaluated[0].as_list().result()]),
+        np.array([a.info["energy"] for a in evaluated[1].as_list().result()]),
+    ]
+    assert len(energies[0]) == evaluated[0].length().result()
+    assert np.allclose(
+        energies[0],
+        energies_[0],
+    )
+    time = simulation_outputs[0]["time{picosecond}"].result()
+    assert np.allclose(
+        time,
+        np.arange(11) * 5e-4 * 10,
+    )
+
+    model = MACEModel(**mace_config)
+    model.initialize(dataset[:3])
+    hamiltonian = MACEHamiltonian.from_model(model)
+    walker = Walker(
+        start=dataset[0],
+        state=dataset[1],
+        temperature=600,
+        pressure=None,
+        hamiltonian=hamiltonian,
+    )
+    simulation_output = _propagate(
+        [walker],
+        steps=10,
+        step=1,
+        timestep=0.5,
+        keep_trajectory=False,
+    )[0]
+    assert np.allclose(
+        hamiltonian.evaluate(dataset)[0].result().info["energy"],
+        simulation_output["potential{electronvolt}"].result()[0],
+        atol=1e-3,
+    )

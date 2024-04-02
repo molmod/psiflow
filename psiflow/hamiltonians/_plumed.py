@@ -1,3 +1,5 @@
+from __future__ import annotations  # necessary for type-guarding class methods
+
 import logging
 import os
 from pathlib import Path
@@ -5,13 +7,16 @@ from typing import Union
 
 import numpy as np
 import typeguard
+from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
+import psiflow
 from psiflow.data import FlowAtoms
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
+from psiflow.utils import dump_json
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -51,7 +56,7 @@ def remove_comments_printflush(plumed_input: str) -> str:
 
 @typeguard.typechecked
 def evaluate_plumed(
-    atoms: FlowAtoms,
+    atoms: Union[FlowAtoms, Atoms],
     plumed_input: str,
     *input_files: str,
 ) -> tuple:
@@ -107,6 +112,7 @@ def evaluate_plumed(
     return energy, forces, stress
 
 
+@typeguard.typechecked
 class PlumedCalculator(Calculator):
     implemented_properties = ["energy", "free_energy", "forces", "stress"]
 
@@ -136,6 +142,7 @@ class PlumedCalculator(Calculator):
         }
 
 
+@typeguard.typechecked
 class PlumedHamiltonian(Hamiltonian):
     def __init__(
         self, plumed_input: str, *input_files: Union[str, Path, File, DataFuture]
@@ -145,7 +152,8 @@ class PlumedHamiltonian(Hamiltonian):
 
         # double check that supplied files are present in bare input
         bare_input = remove_comments_printflush(plumed_input)
-        for i, input_file in enumerate(input_files):
+        self.input_files = []
+        for input_file in input_files:
             if type(input_file) is File:
                 assert input_file.filepath in bare_input
                 assert Path(input_file.filepath).exists()
@@ -156,8 +164,8 @@ class PlumedHamiltonian(Hamiltonian):
                 if type(input_file) is str:
                     input_file = Path.cwd() / input_file
                 assert input_file.exists()
-                input_files[i] = File(input_file)
-        self.input_files = input_files
+                input_file = File(input_file)
+            self.input_files.append(input_file)
 
         self.evaluate_app = python_app(evaluate_function, executors=["default_htex"])
 
@@ -172,6 +180,20 @@ class PlumedHamiltonian(Hamiltonian):
             if file.filepath != file_.filepath:
                 return False
         return True
+
+    def serialize(self):
+        input_files = [file.filepath for file in self.input_files]
+        return dump_json(
+            hamiltonian=self.__class__.__name__,
+            plumed_input=self.plumed_input,
+            input_files=input_files,
+            inputs=self.input_files,  # wait for them to complete
+            outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
+        ).outputs[0]
+
+    @staticmethod
+    def deserialize(plumed_input: str, input_files: list[str]) -> PlumedCalculator:
+        return PlumedCalculator(plumed_input, *input_files)
 
     @property
     def parameters(self: Hamiltonian) -> dict:

@@ -123,13 +123,48 @@ class ExecutionDefinition:
 class ModelEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        replicas_per_gpu: int = 1,
-        max_simulation_time: Optional[int] = None,
+        replicas_per_worker: int = 1,
+        max_simulation_time: Optional[float] = None,
+        timeout: float = (5 / 60),  # 5 seconds
+        slots: int = 32,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
-        self.replicas_per_gpu = replicas_per_gpu
+        self.replicas_per_worker = replicas_per_worker
         self.max_simulation_time = max_simulation_time
+        self.timeout = timeout
+        self.slots = slots
+
+    def server_command(self):
+        script = "$(python -c 'import psiflow.sampling.server; print(psiflow.sampling.server.__file__)')"
+        command_list = ["python", script]
+        if self.max_simulation_time is not None:
+            max_time = 0.9 * (60 * self.max_simulation_time)
+            command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
+        return " ".join(command_list)
+
+    def client_command(self):
+        script = "$(python -c 'import psiflow.sampling.client; print(psiflow.sampling.client.__file__)')"
+        command_list = ["python", script]
+        # if (self.max_simulation_time is not None):
+        #    # hardcoded start delay
+        #    max_time = 0.9 * (60 * self.max_simulation_time) - 3
+        #    command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
+        return " ".join(command_list)
+
+    def get_client_args(
+        self,
+        hamiltonian_name: str,
+        nwalkers: int,
+    ) -> tuple[int, str]:
+        if "MACE" in hamiltonian_name:
+            # nclients = nwalkers // self.replicas_per_gpu
+            if self.gpu:
+                return 1, "--device=cuda --dtype=float32"
+            else:
+                return 1, "--device=cpu --dtype=float32"
+        else:
+            return 1, ""
 
     def get_resource_spec():
         pass

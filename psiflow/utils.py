@@ -2,6 +2,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -190,6 +191,20 @@ def _save_yaml(
 
 
 save_yaml = python_app(_save_yaml, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _save_xml(
+    element: ET.Element,
+    outputs: list = [],
+) -> None:
+    import xml.etree.ElementTree as ET
+
+    with open(outputs[0], "wb") as f:
+        f.write(ET.tostring(element))
+
+
+save_xml = python_app(_save_xml, executors=["default_threads"])
 
 
 @typeguard.typechecked

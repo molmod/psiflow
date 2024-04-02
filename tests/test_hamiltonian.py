@@ -5,7 +5,12 @@ from ase.units import kJ, mol
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, deserialize
+from psiflow.hamiltonians import (
+    EinsteinCrystal,
+    MACEHamiltonian,
+    PlumedHamiltonian,
+    deserialize,
+)
 from psiflow.hamiltonians._plumed import evaluate_plumed
 from psiflow.hamiltonians.hamiltonian import Zero
 from psiflow.utils import copy_app_future, copy_data_future, dump_json
@@ -219,14 +224,65 @@ def test_json_dump(context):
     assert type(data_["c"]) is list
 
 
-def test_serialization(context, dataset):
+def test_serialization(context, dataset, tmp_path, mace_model):
     hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
     evaluated = hamiltonian.evaluate(dataset[:3])
 
-    # manual
     data_future = hamiltonian.serialize()
     psiflow.wait()
     calculator = deserialize(data_future.filepath)
+    atoms = dataset[0].result()
+    atoms.calc = calculator
+    for i in range(3):
+        state = dataset[i].result()
+        atoms.set_positions(state.get_positions())
+        atoms.set_cell(state.get_cell())
+        e = atoms.get_potential_energy()
+        assert e == evaluated[i].result().info["energy"]
+
+    # for plumed
+    hills = """#! FIELDS time CV sigma_CV height biasf
+#! SET multivariate false
+#! SET kerneltype gaussian
+     1.00000     2.1     2.0     7  0
+     2.00000     2.2     2.0     7  0
+"""
+    path_hills = tmp_path / "hills"
+    with open(path_hills, "w") as f:
+        f.write(hills)
+    data_future = copy_data_future(
+        inputs=[File(path_hills)],
+        outputs=[File(str(path_hills) + "_")],
+    ).outputs[0]
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: DISTANCE ATOMS=1,2 NOPBC
+METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
+""".format(
+        data_future.filepath
+    )
+    hamiltonian = PlumedHamiltonian(plumed_input, data_future)
+    evaluated = hamiltonian.evaluate(dataset[:3])
+
+    data_future = hamiltonian.serialize()
+    psiflow.wait()
+    calculator = deserialize(data_future.filepath)
+    atoms = dataset[0].result()
+    atoms.calc = calculator
+    for i in range(3):
+        state = dataset[i].result()
+        atoms.set_positions(state.get_positions())
+        atoms.set_cell(state.get_cell())
+        e = atoms.get_potential_energy()
+        assert e == evaluated[i].result().info["energy"]
+
+    # for mace
+    hamiltonian = MACEHamiltonian.from_model(mace_model)
+    evaluated = hamiltonian.evaluate(dataset[:3])
+
+    data_future = hamiltonian.serialize()
+    psiflow.wait()
+    calculator = deserialize(data_future.filepath, device="cuda", dtype="float32")
     atoms = dataset[0].result()
     atoms.calc = calculator
     for i in range(3):
