@@ -42,6 +42,8 @@ from mace.tools.scripts_utils import (
 from torch.optim.swa_utils import SWALR, AveragedModel
 from torch_ema import ExponentialMovingAverage
 
+from psiflow.hamiltonians.utils import check_forces
+
 
 class MACECalculator(Calculator):
     """MACE ASE Calculator"""
@@ -56,6 +58,7 @@ class MACECalculator(Calculator):
         atomic_energies: dict[float, str],
         energy_units_to_eV: float = 1.0,
         length_units_to_A: float = 1.0,
+        max_force: Optional[float] = None,
         **kwargs,
     ):
         Calculator.__init__(self, **kwargs)
@@ -77,6 +80,7 @@ class MACECalculator(Calculator):
 
         # store atomic energies from psiflow in calculator
         self.atomic_energies = atomic_energies
+        self.max_force = max_force
 
     def get_atomic_energy(self, atoms):
         total = 0
@@ -133,6 +137,13 @@ class MACECalculator(Calculator):
         if len(self.atomic_energies) > 0:
             atomic_energy = self.get_atomic_energy(atoms)
             E += atomic_energy * self.energy_units_to_eV
+
+        if self.max_force is not None:
+            check_forces(
+                forces,
+                atoms,
+                self.max_force,
+            )
         self.results = {
             "energy": E,
             "free_energy": E,

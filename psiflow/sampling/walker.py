@@ -4,10 +4,27 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 import typeguard
+from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.data import FlowAtoms
+from psiflow.data import FlowAtoms, check_equality
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
+from psiflow.sampling.output import SimulationOutput
+
+
+def _update_walker(
+    state: FlowAtoms,
+    status: int,
+    start: FlowAtoms,
+) -> FlowAtoms:
+    # success or timeout are OK
+    if status in [0, 1]:
+        return state
+    else:
+        return start
+
+
+update_walker = python_app(_update_walker, executors=["default_threads"])
 
 
 @dataclass
@@ -24,8 +41,15 @@ class Walker:
     def reset(self):
         pass
 
-    def is_reset(self) -> bool:
-        pass
+    def is_reset(self) -> AppFuture:
+        return check_equality(self.start, self.state)
+
+    def update(self, output: SimulationOutput) -> None:
+        self.state = update_walker(
+            output.state,
+            output.status,
+            self.start,
+        )
 
     @staticmethod
     def is_similar(w0: Walker, w1: Walker):

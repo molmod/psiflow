@@ -11,7 +11,7 @@ from psiflow.data import FlowAtoms
 from psiflow.utils import unpack_i
 
 
-def read_output(filename):
+def read_output(filename):  # from i-PI
     # Regex pattern to match header lines and capture relevant parts
     header_pattern = re.compile(
         r"#\s*(column|cols\.)\s+(\d+)(?:-(\d+))?\s*-->\s*([^\s\{]+)(?:\{([^\}]+)\})?\s*:\s*(.*)"
@@ -98,14 +98,46 @@ def _parse_data(
 parse_data = python_app(_parse_data, executors=["default_threads"])
 
 
+def _parse(
+    state: FlowAtoms,
+    inputs: list = [],
+) -> int:
+    time = state.info["time"]
+    temperature = state.info["temperature"]
+
+    # determine status based on stdout
+    with open(inputs[0], "r") as f:
+        content = f.read()
+    if "@ SIMULATION: Exiting cleanly" in content:
+        status = 0
+    else:
+        pass
+    return time, temperature, status
+
+
+parse = python_app(_parse, executors=["default_threads"])
+
+
 class SimulationOutput:
+    """Gathers simulation output
+
+    status is an integer which represents an exit code of the run:
+
+    -1: unknown error
+     0: run completed successfully
+     1: run terminated early due to time limit
+     2: run terminated early due to max force exception
+
+    """
+
     def __init__(self, fields: list[str]):
         self._data = {key: None for key in fields}
 
         self.state = None
         self.stdout = None
-        self.reset = None
+        self.status = None
         self.time = None
+        self.temperature = None
         self.trajectory = None
 
     def __getitem__(self, key: str):
@@ -113,8 +145,17 @@ class SimulationOutput:
             raise ValueError("output {} not available".format(key))
         return self._data[key]
 
-    def load_output(self, state: Union[AppFuture, FlowAtoms]):
-        pass
+    def parse(
+        self,
+        result: AppFuture,  # result from ipi execution
+        state: AppFuture,
+    ):
+        self.state = state
+        self.stdout = result.stdout
+        parsed = parse(state, inputs=[result.stdout, result.stderr])
+        self.time = unpack_i(parsed, 0)
+        self.temperature = unpack_i(parsed, 1)
+        self.status = unpack_i(parsed, 2)
 
     def parse_data(self, data_future: DataFuture):
         data = parse_data(

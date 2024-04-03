@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 from ase.io import read, write
-from ase.units import Bohr, Ha, kB
+from ase.units import Bohr, Ha, _e, _hbar, kB
 from ipi.engine.simulation import Simulation
 from ipi.utils.softexit import softexit
 
@@ -19,7 +19,6 @@ def parse_checkpoint(
     systems = {s.attrib["prefix"]: s for s in checkpoint.iter(tag="system")}
 
     states = []
-    temperatures = []
     walker_index = 0
     while True:
         system = systems.get("walker-{}".format(walker_index), None)
@@ -30,7 +29,7 @@ def parse_checkpoint(
 
             text = "".join(list(beads.iter(tag="q"))[0].text.split())
             positions = np.array(ast.literal_eval(text))
-            positions = positions.reshape(nbeads, natoms, 3) / Bohr
+            positions = positions.reshape(nbeads, natoms, 3) * Bohr
 
             text = "".join(list(beads.iter(tag="names"))[0].text.split())
             text = text.replace(
@@ -49,20 +48,24 @@ def parse_checkpoint(
 
             text = "".join(list(system.iter(tag="cell"))[0].text.split())
             box = (
-                np.array(ast.literal_eval(text)).reshape(3, 3).T / Bohr
+                np.array(ast.literal_eval(text)).reshape(3, 3).T * Bohr
             )  # transpose for convention
 
             # parse temperature
             text = "".join(list(beads.iter(tag="p"))[0].text.split())
             momenta = np.array(ast.literal_eval(text))
-            momenta = momenta.reshape(nbeads, natoms, 3) / Bohr
+            momenta = momenta.reshape(nbeads, natoms, 3)
             text = "".join(list(beads.iter(tag="m"))[0].text.split())
             masses = np.array(ast.literal_eval(text)).reshape(1, natoms, 1)
 
             kinetic_per_dof = np.mean(momenta**2 / (2 * masses))
             kinetic_per_dof *= Ha
             temperature = 2 * kinetic_per_dof / kB
-            temperatures.append(temperature)
+
+            # get current internal system time
+            ensemble = list(system.iter(tag="ensemble"))[0]
+            conversion = (_hbar / (_e * Ha)) * 1e12
+            time = float(list(ensemble.iter(tag="time"))[0].text) * conversion
 
             atoms = FlowAtoms(
                 symbols=symbols,
@@ -70,11 +73,13 @@ def parse_checkpoint(
                 pbc=True,
                 cell=box,
             )
+            atoms.info["temperature"] = temperature
+            atoms.info["time"] = time
             states.append(atoms)
             walker_index += 1
         else:
             break
-    return states, np.array(temperatures)
+    return states
 
 
 def insert_addresses(input_xml):
@@ -126,7 +131,7 @@ def start(args):
 
 def cleanup(args):
     checkpoint = ET.parse("output.checkpoint")
-    states, temperatures = parse_checkpoint(checkpoint)
+    states = parse_checkpoint(checkpoint)
     write(args.output_xyz, states)
 
 

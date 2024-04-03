@@ -100,6 +100,9 @@ def setup_motion(walker: Walker, timestep: float) -> ET.Element:
 
     motion = ET.Element("motion", mode="dynamics")
     motion.append(dynamics)
+    fixcom = ET.Element("fixcom")
+    fixcom.text = " False "
+    motion.append(fixcom)  # ensure kinetic_md ~ temperature
     return motion
 
 
@@ -166,9 +169,12 @@ def setup_system_template(
         system_template.append(instance)
 
     initialize = ET.Element("initialize", nbeads=str(walkers[0].nbeads))
-    start = ET.Element("file", mode="ase")
+    start = ET.Element("file", mode="ase", cell_units="angstrom")
     start.text = " start_INDEX.xyz "
     initialize.append(start)
+    velocities = ET.Element("velocities", mode="thermal", units="kelvin")
+    velocities.text = " TEMP "
+    initialize.append(velocities)
 
     system = ET.Element("system", prefix="walker-INDEX")
     system.append(initialize)
@@ -197,7 +203,7 @@ def setup_output(
             stride=str(step),
             format="ase",
         )
-        trajectory.text = r" positions{angstrom}"
+        trajectory.text = r" positions{angstrom} "
         output.append(trajectory)
     checkpoint = ET.Element(
         "checkpoint",
@@ -232,12 +238,12 @@ def _execute_ipi(
     inputs: list = [],
     outputs: list = [],
 ) -> str:
-    tmp_command = 'tmpdir=$(mktemp -d -t "ipi_XXXXXXXX");'
+    tmp_command = 'tmpdir=$(mktemp -d -t "ipi_XXXXXXXXX");'
     cd_command = "cd $tmpdir;"
     command_start = command_server + " --nwalkers={}".format(nwalkers)
     command_start += " --input_xml={}".format(inputs[0].filepath)
     command_start += " --start_xyz={}".format(inputs[1].filepath)
-    command_start += " &> log & \n"
+    command_start += "  & \n"
     command_clients = ""
     for i, name in enumerate(hamiltonian_names):
         address = name.lower()
@@ -328,7 +334,7 @@ def _propagate(
 
     smotion = ET.Element("smotion", mode="dummy")
 
-    simulation = ET.Element("simulation")
+    simulation = ET.Element("simulation", verbosity="high")
     for socket in sockets:
         simulation.append(socket)
     simulation.append(output)
@@ -386,10 +392,11 @@ def _propagate(
     final_states = Dataset(None, data_future=result.outputs[0])
 
     for i, simulation_output in enumerate(simulation_outputs):
-        simulation_output.load_output(final_states[i])
+        simulation_output.parse(result, final_states[i])
         simulation_output.parse_data(result.outputs[i + 1])
         if keep_trajectory:
             j = len(walkers) + 1 + i
             trajectory = Dataset(None, data_future=result.outputs[j])
             simulation_output.trajectory = trajectory
+        walkers[i].update(simulation_output)
     return simulation_outputs

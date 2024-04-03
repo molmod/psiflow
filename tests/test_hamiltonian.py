@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pytest
 from ase.units import kJ, mol
 from parsl.data_provider.files import File
 
@@ -11,8 +12,9 @@ from psiflow.hamiltonians import (
     PlumedHamiltonian,
     deserialize,
 )
-from psiflow.hamiltonians._plumed import evaluate_plumed
+from psiflow.hamiltonians._plumed import PlumedCalculator
 from psiflow.hamiltonians.hamiltonian import Zero
+from psiflow.hamiltonians.utils import ForceMagnitudeException, check_forces
 from psiflow.utils import copy_app_future, copy_data_future, dump_json
 
 
@@ -96,7 +98,12 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
 """.format(
         center=center, kappa=kappa / (kJ / mol)
     )
-    energy, forces, stress = evaluate_plumed(atoms, plumed_input)
+    calculator = PlumedCalculator(plumed_input)
+    # energy, forces, stress = evaluate_plumed(atoms, plumed_input)
+    calculator.calculate(atoms)
+    energy = calculator.results["energy"]
+    forces = calculator.results["forces"]
+
     distance = atoms.get_distance(0, 1, mic=False)
 
     bias_energy = kappa / 2 * (distance - center) ** 2
@@ -132,8 +139,11 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
 """.format(
         path_hills
     )
+    calculator = PlumedCalculator(plumed_input, path_hills)
     for _i in range(10):
-        energy, _, _ = evaluate_plumed(atoms, plumed_input)
+        calculator.calculate(atoms)
+        energy = calculator.results["energy"]
+        # energy, _, _ = evaluate_plumed(atoms, plumed_input)
     sigma = 2 * np.ones(2)
     height = np.array([7, 7]) * (kJ / mol)  # unit consistency
     center = np.array([2.1, 2.2])
@@ -291,3 +301,17 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
         atoms.set_cell(state.get_cell())
         e = atoms.get_potential_energy()
         assert e == evaluated[i].result().info["energy"]
+
+
+def test_max_force(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=0.5)
+
+    normal_forces = (
+        einstein.evaluate(dataset[:2]).as_list().result()[1].arrays["forces"]
+    )
+    assert np.all(np.linalg.norm(normal_forces, axis=1) < 30)
+
+    einstein = EinsteinCrystal(dataset[0], force_constant=5000)
+    large_forces = einstein.evaluate(dataset[:2]).as_list().result()[1].arrays["forces"]
+    with pytest.raises(ForceMagnitudeException):
+        check_forces(large_forces, dataset[1].result(), max_force=10)

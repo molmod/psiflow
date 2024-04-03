@@ -2,13 +2,14 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
 import os
+import tempfile
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import typeguard
-from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
+from ase.units import fs, kJ, mol, nm
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -16,6 +17,7 @@ from parsl.data_provider.files import File
 import psiflow
 from psiflow.data import FlowAtoms
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
+from psiflow.hamiltonians.utils import check_forces
 from psiflow.utils import dump_json
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -55,25 +57,29 @@ def remove_comments_printflush(plumed_input: str) -> str:
 
 
 @typeguard.typechecked
-def evaluate_plumed(
-    atoms: Union[FlowAtoms, Atoms],
-    plumed_input: str,
-    *input_files: str,
-) -> tuple:
-    """Inspired by ASE's PLUMED interface"""
-    from psiflow.hamiltonians._plumed import (
-        remove_comments_printflush,
-        try_manual_plumed_linking,
-    )
+class PlumedCalculator(Calculator):
+    implemented_properties = ["energy", "free_energy", "forces", "stress"]
 
-    try_manual_plumed_linking()
-    import tempfile
+    def __init__(
+        self,
+        plumed_input: str,
+        *input_files: Union[str, Path],
+        max_force: Optional[float] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.plumed_input = plumed_input
+        for input_file in input_files:
+            assert Path(input_file).exists()
+        self.input_files = input_files
+        self.max_force = max_force
 
-    import numpy as np
-    from ase.units import fs, kJ, mol, nm
-    from plumed import Plumed
+        self.tmp = tempfile.NamedTemporaryFile(prefix="plumed_", mode="w+")
+        # plumed creates a back up when this file would already exist
+        os.remove(self.tmp.name)
 
-    with tempfile.NamedTemporaryFile(delete=True, mode="w+") as tmp:
+        from plumed import Plumed
+
         plumed = Plumed()
         ps = 1000 * fs
         plumed.cmd("setMDEnergyUnits", mol / kJ)
@@ -82,58 +88,43 @@ def evaluate_plumed(
         plumed.cmd("setMDChargeUnits", 1.0)
         plumed.cmd("setMDMassUnits", 1.0)
 
-        plumed.cmd("setNatoms", len(atoms))
         # plumed.cmd("setMDEngine", "ASE")
-        plumed.cmd("setLogFile", tmp.name)
+        plumed.cmd("setLogFile", self.tmp.name)
         # plumed.cmd("setTimestep", float(timestep))
         plumed.cmd("setRestart", True)
-        # plumed.cmd("setKbT", float(kT))
-        plumed.cmd("init")
-        plumed_input = remove_comments_printflush(plumed_input)
-        for line in plumed_input.split("\n"):
-            plumed.cmd("readInputLine", line)
+        self.plumed = plumed
+        self.initialize_plumed = True  # need natoms to initialize
+
+    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+        Calculator.calculate(self, atoms)
+        if self.initialize_plumed:
+            self.plumed.cmd("setNatoms", len(atoms))
+            self.plumed.cmd("init")
+            plumed_input = remove_comments_printflush(self.plumed_input)
+            for line in plumed_input.split("\n"):
+                self.plumed.cmd("readInputLine", line)
+            self.initialize_plumed = False
+            os.remove(self.tmp.name)  # remove whatever plumed has created
 
         if atoms.pbc.any():
-            plumed.cmd("setBox", np.asarray(atoms.cell))
+            self.plumed.cmd("setBox", np.asarray(atoms.cell))
 
         # set positions
         energy = np.zeros((1,))
         forces = np.zeros((len(atoms), 3))
         virial = np.zeros((3, 3))
-        plumed.cmd("setStep", 0)
-        plumed.cmd("setPositions", atoms.get_positions())
-        plumed.cmd("setMasses", atoms.get_masses())
-        plumed.cmd("setForces", forces)
-        plumed.cmd("setVirial", virial)
-        plumed.cmd("prepareCalc")
-        plumed.cmd("performCalcNoUpdate")
-        plumed.cmd("getBias", energy)
-    stress = virial / atoms.get_volume()
-    return energy, forces, stress
+        self.plumed.cmd("setStep", 0)
+        self.plumed.cmd("setPositions", atoms.get_positions())
+        self.plumed.cmd("setMasses", atoms.get_masses())
+        self.plumed.cmd("setForces", forces)
+        self.plumed.cmd("setVirial", virial)
+        self.plumed.cmd("prepareCalc")
+        self.plumed.cmd("performCalcNoUpdate")
+        self.plumed.cmd("getBias", energy)
+        stress = virial / atoms.get_volume()
 
-
-@typeguard.typechecked
-class PlumedCalculator(Calculator):
-    implemented_properties = ["energy", "free_energy", "forces", "stress"]
-
-    def __init__(
-        self,
-        plumed_input: str,
-        *input_files: str,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.plumed_input = plumed_input
-        for input_file in input_files:
-            assert Path(input_file).exists()
-        self.input_files = input_files
-
-    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
-        Calculator.calculate(self, atoms)
-
-        energy, forces, stress = evaluate_plumed(
-            atoms, self.plumed_input, *self.input_files
-        )
+        if self.max_force is not None:
+            check_forces(forces, atoms, self.max_force)
         self.results = {
             "energy": energy,
             "forces": forces,

@@ -1,10 +1,12 @@
 import argparse
+import time
 from pathlib import Path
 
 from ase.calculators.socketio import SocketClient
 from ase.io import read
 
 from psiflow.hamiltonians import deserialize
+from psiflow.hamiltonians.utils import ForceMagnitudeException
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -53,4 +55,8 @@ if __name__ == "__main__":
 
     address = Path.cwd().name[4:] + "/" + args.address.strip()
     client = SocketClient(unixsocket=address)
-    client.run(atoms)
+    try:
+        client.run(atoms)
+    except ForceMagnitudeException as e:
+        print(e)
+        time.sleep(60)  # trigger i-PI timeout

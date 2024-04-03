@@ -170,8 +170,10 @@ def checkpoint():
          </force>
       </forces>
       <ensemble>
-         <temperature>  9.50044560e-04</temperature>
-         <hamiltonian_weights shape='(2)'> [   1.00000000e+00,   1.00000000e+00 ] </hamiltonian_weights>
+         <temperature>  1.90008912e-03</temperature>
+         <eens>  4.11423554e-03</eens>
+         <hamiltonian_weights shape='(1)'> [   1.00000000e+00 ] </hamiltonian_weights>
+         <time>  2.06706865e+02</time>
       </ensemble>
       <motion mode='dynamics'>
          <dynamics mode='nvt'>
@@ -210,7 +212,9 @@ def checkpoint():
       </forces>
       <ensemble>
          <temperature>  1.90008912e-03</temperature>
-         <hamiltonian_weights shape='(2)'> [   1.00000000e+00,   1.00000000e+00 ] </hamiltonian_weights>
+         <eens>  4.11423554e-03</eens>
+         <hamiltonian_weights shape='(1)'> [   1.00000000e+00 ] </hamiltonian_weights>
+         <time>  2.06706865e+02</time>
       </ensemble>
       <motion mode='dynamics'>
          <dynamics mode='nvt'>

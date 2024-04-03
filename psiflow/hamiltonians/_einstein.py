@@ -1,6 +1,6 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import typeguard
@@ -13,6 +13,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import FlowAtoms
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
+from psiflow.hamiltonians.utils import check_forces
 from psiflow.utils import copy_app_future, dump_json
 
 
@@ -21,11 +22,18 @@ class EinsteinCalculator(Calculator):
 
     implemented_properties = ["energy", "free_energy", "forces"]
 
-    def __init__(self, centers: np.ndarray, force_constant: float, **kwargs) -> None:
+    def __init__(
+        self,
+        centers: np.ndarray,
+        force_constant: float,
+        max_force: Optional[float] = None,
+        **kwargs,
+    ) -> None:
         Calculator.__init__(self, **kwargs)
         self.results = {}
         self.centers = centers
         self.force_constant = force_constant
+        self.max_force = max_force
 
     def calculate(self, atoms=None, properties=None, system_changes=all_changes):
         # call to base-class to set atoms attribute
@@ -38,6 +46,9 @@ class EinsteinCalculator(Calculator):
             / 2
             * np.sum((atoms.get_positions() - self.centers) ** 2)
         )
+
+        if self.max_force is not None:
+            check_forces(forces, atoms, self.max_force)
         self.results = {
             "energy": energy,
             "free_energy": energy,

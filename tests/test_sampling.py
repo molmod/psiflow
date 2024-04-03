@@ -1,6 +1,7 @@
 import numpy as np
 from ase.units import Bohr
 
+from psiflow.data import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
 from psiflow.models import MACEModel
 from psiflow.sampling.propagate import _propagate, template
@@ -81,12 +82,11 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
 
 
 def test_parse_checkpoint(checkpoint):
-    states, temperatures = parse_checkpoint(checkpoint)
+    states = parse_checkpoint(checkpoint)
     assert np.allclose(
         states[0].cell,
-        np.array([[1, 0.0, 0], [0.1, 2, 0], [0, 0, 3]]) / Bohr,
+        np.array([[1, 0.0, 0], [0.1, 2, 0], [0, 0, 3]]) * Bohr,
     )
-    assert np.allclose(temperatures, 0.0)
 
 
 def test_propagate(dataset, mace_config):
@@ -159,9 +159,48 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
         step=1,
         timestep=0.5,
         keep_trajectory=False,
+        observables=[
+            "potential{electronvolt}",
+            "kinetic_md{electronvolt}",
+            "temperature{kelvin}",
+        ],
     )[0]
     assert np.allclose(
         hamiltonian.evaluate(dataset)[0].result().info["energy"],
         simulation_output["potential{electronvolt}"].result()[0],
         atol=1e-3,
+    )
+    assert np.allclose(
+        simulation_output.time.result(),
+        10 * 0.5 / 1000,
+    )
+    T0 = simulation_output.temperature.result()
+    T1 = simulation_output["temperature{kelvin}"].result()[-1]
+    assert np.allclose(T0, T1)
+
+
+def test_reset(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
+    walker = Walker(
+        start=dataset[0],
+        state=dataset[1],
+        temperature=300,
+        pressure=None,
+        hamiltonian=einstein,
+    )
+    assert not check_equality(walker.start, walker.state).result()
+    assert check_equality(walker.start, dataset[0]).result()
+    assert check_equality(walker.state, dataset[1]).result()
+
+    simulation_output = _propagate(
+        [walker],
+        steps=50,
+        step=10,
+        timestep=0.5,
+        keep_trajectory=True,
+    )[0]
+    assert simulation_output.status.result() == 0
+    assert np.allclose(
+        walker.state.result().positions,
+        simulation_output.trajectory[-1].result().positions,
     )

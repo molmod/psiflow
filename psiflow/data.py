@@ -122,6 +122,16 @@ class FlowAtoms(Atoms):
     def hash(self) -> tuple:
         return tuple(self.numbers) + tuple(self.pbc)
 
+    def __eq__(self, other: Union[Atoms, FlowAtoms]):
+        if not tuple(other.pbc) == tuple(self.pbc):
+            return False
+        if not np.allclose(other.positions, self.positions):
+            return False
+        if np.all(other.pbc):
+            if not np.allclose(other.cell, self.cell):
+                return False
+        return True
+
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> FlowAtoms:
         """Generates a `FlowAtoms` object based on an existing `Atoms`
@@ -149,6 +159,17 @@ class FlowAtoms(Atoms):
 
 # use universal dummy state
 NullState = FlowAtoms(numbers=[0], positions=[[0, 0, 0]])
+
+
+@typeguard.typechecked
+def _check_equality(
+    state0: FlowAtoms,
+    state1: FlowAtoms,
+) -> bool:
+    return state0 == state1
+
+
+check_equality = python_app(_check_equality, executors=["default_threads"])
 
 
 @typeguard.typechecked
