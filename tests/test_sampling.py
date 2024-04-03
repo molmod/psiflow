@@ -4,9 +4,9 @@ from ase.units import Bohr
 from psiflow.data import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
 from psiflow.models import MACEModel
-from psiflow.sampling.propagate import _propagate, template
+from psiflow.sampling.sampling import sample, template
 from psiflow.sampling.server import parse_checkpoint
-from psiflow.sampling.walker import Walker, partition
+from psiflow.sampling.walker import Walker, partition, quench
 
 
 def test_walkers(dataset):
@@ -85,7 +85,7 @@ def test_parse_checkpoint(checkpoint):
     )
 
 
-def test_propagate(dataset, mace_config):
+def test_sample(dataset, mace_config):
     plumed_str = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
@@ -106,11 +106,10 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
         pressure=None,
         hamiltonian=einstein,
     )
-    simulation_outputs = _propagate(
+    simulation_outputs = sample(
         [walker0, walker1],
         steps=100,
         step=10,
-        timestep=0.5,
     )
     assert len(simulation_outputs) == 2
     energies = [
@@ -146,10 +145,9 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
         hamiltonian=hamiltonian,
     )
     walker.state = dataset[1]
-    simulation_output = _propagate(
+    simulation_output = sample(
         [walker],
         steps=10,
-        timestep=0.5,
         observables=[
             "potential{electronvolt}",
             "kinetic_md{electronvolt}",
@@ -189,11 +187,10 @@ def test_reset(dataset):
     assert not walker.is_reset().result()
     walker.reset()
     assert walker.is_reset().result()
-    simulation_output = _propagate(
+    simulation_output = sample(
         [walker],
         steps=50,
         step=10,
-        timestep=0.5,
     )[0]
     assert simulation_output.status.result() == 0
     assert np.allclose(
@@ -203,11 +200,10 @@ def test_reset(dataset):
     assert not walker.is_reset().result()
 
     walker.hamiltonian = EinsteinCrystal(dataset[0], force_constant=1000)
-    simulation_output = _propagate(
+    simulation_output = sample(
         [walker],
         steps=50,
         step=10,
-        timestep=0.5,
         max_force=10,
     )[0]
     assert simulation_output.status.result() == 2
@@ -215,13 +211,31 @@ def test_reset(dataset):
     assert not check_equality(walker.state, simulation_output.state).result()
 
     # check timeout
-    simulation_output = _propagate(
+    simulation_output = sample(
         [walker],
         steps=5000000,
         step=100,
-        timestep=0.5,
     )[0]
     assert simulation_output.status.result() == 1
     assert not walker.is_reset().result()
     assert check_equality(walker.state, simulation_output.state).result()
     assert simulation_output.time.result() > 0
+
+
+def test_quench(dataset):
+    dataset = dataset[:20]
+    einstein0 = EinsteinCrystal(dataset[3], force_constant=0.1)
+    einstein1 = EinsteinCrystal(dataset[11], force_constant=0.1)
+    walkers = Walker(
+        start=dataset[0],
+        hamiltonian=einstein0,
+        temperature=300,
+    ).multiply(30)
+
+    walkers[2].hamiltonian = einstein1
+    quench(walkers, dataset)
+
+    assert check_equality(walkers[0].start, dataset[3]).result()
+    assert check_equality(walkers[1].start, dataset[3]).result()
+    assert check_equality(walkers[2].start, dataset[11]).result()
+    assert check_equality(walkers[3].start, dataset[3]).result()

@@ -75,7 +75,7 @@ class PlumedCalculator(Calculator):
         self.max_force = max_force
 
         self.tmp = tempfile.NamedTemporaryFile(prefix="plumed_", mode="w+")
-        # plumed creates a back up when this file would already exist
+        # plumed creates a back up if this file would already exist
         os.remove(self.tmp.name)
 
         from plumed import Plumed

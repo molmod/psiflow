@@ -10,6 +10,7 @@ from parsl.app.app import bash_app
 import psiflow
 from psiflow.data import Dataset
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian, Zero
+from psiflow.sampling.coupling import Coupling
 from psiflow.sampling.output import SimulationOutput
 from psiflow.sampling.walker import Walker, partition
 from psiflow.utils import save_xml
@@ -62,9 +63,9 @@ def template(walkers: list[Walker]) -> tuple[dict[str, Hamiltonian], list[tuple]
 
 
 @typeguard.typechecked
-def setup_motion(walker: Walker, timestep: float) -> ET.Element:
+def setup_motion(walker: Walker) -> ET.Element:
     timestep_element = ET.Element("timestep", units="femtosecond")
-    timestep_element.text = str(timestep)
+    timestep_element.text = str(walker.timestep)
 
     tau = ET.Element("tau", units="femtosecond")
     tau.text = "100"
@@ -294,13 +295,13 @@ execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 
 
 @typeguard.typechecked
-def _propagate(
+def sample(
     walkers: list[Walker],
     steps: int,
-    timestep: float,
     step: Optional[int] = None,
     max_force: Optional[float] = None,
     observables: Optional[list[str]] = None,
+    coupling: Optional[Coupling] = None,
     motion_defaults: Union[None, str, ET.Element] = None,
     prng_seed: int = 12345,
     checkpoint_step: int = 100,
@@ -311,7 +312,7 @@ def _propagate(
     if motion_defaults is not None:
         raise NotImplementedError
 
-    motion = setup_motion(walkers[0], timestep)
+    motion = setup_motion(walkers[0])
     ensemble = setup_ensemble(weights_table[0])
     forces = setup_forces(weights_table[0])
     system_template = setup_system_template(
