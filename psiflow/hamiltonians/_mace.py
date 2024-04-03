@@ -12,7 +12,8 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import FlowAtoms
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
+from psiflow.hamiltonians.hamiltonian import Hamiltonian
+from psiflow.hamiltonians.utils import evaluate_function
 from psiflow.models.model import Model
 from psiflow.utils import dump_json
 

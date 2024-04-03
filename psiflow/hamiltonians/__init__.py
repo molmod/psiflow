@@ -27,6 +27,6 @@ def deserialize(
         data["device"] = device
     if dtype is not None:
         data["dtype"] = dtype
-    if max_force is not None:
-        data["max_force"] = max_force
-    return hamiltonian_cls.deserialize(**data)
+    calculator = hamiltonian_cls.deserialize(**data)
+    calculator.max_force = max_force
+    return calculator

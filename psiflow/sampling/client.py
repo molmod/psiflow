@@ -1,5 +1,4 @@
 import argparse
-import time
 from pathlib import Path
 
 from ase.calculators.socketio import SocketClient
@@ -50,7 +49,7 @@ if __name__ == "__main__":
         args.path_hamiltonian,
         device=args.device,
         dtype=args.dtype,
-        max_force=None,
+        max_force=args.max_force,
     )
 
     address = Path.cwd().name[4:] + "/" + args.address.strip()
@@ -59,4 +58,3 @@ if __name__ == "__main__":
         client.run(atoms)
     except ForceMagnitudeException as e:
         print(e)
-        time.sleep(60)  # trigger i-PI timeout

@@ -22,8 +22,8 @@ def check_forces(
         indices = np.arange(len(atoms))[exceeded]
         symbols = np.array(atoms.symbols)[exceeded]
         raise ForceMagnitudeException(
-            "force exceeded {} eV/A for atoms {}"
-            " with chemical elements {}".format(
+            "\nforce exceeded {} eV/A for atoms {}"
+            " with chemical elements {}\n".format(
                 max_force,
                 indices,
                 symbols,

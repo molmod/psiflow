@@ -12,8 +12,8 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import FlowAtoms
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
-from psiflow.hamiltonians.utils import check_forces
+from psiflow.hamiltonians.hamiltonian import Hamiltonian
+from psiflow.hamiltonians.utils import check_forces, evaluate_function
 from psiflow.utils import copy_app_future, dump_json
 
 

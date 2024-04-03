@@ -65,7 +65,10 @@ def parse_checkpoint(
             # get current internal system time
             ensemble = list(system.iter(tag="ensemble"))[0]
             conversion = (_hbar / (_e * Ha)) * 1e12
-            time = float(list(ensemble.iter(tag="time"))[0].text) * conversion
+            try:
+                time = float(list(ensemble.iter(tag="time"))[0].text) * conversion
+            except IndexError:
+                time = 0.0
 
             atoms = FlowAtoms(
                 symbols=symbols,

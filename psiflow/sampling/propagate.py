@@ -141,6 +141,9 @@ def setup_sockets(
         timeout = ET.Element("timeout")
         timeout.text = str(60 * psiflow.context()["ModelEvaluation"].timeout)
         ffsocket.append(timeout)
+        exit_on = ET.Element("exit_on_disconnect")
+        exit_on.text = " TRUE "
+        ffsocket.append(exit_on)
         address = ET.Element("address")  # placeholder
         address.text = name.lower()
         ffsocket.append(address)
@@ -191,12 +194,13 @@ def setup_system_template(
 @typeguard.typechecked
 def setup_output(
     nwalkers: int,
-    keep_trajectory: bool,
     observables: list[str],
-    step: int,
+    step: Optional[int],
+    checkpoint_step: int,
 ) -> tuple[ET.Element, list]:
     output = ET.Element("output", prefix="output")
-    if keep_trajectory:
+    if step is not None:
+        checkpoint_step = step
         trajectory = ET.Element(
             "trajectory",
             filename="trajectory",
@@ -208,14 +212,14 @@ def setup_output(
     checkpoint = ET.Element(
         "checkpoint",
         filename="checkpoint",
-        stride=str(step),
+        stride=str(checkpoint_step),
         overwrite="True",
     )
     output.append(checkpoint)
     properties = ET.Element(
         "properties",
         filename="properties",
-        stride=str(step),
+        stride=str(checkpoint_step),
     )
     properties.text = " [ " + ", ".join(observables) + " ] "
     output.append(properties)
@@ -293,13 +297,13 @@ execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 def _propagate(
     walkers: list[Walker],
     steps: int,
-    step: int,
     timestep: float,
+    step: Optional[int] = None,
     max_force: Optional[float] = None,
-    keep_trajectory: bool = False,
     observables: Optional[list[str]] = None,
     motion_defaults: Union[None, str, ET.Element] = None,
     prng_seed: int = 12345,
+    checkpoint_step: int = 100,
 ) -> list[SimulationOutput]:
     assert len(walkers) > 0
     hamiltonians_map, weights_table = template(walkers)
@@ -327,9 +331,9 @@ def _propagate(
         ]
     output, simulation_outputs = setup_output(
         len(walkers),
-        keep_trajectory,
         observables,
         step,
+        checkpoint_step,
     )
 
     smotion = ET.Element("smotion", mode="dummy")
@@ -369,7 +373,7 @@ def _propagate(
         client_args.append(args)
     outputs = [context.new_file("data_", ".xyz")]
     outputs += [context.new_file("simulation_", ".txt") for w in walkers]
-    if keep_trajectory:
+    if step is not None:
         outputs += [context.new_file("data_", ".xyz") for w in walkers]
         assert len(outputs) == 2 * len(walkers) + 1
     else:
@@ -379,7 +383,7 @@ def _propagate(
         len(walkers),
         hamiltonian_names,
         client_args,
-        keep_trajectory,
+        (step is not None),
         max_force=max_force,
         command_server=context["ModelEvaluation"].server_command(),
         command_client=context["ModelEvaluation"].client_command(),
@@ -394,7 +398,7 @@ def _propagate(
     for i, simulation_output in enumerate(simulation_outputs):
         simulation_output.parse(result, final_states[i])
         simulation_output.parse_data(result.outputs[i + 1])
-        if keep_trajectory:
+        if step is not None:
             j = len(walkers) + 1 + i
             trajectory = Dataset(None, data_future=result.outputs[j])
             simulation_output.trajectory = trajectory

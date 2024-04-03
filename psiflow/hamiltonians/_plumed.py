@@ -16,8 +16,8 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import FlowAtoms
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
-from psiflow.hamiltonians.utils import check_forces
+from psiflow.hamiltonians.hamiltonian import Hamiltonian
+from psiflow.hamiltonians.utils import check_forces, evaluate_function
 from psiflow.utils import dump_json
 
 logger = logging.getLogger(__name__)  # logging per module

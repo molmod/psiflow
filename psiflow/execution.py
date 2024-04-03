@@ -137,7 +137,7 @@ class ModelEvaluation(ExecutionDefinition):
 
     def server_command(self):
         script = "$(python -c 'import psiflow.sampling.server; print(psiflow.sampling.server.__file__)')"
-        command_list = ["python", script]
+        command_list = ["python", "-u", script]
         if self.max_simulation_time is not None:
             max_time = 0.9 * (60 * self.max_simulation_time)
             command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
@@ -145,7 +145,7 @@ class ModelEvaluation(ExecutionDefinition):
 
     def client_command(self):
         script = "$(python -c 'import psiflow.sampling.client; print(psiflow.sampling.client.__file__)')"
-        command_list = ["python", script]
+        command_list = ["python", "-u", script]
         # if (self.max_simulation_time is not None):
         #    # hardcoded start delay
         #    max_time = 0.9 * (60 * self.max_simulation_time) - 3

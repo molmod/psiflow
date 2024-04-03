@@ -18,28 +18,24 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     plumed = PlumedHamiltonian(plumed_str)
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
     einstein_ = EinsteinCrystal(dataset[0], force_constant=0.2)
-    walker = Walker(dataset[0], dataset[1], einstein, temperature=300)
+    walker = Walker(dataset[0], einstein, temperature=300)
     assert walker.nvt
     assert not walker.npt
     assert not walker.pimd
 
     walkers = [walker]
-    walkers.append(Walker(dataset[0], dataset[1], 0.5 * einstein_, nbeads=4))
+    walkers.append(Walker(dataset[0], 0.5 * einstein_, nbeads=4))
     assert not Walker.is_similar(walkers[0], walkers[1])
     assert len(partition(walkers)) == 2
-    walkers.append(Walker(dataset[0], dataset[1], einstein + plumed, nbeads=8))
+    walkers.append(Walker(dataset[0], einstein + plumed, nbeads=8))
     assert Walker.is_similar(walkers[1], walkers[2])
     assert len(partition(walkers)) == 2
-    walkers.append(
-        Walker(dataset[0], dataset[1], einstein, pressure=0, temperature=300)
-    )
+    walkers.append(Walker(dataset[0], einstein, pressure=0, temperature=300))
     assert not Walker.is_similar(walkers[0], walkers[-1])
     assert len(partition(walkers)) == 3
-    walkers.append(
-        Walker(dataset[0], dataset[1], einstein_, pressure=100, temperature=600)
-    )
+    walkers.append(Walker(dataset[0], einstein_, pressure=100, temperature=600))
     assert len(partition(walkers)) == 3
-    walkers.append(Walker(dataset[0], dataset[1], einstein, temperature=600))
+    walkers.append(Walker(dataset[0], einstein, temperature=600))
     partitions = partition(walkers)
     assert len(partitions) == 3
     assert len(partitions[0]) == 2
@@ -100,14 +96,12 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
 
     walker0 = Walker(
         start=dataset[0],
-        state=dataset[0],
         temperature=300,
         pressure=None,
         hamiltonian=plumed + einstein,
     )
     walker1 = Walker(
         start=dataset[0],
-        state=dataset[0],
         temperature=600,
         pressure=None,
         hamiltonian=einstein,
@@ -117,7 +111,6 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
         steps=100,
         step=10,
         timestep=0.5,
-        keep_trajectory=True,
     )
     assert len(simulation_outputs) == 2
     energies = [
@@ -148,22 +141,21 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     hamiltonian = MACEHamiltonian.from_model(model)
     walker = Walker(
         start=dataset[0],
-        state=dataset[1],
         temperature=600,
         pressure=None,
         hamiltonian=hamiltonian,
     )
+    walker.state = dataset[1]
     simulation_output = _propagate(
         [walker],
         steps=10,
-        step=1,
         timestep=0.5,
-        keep_trajectory=False,
         observables=[
             "potential{electronvolt}",
             "kinetic_md{electronvolt}",
             "temperature{kelvin}",
         ],
+        checkpoint_step=1,
     )[0]
     assert np.allclose(
         hamiltonian.evaluate(dataset)[0].result().info["energy"],
@@ -183,24 +175,53 @@ def test_reset(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
     walker = Walker(
         start=dataset[0],
-        state=dataset[1],
         temperature=300,
         pressure=None,
         hamiltonian=einstein,
     )
+    walker.state = dataset[1]
+    assert not walker.is_reset().result()
     assert not check_equality(walker.start, walker.state).result()
     assert check_equality(walker.start, dataset[0]).result()
     assert check_equality(walker.state, dataset[1]).result()
 
+    walker.reset(False)
+    assert not walker.is_reset().result()
+    walker.reset()
+    assert walker.is_reset().result()
     simulation_output = _propagate(
         [walker],
         steps=50,
         step=10,
         timestep=0.5,
-        keep_trajectory=True,
     )[0]
     assert simulation_output.status.result() == 0
     assert np.allclose(
         walker.state.result().positions,
         simulation_output.trajectory[-1].result().positions,
     )
+    assert not walker.is_reset().result()
+
+    walker.hamiltonian = EinsteinCrystal(dataset[0], force_constant=1000)
+    simulation_output = _propagate(
+        [walker],
+        steps=50,
+        step=10,
+        timestep=0.5,
+        max_force=10,
+    )[0]
+    assert simulation_output.status.result() == 2
+    assert walker.is_reset().result()
+    assert not check_equality(walker.state, simulation_output.state).result()
+
+    # check timeout
+    simulation_output = _propagate(
+        [walker],
+        steps=5000000,
+        step=100,
+        timestep=0.5,
+    )[0]
+    assert simulation_output.status.result() == 1
+    assert not walker.is_reset().result()
+    assert check_equality(walker.state, simulation_output.state).result()
+    assert simulation_output.time.result() > 0

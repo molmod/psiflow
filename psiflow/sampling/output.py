@@ -108,10 +108,14 @@ def _parse(
     # determine status based on stdout
     with open(inputs[0], "r") as f:
         content = f.read()
-    if "@ SIMULATION: Exiting cleanly" in content:
-        status = 0
+    if "force exceeded" in content:
+        status = 2  # max_force exception
+    elif "@SOFTEXIT: Kill signal received" in content:
+        status = 1  # timeout
+    elif "@ SIMULATION: Exiting cleanly" in content:
+        status = 0  # everything OK
     else:
-        pass
+        status = -1
     return time, temperature, status
 
 
