@@ -6,7 +6,7 @@ from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamilto
 from psiflow.models import MACEModel
 from psiflow.sampling.sampling import sample, template
 from psiflow.sampling.server import parse_checkpoint
-from psiflow.sampling.walker import Walker, partition, quench
+from psiflow.sampling.walker import ReplicaExchange, Walker, partition, quench
 
 
 def test_walkers(dataset):
@@ -239,3 +239,20 @@ def test_quench(dataset):
     assert check_equality(walkers[1].start, dataset[3]).result()
     assert check_equality(walkers[2].start, dataset[11]).result()
     assert check_equality(walkers[3].start, dataset[3]).result()
+
+
+def test_rex(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
+    walker = Walker(
+        dataset[0],
+        hamiltonian=einstein,
+        temperature=600,
+    )
+    walkers = walker.multiply(2)
+    ReplicaExchange(trial_frequency=4).couple(walkers)
+
+    _ = sample(walkers, steps=200)
+
+    with open(walkers[0].coupling.swapfile.result().filepath, "r") as f:
+        content = f.read()
+    print(content)

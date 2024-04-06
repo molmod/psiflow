@@ -6,13 +6,13 @@ from typing import Optional, Union
 import parsl
 import typeguard
 from parsl.app.app import bash_app
+from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian, Zero
-from psiflow.sampling.coupling import Coupling
 from psiflow.sampling.output import SimulationOutput
-from psiflow.sampling.walker import Walker, partition
+from psiflow.sampling.walker import Coupling, Walker, partition
 from psiflow.utils import save_xml
 
 
@@ -21,6 +21,7 @@ def template(walkers: list[Walker]) -> tuple[dict[str, Hamiltonian], list[tuple]
     assert len(partition(walkers)) == 1
     # multiply by 1.0 to ensure result is Mixture in case len(walkers) == 1
     total_hamiltonian = 1.0 * sum([w.hamiltonian for w in walkers], start=Zero())
+    assert not total_hamiltonian == Zero()
 
     # create string names for hamiltonians and sort
     names = []
@@ -236,6 +237,7 @@ def _execute_ipi(
     client_args: list[str],
     keep_trajectory: bool,
     max_force: Optional[float],
+    coupling: Optional[Coupling],
     command_server: str,
     command_client: str,
     stdout: str = "",
@@ -261,8 +263,6 @@ def _execute_ipi(
         command_ += " & \n"
         command_clients += command_
 
-    # command_pid = 'pid=$!; '
-    # command_wait = 'wait $pid; '
     command_end = command_server
     command_end += " --cleanup"
     command_end += " --output_xyz={};".format(outputs[0].filepath)
@@ -278,6 +278,8 @@ def _execute_ipi(
                 i,
                 outputs[i + nwalkers + 1].filepath,
             )
+    if coupling is not None:
+        command_copy += coupling.copy()
     command_list = [
         tmp_command,
         cd_command,
@@ -301,7 +303,6 @@ def sample(
     step: Optional[int] = None,
     max_force: Optional[float] = None,
     observables: Optional[list[str]] = None,
-    coupling: Optional[Coupling] = None,
     motion_defaults: Union[None, str, ET.Element] = None,
     prng_seed: int = 12345,
     checkpoint_step: int = 100,
@@ -337,7 +338,11 @@ def sample(
         checkpoint_step,
     )
 
-    smotion = ET.Element("smotion", mode="dummy")
+    coupling = walkers[0].coupling
+    if coupling is not None:
+        smotion = coupling.get_smotion()
+    else:
+        smotion = ET.Element("smotion", mode="dummy")
 
     simulation = ET.Element("simulation", verbosity="high")
     for socket in sockets:
@@ -356,7 +361,6 @@ def sample(
     prng.append(seed)
     simulation.append(prng)
 
-    # execute with i-PI
     context = psiflow.context()
     input_future = save_xml(
         simulation,
@@ -367,6 +371,7 @@ def sample(
         Dataset([w.state for w in walkers]).data_future,
     ]
     inputs += [h.serialize() for h in hamiltonians_map.values()]
+
     hamiltonian_names = list(hamiltonians_map.keys())
     client_args = []
     for name in hamiltonian_names:
@@ -380,12 +385,19 @@ def sample(
     else:
         assert len(outputs) == len(walkers) + 1
 
+    # add coupling inputs after all other ones;
+    # these are updated again with the corresponding outputs from execute_ipi
+    if coupling is not None:
+        inputs.append(coupling.inputs())
+        outputs.append(*[File(f.filepath) for f in coupling.inputs()])
+
     result = execute_ipi(
         len(walkers),
         hamiltonian_names,
         client_args,
         (step is not None),
         max_force=max_force,
+        coupling=coupling,
         command_server=context["ModelEvaluation"].server_command(),
         command_client=context["ModelEvaluation"].client_command(),
         stdout=parsl.AUTO_LOGNAME,
@@ -404,4 +416,8 @@ def sample(
             trajectory = Dataset(None, data_future=result.outputs[j])
             simulation_output.trajectory = trajectory
         walkers[i].update(simulation_output)
+
+    if coupling is not None:
+        coupling.update(result)
+
     return simulation_outputs

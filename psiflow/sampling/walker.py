@@ -1,16 +1,19 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Optional, Union
 
 import numpy as np
 import typeguard
 from parsl.app.app import python_app
+from parsl.app.futures import DataFuture
+from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.data import Dataset, FlowAtoms, check_equality
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
-from psiflow.sampling.coupling import Coupling
 from psiflow.sampling.output import SimulationOutput
 from psiflow.utils import copy_app_future, unpack_i
 
@@ -52,7 +55,7 @@ conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"]
 @typeguard.typechecked
 class Walker:
     start: Union[FlowAtoms, AppFuture]
-    hamiltonian: Hamiltonian
+    hamiltonian: Hamiltonian = Zero()
     state: Union[FlowAtoms, AppFuture, None] = None
     temperature: Optional[float] = 300
     pressure: Optional[float] = None
@@ -206,3 +209,57 @@ def quench(walkers: list[Walker], dataset: Dataset) -> None:
     for i, walker in enumerate(walkers):
         walker.start = dataset[unpack_i(indices, i)][0]
         walker.reset()
+
+
+@typeguard.typechecked
+class Coupling:
+    def couple(self, walkers: list[Walker]) -> None:
+        assert len(partition(walkers)) == 1
+        assert walkers[0].coupling is None
+        for walker in walkers:
+            walker.coupling = self
+
+    def inputs(self) -> list[Union[DataFuture, File]]:
+        return []
+
+
+@typeguard.typechecked
+class ReplicaExchange(Coupling):
+    def __init__(
+        self,
+        trial_frequency: int = 50,
+        rescale_kinetic: bool = True,
+    ) -> None:
+        self.trial_frequency = trial_frequency
+        self.rescale_kinetic = rescale_kinetic
+        self.swapfile = psiflow.context().new_file("swap_", ".txt")
+
+    def __eq__(self, other: ReplicaExchange) -> bool:
+        trial = self.trial_frequency == other.trial_frequency
+        rescale = self.rescale_kinetic == other.rescale_kinetic
+        swapfile = self.swapfile.filepath == other.swapfile.filepath
+        return trial and rescale and swapfile
+
+    def inputs(self) -> list[Union[DataFuture, File]]:
+        return [self.swapfile]
+
+    def get_smotion(self) -> ET.Element:
+        remd = ET.Element("remd")
+        stride = ET.Element("stride")
+        stride.text = str(self.trial_frequency)
+        remd.append(stride)
+        krescale = ET.Element("krescale")
+        krescale.text = str(self.rescale_kinetic)
+        remd.append(krescale)
+        swapfile = ET.Element("swapfile")
+        swapfile.text = "replica_exchange"  # gets prefixed by i-PI
+        remd.append(swapfile)
+        smotion = ET.Element("smotion", mode="remd")
+        smotion.append(remd)
+        return smotion
+
+    def update(self, result: AppFuture):
+        self.swapfile = result.outputs[-1]
+
+    def copy(self):
+        return "cp output.replica_exchange {}".format(self.swapfile.filepath)
