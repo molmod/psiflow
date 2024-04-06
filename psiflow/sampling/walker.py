@@ -14,6 +14,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, check_equality
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
+from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.output import SimulationOutput
 from psiflow.utils import copy_app_future, unpack_i
 
@@ -63,6 +64,7 @@ class Walker:
     periodic: Union[bool, AppFuture] = True
     timestep: float = 0.5
     coupling: Optional[Coupling] = None
+    metadynamics: Optional[Metadynamics] = None
 
     def __post_init__(self):
         if self.state is None:
@@ -84,11 +86,14 @@ class Walker:
         return check_equality(self.start, self.state)
 
     def update(self, output: SimulationOutput) -> None:
-        self.state = update_walker(
-            output.state,
-            output.status,
-            self.start,
-        )
+        if self.metadynamics is None:
+            self.state = update_walker(
+                output.state,
+                output.status,
+                self.start,
+            )
+        else:
+            raise NotImplementedError
 
     def multiply(self, nreplicas: int) -> list[Walker]:
         if self.coupling is not None:
@@ -213,28 +218,23 @@ def quench(walkers: list[Walker], dataset: Dataset) -> None:
 
 @typeguard.typechecked
 class Coupling:
-    def couple(self, walkers: list[Walker]) -> None:
-        assert len(partition(walkers)) == 1
-        assert walkers[0].coupling is None
-        for walker in walkers:
-            walker.coupling = self
-
-    def inputs(self) -> list[Union[DataFuture, File]]:
-        return []
+    pass
 
 
 @typeguard.typechecked
 class ReplicaExchange(Coupling):
     def __init__(
         self,
-        trial_frequency: int = 50,
-        rescale_kinetic: bool = True,
+        trial_frequency: int,
+        rescale_kinetic: bool,
     ) -> None:
         self.trial_frequency = trial_frequency
         self.rescale_kinetic = rescale_kinetic
         self.swapfile = psiflow.context().new_file("swap_", ".txt")
 
-    def __eq__(self, other: ReplicaExchange) -> bool:
+    def __eq__(self, other: Optional[ReplicaExchange]) -> bool:
+        if other is None:
+            return False
         trial = self.trial_frequency == other.trial_frequency
         rescale = self.rescale_kinetic == other.rescale_kinetic
         swapfile = self.swapfile.filepath == other.swapfile.filepath
@@ -263,3 +263,15 @@ class ReplicaExchange(Coupling):
 
     def copy(self):
         return "cp output.replica_exchange {}".format(self.swapfile.filepath)
+
+
+def replica_exchange(
+    walkers: list[Walker],
+    trial_frequency: int = 50,
+    rescale_kinetic: bool = True,
+) -> None:
+    assert len(partition(walkers)) == 1
+    assert walkers[0].coupling is None
+    rex = ReplicaExchange(trial_frequency, rescale_kinetic)
+    for walker in walkers:
+        walker.coupling = rex

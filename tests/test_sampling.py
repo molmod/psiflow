@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from ase.units import Bohr
 
 from psiflow.data import check_equality
@@ -6,7 +7,7 @@ from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamilto
 from psiflow.models import MACEModel
 from psiflow.sampling.sampling import sample, template
 from psiflow.sampling.server import parse_checkpoint
-from psiflow.sampling.walker import ReplicaExchange, Walker, partition, quench
+from psiflow.sampling.walker import Walker, partition, quench, replica_exchange
 
 
 def test_walkers(dataset):
@@ -249,10 +250,15 @@ def test_rex(dataset):
         temperature=600,
     )
     walkers = walker.multiply(2)
-    ReplicaExchange(trial_frequency=4).couple(walkers)
+    replica_exchange(walkers, trial_frequency=5)
 
-    _ = sample(walkers, steps=200)
+    _ = sample(walkers, steps=50)
 
-    with open(walkers[0].coupling.swapfile.result().filepath, "r") as f:
-        content = f.read()
-    print(content)
+    swaps = np.loadtxt(walkers[0].coupling.swapfile.result().filepath)
+    assert len(swaps) > 0  # at least some successful swaps
+    assert np.allclose(swaps[0, 1:], np.array([1, 0]))  # 0, 1 --> 1, 0
+
+    walkers += Walker(dataset[0], hamiltonian=10 * einstein).multiply(2)
+    with pytest.raises(AssertionError):
+        replica_exchange(walkers)
+    assert len(partition(walkers)) == 2

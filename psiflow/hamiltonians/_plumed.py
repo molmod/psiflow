@@ -57,6 +57,22 @@ def remove_comments_printflush(plumed_input: str) -> str:
 
 
 @typeguard.typechecked
+def set_path_in_plumed(plumed_input: str, keyword: str, path_to_set: str) -> str:
+    lines = plumed_input.split("\n")
+    for i, line in enumerate(lines):
+        if keyword in line.split():
+            if "FILE=" not in line:
+                lines[i] = line + " FILE={}".format(path_to_set)
+                continue
+            line_before = line.split("FILE=")[0]
+            line_after = line.split("FILE=")[1].split()[1:]
+            lines[i] = (
+                line_before + "FILE={} ".format(path_to_set) + " ".join(line_after)
+            )
+    return "\n".join(lines)
+
+
+@typeguard.typechecked
 class PlumedCalculator(Calculator):
     implemented_properties = ["energy", "free_energy", "forces", "stress"]
 

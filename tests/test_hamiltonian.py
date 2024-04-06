@@ -12,10 +12,42 @@ from psiflow.hamiltonians import (
     PlumedHamiltonian,
     deserialize,
 )
-from psiflow.hamiltonians._plumed import PlumedCalculator
+from psiflow.hamiltonians._plumed import (
+    PlumedCalculator,
+    remove_comments_printflush,
+    set_path_in_plumed,
+)
 from psiflow.hamiltonians.hamiltonian import Zero
 from psiflow.hamiltonians.utils import ForceMagnitudeException, check_forces
 from psiflow.utils import copy_app_future, copy_data_future, dump_json
+
+
+def test_get_filename_hills(tmp_path):
+    plumed_input = """
+#METAD COMMENT TO BE REMOVED
+RESTART
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+CV0: CV
+METAD ARG=CV0 SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills sdld
+METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld
+PRINT ARG=CV,metad.bias STRIDE=10 FILE=COLVAR
+FLUSH STRIDE=10
+"""
+    plumed_input = remove_comments_printflush(plumed_input)
+    plumed_input = set_path_in_plumed(plumed_input, "METAD", "/tmp/my_input")
+    plumed_input = set_path_in_plumed(plumed_input, "METADD", "/tmp/my_input")
+    assert (
+        plumed_input
+        == """
+RESTART
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+CV0: CV
+METAD ARG=CV0 SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=/tmp/my_input sdld
+METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
+"""
+    )
 
 
 def test_einstein(context, dataset):
