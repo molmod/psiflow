@@ -92,7 +92,7 @@ def insert_addresses(input_xml):
                 if child_.tag == "address":
                     address = child_
                     break
-            address.text = Path.cwd().name[4:] + "/" + address.text.strip()
+            address.text = str(Path.cwd() / address.text.strip())
 
 
 class TimeoutException(Exception):
@@ -124,7 +124,7 @@ def start(args):
     with open("input.xml", "wb") as f:
         f.write(ET.tostring(input_xml, encoding="utf-8"))
 
-    simulation = Simulation.load_from_xml("input.xml")
+    simulation = Simulation.load_from_xml("input.xml", sockets_prefix="")
     try:
         simulation.run()
         softexit.trigger(status="success", message=" @ SIMULATION: Exiting cleanly.")

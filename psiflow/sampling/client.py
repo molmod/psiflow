@@ -1,11 +1,49 @@
 import argparse
-from pathlib import Path
+import socket
 
-from ase.calculators.socketio import SocketClient
+from ase.calculators.socketio import IPIProtocol, SocketClient
 from ase.io import read
 
 from psiflow.hamiltonians import deserialize
 from psiflow.hamiltonians.utils import ForceMagnitudeException
+
+
+class SimpleSocketClient(SocketClient):
+    def __init__(
+        self,
+        host="localhost",
+        port=None,
+        unixsocket=None,
+        timeout=None,
+        log=None,
+        comm=None,
+    ):
+        if comm is None:
+            from ase.parallel import world
+
+            comm = world
+
+        self.comm = comm
+
+        if self.comm.rank == 0:
+            if unixsocket is not None:
+                sock = socket.socket(socket.AF_UNIX)
+                sock.connect(unixsocket)
+            else:
+                raise NotImplementedError
+            sock.settimeout(timeout)
+            self.host = host
+            self.port = port
+            self.unixsocket = unixsocket
+
+            self.protocol = IPIProtocol(sock, txt=log)
+            self.log = self.protocol.log
+            self.closed = False
+
+            self.bead_index = 0
+            self.bead_initbytes = b""
+            self.state = "READY"
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -52,8 +90,8 @@ if __name__ == "__main__":
         max_force=args.max_force,
     )
 
-    address = Path.cwd().name[4:] + "/" + args.address.strip()
-    client = SocketClient(unixsocket=address)
+    # address = Path.cwd().name[4:] + "/" + args.address.strip()
+    client = SimpleSocketClient(unixsocket=args.address)
     try:
         client.run(atoms)
     except ForceMagnitudeException as e:

@@ -15,6 +15,7 @@ import psiflow
 from psiflow.data import Dataset, FlowAtoms, check_equality
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
 from psiflow.sampling.metadynamics import Metadynamics
+from psiflow.sampling.order_parameter import OrderParameter
 from psiflow.sampling.output import SimulationOutput
 from psiflow.utils import copy_app_future, unpack_i
 
@@ -65,6 +66,7 @@ class Walker:
     timestep: float = 0.5
     coupling: Optional[Coupling] = None
     metadynamics: Optional[Metadynamics] = None
+    order_parameter: Optional[OrderParameter] = None
 
     def __post_init__(self):
         if self.state is None:

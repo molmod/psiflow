@@ -339,7 +339,7 @@ def _execute_ipi(
     inputs: list = [],
     outputs: list = [],
 ) -> str:
-    tmp_command = 'tmpdir=$(mktemp -d -t "ipi_XXXXXXXXX");'
+    tmp_command = "tmpdir=$(mktemp -d);"
     cd_command = "cd $tmpdir;"
     write_command = " "
     for i, plumed_str in enumerate(plumed_list):
