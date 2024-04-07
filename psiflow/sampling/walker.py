@@ -86,20 +86,21 @@ class Walker:
         return check_equality(self.start, self.state)
 
     def update(self, output: SimulationOutput) -> None:
-        if self.metadynamics is None:
-            self.state = update_walker(
-                output.state,
-                output.status,
-                self.start,
-            )
-        else:
-            raise NotImplementedError
+        self.state = update_walker(
+            output.state,
+            output.status,
+            self.start,
+        )
 
     def multiply(self, nreplicas: int) -> list[Walker]:
         if self.coupling is not None:
             raise ValueError("Cannot multiply walkers after they are coupled")
         walkers = []
         for _i in range(nreplicas):
+            if self.metadynamics is not None:
+                metadynamics = self.metadynamics.copy()
+            else:
+                metadynamics = None
             walker = Walker(
                 start=self.start,
                 hamiltonian=self.hamiltonian,
@@ -110,6 +111,7 @@ class Walker:
                 periodic=self.periodic,
                 timestep=self.timestep,
                 coupling=self.coupling,
+                metadynamics=metadynamics,
             )
             walkers.append(walker)
         return walkers
@@ -118,7 +120,7 @@ class Walker:
     def is_similar(w0: Walker, w1: Walker):
         similar_T = (w0.temperature is None) == (w1.temperature is None)
         similar_P = (w0.pressure is None) == (w1.pressure is None)
-        similar_pimd = w0.pimd == w1.pimd
+        similar_pimd = w0.nbeads == w1.nbeads
         similar_coupling = w0.coupling == w1.coupling
         similar_pbc = w0.periodic == w1.periodic
         similar_timestep = w0.timestep == w1.timestep
@@ -221,16 +223,35 @@ class Coupling:
     pass
 
 
+def validate_coupling(walkers: list[Walker]):
+    couplings = []
+    counts = []
+    for walker in walkers:
+        coupling = walker.coupling
+        if coupling is None:
+            continue
+        if coupling not in couplings:
+            couplings.append(couplings)
+            counts.append(1)
+        else:
+            index = couplings.index(coupling)
+            counts[index] += 1
+    for i, coupling in enumerate(couplings):
+        assert coupling.nwalkers == counts[i]
+
+
 @typeguard.typechecked
 class ReplicaExchange(Coupling):
     def __init__(
         self,
         trial_frequency: int,
         rescale_kinetic: bool,
+        nwalkers: int,  # purely for safety!
     ) -> None:
         self.trial_frequency = trial_frequency
         self.rescale_kinetic = rescale_kinetic
         self.swapfile = psiflow.context().new_file("swap_", ".txt")
+        self.nwalkers = nwalkers
 
     def __eq__(self, other: Optional[ReplicaExchange]) -> bool:
         if other is None:
@@ -243,7 +264,7 @@ class ReplicaExchange(Coupling):
     def inputs(self) -> list[Union[DataFuture, File]]:
         return [self.swapfile]
 
-    def get_smotion(self) -> ET.Element:
+    def get_smotion(self, has_metad: bool) -> ET.Element:
         remd = ET.Element("remd")
         stride = ET.Element("stride")
         stride.text = str(self.trial_frequency)
@@ -254,8 +275,14 @@ class ReplicaExchange(Coupling):
         swapfile = ET.Element("swapfile")
         swapfile.text = "replica_exchange"  # gets prefixed by i-PI
         remd.append(swapfile)
-        smotion = ET.Element("smotion", mode="remd")
-        smotion.append(remd)
+        if has_metad:
+            smotion = ET.Element("smotion", mode="multi")
+            smotion_remd = ET.Element("smotion", mode="remd")
+            smotion_remd.append(remd)
+            smotion.append(smotion_remd)
+        else:
+            smotion = ET.Element("smotion", mode="remd")
+            smotion.append(remd)
         return smotion
 
     def update(self, result: AppFuture):
@@ -272,6 +299,6 @@ def replica_exchange(
 ) -> None:
     assert len(partition(walkers)) == 1
     assert walkers[0].coupling is None
-    rex = ReplicaExchange(trial_frequency, rescale_kinetic)
+    rex = ReplicaExchange(trial_frequency, rescale_kinetic, len(walkers))
     for walker in walkers:
         walker.coupling = rex

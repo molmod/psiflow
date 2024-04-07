@@ -60,7 +60,7 @@ def remove_comments_printflush(plumed_input: str) -> str:
 def set_path_in_plumed(plumed_input: str, keyword: str, path_to_set: str) -> str:
     lines = plumed_input.split("\n")
     for i, line in enumerate(lines):
-        if keyword in line.split():
+        if keyword in line:
             if "FILE=" not in line:
                 lines[i] = line + " FILE={}".format(path_to_set)
                 continue

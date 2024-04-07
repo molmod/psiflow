@@ -7,6 +7,7 @@ import parsl
 import typeguard
 from parsl.app.app import bash_app
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
@@ -17,7 +18,9 @@ from psiflow.utils import save_xml
 
 
 @typeguard.typechecked
-def template(walkers: list[Walker]) -> tuple[dict[str, Hamiltonian], list[tuple]]:
+def template(
+    walkers: list[Walker],
+) -> tuple[dict[str, Hamiltonian], list[tuple], list[AppFuture]]:
     assert len(partition(walkers)) == 1
     # multiply by 1.0 to ensure result is Mixture in case len(walkers) == 1
     total_hamiltonian = 1.0 * sum([w.hamiltonian for w in walkers], start=Zero())
@@ -59,8 +62,36 @@ def template(walkers: list[Walker]) -> tuple[dict[str, Hamiltonian], list[tuple]
             ensemble = ()
         weights_table.append(ensemble + tuple(coefficients))
 
+    # inspect metadynamics attributes and allocate additional weights per MTD
+    walker_indices = []
+    metad_objects = []
+    for i, walker in enumerate(walkers):
+        mtd = walker.metadynamics
+        if mtd is not None:
+            assert mtd not in metad_objects, (
+                "Metadynamics biases need to be "
+                "independent for uncoupled walkers. To perform actual "
+                "multiple walker metadynamics, use "
+                "psiflow.sampling.multiple_walker_metadynamics"
+            )
+            walker_indices.append(i)
+            metad_objects.append(mtd)
+    plumed_list = [mtd.input() for mtd in metad_objects]
+
+    for i, row in enumerate(weights_table):
+        if i == 0:
+            to_append = ["METAD{}".format(i) for i in range(len(metad_objects))]
+        else:
+            to_append = [0] * len(metad_objects)
+            try:
+                index = walker_indices.index(i - 1)
+                to_append[index] = 1
+            except ValueError:
+                pass
+        weights_table[i] = row + tuple(to_append)
+
     hamiltonians_map = {n: h for n, h in zip(names, hamiltonians)}
-    return hamiltonians_map, weights_table
+    return hamiltonians_map, weights_table, plumed_list
 
 
 @typeguard.typechecked
@@ -119,6 +150,25 @@ def setup_ensemble(weights_header: tuple[str, ...]) -> ET.Element:
         pressure = ET.Element("pressure", units="megapascal")
         pressure.text = "PRESSURE"
         ensemble.append(pressure)
+
+    bias = ET.Element("bias")
+    bias_weights = ET.Element("bias_weights")
+    bias_weights_list = []
+    count = 0
+    while True:  # metadynamics bias if present
+        name = "METAD{}".format(count)
+        if name in weights_header:
+            force = ET.Element("force", forcefield=name.lower())
+            bias.append(force)
+            bias_weights_list.append(name)
+            count += 1
+        else:
+            break
+    bias_weights.text = " [ " + ", ".join(bias_weights_list) + " ] "
+
+    if count > 0:
+        ensemble.append(bias)
+        ensemble.append(bias_weights)
     return ensemble
 
 
@@ -127,6 +177,8 @@ def setup_forces(weights_header: tuple[str, ...]) -> ET.Element:
     forces = ET.Element("forces")
     for name in weights_header:
         if name in ["TEMP", "PRESSURE"]:
+            continue
+        if name.startswith("METAD"):  # added as bias, not as main force
             continue
         force = ET.Element("force", forcefield=name, weight=name.upper())
         forces.append(force)
@@ -152,6 +204,21 @@ def setup_sockets(
 
         sockets.append(ffsocket)
     return sockets
+
+
+@typeguard.typechecked
+def setup_ffplumed(nplumed: int) -> list[ET.Element]:
+    ffplumed = []
+    for i in range(nplumed):
+        input_file = ET.Element("file", mode="xyz", cell_units="angstrom")
+        input_file.text = "start_0.xyz"  # always present
+        plumeddat = ET.Element("plumeddat")
+        plumeddat.text = "metad_input{}.txt".format(i)
+        ff = ET.Element("ffplumed", name="metad{}".format(i), pbc="False")
+        ff.append(input_file)
+        ff.append(plumeddat)
+        ffplumed.append(ff)
+    return ffplumed
 
 
 @typeguard.typechecked
@@ -231,6 +298,32 @@ def setup_output(
     return output, simulation_outputs
 
 
+@typeguard.typechecked
+def setup_smotion(
+    coupling: Optional[Coupling], plumed_list: list[AppFuture]
+) -> ET.Element:
+    has_metad = len(plumed_list) > 0
+    has_coupling = coupling is not None
+    if has_coupling:
+        smotion = coupling.get_smotion(has_metad)
+    else:
+        if not has_metad:
+            smotion = ET.Element("smotion", mode="dummy")
+        else:
+            metaff = ET.Element("metaff")
+            bias_names = ["metad{}".format(i) for i in range(len(plumed_list))]
+            metaff.text = " [ " + " ".join(bias_names) + " ] "
+            metad = ET.Element("metad")
+            metad.append(metaff)
+            smotion_metad = ET.Element("smotion", mode="metad")
+            smotion_metad.append(metad)
+            if has_coupling:
+                smotion.append(smotion_metad)
+            else:  # overwrite dummy smotion
+                smotion = smotion_metad
+    return smotion
+
+
 def _execute_ipi(
     nwalkers: int,
     hamiltonian_names: list[str],
@@ -240,6 +333,7 @@ def _execute_ipi(
     coupling: Optional[Coupling],
     command_server: str,
     command_client: str,
+    *plumed_list: str,
     stdout: str = "",
     stderr: str = "",
     inputs: list = [],
@@ -247,6 +341,9 @@ def _execute_ipi(
 ) -> str:
     tmp_command = 'tmpdir=$(mktemp -d -t "ipi_XXXXXXXXX");'
     cd_command = "cd $tmpdir;"
+    write_command = " "
+    for i, plumed_str in enumerate(plumed_list):
+        write_command += 'echo "{}" > metad_input{}.txt; '.format(plumed_str, i)
     command_start = command_server + " --nwalkers={}".format(nwalkers)
     command_start += " --input_xml={}".format(inputs[0].filepath)
     command_start += " --start_xyz={}".format(inputs[1].filepath)
@@ -283,6 +380,7 @@ def _execute_ipi(
     command_list = [
         tmp_command,
         cd_command,
+        write_command,
         command_start,
         "sleep 3s;",
         command_clients,
@@ -308,7 +406,8 @@ def sample(
     checkpoint_step: int = 100,
 ) -> list[SimulationOutput]:
     assert len(walkers) > 0
-    hamiltonians_map, weights_table = template(walkers)
+    hamiltonians_map, weights_table, plumed_list = template(walkers)
+    coupling = walkers[0].coupling
 
     if motion_defaults is not None:
         raise NotImplementedError
@@ -323,8 +422,8 @@ def sample(
         ensemble,
         forces,
     )
+    smotion = setup_smotion(coupling, plumed_list)
 
-    sockets = setup_sockets(hamiltonians_map)
     if observables is None:
         observables = [
             "time{picosecond}",
@@ -337,16 +436,13 @@ def sample(
         step,
         checkpoint_step,
     )
-
-    coupling = walkers[0].coupling
-    if coupling is not None:
-        smotion = coupling.get_smotion()
-    else:
-        smotion = ET.Element("smotion", mode="dummy")
-
     simulation = ET.Element("simulation", verbosity="high")
+    sockets = setup_sockets(hamiltonians_map)
     for socket in sockets:
         simulation.append(socket)
+    ffplumed = setup_ffplumed(len(plumed_list))
+    for ff in ffplumed:
+        simulation.append(ff)
     simulation.append(output)
     simulation.append(system_template)
     simulation.append(smotion)
@@ -391,15 +487,18 @@ def sample(
         inputs.append(coupling.inputs())
         outputs.append(*[File(f.filepath) for f in coupling.inputs()])
 
+    command_server = context["ModelEvaluation"].server_command()
+    command_client = context["ModelEvaluation"].client_command()
     result = execute_ipi(
         len(walkers),
         hamiltonian_names,
         client_args,
         (step is not None),
-        max_force=max_force,
-        coupling=coupling,
-        command_server=context["ModelEvaluation"].server_command(),
-        command_client=context["ModelEvaluation"].client_command(),
+        max_force,
+        coupling,
+        command_server,
+        command_client,
+        *plumed_list,
         stdout=parsl.AUTO_LOGNAME,
         stderr=parsl.AUTO_LOGNAME,
         inputs=inputs,
@@ -415,6 +514,8 @@ def sample(
             j = len(walkers) + 1 + i
             trajectory = Dataset(None, data_future=result.outputs[j])
             simulation_output.trajectory = trajectory
+        if walkers[i].metadynamics is not None:
+            walkers[i].metadynamics.wait_for(result)
         walkers[i].update(simulation_output)
 
     if coupling is not None:
