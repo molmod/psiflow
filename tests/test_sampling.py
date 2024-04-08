@@ -6,6 +6,7 @@ from psiflow.data import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
 from psiflow.models import MACEModel
 from psiflow.sampling.metadynamics import Metadynamics
+from psiflow.sampling.order import HamiltonianOrderParameter
 from psiflow.sampling.sampling import sample, template
 from psiflow.sampling.server import parse_checkpoint
 from psiflow.sampling.walker import Walker, partition, quench, replica_exchange
@@ -333,3 +334,25 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     with pytest.raises(AssertionError):
         replica_exchange(walkers)
     assert len(partition(walkers)) == 2
+
+
+def test_order_parameter(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
+    plumed_str = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=ps
+CV: VOLUME
+METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
+"""
+    order = HamiltonianOrderParameter.from_plumed(
+        name="CV",
+        hamiltonian=PlumedHamiltonian(plumed_input=plumed_str),
+    )
+    walker = Walker(
+        dataset[3],
+        temperature=300,
+        hamiltonian=einstein,
+        order_parameter=order,
+    )
+    simulation_output = sample([walker], steps=40)[0]
+    CV = simulation_output.state.result().info["CV"]
+    assert np.allclose(CV, dataset[3].result().get_volume())

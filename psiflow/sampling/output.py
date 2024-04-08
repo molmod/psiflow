@@ -3,11 +3,13 @@ from pathlib import Path
 from typing import Union
 
 import numpy as np
+import typeguard
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.data import FlowAtoms
+from psiflow.sampling.walker import Walker
 from psiflow.utils import unpack_i
 
 
@@ -122,6 +124,22 @@ def _parse(
 parse = python_app(_parse, executors=["default_threads"])
 
 
+@typeguard.typechecked
+def _update_walker(
+    state: FlowAtoms,
+    status: int,
+    start: FlowAtoms,
+) -> FlowAtoms:
+    # success or timeout are OK; see .output.py :: SimulationOutput
+    if status in [0, 1]:
+        return state
+    else:
+        return start
+
+
+update_walker = python_app(_update_walker, executors=["default_threads"])
+
+
 class SimulationOutput:
     """Gathers simulation output
 
@@ -160,6 +178,13 @@ class SimulationOutput:
         self.time = unpack_i(parsed, 0)
         self.temperature = unpack_i(parsed, 1)
         self.status = unpack_i(parsed, 2)
+
+    def update_walker(self, walker: Walker):
+        walker.state = update_walker(
+            self.state,
+            self.status,
+            walker.start,
+        )
 
     def parse_data(self, data_future: DataFuture):
         data = parse_data(

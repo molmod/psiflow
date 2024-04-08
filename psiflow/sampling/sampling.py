@@ -508,7 +508,10 @@ def sample(
     final_states = Dataset(None, data_future=result.outputs[0])
 
     for i, simulation_output in enumerate(simulation_outputs):
-        simulation_output.parse(result, final_states[i])
+        state = final_states[i]
+        if walkers[i].order_parameter is not None:
+            state = walkers[i].order_parameter.evaluate(state)
+        simulation_output.parse(result, state)
         simulation_output.parse_data(result.outputs[i + 1])
         if step is not None:
             j = len(walkers) + 1 + i
@@ -516,7 +519,7 @@ def sample(
             simulation_output.trajectory = trajectory
         if walkers[i].metadynamics is not None:
             walkers[i].metadynamics.wait_for(result)
-        walkers[i].update(simulation_output)
+        simulation_output.update_walker(walkers[i])
 
     if coupling is not None:
         coupling.update(result)

@@ -15,25 +15,8 @@ import psiflow
 from psiflow.data import Dataset, FlowAtoms, check_equality
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
 from psiflow.sampling.metadynamics import Metadynamics
-from psiflow.sampling.order_parameter import OrderParameter
-from psiflow.sampling.output import SimulationOutput
+from psiflow.sampling.order import OrderParameter
 from psiflow.utils import copy_app_future, unpack_i
-
-
-@typeguard.typechecked
-def _update_walker(
-    state: FlowAtoms,
-    status: int,
-    start: FlowAtoms,
-) -> FlowAtoms:
-    # success or timeout are OK; see .output.py :: SimulationOutput
-    if status in [0, 1]:
-        return state
-    else:
-        return start
-
-
-update_walker = python_app(_update_walker, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -80,19 +63,14 @@ class Walker:
             self.periodic = periodic
         else:
             assert periodic == self.periodic
+        if self.order_parameter is not None:
+            self.start = self.order_parameter.evaluate(self.start)
 
     def reset(self, condition: Union[AppFuture, bool] = True):
         self.state = conditioned_reset(condition, self.state, self.start)
 
     def is_reset(self) -> AppFuture:
         return check_equality(self.start, self.state)
-
-    def update(self, output: SimulationOutput) -> None:
-        self.state = update_walker(
-            output.state,
-            output.status,
-            self.start,
-        )
 
     def multiply(self, nreplicas: int) -> list[Walker]:
         if self.coupling is not None:
