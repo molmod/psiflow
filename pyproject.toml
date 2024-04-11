@@ -21,6 +21,7 @@ dependencies = [
     "psutil",
     "colorcet",
     "cp2k-input-tools",
+    "pytimeparse",
     ]
 
 [project.optional-dependencies]

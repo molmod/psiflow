@@ -1,7 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from typing import Callable, Union
+from typing import Union
 
 import numpy as np
 import typeguard
@@ -37,7 +37,7 @@ def get_minimum_energy(element, configs, *energies):
 
 @join_app
 def evaluate_multiple(
-    reference: BaseReference,
+    reference: Reference,
     nstates: int,
     inputs: list = [],
     outputs: list = [],
@@ -60,14 +60,9 @@ def evaluate_multiple(
     )
 
 
-@join_app
-def evaluate_single():
-    raise NotImplementedError
-
-
 @typeguard.typechecked
-class BaseReference:
-    evaluate_single: Callable = evaluate_single
+class Reference:
+    properties: tuple[str, ...]
 
     def __init__(self, properties: tuple = ("energy", "forces")) -> None:
         self.properties = properties

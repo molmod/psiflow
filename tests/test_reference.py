@@ -2,15 +2,13 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from ase import Atoms
 from ase.units import Bohr, Ha
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms, NullState
-from psiflow.reference import CP2KReference, EMTReference, PySCFReference
+from psiflow.reference import CP2K, EMT
 from psiflow.reference._cp2k import dict_to_str, parse_cp2k_output, str_to_dict
-from psiflow.reference._pyscf import generate_script, parse_energy_forces
 
 
 @pytest.fixture
@@ -171,7 +169,7 @@ def test_cp2k_parse_output():
 
 
 def test_reference_emt(context, dataset, tmp_path):
-    reference = EMTReference()
+    reference = EMT()
     # modify dataset to include states for which EMT fails:
     _ = reference.evaluate(dataset).as_list().result()
     atoms_list = dataset.as_list().result()
@@ -191,7 +189,7 @@ def test_reference_emt(context, dataset, tmp_path):
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_success(context, simple_cp2k_input):
-    cp2k_reference = CP2KReference(simple_cp2k_input)
+    reference = CP2K(simple_cp2k_input)
     atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=5 * np.eye(3),
@@ -199,9 +197,11 @@ def test_cp2k_success(context, simple_cp2k_input):
         pbc=True,
     )
     dataset = Dataset([atoms])
-    evaluated = cp2k_reference.evaluate(dataset[0])
+
+    evaluated = reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status
+
     assert Path(evaluated.result().reference_stdout).is_file()
     assert Path(evaluated.result().reference_stderr).is_file()
     assert "energy" in evaluated.result().info.keys()
@@ -220,14 +220,14 @@ def test_cp2k_success(context, simple_cp2k_input):
     )
 
     # check whether NullState evaluates to NullState
-    state = cp2k_reference.evaluate(NullState)
+    state = reference.evaluate(NullState)
     assert state.result() == NullState
 
     # check number of mpi processes
     with open(evaluated.result().reference_stdout, "r") as f:
         content = f.read()
-    context = psiflow.context()
-    ncores = context["CP2KReference"].cores_per_worker
+    definition = psiflow.context().definitions["ReferenceEvaluation"]
+    ncores = definition.cores_per_worker
     lines = content.split("\n")
     for line in lines:
         if "Total number of message passing processes" in line:
@@ -305,7 +305,7 @@ def test_cp2k_failure(context, tmp_path):
    &END PRINT
 &END FORCE_EVAL
 """  # incorrect input file
-    reference = CP2KReference(cp2k_input)
+    reference = CP2K(cp2k_input)
     atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=5 * np.eye(3),
@@ -323,28 +323,28 @@ def test_cp2k_failure(context, tmp_path):
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_timeout(context, simple_cp2k_input):
-    cp2k_reference = CP2KReference(simple_cp2k_input)
+    reference = CP2K(simple_cp2k_input)
     atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=20 * np.eye(3),  # box way too large
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
         pbc=True,
     )
-    evaluated = cp2k_reference.evaluate(atoms)
+    evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
     assert not evaluated.result().reference_status
     assert "energy" not in evaluated.result().info.keys()
 
 
 def test_cp2k_energy(context, simple_cp2k_input):
-    cp2k_reference = CP2KReference(simple_cp2k_input, properties=("energy",))
+    reference = CP2K(simple_cp2k_input, properties=("energy",))
     atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=5 * np.eye(3),  # box way too large
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
         pbc=True,
     )
-    evaluated = cp2k_reference.evaluate(atoms)
+    evaluated = reference.evaluate(atoms)
     assert isinstance(evaluated, AppFuture)
     assert evaluated.result().reference_status
     assert "energy" in evaluated.result().info.keys()
@@ -352,7 +352,7 @@ def test_cp2k_energy(context, simple_cp2k_input):
 
 
 def test_emt_atomic_energies(context, dataset):
-    reference = EMTReference()
+    reference = EMT()
     for element in ["H", "Cu"]:
         energy = reference.compute_atomic_energy(element, box_size=5)
         energy_ = reference.compute_atomic_energy(element, box_size=7)
@@ -363,10 +363,23 @@ def test_emt_atomic_energies(context, dataset):
 def test_cp2k_atomic_energies(
     dataset, simple_cp2k_input
 ):  # use energy-only because why not
-    cp2k_reference = CP2KReference(simple_cp2k_input, properties=("energy",))
+    reference = CP2K(simple_cp2k_input, properties=("energy",))
     element = "H"
-    energy = cp2k_reference.compute_atomic_energy(element, box_size=4)
+    energy = reference.compute_atomic_energy(element, box_size=4)
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
+
+
+def test_cp2k_serialize(dataset, simple_cp2k_input):
+    element = "H"
+    reference = CP2K(simple_cp2k_input, properties=("energy",))
+    energy = reference.compute_atomic_energy(element, box_size=4)
+
+    data = psiflow.serialize(reference).result()
+    reference = psiflow.deserialize(data)
+    assert np.allclose(
+        energy.result(),
+        reference.compute_atomic_energy(element, box_size=4).result(),
+    )
 
 
 def test_cp2k_posthf(context):
@@ -397,121 +410,11 @@ def test_cp2k_posthf(context):
     &END SUBSYS
 &END FORCE_EVAL
 """
-    cp2k_reference = CP2KReference(cp2k_input_str, properties=("energy",))
+    reference = CP2K(cp2k_input_str, properties=("energy",))
     atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=5 * np.eye(3),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
         pbc=True,
     )
-    assert cp2k_reference.evaluate(atoms).result().reference_status
-
-
-@pytest.fixture
-def pyscf_reference(context):
-    routine = """
-from pyscf import dft
-
-mf = dft.RKS(molecule)
-mf.xc = 'pbe,pbe'
-
-energy = mf.kernel()
-forces = -mf.nuc_grad_method().kernel()
-"""
-    basis = "cc-pvtz"
-    spin = 0
-    return PySCFReference(routine, basis, spin)
-
-
-def test_pyscf_generate_script(pyscf_reference):
-    atoms = Atoms("H2", positions=[[0, 0, 0], [0, 0, 0.75]], pbc=False)
-    _ = generate_script(
-        atoms,
-        pyscf_reference.routine,
-        pyscf_reference.basis,
-        pyscf_reference.spin,
-    )
-
-
-def test_pyscf_extract_energy_forces():
-    stdout = """
-total energy = as;ldkfj
-tion, you can put the setting "B3LYP_WITH_VWN5 = True" in pyscf_conf.py
-  warnings.warn('Since PySCF-2.3, B3LYP (and B3P86) are changed to the VWN-RPA variant, '
-converged SCF energy = -1.16614771756639
-total forces = ;s';dlfkj
---------------- RKS gradients ---------------
-         x                y                z
-0 H    -0.0000000000     0.0000000000     0.0005538080
-1 H    -0.0000000000     0.0000000000    -0.0005538080
-----------------------------------------------
-total energy = -31.73249570413387
-total forces =
-8.504463377857879e-16 -6.70273006321553e-16 -0.02847795118636264
-1.9587146782865252e-16 -2.135019926691156e-15 0.028477951186359783
-"""
-    energy, forces = parse_energy_forces(stdout)
-    assert np.allclose(energy, -1.16614771756639 * Ha)
-    forces_ = (
-        (-1.0)
-        * np.array(
-            [
-                [-0.0000000000, 0.0000000000, 0.0005538080],
-                [-0.0000000000, 0.0000000000, -0.0005538080],
-            ]
-        )
-        * Ha
-        / Bohr
-    )
-    assert np.allclose(forces, forces_)
-
-
-def test_pyscf_success(pyscf_reference):
-    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
-        numbers=np.ones(2),
-        positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-    )
-    dataset = Dataset([atoms])
-    evaluated = pyscf_reference.evaluate(dataset[0])
-    assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().reference_status
-    assert Path(evaluated.result().reference_stdout).is_file()
-    assert Path(evaluated.result().reference_stderr).is_file()
-    assert "energy" in evaluated.result().info.keys()
-    assert "stress" not in evaluated.result().info.keys()
-    assert "forces" in evaluated.result().arrays.keys()
-    assert evaluated.result().arrays["forces"][0, 0] < 0
-    assert evaluated.result().arrays["forces"][1, 0] > 0
-
-    pyscf_reference.evaluate(dataset)
-    assert pyscf_reference.compute_atomic_energy("H").result() < 0
-
-
-def test_pyscf_timeout(context):
-    routine = """
-from pyscf import scf, cc
-
-mf = scf.HF(molecule).run()
-mycc = cc.CCSD(mf)
-mycc.kernel()
-energy = mycc.e_tot
-forces = -mycc.nuc_grad_method().kernel()
-"""
-    basis = "cc-pvqz"
-    spin = 0
-    reference = PySCFReference(routine, basis, spin)
-    atoms = FlowAtoms(  # 3 x H2
-        numbers=np.ones(6),
-        positions=np.array(
-            [
-                [0, 0, 0],
-                [0.74, 0, 0],
-                [0, 3, 0],
-                [0.74, 3, 0],
-                [0, 6, 0],
-                [0.74, 6, 0],
-            ]
-        ),
-    )
-    reference.evaluate(atoms).result()
-    assert not atoms.reference_status
+    assert reference.evaluate(atoms).result().reference_status

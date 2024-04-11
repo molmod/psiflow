@@ -3,7 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Union
+from typing import Any, Optional, Union
 
 import parsl
 import typeguard
@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)  # logging per module
 
 @typeguard.typechecked
 class Model:
-    """Base Container for a trainable interaction potential"""
+    config: Optional[Any]
+    model_future: Optional[psiflow._DataFuture]
+    atomic_energies: dict
 
     def __init__(self) -> None:
         self.config = None

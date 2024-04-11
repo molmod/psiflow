@@ -10,7 +10,7 @@ from psiflow.hamiltonians import (
     EinsteinCrystal,
     MACEHamiltonian,
     PlumedHamiltonian,
-    deserialize,
+    deserialize_calculator,
 )
 from psiflow.hamiltonians._plumed import (
     PlumedCalculator,
@@ -38,7 +38,7 @@ FLUSH STRIDE=10
     plumed_input = set_path_in_plumed(plumed_input, "METAD", "/tmp/my_input")
     plumed_input = set_path_in_plumed(plumed_input, "METADD", "/tmp/my_input")
     assert (
-        plumed_input
+        plumed_input.strip()
         == """
 RESTART
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
@@ -46,7 +46,7 @@ CV: VOLUME
 CV0: CV
 METAD ARG=CV0 SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=/tmp/my_input sdld
 METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
-"""
+""".strip()
     )
 
 
@@ -270,9 +270,9 @@ def test_serialization(context, dataset, tmp_path, mace_model):
     hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
     evaluated = hamiltonian.evaluate(dataset[:3])
 
-    data_future = hamiltonian.serialize()
+    data_future = hamiltonian.serialize_calculator()
     psiflow.wait()
-    calculator = deserialize(data_future.filepath)
+    calculator = deserialize_calculator(data_future.filepath)
     atoms = dataset[0].result()
     atoms.calc = calculator
     for i in range(3):
@@ -306,9 +306,9 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     hamiltonian = PlumedHamiltonian(plumed_input, data_future)
     evaluated = hamiltonian.evaluate(dataset[:3])
 
-    data_future = hamiltonian.serialize()
+    data_future = hamiltonian.serialize_calculator()
     psiflow.wait()
-    calculator = deserialize(data_future.filepath)
+    calculator = deserialize_calculator(data_future.filepath)
     atoms = dataset[0].result()
     atoms.calc = calculator
     for i in range(3):
@@ -322,9 +322,11 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     hamiltonian = MACEHamiltonian.from_model(mace_model)
     evaluated = hamiltonian.evaluate(dataset[:3])
 
-    data_future = hamiltonian.serialize()
+    data_future = hamiltonian.serialize_calculator()
     psiflow.wait()
-    calculator = deserialize(data_future.filepath, device="cuda", dtype="float32")
+    calculator = deserialize_calculator(
+        data_future.filepath, device="cuda", dtype="float32"
+    )
     atoms = dataset[0].result()
     atoms.calc = calculator
     for i in range(3):

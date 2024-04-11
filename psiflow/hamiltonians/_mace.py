@@ -19,7 +19,11 @@ from psiflow.utils import dump_json
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class MACEHamiltonian(Hamiltonian):
+    atomic_energies: dict[str, float]
+    external: psiflow._DataFuture
+
     def __init__(
         self,
         model_future: Union[DataFuture, File],
@@ -27,11 +31,13 @@ class MACEHamiltonian(Hamiltonian):
     ) -> None:
         super().__init__()
         self.atomic_energies = atomic_energies
-        self.input_files = [model_future]
+        self.external = model_future
+        self._create_apps()
 
-        executor_name = psiflow.context()["ModelEvaluation"].name
-        ncores = psiflow.context()["ModelEvaluation"].cores_per_worker
-        if psiflow.context()["ModelEvaluation"].gpu:
+    def _create_apps(self):
+        evaluation = psiflow.context().definitions["ModelEvaluation"]
+        ncores = evaluation.cores_per_worker
+        if evaluation.gpu:
             device = "cuda"
         else:
             device = "cpu"
@@ -41,19 +47,19 @@ class MACEHamiltonian(Hamiltonian):
             device=device,
             dtype="float32",
         )
-        self.evaluate_app = python_app(infused_evaluate, executors=[executor_name])
+        self.evaluate_app = python_app(infused_evaluate, executors=[evaluation.name])
 
-    def serialize(self) -> DataFuture:
+    def serialize_calculator(self) -> DataFuture:
         return dump_json(
             hamiltonian=self.__class__.__name__,
-            model_path=self.input_files[0].filepath,
+            model_path=self.external.filepath,
             atomic_energies=self.atomic_energies,
-            inputs=self.input_files,
+            inputs=[self.external],
             outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
         ).outputs[0]
 
     @staticmethod
-    def deserialize(
+    def deserialize_calculator(
         model_path: str,
         atomic_energies: dict,
         device: str,
@@ -76,7 +82,7 @@ class MACEHamiltonian(Hamiltonian):
     def __eq__(self, hamiltonian) -> bool:
         if type(hamiltonian) is not MACEHamiltonian:
             return False
-        if self.input_files[0] != hamiltonian.input_files[0]:
+        if self.external.filepath != hamiltonian.external.filepath:
             return False
         if len(self.atomic_energies) != len(hamiltonian.atomic_energies):
             return False

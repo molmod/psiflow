@@ -47,7 +47,7 @@ def evaluate_function(
     assert len(inputs) >= 1
     assert len(outputs) == 1
     data = read_dataset(slice(None), inputs=[inputs[0]])
-    calculators, index_mapping = load_calculators(data, *inputs[1:], **parameters)
+    calculators, index_mapping = load_calculators(data, inputs[1], **parameters)
     for i, atoms in enumerate(data):
         calculator = calculators[index_mapping[i]]
         calculator.reset()

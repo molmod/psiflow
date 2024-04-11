@@ -7,13 +7,12 @@ from ase import Atoms
 from parsl.app.app import python_app
 
 from psiflow.data import FlowAtoms
-from psiflow.reference.base import BaseReference
+from psiflow.reference.reference import Reference
 
 
 @typeguard.typechecked
 def evaluate_emt(
     atoms: Union[Atoms, FlowAtoms],
-    parameters: dict,
     inputs: List = [],
     outputs: List = [],
 ) -> FlowAtoms:
@@ -37,7 +36,7 @@ def evaluate_emt(
 
 
 @typeguard.typechecked
-class EMTReference(BaseReference):
+class EMT(Reference):
     """Container class for EMT calculations (only used for testing purposes)"""
 
     def __init__(self, **kwargs):

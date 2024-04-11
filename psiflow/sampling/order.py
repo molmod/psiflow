@@ -7,6 +7,7 @@ from ase.units import kJ, mol
 from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.data import Dataset, FlowAtoms
 from psiflow.hamiltonians._plumed import PlumedHamiltonian
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
@@ -40,7 +41,11 @@ class OrderParameter:
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class HamiltonianOrderParameter(OrderParameter):
+    name: str
+    hamiltonian: Hamiltonian
+
     def __init__(self, name: str, hamiltonian: Hamiltonian):
         super().__init__(name)
         self.hamiltonian = hamiltonian
@@ -60,7 +65,7 @@ class HamiltonianOrderParameter(OrderParameter):
     def from_plumed(
         cls, name: str, hamiltonian: PlumedHamiltonian
     ) -> HamiltonianOrderParameter:
-        assert name in hamiltonian.plumed_input
+        assert name in hamiltonian.plumed_input()
         action_prefixes = [
             "ABMD",
             "BIASVALUE",
@@ -75,7 +80,7 @@ class HamiltonianOrderParameter(OrderParameter):
             "UPPER_WALLS",
             "RESTART",
         ]
-        lines = hamiltonian.plumed_input.split("\n")
+        lines = hamiltonian.plumed_input().split("\n")
         new_lines = []
         for line in lines:
             found = [p in line for p in action_prefixes]

@@ -1,4 +1,3 @@
-from ._cp2k import CP2KReference  # noqa: F401
-from ._emt import EMTReference  # noqa: F401
-from ._pyscf import PySCFReference  # noqa: F401
-from .base import BaseReference  # noqa: F401
+from ._cp2k import CP2K  # noqa: F401
+from ._emt import EMT  # noqa: F401
+from .reference import Reference  # noqa: F401

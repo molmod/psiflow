@@ -12,7 +12,7 @@ from ase.calculators.emt import EMT
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
-from psiflow.models import MACEConfig, MACEModel
+from psiflow.models import MACE, MACEConfig
 
 
 def pytest_addoption(parser):
@@ -112,7 +112,7 @@ def mace_model(mace_config):
     for atoms in data_:
         atoms.reference_status = True
     dataset = Dataset(data_)
-    model = MACEModel(**mace_config)
+    model = MACE(**mace_config)
     # add additional state to initialize other atomic numbers
     # mace cannot handle partially periodic datasets
     atoms = Atoms(

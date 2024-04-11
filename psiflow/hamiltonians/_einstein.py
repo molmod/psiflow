@@ -8,6 +8,7 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
+from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
@@ -57,15 +58,19 @@ class EinsteinCalculator(Calculator):
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class EinsteinCrystal(Hamiltonian):
-    """Dummy hamiltonian which represents a simple harmonic interaction"""
+    atoms: Union[FlowAtoms, AppFuture]
+    force_constant: float
 
     def __init__(self, atoms: Union[FlowAtoms, AppFuture], force_constant: float):
         super().__init__()
         self.reference_geometry = copy_app_future(atoms)
         self.force_constant = force_constant
-        self.input_files = []
+        self.external = None  # needed
+        self._create_apps()
 
+    def _create_apps(self):
         self.evaluate_app = python_app(evaluate_function, executors=["default_threads"])
 
     @property
@@ -78,6 +83,7 @@ class EinsteinCrystal(Hamiltonian):
     @staticmethod
     def load_calculators(
         data: list[FlowAtoms],
+        external: Optional[File],
         reference_geometry: Atoms,
         force_constant: float,
     ) -> tuple[list[EinsteinCalculator], np.ndarray]:
@@ -102,7 +108,7 @@ class EinsteinCrystal(Hamiltonian):
             return False
         return True
 
-    def serialize(self) -> DataFuture:
+    def serialize_calculator(self) -> DataFuture:
         @python_app(executors=["default_threads"])
         def get_positions(atoms):
             return atoms.get_positions()
@@ -115,7 +121,7 @@ class EinsteinCrystal(Hamiltonian):
         ).outputs[0]
 
     @staticmethod
-    def deserialize(centers: list[list[float]], force_constant: float):
+    def deserialize_calculator(centers: list[list[float]], force_constant: float):
         return EinsteinCalculator(
             np.array(centers),
             force_constant,

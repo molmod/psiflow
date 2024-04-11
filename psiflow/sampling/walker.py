@@ -1,7 +1,6 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
 from typing import Optional, Union
 
 import numpy as np
@@ -17,6 +16,11 @@ from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.order import OrderParameter
 from psiflow.utils import copy_app_future, unpack_i
+
+
+@typeguard.typechecked
+class Coupling:
+    pass
 
 
 @typeguard.typechecked
@@ -36,35 +40,60 @@ def _conditioned_reset(
 conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"])
 
 
-@dataclass
 @typeguard.typechecked
+@psiflow.serializable
 class Walker:
     start: Union[FlowAtoms, AppFuture]
-    hamiltonian: Hamiltonian = Zero()
-    state: Union[FlowAtoms, AppFuture, None] = None
-    temperature: Optional[float] = 300
-    pressure: Optional[float] = None
-    nbeads: int = 1
-    periodic: Union[bool, AppFuture] = True
-    timestep: float = 0.5
-    coupling: Optional[Coupling] = None
-    metadynamics: Optional[Metadynamics] = None
-    order_parameter: Optional[OrderParameter] = None
+    hamiltonian: Hamiltonian
+    state: Union[FlowAtoms, AppFuture, None]
+    temperature: Optional[float]
+    pressure: Optional[float]
+    nbeads: int
+    periodic: Optional[bool]
+    timestep: float
+    coupling: Optional[Coupling]
+    metadynamics: Optional[Metadynamics]
+    order_parameter: Optional[OrderParameter]
 
-    def __post_init__(self):
-        if self.state is None:
-            self.state = copy_app_future(self.start)
-        if type(self.start) is AppFuture:
-            start = self.start.result()  # blocking
+    def __init__(
+        self,
+        start: Union[FlowAtoms, AppFuture],
+        hamiltonian: Optional[Hamiltonian] = None,
+        state: Union[FlowAtoms, AppFuture, None] = None,
+        temperature: Optional[float] = 300,
+        pressure: Optional[float] = None,
+        nbeads: int = 1,
+        periodic: Optional[bool] = True,
+        timestep: float = 0.5,
+        metadynamics: Optional[Metadynamics] = None,
+        order_parameter: Optional[OrderParameter] = None,
+    ):
+        if type(start) is AppFuture:
+            start = start.result()  # blocking
+        if periodic is not None:
+            assert periodic == np.all(start.pbc)
         else:
-            start = self.start
-        periodic = np.all(start.pbc)
-        if self.periodic is None:
-            self.periodic = periodic
-        else:
-            assert periodic == self.periodic
-        if self.order_parameter is not None:
-            self.start = self.order_parameter.evaluate(self.start)
+            periodic = np.all(start.pbc)
+        self.start = start
+        self.periodic = periodic
+        if hamiltonian is None:
+            hamiltonian = Zero()
+        self.hamiltonian = hamiltonian
+        if state is None:
+            state = copy_app_future(self.start)
+        self.state = state
+
+        if order_parameter is not None:
+            self.start = order_parameter.evaluate(self.start)
+
+        self.temperature = temperature
+        self.pressure = pressure
+        self.nbeads = nbeads
+        self.timestep = timestep
+
+        self.metadynamics = metadynamics
+        self.order_parameter = order_parameter
+        self.coupling = None
 
     def reset(self, condition: Union[AppFuture, bool] = True):
         self.state = conditioned_reset(condition, self.state, self.start)
@@ -90,9 +119,8 @@ class Walker:
                 nbeads=self.nbeads,
                 periodic=self.periodic,
                 timestep=self.timestep,
-                coupling=self.coupling,
                 metadynamics=metadynamics,
-            )
+            )  # no coupling
             walkers.append(walker)
         return walkers
 
@@ -149,7 +177,7 @@ def _get_minimum_energy_states(
     coefficients: np.ndarray,
     inputs: list = [],
 ) -> tuple[int, ...]:
-    import numpy as np
+    import numpy
 
     from psiflow.data import read_dataset
 
@@ -163,12 +191,12 @@ def _get_minimum_energy_states(
             inputs=[inputs[i]],
         )
         energies.append([a.info["energy"] for a in data])
-    energies = np.array(energies)
+    energies = numpy.array(energies)
 
     indices = []
     for c in coefficients:
-        energy = np.sum(c.reshape(-1, 1) * energies, axis=0)
-        indices.append(int(np.argmin(energy)))
+        energy = numpy.sum(c.reshape(-1, 1) * energies, axis=0)
+        indices.append(int(numpy.argmin(energy)))
     return tuple(indices)
 
 
@@ -198,11 +226,6 @@ def quench(walkers: list[Walker], dataset: Dataset) -> None:
         walker.reset()
 
 
-@typeguard.typechecked
-class Coupling:
-    pass
-
-
 def validate_coupling(walkers: list[Walker]):
     couplings = []
     counts = []
@@ -221,7 +244,13 @@ def validate_coupling(walkers: list[Walker]):
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class ReplicaExchange(Coupling):
+    trial_frequency: int
+    rescale_kinetic: bool
+    nwalkers: int
+    swapfile: psiflow._DataFuture
+
     def __init__(
         self,
         trial_frequency: int,

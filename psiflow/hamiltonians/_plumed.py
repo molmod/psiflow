@@ -79,18 +79,22 @@ class PlumedCalculator(Calculator):
     def __init__(
         self,
         plumed_input: str,
-        *input_files: Union[str, Path],
+        external: Union[str, Path, File, None] = None,
         max_force: Optional[float] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.plumed_input = plumed_input
-        for input_file in input_files:
-            assert Path(input_file).exists()
-        self.input_files = input_files
+        if external is not None:
+            if isinstance(external, File):
+                external = external.filepath
+            assert Path(external).exists()
+        self.external = external
         self.max_force = max_force
 
-        self.tmp = tempfile.NamedTemporaryFile(prefix="plumed_", mode="w+")
+        self.tmp = tempfile.NamedTemporaryFile(
+            prefix="plumed_", mode="w+", delete=False
+        )
         # plumed creates a back up if this file would already exist
         os.remove(self.tmp.name)
 
@@ -150,76 +154,78 @@ class PlumedCalculator(Calculator):
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class PlumedHamiltonian(Hamiltonian):
+    _plumed_input: str
+    external: Optional[psiflow._DataFuture]
+
     def __init__(
-        self, plumed_input: str, *input_files: Union[str, Path, File, DataFuture]
+        self,
+        plumed_input: str,
+        external: Union[None, str, Path, File, DataFuture] = None,
     ):
         super().__init__()
-        self.plumed_input = plumed_input
+        _plumed_input = remove_comments_printflush(plumed_input)
 
-        # double check that supplied files are present in bare input
-        bare_input = remove_comments_printflush(plumed_input)
-        self.input_files = []
-        for input_file in input_files:
-            if type(input_file) is File:
-                assert input_file.filepath in bare_input
-                assert Path(input_file.filepath).exists()
-            elif type(input_file) is DataFuture:
-                assert input_file.file_obj.filepath in bare_input
-            else:
-                assert type(input_file) in [str, Path]
-                if type(input_file) is str:
-                    input_file = Path.cwd() / input_file
-                assert input_file.exists()
-                input_file = File(input_file)
-            self.input_files.append(input_file)
+        if type(external) in [str, Path]:
+            external = File(str(external))
+        if external is not None:
+            assert external.filepath in _plumed_input
+            _plumed_input = _plumed_input.replace(external.filepath, "PLACEHOLDER")
+        self._plumed_input = _plumed_input
+        self.external = external
+        self._create_apps()
 
+    def _create_apps(self):
         self.evaluate_app = python_app(evaluate_function, executors=["default_htex"])
 
     def __eq__(self, other: Hamiltonian) -> bool:
         if type(other) is not type(self):
             return False
-        if self.plumed_input != other.plumed_input:
+        if self.plumed_input() != other.plumed_input():
             return False
-        if len(self.input_files) != len(other.input_files):
-            return False
-        for file, file_ in zip(self.input_files, other.input_files):
-            if file.filepath != file_.filepath:
-                return False
         return True
 
-    def serialize(self):
-        input_files = [file.filepath for file in self.input_files]
+    def plumed_input(self):
+        plumed_input = self._plumed_input
+        if self.external is not None:
+            plumed_input = plumed_input.replace("PLACEHOLDER", self.external.filepath)
+        return plumed_input
+
+    def serialize_calculator(self):
+        if self.external is not None:
+            external = self.external.filepath
+        else:
+            external = self.external
         return dump_json(
             hamiltonian=self.__class__.__name__,
-            plumed_input=self.plumed_input,
-            input_files=input_files,
-            inputs=self.input_files,  # wait for them to complete
+            plumed_input=self.plumed_input(),
+            external=external,
+            inputs=[self.external],  # wait for them to complete
             outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
         ).outputs[0]
 
     @staticmethod
-    def deserialize(plumed_input: str, input_files: list[str]) -> PlumedCalculator:
-        return PlumedCalculator(plumed_input, *input_files)
+    def deserialize_calculator(
+        plumed_input: str, external: Optional[str]
+    ) -> PlumedCalculator:
+        return PlumedCalculator(plumed_input, external)
 
     @property
     def parameters(self: Hamiltonian) -> dict:
         return {
-            "plumed_input": self.plumed_input,
+            "plumed_input": self.plumed_input(),
         }
 
     @staticmethod
     def load_calculators(
         data: list[FlowAtoms],
-        *input_files: Union[File],
+        external: Optional[File],
         plumed_input: str = "",
     ) -> tuple[list[PlumedCalculator], np.ndarray]:
         import numpy as np
 
         from psiflow.hamiltonians._plumed import PlumedCalculator
 
-        calculator = PlumedCalculator(
-            plumed_input,
-            *[input_file.filepath for input_file in input_files],
-        )
+        calculator = PlumedCalculator(plumed_input, external)
         return [calculator], np.zeros(len(data), dtype=int)

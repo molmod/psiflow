@@ -115,12 +115,18 @@ dump_json = python_app(_dump_json, executors=["default_threads"])
 
 
 @typeguard.typechecked
-def _copy_data_future(inputs: List[File] = [], outputs: List[File] = []) -> None:
+def _copy_data_future(
+    pass_on_exist: bool = False,
+    inputs: List[File] = [],
+    outputs: List[File] = [],
+) -> None:
     import shutil
     from pathlib import Path
 
     assert len(inputs) == 1
     assert len(outputs) == 1
+    if Path(outputs[1]).is_file() and pass_on_exist:
+        return 0
     if Path(inputs[0]).is_file():
         shutil.copyfile(inputs[0], outputs[0])
     else:  # no need to copy empty file
@@ -199,10 +205,10 @@ def _save_xml(
     element: ET.Element,
     outputs: list = [],
 ) -> None:
-    import xml.etree.ElementTree as ET
+    import xml.etree.ElementTree as ET_
 
     with open(outputs[0], "wb") as f:
-        f.write(ET.tostring(element))
+        f.write(ET_.tostring(element))
 
 
 save_xml = python_app(_save_xml, executors=["default_threads"])

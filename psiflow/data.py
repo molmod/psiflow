@@ -23,11 +23,11 @@ import typeguard
 from ase import Atoms
 from ase.data import chemical_symbols
 from parsl.app.app import python_app
-from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
+from psiflow.serialization import _DataFuture, serializable
 from psiflow.utils import (
     copy_data_future,
     get_train_valid_indices,
@@ -39,7 +39,7 @@ from psiflow.utils import (
 logger = logging.getLogger(__name__)  # logging per module
 
 
-@typeguard.typechecked
+# @typeguard.typechecked
 class FlowAtoms(Atoms):
     """Wrapper class around ASE `Atoms` with additional attributes for QM logs
 
@@ -463,13 +463,26 @@ app_get_elements = python_app(get_elements, executors=["default_threads"])
 
 
 @typeguard.typechecked
+def _assign_identifier(state: FlowAtoms, discard: bool, identifier: int):
+    if discard:
+        state = NullState
+    if not state == NullState:
+        if state.reference_status:
+            state.info["identifier"] = identifier
+            identifier += 1
+    return state, identifier
+
+
+assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
+
+
+@typeguard.typechecked
 def assign_identifiers(
     identifier: Optional[int],
     inputs: list[File] = [],
     outputs: list[File] = [],
 ) -> int:
     from psiflow.data import read_dataset, write_dataset
-    from psiflow.learning_utils import _assign_identifier
 
     data = read_dataset(slice(None), inputs=[inputs[0]])
     states = []
@@ -499,23 +512,16 @@ app_assign_identifiers = python_app(assign_identifiers, executors=["default_thre
 
 
 @typeguard.typechecked
+@serializable
 class Dataset:
-    """Container to represent a dataset of atomic structures
-
-    Args:
-        context: an `ExecutionContext` instance with a 'default_threads' executor.
-        atoms_list: a list of `Atoms` instances which represent the dataset.
-        data_future: a `parsl.app.futures.DataFuture` instance that points
-            to an `.xyz` file.
-
-    """
+    data_future: _DataFuture
 
     def __init__(
         self,
         atoms_list: Optional[
             Union[List[AppFuture], List[Union[FlowAtoms, Atoms]], AppFuture]
         ],
-        data_future: Optional[Union[DataFuture, File]] = None,
+        data_future: Optional[_DataFuture] = None,
     ) -> None:
         context = psiflow.context()
 

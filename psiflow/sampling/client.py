@@ -4,7 +4,7 @@ import socket
 from ase.calculators.socketio import IPIProtocol, SocketClient
 from ase.io import read
 
-from psiflow.hamiltonians import deserialize
+from psiflow.hamiltonians import deserialize_calculator
 from psiflow.hamiltonians.utils import ForceMagnitudeException
 
 
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     assert args.start is not None
 
     atoms = read(args.start)
-    atoms.calc = deserialize(
+    atoms.calc = deserialize_calculator(
         args.path_hamiltonian,
         device=args.device,
         dtype=args.dtype,

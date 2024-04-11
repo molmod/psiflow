@@ -135,6 +135,7 @@ def initialize(
     stderr: str = "",
     inputs: list[File] = [],
     outputs: list[File] = [],
+    parsl_resource_specification: Optional[dict] = None,
 ) -> str:
     from psiflow.models._mace import MACEConfig
 
@@ -162,6 +163,7 @@ def train(
     stderr: str = "",
     inputs: list[File] = [],
     outputs: list[File] = [],
+    parsl_resource_specification: Optional[dict] = None,
 ) -> str:
     from psiflow.models._mace import MACEConfig
 
@@ -186,7 +188,8 @@ def train(
 
 
 @typeguard.typechecked
-class MACEModel(Model):
+@psiflow.serializable
+class MACE(Model):
     def __init__(self, **config) -> None:
         super().__init__()
         config = MACEConfig(**config)
@@ -194,17 +197,30 @@ class MACEModel(Model):
         assert config.save_cpu  # assert model is saved to CPU after training
         config.device = "cpu"
         self.config = config
+        self._create_apps()
 
-        # initialize apps
-        evaluation = psiflow.context()["ModelEvaluation"].name
-        training = psiflow.context()["ModelTraining"].name
-        command_init = psiflow.context()["ModelTraining"].train_command(True)
-        command_train = psiflow.context()["ModelTraining"].train_command(False)
+    def _create_apps(self):  # initialize apps
+        evaluation = psiflow.context().definitions["ModelEvaluation"]
+        training = psiflow.context().definitions["ModelTraining"]
+        command_init = training.train_command(True)
+        command_train = training.train_command(False)
 
-        app_initialize = bash_app(initialize, executors=[evaluation])
-        app_train = bash_app(train, executors=[training])
-        self._initialize = partial(app_initialize, command_train=command_init)
-        self._train = partial(app_train, command_train=command_train)
+        app_initialize = bash_app(initialize, executors=[evaluation.name])
+        resources_init = evaluation.wq_resources(1)
+        if resources_init is not None:
+            resources_init["running_time_min"] = 30  # at least 30 mins for init?
+        app_train = bash_app(train, executors=[training.name])
+        resources_train = training.wq_resources()
+        self._initialize = partial(
+            app_initialize,
+            command_train=command_init,
+            parsl_resource_specification=resources_init,
+        )
+        self._train = partial(
+            app_train,
+            command_train=command_train,
+            parsl_resource_specification=resources_train,
+        )
 
     @property
     def seed(self) -> int:

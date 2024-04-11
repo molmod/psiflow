@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -6,7 +7,7 @@ from ase.io import read
 from parsl.app.futures import DataFuture
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, NullState
+from psiflow.data import Dataset, FlowAtoms, NullState, check_equality
 from psiflow.utils import get_index_element_mask, is_reduced
 
 
@@ -283,3 +284,21 @@ def test_data_offset(dataset):
             data_[i].result().info["energy"],
             dataset[i].result().info["energy"],
         )
+
+
+def test_data_serialize(dataset, tmp_path):
+    original_name = Path(dataset.data_future.filepath).name
+    data = psiflow.serialize(dataset).result()
+    dataset_ = psiflow.deserialize(data)
+    assert dataset_.data_future.filepath == dataset.data_future.filepath
+    assert Path(dataset_.data_future.filepath).name == original_name
+    for i in range(dataset.length().result()):
+        assert check_equality(dataset[i], dataset_[i]).result()
+
+    # full copy
+    data = psiflow.serialize(dataset, copy_to=tmp_path).result()
+    dataset_ = psiflow.deserialize(data)
+    assert dataset_.data_future.filepath != dataset.data_future.filepath
+    assert Path(dataset_.data_future.filepath).name == original_name
+    for i in range(dataset.length().result()):
+        assert check_equality(dataset[i], dataset_[i]).result()

@@ -11,15 +11,20 @@ from typing import Any, Optional, Union
 
 import parsl
 import psutil
+import pytimeparse
 import typeguard
 import yaml
 from parsl.addresses import address_by_hostname
 from parsl.config import Config
 from parsl.data_provider.files import File
-from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
+from parsl.executors import (
+    HighThroughputExecutor,
+    ThreadPoolExecutor,
+    WorkQueueExecutor,
+)
 from parsl.executors.base import ParslExecutor
 from parsl.launchers.launchers import SimpleLauncher, SrunLauncher
-from parsl.providers import *  # noqa: F403
+from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
 from psiflow.parsl_utils import ContainerizedLauncher, ContainerizedSrunLauncher
@@ -45,6 +50,24 @@ class ExecutionDefinition:
         self.cpu_affinity = cpu_affinity
         self.name = self.__class__.__name__
 
+    @property
+    def max_workers(self):
+        if type(self.parsl_provider) is LocalProvider:  # noqa: F405
+            cores_available = psutil.cpu_count(logical=False)
+        elif type(self.parsl_provider) is SlurmProvider:
+            cores_available = self.parsl_provider.cores_per_node
+        else:
+            cores_available = float("inf")
+        return max(1, math.floor(cores_available / self.cores_per_worker))
+
+    @property
+    def max_runtime(self):
+        if type(self.parsl_provider) is SlurmProvider:
+            walltime = pytimeparse.parse(self.parsl_provider.walltime)
+        else:
+            walltime = 1e9
+        return walltime
+
     def create_executor(
         self, path: Path, htex_address: Optional[str] = None, **kwargs
     ) -> ParslExecutor:
@@ -55,28 +78,21 @@ class ExecutionDefinition:
                 label=self.name,
             )
         else:
-            if type(self.parsl_provider) is LocalProvider:  # noqa: F405
-                cores_available = psutil.cpu_count(logical=False)
-                max_workers = max(
-                    1, math.floor(cores_available / self.cores_per_worker)
-                )
-            else:
-                max_workers = float("inf")
-            if self.cores_per_worker == 1:  # anticipate parsl assertion
-                self.cpu_affinity = "none"
-                logger.info(
-                    'setting cpu_affinity of definition "{}" to none '
-                    "because cores_per_worker=1".format(self.name)
-                )
-            executor = HighThroughputExecutor(
-                address=htex_address,
+            worker_options = [
+                "--parent-death",
+                "--timeout={}".format(30),
+                "--wall-time={}".format(self.max_runtime),
+            ]
+            executor = WorkQueueExecutor(
                 label=self.name,
                 working_dir=str(path / self.name),
-                cores_per_worker=self.cores_per_worker,
-                max_workers=max_workers,
                 provider=self.parsl_provider,
-                cpu_affinity=self.cpu_affinity,
-                **kwargs,
+                shared_fs=True,
+                autocategory=False,
+                port=0,
+                max_retries=0,
+                coprocess=False,
+                worker_options=" ".join(worker_options),
             )
         return executor
 
@@ -123,14 +139,15 @@ class ExecutionDefinition:
 class ModelEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        replicas_per_worker: int = 1,
+        max_replicas_per_worker: int = 1,
         max_simulation_time: Optional[float] = None,
         timeout: float = (5 / 60),  # 5 seconds
         slots: int = 32,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
-        self.replicas_per_worker = replicas_per_worker
+        assert max_simulation_time * 60 < self.max_runtime
+        self.max_replicas_per_worker = max_replicas_per_worker
         self.max_simulation_time = max_simulation_time
         self.timeout = timeout
         self.slots = slots
@@ -146,10 +163,6 @@ class ModelEvaluation(ExecutionDefinition):
     def client_command(self):
         script = "$(python -c 'import psiflow.sampling.client; print(psiflow.sampling.client.__file__)')"
         command_list = ["python", "-u", script]
-        # if (self.max_simulation_time is not None):
-        #    # hardcoded start delay
-        #    max_time = 0.9 * (60 * self.max_simulation_time) - 3
-        #    command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
         return " ".join(command_list)
 
     def get_client_args(
@@ -166,8 +179,16 @@ class ModelEvaluation(ExecutionDefinition):
         else:
             return 1, ""
 
-    def get_resource_spec():
-        pass
+    def wq_resources(self, nwalkers):
+        if self.use_threadpool:
+            return None
+        resource_specification = {}
+        resource_specification["cores"] = self.cores_per_worker
+        resource_specification["disk"] = 1000  # some random nontrivial amount?
+        memory = 2000 * self.cores_per_worker  # similarly rather random
+        resource_specification["memory"] = int(memory)
+        resource_specification["running_time_min"] = self.max_simulation_time
+        return resource_specification
 
 
 @typeguard.typechecked
@@ -179,6 +200,7 @@ class ModelTraining(ExecutionDefinition):
         **kwargs,
     ) -> None:
         super().__init__(gpu=gpu, **kwargs)
+        assert max_training_time * 60 < self.max_runtime
         self.max_training_time = max_training_time
 
     def train_command(self, initialize: bool = False):
@@ -188,6 +210,18 @@ class ModelTraining(ExecutionDefinition):
             max_time = 0.9 * (60 * self.max_training_time)
             command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
         return " ".join(command_list)
+
+    def wq_resources(self):
+        if self.use_threadpool:
+            return None
+        resource_specification = {}
+        resource_specification["cores"] = self.cores_per_worker
+        resource_specification["disk"] = 1000  # some random nontrivial amount?
+        memory = 2000 * self.cores_per_worker  # similarly rather random
+        resource_specification["memory"] = int(memory)
+        resource_specification["running_time_min"] = self.max_training_time
+        resource_specification["gpus"] = 1
+        return resource_specification
 
 
 @typeguard.typechecked
@@ -202,6 +236,7 @@ class ReferenceEvaluation(ExecutionDefinition):
         **kwargs,
     ) -> None:
         super().__init__(cpu_affinity=cpu_affinity, **kwargs)
+        assert max_evaluation_time * 60 < self.max_runtime
         self.max_evaluation_time = max_evaluation_time
         self.cp2k_executable = cp2k_executable
         if mpi_command is None:  # parse
@@ -211,7 +246,7 @@ class ReferenceEvaluation(ExecutionDefinition):
             )
         self.mpi_command = mpi_command
         if name is not None:
-            self.name = name  # if not None, the name of the reference class, e.g. `CP2KReference`
+            self.name = name  # if not None, the name of the reference class
 
     def cp2k_command(self):
         command = " ".join(
@@ -231,6 +266,17 @@ class ReferenceEvaluation(ExecutionDefinition):
                 ]
             )
         return command
+
+    def wq_resources(self):
+        if self.use_threadpool:
+            return None
+        resource_specification = {}
+        resource_specification["cores"] = self.cores_per_worker
+        resource_specification["disk"] = 1000  # some random nontrivial amount?
+        memory = 2000 * self.cores_per_worker  # similarly rather random
+        resource_specification["memory"] = int(memory)
+        resource_specification["running_time_min"] = self.max_evaluation_time
+        return resource_specification
 
 
 @typeguard.typechecked
@@ -273,18 +319,6 @@ class ExecutionContext:
         identifier = "{0:0{1}x}".format(self.file_index[key], padding)
         self.file_index[key] += 1
         return File(str(self.path / (prefix + identifier + suffix)))
-
-    def __getitem__(self, key):
-        if "Reference" in key:  # either generic or class-specific
-            default = self.definitions.get("ReferenceEvaluation", None)
-            definition = self.definitions.get(key + "Evaluation", default)
-        else:  # either for training or evaluation
-            definition = self.definitions.get(key, None)
-        if definition is None:
-            raise ValueError(
-                "No execution definition found for " "for name {}".format(key)
-            )
-        return definition
 
     @classmethod
     def from_config(
@@ -347,9 +381,7 @@ class ExecutionContext:
         # create main parsl executors
         if htex_address is None:
             htex_address = address_by_hostname()
-        executors = [
-            d.create_executor(path=path, htex_address=htex_address) for d in definitions
-        ]
+        executors = [d.create_executor(path=path) for d in definitions]
 
         # create default executors
         if container is not None:
@@ -415,10 +447,10 @@ class ExecutionContextLoader:
                     },
                 }
                 psiflow_config = {}
-                path_internal = Path.cwd() / ".psiflow_internal"
-                if path_internal.exists():
-                    shutil.rmtree(path_internal)
-                psiflow_config["psiflow_internal"] = path_internal
+                path = Path.cwd() / ".psiflow_internal"
+                if path.exists():
+                    shutil.rmtree(path)
+                psiflow_config["path"] = path
             else:
                 assert len(sys.argv) == 2
                 path_config = resolve_and_check(Path(sys.argv[1]))

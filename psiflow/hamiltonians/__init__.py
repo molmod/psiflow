@@ -12,7 +12,7 @@ from .hamiltonian import Hamiltonian  # noqa: F401
 
 
 @typeguard.typechecked
-def deserialize(
+def deserialize_calculator(
     path: Union[str, Path],
     device: Optional[str] = None,
     dtype: Optional[str] = None,
@@ -27,6 +27,6 @@ def deserialize(
         data["device"] = device
     if dtype is not None:
         data["dtype"] = dtype
-    calculator = hamiltonian_cls.deserialize(**data)
+    calculator = hamiltonian_cls.deserialize_calculator(**data)
     calculator.max_force = max_force
     return calculator

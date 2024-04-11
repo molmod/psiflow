@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import typeguard
@@ -8,7 +8,8 @@ from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.data import FlowAtoms
+import psiflow
+from psiflow.data import Dataset, FlowAtoms
 from psiflow.sampling.walker import Walker
 from psiflow.utils import unpack_i
 
@@ -100,10 +101,11 @@ def _parse_data(
 parse_data = python_app(_parse_data, executors=["default_threads"])
 
 
+@typeguard.typechecked
 def _parse(
     state: FlowAtoms,
     inputs: list = [],
-) -> int:
+) -> tuple[float, float, int]:
     time = state.info["time"]
     temperature = state.info["temperature"]
 
@@ -140,6 +142,7 @@ def _update_walker(
 update_walker = python_app(_update_walker, executors=["default_threads"])
 
 
+@psiflow.serializable
 class SimulationOutput:
     """Gathers simulation output
 
@@ -152,6 +155,14 @@ class SimulationOutput:
 
     """
 
+    _data: dict[str, Optional[AppFuture]]
+    state: Union[FlowAtoms, AppFuture, None]
+    stdout: Optional[str]
+    status: Union[int, AppFuture, None]
+    time: Union[float, AppFuture, None]
+    temperature: Union[float, AppFuture, None]
+    trajectory: Optional[Dataset]
+
     def __init__(self, fields: list[str]):
         self._data = {key: None for key in fields}
 
@@ -162,8 +173,8 @@ class SimulationOutput:
         self.temperature = None
         self.trajectory = None
 
-    def __getitem__(self, key: str):
-        if key not in self._data:
+    def __getitem__(self, key: str) -> AppFuture:
+        if self._data.get(key, None) is None:
             raise ValueError("output {} not available".format(key))
         return self._data[key]
 

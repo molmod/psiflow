@@ -7,11 +7,11 @@ from parsl.app.futures import DataFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.hamiltonians import MACEHamiltonian
-from psiflow.models import MACEModel, load_model
+from psiflow.models import MACE, load_model
 
 
 def test_mace_init(mace_config, dataset):
-    model = MACEModel(**mace_config)
+    model = MACE(**mace_config)
     assert model.model_future is None
     model.initialize(dataset[:1])
     assert model.model_future is not None
@@ -20,7 +20,7 @@ def test_mace_init(mace_config, dataset):
     config[
         "batch_size"
     ] = 100000  # bigger than ntrain --> should get reduced internally
-    model = MACEModel(**config)
+    model = MACE(**config)
     model.seed = 1
     model.initialize(dataset[:3])
     assert isinstance(model.model_future, DataFuture)
@@ -51,6 +51,14 @@ def test_mace_init(mace_config, dataset):
             .info["energy"],
         )
 
+    second = psiflow.deserialize(psiflow.serialize(hamiltonian).result())
+    evaluated = second.evaluate(dataset)
+    for i in range(nstates):
+        assert np.allclose(
+            evaluated_[i].result().info["energy"],
+            evaluated[i].result().info["energy"],
+        )
+
     hamiltonian.atomic_energies = {"Cu": 0, "H": 0, "jasldfkjsadf": 0}
     evaluated__ = hamiltonian.evaluate(dataset)
     for i in range(nstates):
@@ -70,7 +78,7 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     # it with the manually computed value
     training = dataset[:-5]
     validation = dataset[-5:]
-    model = MACEModel(**mace_config)
+    model = MACE(**mace_config)
     model.initialize(training)
     hamiltonian0 = MACEHamiltonian.from_model(model)
     errors0 = Dataset.get_errors(validation, hamiltonian0.evaluate(validation))
@@ -81,7 +89,7 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
 
 
 def test_mace_save_load(mace_config, dataset, tmp_path):
-    model = MACEModel(**mace_config)
+    model = MACE(**mace_config)
     model.add_atomic_energy("H", 3)
     model.add_atomic_energy("Cu", 4)
     model.save(tmp_path)
@@ -94,15 +102,15 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     )
 
     psiflow.wait()
-    assert (tmp_path / "MACEModel.yaml").exists()
-    assert not (tmp_path / "MACEModel.pth").exists()
+    assert (tmp_path / "MACE.yaml").exists()
+    assert not (tmp_path / "MACE.pth").exists()
 
     model.save(tmp_path)
     psiflow.wait()
-    assert (tmp_path / "MACEModel.pth").exists()
+    assert (tmp_path / "MACE.pth").exists()
 
     model_ = load_model(tmp_path)
-    assert type(model_) is MACEModel
+    assert type(model_) is MACE
     assert model_.model_future is not None
     e1 = (
         MACEHamiltonian.from_model(model_)
@@ -114,7 +122,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
 
 
 def test_mace_seed(mace_config):
-    model = MACEModel(**mace_config)
+    model = MACE(**mace_config)
     assert model.seed == 0
     model.seed = 111
     assert model.seed == 111

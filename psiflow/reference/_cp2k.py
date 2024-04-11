@@ -4,7 +4,7 @@ import copy
 import io
 import logging
 from functools import partial
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 import typeguard
@@ -12,14 +12,14 @@ from ase.data import atomic_numbers
 from ase.units import Bohr, Ha
 from cp2k_input_tools.generator import CP2KInputGenerator
 from cp2k_input_tools.parser import CP2KInputParserSimplified
-from parsl.app.app import bash_app, python_app
+from parsl.app.app import bash_app, join_app, python_app
 from parsl.app.bash import BashApp
 from parsl.app.python import PythonApp
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import FlowAtoms
-from psiflow.reference.base import BaseReference
+from psiflow.reference.reference import Reference
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -136,7 +136,7 @@ def parse_cp2k_output(
     return atoms
 
 
-# typeguarding incompatible with parsl WQEX for some reason
+# typeguarding for some reason incompatible with WQ
 def cp2k_singlepoint_pre(
     atoms: FlowAtoms,
     cp2k_input_dict: dict,
@@ -144,6 +144,7 @@ def cp2k_singlepoint_pre(
     cp2k_command: str,
     stdout: str = "",
     stderr: str = "",
+    parsl_resource_specification: Optional[dict] = None,
 ):
     from psiflow.reference._cp2k import (
         dict_to_str,
@@ -188,14 +189,17 @@ def cp2k_singlepoint_post(
     return parse_cp2k_output(cp2k_output_str, properties, atoms)
 
 
+@typeguard.typechecked
+@join_app
 def evaluate_single(
     atoms: Union[FlowAtoms, AppFuture],
     cp2k_input_dict: dict,
     properties: tuple,
     cp2k_command: str,
+    wq_resources: dict[str, Union[float, int]],
     app_pre: BashApp,
     app_post: PythonApp,
-) -> FlowAtoms:
+) -> AppFuture:
     import parsl
 
     from psiflow.data import NullState
@@ -211,6 +215,7 @@ def evaluate_single(
             cp2k_command=cp2k_command,
             stdout=parsl.AUTO_LOGNAME,
             stderr=parsl.AUTO_LOGNAME,
+            parsl_resource_specification=wq_resources,
         )
         return app_post(
             atoms=atoms,
@@ -220,16 +225,23 @@ def evaluate_single(
 
 
 @typeguard.typechecked
-class CP2KReference(BaseReference):
+@psiflow.serializable
+class CP2K(Reference):
+    cp2k_input_str: str
+    cp2k_input_dict: dict
+
     def __init__(self, cp2k_input_str: str, **kwargs):
         super().__init__(**kwargs)
         check_input(cp2k_input_str)
         self.cp2k_input_str = cp2k_input_str
         self.cp2k_input_dict = str_to_dict(cp2k_input_str)
+        self._create_apps()
 
-        # create apps with execution info and required inputs
-        cp2k_command = psiflow.context()["CP2KReference"].cp2k_command()
-        executor_label = psiflow.context()["CP2KReference"].name
+    def _create_apps(self):
+        definition = psiflow.context().definitions["ReferenceEvaluation"]
+        cp2k_command = definition.cp2k_command()
+        executor_label = definition.name
+        wq_resources = definition.wq_resources()
         app_pre = bash_app(cp2k_singlepoint_pre, executors=[executor_label])
         app_post = python_app(cp2k_singlepoint_post, executors=["default_threads"])
         self.evaluate_single = partial(
@@ -237,6 +249,7 @@ class CP2KReference(BaseReference):
             cp2k_input_dict=self.cp2k_input_dict,
             properties=self.properties,
             cp2k_command=cp2k_command,
+            wq_resources=wq_resources,
             app_pre=app_pre,
             app_post=app_post,
         )
@@ -268,6 +281,6 @@ class CP2KReference(BaseReference):
                     "ot": {"minimizer": "CG"}
                 }
 
-            reference = CP2KReference(dict_to_str(cp2k_input_dict))
+            reference = CP2K(dict_to_str(cp2k_input_dict))
             references.append((mult, reference))
         return references

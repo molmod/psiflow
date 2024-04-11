@@ -2,27 +2,22 @@ from pathlib import Path
 from typing import Union
 
 import typeguard
+import yaml
 from ase.data import chemical_symbols
+from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.models._mace import MACEConfig, MACEModel  # noqa: F401
+from psiflow.models._mace import MACE, MACEConfig  # noqa: F401
 from psiflow.models.model import Model
-from psiflow.utils import resolve_and_check
+from psiflow.utils import copy_data_future, resolve_and_check
 
 
 @typeguard.typechecked
 def load_model(path: Union[Path, str]) -> Model:
-    from pathlib import Path
-
-    import yaml
-    from parsl.data_provider.files import File
-
-    from psiflow.utils import copy_data_future
-
     path = resolve_and_check(Path(path))
     assert path.is_dir()
     classes = [
-        MACEModel,
+        MACE,
     ]
     for model_cls in classes + [None]:
         assert model_cls is not None

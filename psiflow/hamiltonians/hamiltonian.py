@@ -6,6 +6,7 @@ from typing import Optional
 import typeguard
 from parsl.app.app import join_app
 from parsl.app.futures import DataFuture
+from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset, FlowAtoms
@@ -46,6 +47,8 @@ def evaluate_batched(
 
 @typeguard.typechecked
 class Hamiltonian:
+    external: Optional[psiflow._DataFuture]
+
     def evaluate(self, dataset: Dataset, batch_size: Optional[int] = 100) -> Dataset:
         future = evaluate_batched(
             self,
@@ -62,13 +65,13 @@ class Hamiltonian:
     def single_evaluate(self, dataset: Dataset) -> Dataset:
         future = self.evaluate_app(
             self.load_calculators,
-            inputs=[dataset.data_future, *self.input_files],
+            inputs=[dataset.data_future, self.external],
             outputs=[psiflow.context().new_file("data_", ".xyz")],
             **self.parameters,
         )
         return Dataset(None, data_future=future.outputs[0])
 
-    def serialize(self) -> DataFuture:
+    def serialize_calculator(self) -> DataFuture:
         pass
 
     @property
@@ -76,7 +79,10 @@ class Hamiltonian:
         raise NotImplementedError
 
     @staticmethod
-    def load_calculators(data: list[FlowAtoms], *inputs, **parameters) -> tuple:
+    def load_calculators(
+        data: list[FlowAtoms],
+        external: Optional[File],
+    ) -> tuple:
         raise NotImplementedError
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
@@ -115,7 +121,11 @@ class Zero(Hamiltonian):
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class MixtureHamiltonian(Hamiltonian):
+    hamiltonians: list[Hamiltonian, ...]
+    coefficients: list[float]
+
     def __init__(
         self,
         hamiltonians: list[Hamiltonian, ...],

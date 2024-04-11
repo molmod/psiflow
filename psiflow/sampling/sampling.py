@@ -193,7 +193,9 @@ def setup_sockets(
     for name in hamiltonians_map.keys():
         ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
         timeout = ET.Element("timeout")
-        timeout.text = str(60 * psiflow.context()["ModelEvaluation"].timeout)
+        timeout.text = str(
+            60 * psiflow.context().definitions["ModelEvaluation"].timeout
+        )
         ffsocket.append(timeout)
         exit_on = ET.Element("exit_on_disconnect")
         exit_on.text = " TRUE "
@@ -338,6 +340,7 @@ def _execute_ipi(
     stderr: str = "",
     inputs: list = [],
     outputs: list = [],
+    parsl_resource_specification: Optional[dict] = None,
 ) -> str:
     tmp_command = "tmpdir=$(mktemp -d);"
     cd_command = "cd $tmpdir;"
@@ -458,6 +461,7 @@ def sample(
     simulation.append(prng)
 
     context = psiflow.context()
+    definition = context.definitions["ModelEvaluation"]
     input_future = save_xml(
         simulation,
         outputs=[context.new_file("input_", ".xml")],
@@ -466,12 +470,12 @@ def sample(
         input_future,
         Dataset([w.state for w in walkers]).data_future,
     ]
-    inputs += [h.serialize() for h in hamiltonians_map.values()]
+    inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
 
     hamiltonian_names = list(hamiltonians_map.keys())
     client_args = []
     for name in hamiltonian_names:
-        nclients, args = context["ModelEvaluation"].get_client_args(name, len(walkers))
+        nclients, args = definition.get_client_args(name, len(walkers))
         client_args.append(args)
     outputs = [context.new_file("data_", ".xyz")]
     outputs += [context.new_file("simulation_", ".txt") for w in walkers]
@@ -487,8 +491,8 @@ def sample(
         inputs.append(coupling.inputs())
         outputs.append(*[File(f.filepath) for f in coupling.inputs()])
 
-    command_server = context["ModelEvaluation"].server_command()
-    command_client = context["ModelEvaluation"].client_command()
+    command_server = definition.server_command()
+    command_client = definition.client_command()
     result = execute_ipi(
         len(walkers),
         hamiltonian_names,
@@ -503,6 +507,7 @@ def sample(
         stderr=parsl.AUTO_LOGNAME,
         inputs=inputs,
         outputs=outputs,
+        parsl_resource_specification=definition.wq_resources(len(walkers)),
     )
 
     final_states = Dataset(None, data_future=result.outputs[0])

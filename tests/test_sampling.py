@@ -4,7 +4,7 @@ from ase.units import Bohr
 
 from psiflow.data import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
-from psiflow.models import MACEModel
+from psiflow.models import MACE
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.order import HamiltonianOrderParameter
 from psiflow.sampling.sampling import sample, template
@@ -149,7 +149,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     )
 
     # check whether metadynamics file has correct dependency
-    with open(metadynamics.hillsfile.result().filepath, "r") as f:
+    with open(metadynamics.external.result().filepath, "r") as f:
         content = f.read()
         nhills = len(content.split("\n"))
         assert nhills > 3
@@ -191,13 +191,13 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     assert np.all(bias[0, :] > 0)
 
     # check that old hills are there too
-    with open(metadynamics.hillsfile.result().filepath, "r") as f:
+    with open(metadynamics.external.result().filepath, "r") as f:
         content = f.read()
         new_nhills = len(content.split("\n"))
         assert new_nhills > 3
         assert new_nhills > nhills
 
-    model = MACEModel(**mace_config)
+    model = MACE(**mace_config)
     model.initialize(dataset[:3])
     hamiltonian = MACEHamiltonian.from_model(model)
     walker = Walker(
