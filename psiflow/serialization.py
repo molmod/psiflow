@@ -79,10 +79,6 @@ def serializable(cls):
 
     if "__init__" not in class_dict:
         class_dict["__init__"] = dummy
-    if (
-        "__post_init__" not in class_dict
-    ):  # post_init will be called upon deserialization
-        class_dict["__post_init__"] = dummy
     class_dict["__init__"] = update_init(
         class_dict["__init__"]
     )  # create _attrs / _files / _serial
@@ -186,6 +182,7 @@ def serialize(
         for key, _file in obj._files.items():
             new_path = copy_to / Path(_file.filepath).name
             new_file = copy_data_future(
+                pass_on_exist=True,  # e.g. identical hamiltonians in different walkers
                 inputs=[_file],
                 outputs=[File(new_path)],
             ).outputs[0]
@@ -227,6 +224,13 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
     from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
     from psiflow.models import MACE
     from psiflow.reference import CP2K
+    from psiflow.sampling import (
+        Metadynamics,
+        OrderParameter,
+        ReplicaExchange,
+        SimulationOutput,
+        Walker,
+    )
 
     SERIALIZABLES = {}
     if custom_cls is None:
@@ -238,6 +242,11 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
         MACEHamiltonian,
         EinsteinCrystal,
         PlumedHamiltonian,
+        Metadynamics,
+        OrderParameter,
+        ReplicaExchange,
+        SimulationOutput,
+        Walker,
     ]:
         SERIALIZABLES[cls.__name__] = cls
 

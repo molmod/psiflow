@@ -10,12 +10,12 @@ from ase.units import Bohr, Ha, _e, _hbar, kB
 from ipi.engine.simulation import Simulation
 from ipi.utils.softexit import softexit
 
-from psiflow.data import FlowAtoms
+from psiflow.data import Geometry
 
 
 def parse_checkpoint(
     checkpoint: ET.ElementTree,
-) -> tuple[list[FlowAtoms], np.ndarray]:
+) -> tuple[list[Geometry], np.ndarray]:
     systems = {s.attrib["prefix"]: s for s in checkpoint.iter(tag="system")}
 
     states = []
@@ -70,7 +70,7 @@ def parse_checkpoint(
             except IndexError:
                 time = 0.0
 
-            atoms = FlowAtoms(
+            atoms = Geometry(
                 symbols=symbols,
                 positions=np.mean(positions, axis=0),
                 pbc=True,

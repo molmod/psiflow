@@ -9,7 +9,7 @@ from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms
+from psiflow.data import Dataset, Geometry
 from psiflow.sampling.walker import Walker
 from psiflow.utils import unpack_i
 
@@ -103,7 +103,7 @@ parse_data = python_app(_parse_data, executors=["default_threads"])
 
 @typeguard.typechecked
 def _parse(
-    state: FlowAtoms,
+    state: Geometry,
     inputs: list = [],
 ) -> tuple[float, float, int]:
     time = state.info["time"]
@@ -128,10 +128,10 @@ parse = python_app(_parse, executors=["default_threads"])
 
 @typeguard.typechecked
 def _update_walker(
-    state: FlowAtoms,
+    state: Geometry,
     status: int,
-    start: FlowAtoms,
-) -> FlowAtoms:
+    start: Geometry,
+) -> Geometry:
     # success or timeout are OK; see .output.py :: SimulationOutput
     if status in [0, 1]:
         return state
@@ -156,7 +156,7 @@ class SimulationOutput:
     """
 
     _data: dict[str, Optional[AppFuture]]
-    state: Union[FlowAtoms, AppFuture, None]
+    state: Union[Geometry, AppFuture, None]
     stdout: Optional[str]
     status: Union[int, AppFuture, None]
     time: Union[float, AppFuture, None]

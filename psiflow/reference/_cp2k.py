@@ -18,7 +18,7 @@ from parsl.app.python import PythonApp
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import FlowAtoms
+from psiflow.data import Geometry
 from psiflow.reference.reference import Reference
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -44,7 +44,7 @@ def dict_to_str(cp2k_input_dict: dict) -> str:
 
 
 @typeguard.typechecked
-def insert_atoms_in_input(cp2k_input_dict: dict, atoms: FlowAtoms):
+def insert_atoms_in_input(cp2k_input_dict: dict, atoms: Geometry):
     from ase.data import chemical_symbols
 
     # get rid of topology if it's there
@@ -82,8 +82,8 @@ def set_global_section(cp2k_input_dict: dict, properties: tuple):
 
 
 def parse_cp2k_output(
-    cp2k_output_str: str, properties: tuple, atoms: FlowAtoms
-) -> FlowAtoms:
+    cp2k_output_str: str, properties: tuple, atoms: Geometry
+) -> Geometry:
     natoms = len(atoms)
     all_lines = cp2k_output_str.split("\n")
 
@@ -138,7 +138,7 @@ def parse_cp2k_output(
 
 # typeguarding for some reason incompatible with WQ
 def cp2k_singlepoint_pre(
-    atoms: FlowAtoms,
+    atoms: Geometry,
     cp2k_input_dict: dict,
     properties: tuple,
     cp2k_command: str,
@@ -172,10 +172,10 @@ def cp2k_singlepoint_pre(
 
 
 def cp2k_singlepoint_post(
-    atoms: FlowAtoms,
+    atoms: Geometry,
     properties: tuple,
     inputs: list = [],
-) -> FlowAtoms:
+) -> Geometry:
     from psiflow.data import NullState
     from psiflow.reference._cp2k import parse_cp2k_output
 
@@ -192,7 +192,7 @@ def cp2k_singlepoint_post(
 @typeguard.typechecked
 @join_app
 def evaluate_single(
-    atoms: Union[FlowAtoms, AppFuture],
+    atoms: Union[Geometry, AppFuture],
     cp2k_input_dict: dict,
     properties: tuple,
     cp2k_command: str,

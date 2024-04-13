@@ -12,7 +12,7 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import FlowAtoms
+from psiflow.data import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 from psiflow.hamiltonians.utils import check_forces, evaluate_function
 from psiflow.utils import copy_app_future, dump_json
@@ -60,10 +60,10 @@ class EinsteinCalculator(Calculator):
 @typeguard.typechecked
 @psiflow.serializable
 class EinsteinCrystal(Hamiltonian):
-    atoms: Union[FlowAtoms, AppFuture]
+    atoms: Union[Geometry, AppFuture]
     force_constant: float
 
-    def __init__(self, atoms: Union[FlowAtoms, AppFuture], force_constant: float):
+    def __init__(self, atoms: Union[Geometry, AppFuture], force_constant: float):
         super().__init__()
         self.reference_geometry = copy_app_future(atoms)
         self.force_constant = force_constant
@@ -82,7 +82,7 @@ class EinsteinCrystal(Hamiltonian):
 
     @staticmethod
     def load_calculators(
-        data: list[FlowAtoms],
+        data: list[Geometry],
         external: Optional[File],
         reference_geometry: Atoms,
         force_constant: float,

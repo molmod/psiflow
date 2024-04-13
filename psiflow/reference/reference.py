@@ -11,7 +11,8 @@ from parsl.app.app import join_app, python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, NullState, app_write_dataset, read_dataset
+from psiflow.data import Dataset, Geometry, NullState
+from psiflow.data.geometry import read_frames, write_frames
 from psiflow.utils import copy_app_future
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -46,13 +47,13 @@ def evaluate_multiple(
     assert len(inputs) == 1
     data = []
     for i in range(nstates):
-        state = read_dataset(i, inputs=[inputs[0]], outputs=[])
+        state = read_frames(i, inputs=[inputs[0]], outputs=[])
         if state == NullState:
             data.append(NullState)
         else:
             state = reference.evaluate_single(state)
             data.append(state)
-    return app_write_dataset(
+    return write_frames(
         None,
         return_data=True,
         inputs=data,
@@ -69,7 +70,7 @@ class Reference:
 
     def evaluate(
         self,
-        arg: Union[Dataset, Atoms, FlowAtoms, AppFuture],
+        arg: Union[Dataset, Atoms, Geometry, AppFuture],
     ) -> Union[Dataset, AppFuture]:
         if isinstance(arg, Dataset):
             data = evaluate_multiple(
@@ -82,9 +83,9 @@ class Reference:
             # the output future corresponds to the actual write_dataset app.
             # otherwise, FileNotFoundErrors will occur when using HTEX.
             retval = Dataset(None, data_future=data.outputs[0])
-        else:  # Atoms, FlowAtoms, AppFuture
+        else:  # Atoms, Geometry, AppFuture
             if arg is Atoms:
-                arg = FlowAtoms.from_atoms(arg)
+                arg = Geometry.from_atoms(arg)
             retval = self.evaluate_single(arg)
         return retval
 
@@ -93,14 +94,14 @@ class Reference:
         references = self.get_single_atom_references(element)
         configs = [c for c, _ in references]
         if box_size is not None:
-            atoms = FlowAtoms(
+            atoms = Geometry(
                 numbers=np.array([atomic_numbers[element]]),
                 positions=np.array([[0, 0, 0]]),
                 cell=np.eye(3) * box_size,
                 pbc=True,
             )
         else:
-            atoms = FlowAtoms(
+            atoms = Geometry(
                 numbers=np.array([atomic_numbers[element]]),
                 positions=np.array([[0, 0, 0]]),
                 pbc=False,

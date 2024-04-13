@@ -11,7 +11,7 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import FlowAtoms
+from psiflow.data import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 from psiflow.hamiltonians.utils import evaluate_function
 from psiflow.models.model import Model
@@ -96,7 +96,7 @@ class MACEHamiltonian(Hamiltonian):
 
     @staticmethod
     def load_calculators(
-        data: list[FlowAtoms],
+        data: list[Geometry],
         model_future: Union[DataFuture, File],
         atomic_energies: dict,
         ncores: int,

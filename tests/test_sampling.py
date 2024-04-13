@@ -1,8 +1,11 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 from ase.units import Bohr
 
-from psiflow.data import check_equality
+import psiflow
+from psiflow.data.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
 from psiflow.models import MACE
 from psiflow.sampling.metadynamics import Metadynamics
@@ -356,3 +359,41 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     simulation_output = sample([walker], steps=40)[0]
     CV = simulation_output.state.result().info["CV"]
     assert np.allclose(CV, dataset[3].result().get_volume())
+
+
+def test_walker_serialization(dataset, tmp_path):
+    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
+    plumed_str = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=ps
+CV: VOLUME
+METAD ARG=CV PACE=2 SIGMA=0.05 HEIGHT=5
+"""
+    metadynamics = Metadynamics(plumed_str)
+    walkers = Walker(
+        dataset[0],
+        hamiltonian=einstein,
+        temperature=300,
+        metadynamics=metadynamics,
+    ).multiply(3)
+    for i, walker in enumerate(walkers):
+        walker.hamiltonian *= 1 / (1 + i)
+
+    outputs = sample(walkers, steps=10, step=2)
+
+    data = []
+    for obj in walkers + outputs:
+        psiflow.serialize(obj, copy_to=tmp_path)
+
+    new_objects = [psiflow.deserialize(d.result()) for d in data]
+
+    walkers_ = new_objects[:3]
+    outputs_ = new_objects[3:]
+
+    assert check_equality(walkers_[0].start, walkers[0].start).result()
+    assert check_equality(walkers_[0].state, walkers[0].state).result()
+    assert check_equality(outputs_[0].state, outputs[0].state).result()
+
+    for mtd in [w.metadynamics for w in walkers_]:
+        assert Path.exists(mtd.external.filepath)
+        with open(mtd.external.filepath, "r") as f:
+            assert len(f.read()) > 0

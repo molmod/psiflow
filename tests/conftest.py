@@ -11,7 +11,7 @@ from ase.build import bulk, make_supercell
 from ase.calculators.emt import EMT
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms
+from psiflow.data import Dataset, Geometry
 from psiflow.models import MACE, MACEConfig
 
 
@@ -98,19 +98,15 @@ def generate_emt_cu_data(nstates, amplitude, supercell=None):
 def dataset(context):
     data = generate_emt_cu_data(20, 0.2)
     data += generate_emt_cu_data(5, 0.15, supercell=np.diag([1, 2, 1]))
-    data_ = [FlowAtoms.from_atoms(atoms) for atoms in data]
-    for atoms in data_:
-        atoms.reference_status = True
-    return Dataset(data_).canonical_orientation()
+    data_ = [Geometry.from_atoms(atoms) for atoms in data]
+    return Dataset(data_).align_axes()
 
 
 @pytest.fixture(scope="session")
 def mace_model(mace_config):
     # manually recreate dataset with 'session' scope
     data = generate_emt_cu_data(20, 0.2)
-    data_ = [FlowAtoms.from_atoms(atoms) for atoms in data]
-    for atoms in data_:
-        atoms.reference_status = True
+    data_ = [Geometry.from_atoms(atoms) for atoms in data]
     dataset = Dataset(data_)
     model = MACE(**mace_config)
     # add additional state to initialize other atomic numbers
@@ -123,7 +119,7 @@ def mace_model(mace_config):
     )
     atoms.info["energy"] = -1.0
     atoms.arrays["forces"] = np.random.uniform(size=(2, 3))
-    atoms = FlowAtoms.from_atoms(atoms)
+    # atoms = FlowAtoms.from_atoms(atoms)
     atoms.reference_status = True
     model.initialize(dataset[:5] + Dataset([atoms]))
     # psiflow.wait()
@@ -132,7 +128,7 @@ def mace_model(mace_config):
 
 @pytest.fixture
 def dataset_h2(context):
-    h2 = FlowAtoms(
+    h2 = Geometry(
         numbers=[1, 1],
         positions=[[0, 0, 0], [0.74, 0, 0]],
         pbc=False,

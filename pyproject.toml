@@ -22,6 +22,7 @@ dependencies = [
     "colorcet",
     "cp2k-input-tools",
     "pytimeparse",
+    "extxyz",
     ]
 
 [project.optional-dependencies]

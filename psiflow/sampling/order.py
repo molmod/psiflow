@@ -8,15 +8,15 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms
+from psiflow.data import Dataset, Geometry
 from psiflow.hamiltonians._plumed import PlumedHamiltonian
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 
 
 def _insert_in_state(
-    state: FlowAtoms,
+    state: Geometry,
     name: str,
-) -> FlowAtoms:
+) -> Geometry:
     value = state.info.pop("energy")
     state.reset()
     state.info[name] = value
@@ -33,7 +33,7 @@ class OrderParameter:
     def __init__(self, name: str):
         self.name = name
 
-    def evaluate(self, state: Union[FlowAtoms, AppFuture]) -> AppFuture:
+    def evaluate(self, state: Union[Geometry, AppFuture]) -> AppFuture:
         raise NotImplementedError
 
     def __eq__(self, other):
@@ -50,7 +50,7 @@ class HamiltonianOrderParameter(OrderParameter):
         super().__init__(name)
         self.hamiltonian = hamiltonian
 
-    def evaluate(self, state: Union[FlowAtoms, AppFuture]) -> AppFuture:
+    def evaluate(self, state: Union[Geometry, AppFuture]) -> AppFuture:
         return insert_in_state(
             self.hamiltonian.evaluate(Dataset([state]))[0],
             self.name,

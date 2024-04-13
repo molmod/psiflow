@@ -5,7 +5,7 @@ import typeguard
 from ase import Atoms
 from parsl.app.app import python_app
 
-from psiflow.data import FlowAtoms
+from psiflow.data import Geometry
 
 
 class ForceMagnitudeException(Exception):
@@ -14,7 +14,7 @@ class ForceMagnitudeException(Exception):
 
 def check_forces(
     forces: np.ndarray,
-    atoms: Union[Atoms, FlowAtoms],
+    atoms: Union[Atoms, Geometry],
     max_force: float,
 ):
     exceeded = np.linalg.norm(forces, axis=1) > max_force
@@ -42,11 +42,11 @@ def evaluate_function(
 ) -> None:
     import numpy as np
 
-    from psiflow.data import read_dataset, write_dataset
+    from psiflow.data import read_frames, write_frames
 
     assert len(inputs) >= 1
     assert len(outputs) == 1
-    data = read_dataset(slice(None), inputs=[inputs[0]])
+    data = read_frames(slice(None), inputs=[inputs[0]])
     calculators, index_mapping = load_calculators(data, inputs[1], **parameters)
     for i, atoms in enumerate(data):
         calculator = calculators[index_mapping[i]]
@@ -65,7 +65,7 @@ def evaluate_function(
         else:  # remove if present
             atoms.info.pop("stress", None)
         atoms.calc = None
-    write_dataset(data, outputs=[outputs[0]])
+    write_frames(data, outputs=[outputs[0]])
 
 
 @typeguard.typechecked
@@ -74,9 +74,9 @@ def add_contributions(
     inputs: list = [],
     outputs: list = [],
 ) -> None:
-    from psiflow.data import read_dataset, write_dataset
+    from psiflow.data import read_frames, write_frames
 
-    contributions = [read_dataset(slice(None), inputs=[i]) for i in inputs]
+    contributions = [read_frames(slice(None), inputs=[i]) for i in inputs]
     assert len(contributions) == len(coefficients)
     length = len(contributions[0])
     for contribution in contributions:
@@ -99,7 +99,7 @@ def add_contributions(
             stress = sum([stress_list[i] * c for i, c in enumerate(coefficients)])
             atoms.info["stress"] = stress
         data.append(atoms)
-    write_dataset(data, outputs=[outputs[0]])
+    write_frames(data, outputs=[outputs[0]])
 
 
 app_add_contributions = python_app(add_contributions, executors=["default_threads"])

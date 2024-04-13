@@ -1,46 +1,136 @@
 import os
-from pathlib import Path
 
 import numpy as np
 import pytest
-from ase.io import read
+from ase import Atoms
+from ase.io import read, write
 from parsl.app.futures import DataFuture
+from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, NullState, check_equality
-from psiflow.utils import get_index_element_mask, is_reduced
+from psiflow.data import Dataset, Geometry, NullState
+from psiflow.data.geometry import check_equality, read_frames
+from psiflow.data.utils import get_index_element_mask
 
 
-def test_flow_atoms(dataset, tmp_path):
-    atoms = dataset.get(index=0).result().copy()  # copy necessary with HTEX!
-    assert type(atoms) is FlowAtoms
-    atoms.reference_status = True
-    atoms_ = atoms.copy()
-    assert atoms_.reference_status
-    atoms_ = FlowAtoms.from_atoms(atoms)
-    assert atoms_.reference_status
-    for i in range(dataset.length().result()):
-        atoms = dataset[i].result()
-        assert type(atoms) is FlowAtoms
-        assert atoms.reference_status
-    assert dataset.labeled().length().result() == dataset.length().result()
-    dataset += Dataset([NullState])
-    assert dataset.length().result() == 1 + dataset.not_null().length().result()
-    assert atoms.reference_status
-    atoms.reset()
-    atoms.cell[:] = np.array([[3, 1, 1], [1, 5, 0], [0, -1, 5]])
-    assert "energy" not in atoms.info
-    assert not atoms.reference_status
-    assert tuple(sorted(atoms.elements)) == ("Cu", "H")
-    assert not is_reduced(atoms.cell)
-    atoms.canonical_orientation()
-    assert is_reduced(atoms.cell)
+def test_geometry(tmp_path):
+    geometry = Geometry.from_data(
+        numbers=np.arange(1, 6),
+        positions=np.random.uniform(0, 1, size=(5, 3)),
+        cell=None,
+    )
+    assert not geometry.periodic
+
+    _ = np.array(geometry.per_atom.positions)
+    atoms = Atoms(
+        numbers=np.arange(1, 6),
+        positions=geometry.per_atom.positions,
+        pbc=False,
+    )
+    geometry_ = Geometry.from_atoms(atoms)
+    assert geometry == geometry_
+
+    geometry = Geometry.from_data(
+        numbers=np.arange(1, 6),
+        positions=geometry_.per_atom.positions,
+        cell=2 * np.eye(3),
+    )
+    assert geometry.periodic
+    assert not geometry == geometry_
+    address = geometry.per_atom.positions.ctypes.data
+    address_ = geometry_.per_atom.positions.ctypes.data
+    assert address != address_  # should copy
+    assert np.allclose(
+        geometry.per_atom.positions,
+        geometry_.per_atom.positions,
+    )
+    geometry.align_axes()
+    assert geometry.per_atom.positions.ctypes.data == address  # should not copy
+
+    fake_data = []
+    for i in range(10):
+        atoms = Atoms(
+            numbers=np.arange(i + 5),
+            positions=np.random.uniform(-3, 3, size=(i + 5, 3)),
+            pbc=False,
+        )
+        fake_data.append(atoms)
+    fake_data[2].info["energy"] = 1.0
+    fake_data[3].arrays["forces"] = np.random.uniform(-3, 3, size=(8, 3))
+    fake_data[1].info["stdout"] = "abcd"
+    fake_data[6].info["logprob"] = np.array([-23.1, 22.1])
+    fake_data[7].cell = np.random.uniform(-3, 4, size=(3, 3))
+    fake_data[7].pbc = True
+
+    write(tmp_path / "test.xyz", fake_data)
+
+    data = read_frames(inputs=[str(tmp_path / "test.xyz")]).result()
+    assert data is not None  # should return when no output file is given
+    assert len(data) == len(fake_data)
+    for i in range(10):
+        assert np.allclose(
+            fake_data[i].get_positions(),
+            data[i].per_atom.positions,
+        )
+        assert np.allclose(
+            fake_data[i].numbers,
+            data[i].per_atom.numbers,
+        )
+        assert data[i] == Geometry.from_atoms(fake_data[i])
+    assert data[2].energy == 1.0
+    assert np.allclose(
+        data[3].per_atom.forces,
+        fake_data[3].arrays["forces"],
+    )
+    assert data[1].stdout == "abcd"
+    assert type(data[6].logprob) is np.ndarray
+    assert np.allclose(
+        data[6].logprob,
+        fake_data[6].info["logprob"],
+    )
+    assert data[7].periodic
+    assert np.allclose(
+        data[7].cell,
+        np.array(fake_data[7].cell),
+    )
+    assert np.allclose(
+        data[6].cell,
+        np.zeros((3, 3)),
+    )
+    geometry = read_frames(indices=[3], inputs=[str(tmp_path / "test.xyz")]).result()[0]
+    assert geometry == data[3]
+    assert not geometry == data[4]
+
+    # check writing
+    data = read_frames(
+        inputs=[str(tmp_path / "test.xyz")],
+        outputs=[File(str(tmp_path / "test_.xyz"))],
+    ).result()
+    assert data is None
+
+    data = read_frames(inputs=[File(str(tmp_path / "test.xyz"))]).result()
+    data_ = read_frames(inputs=[File(str(tmp_path / "test_.xyz"))]).result()
+
+    for state, state_ in zip(data, data_):
+        assert state == state_
+        assert state.energy == state_.energy
+        if state.stress is not None:
+            assert np.allclose(
+                state.stress,
+                state_.stress,
+            )
+        assert state.delta == state_.delta
+        assert state.phase == state_.phase
+        if state.logprob is not None:
+            assert np.allclose(state.logprob, state_.logprob)
+        assert state.stdout == state_.stdout
+        assert state.identifier == state.identifier
 
 
 def test_dataset_empty(tmp_path):
-    dataset = Dataset(atoms_list=[])
+    dataset = Dataset([])
     assert dataset.length().result() == 0
-    assert isinstance(dataset.data_future, DataFuture)
+    assert isinstance(dataset.extxyz, DataFuture)
     path_xyz = tmp_path / "test.xyz"
     dataset.save(path_xyz)  # ensure the copy is executed before assert
     psiflow.wait()
@@ -51,32 +141,32 @@ def test_dataset_empty(tmp_path):
 
 def test_dataset_append(dataset):
     l = dataset.length().result()  # noqa: E741
-    atoms_list = dataset.as_list().result()
-    assert len(atoms_list) == l
-    assert type(atoms_list) is list
-    assert type(atoms_list[0]) is FlowAtoms
+    geometries = dataset.geometries().result()
+    assert len(geometries) == l
+    assert type(geometries) is list
+    assert type(geometries[0]) is Geometry
+    for i in range(l):
+        assert check_equality(geometries[i], dataset[i]).result()
     empty = Dataset([])  # use [] instead of None
-    empty.append(dataset)
+    empty += dataset
     assert l == empty.length().result()
-    dataset.append(dataset)
-    assert 2 * l == dataset.length().result()
+    # dataset.append(dataset)
+    # assert 2 * l == dataset.length().result()
     added = dataset + dataset
-    assert added.length().result() == 4 * l
-    assert dataset.length().result() == 2 * l  # must not have changed
-    dataset += dataset
-    assert dataset.length().result() == 4 * l  # must not have changed
+    assert added.length().result() == 2 * l
+    assert dataset.length().result() == l  # must not have changed
 
     # test canonical transformation
-    transformed = dataset.canonical_orientation()
+    transformed = dataset.align_axes()
     for i in range(dataset.length().result()):
-        atoms = dataset[i].result()
-        atoms.canonical_orientation()
+        geometry = dataset[i].result()
+        geometry.align_axes()
         assert np.allclose(
-            atoms.positions,
-            transformed[i].result().positions,
+            geometry.per_atom.positions,
+            transformed[i].result().per_atom.positions,
         )
         assert np.allclose(
-            atoms.cell,
+            geometry.cell,
             transformed[i].result().cell,
         )
 
@@ -85,14 +175,14 @@ def test_dataset_slice(dataset):
     part = dataset[:8]
     assert part.length().result() == 8
     state = dataset[8]
-    data = Dataset(atoms_list=[state])
+    data = Dataset([state])
     assert data.length().result() == 1
 
     dataset_ = dataset.shuffle()
     equal = np.array([False] * dataset.length().result())
     for i in range(dataset.length().result()):
-        pos0 = dataset_[i].result().get_positions()
-        pos1 = dataset[i].result().get_positions()
+        pos0 = dataset_[i].result().per_atom.positions
+        pos1 = dataset[i].result().per_atom.positions
         if pos0.shape == pos1.shape:
             equal[i] = np.allclose(pos0, pos1)
         else:
@@ -104,58 +194,15 @@ def test_dataset_from_xyz(tmp_path, dataset):
     path_xyz = tmp_path / "data.xyz"
     dataset.save(path_xyz)
     psiflow.wait()
-    loaded = Dataset.load(path_xyz)
-    data = read(path_xyz, index=":")
+    _ = Dataset.load(path_xyz)
+    atoms_list = read(path_xyz, index=":")
 
     for i in range(dataset.length().result()):
         assert np.allclose(
-            dataset[i].result().get_positions(),
-            loaded[i].result().get_positions(),
+            dataset[i].result().per_atom.positions,
+            atoms_list[i].get_positions(),
         )
-        assert np.allclose(
-            dataset[i].result().get_positions(),
-            data[i].get_positions(),
-        )
-
-
-def test_dataset_metric(dataset):
-    errors = Dataset.get_errors(dataset, None)
-    assert errors.result().shape == (dataset.length().result(), 3)
-    errors = np.mean(errors.result(), axis=0)
-    assert np.all(errors > 0)
-    with pytest.raises(AssertionError):
-        errors = Dataset.get_errors(dataset, None, atom_indices=[0, 1])
-        errors.result()
-    with pytest.raises(AssertionError):
-        errors = Dataset.get_errors(dataset, None, elements=["C"])
-        errors.result()
-    # should return empty array
-    errors = Dataset.get_errors(dataset, None, elements=["Ne"], properties=["forces"])
-    assert errors.result().shape == (0, 1)
-
-    errors = Dataset.get_errors(
-        dataset, None, elements=["H"], properties=["forces"]
-    )  # H present
-    errors.result()
-    errors_rmse = Dataset.get_errors(
-        dataset, None, elements=["Cu"], properties=["forces"]
-    )  # Cu present
-    errors_mae = Dataset.get_errors(
-        dataset, None, elements=["Cu"], properties=["forces"], metric="mae"
-    )  # Cu present
-    errors_max = Dataset.get_errors(
-        dataset, None, elements=["Cu"], properties=["forces"], metric="max"
-    )  # Cu present
-    assert np.all(errors_rmse.result() > errors_mae.result())
-    assert np.all(errors_max.result() > errors_rmse.result())
-
-    atoms = FlowAtoms(numbers=30 * np.ones(10), positions=np.zeros((10, 3)), pbc=False)
-    atoms.info["forces"] = np.random.uniform(-1, 1, size=(10, 3))
-    dataset.append(Dataset([atoms]))
-    errors = Dataset.get_errors(
-        dataset, None, elements=["H"], properties=["forces"]
-    )  # H present
-    assert errors.result().shape[0] == dataset.length().result() - 1
+        assert dataset[i].result().energy == atoms_list[i].info["energy"]
 
 
 def test_index_element_mask():
@@ -204,8 +251,8 @@ def test_dataset_gather(dataset):
     assert gathered.length().result() == len(indices)
     for i, index in enumerate(indices):
         assert np.allclose(
-            dataset[index].result().positions,
-            gathered[i].result().positions,
+            dataset[index].result().per_atom.positions,
+            gathered[i].result().per_atom.positions,
         )
 
 
@@ -218,17 +265,7 @@ def test_data_elements(dataset):
 
 def test_data_reset(dataset):
     dataset = dataset.reset()
-    assert "energy" not in dataset[0].result().info
-
-
-def test_nullstate(context):
-    state = FlowAtoms(
-        numbers=np.array([0]),
-        positions=np.array([[0.0, 0, 0]]),
-        pbc=False,
-    )
-    assert not id(state) == id(NullState)
-    assert state == NullState
+    assert dataset[0].result().energy is None
 
 
 def test_data_split(dataset):
@@ -239,27 +276,37 @@ def test_data_split(dataset):
 
 
 def test_identifier(dataset):
-    data = dataset + Dataset([NullState, NullState, dataset[0].result()])
+    data = dataset + Dataset([NullState, NullState, dataset[0]])
     identifier = data.assign_identifiers(0)
     assert identifier.result() == dataset.length().result() + 1
-    assert identifier.result() == data.labeled().length().result()
+    assert identifier.result() == data.not_null().length().result()
     for i in range(data.length().result()):
         if not data[i].result() == NullState:
-            assert data[i].result().info["identifier"] < identifier.result()
-            assert data[i].result().reference_status
-    data = data.reset()
+            assert data[i].result().identifier < identifier.result()
+            # assert data[i].result().reference_status
+    data = data.clean()  # also removes identifier
     for i in range(data.length().result()):
         s = data[i].result()
         if not s == NullState:
-            assert "identifier" not in s.info
+            assert s.identifier is None
     identifier = data.assign_identifiers(10)
-    assert identifier.result() == 10  # none are labeled
+    assert identifier.result() == 10 + data.not_null().length().result()
     identifier = dataset.assign_identifiers(10)
-    assert dataset.assign_identifiers().result() == 10 + dataset.length().result()
+    assert (
+        dataset.assign_identifiers().result()
+        == 10 + dataset.not_null().length().result()
+    )
     for i in range(dataset.length().result()):
         s = dataset[i].result()
         if not s == NullState:
-            assert s.info["identifier"] >= 10
+            assert s.identifier >= 10
+
+    identifier = data.assign_identifiers()
+    data = data.clean()
+    assert (
+        data.assign_identifiers(identifier).result()
+        == identifier.result() + data.not_null().length().result()
+    )
 
 
 def test_data_offset(dataset):
@@ -273,32 +320,41 @@ def test_data_offset(dataset):
         natoms = len(dataset[i].result())
         offset = (natoms - 1) * atomic_energies["Cu"] + atomic_energies["H"]
         assert np.allclose(
-            data[i].result().info["energy"],
-            dataset[i].result().info["energy"] - offset,
+            data[i].result().energy,
+            dataset[i].result().energy - offset,
         )
         assert np.allclose(  # unchanged
-            data[i].result().arrays["forces"],
-            dataset[i].result().arrays["forces"],
+            data[i].result().per_atom.forces,
+            dataset[i].result().per_atom.forces,
         )
         assert np.allclose(
-            data_[i].result().info["energy"],
-            dataset[i].result().info["energy"],
+            data_[i].result().energy,
+            dataset[i].result().energy,
         )
 
 
-def test_data_serialize(dataset, tmp_path):
-    original_name = Path(dataset.data_future.filepath).name
-    data = psiflow.serialize(dataset).result()
-    dataset_ = psiflow.deserialize(data)
-    assert dataset_.data_future.filepath == dataset.data_future.filepath
-    assert Path(dataset_.data_future.filepath).name == original_name
-    for i in range(dataset.length().result()):
-        assert check_equality(dataset[i], dataset_[i]).result()
+def test_data_extract(dataset):
+    state = dataset[0].result()
+    state.energy = None
+    state.identifier = 0
+    state.delta = 6
 
-    # full copy
-    data = psiflow.serialize(dataset, copy_to=tmp_path).result()
-    dataset_ = psiflow.deserialize(data)
-    assert dataset_.data_future.filepath != dataset.data_future.filepath
-    assert Path(dataset_.data_future.filepath).name == original_name
-    for i in range(dataset.length().result()):
-        assert check_equality(dataset[i], dataset_[i]).result()
+    data = dataset[:5] + dataset[-5:] + Dataset([state])
+    energy, forces, identifier = data.get(["energy", "forces", "identifier"])
+    energy = energy.result()
+    forces = forces.result()
+    identifier = identifier.result()
+    for i, geometry in enumerate(data.geometries().result()):
+        if geometry.energy:
+            assert np.allclose(geometry.energy, energy[i].item())
+        n = len(geometry)
+        assert np.allclose(
+            geometry.per_atom.forces,
+            forces[i][:n, :],
+        )
+        if identifier[i].item() != -1:
+            assert geometry.identifier == identifier[i]
+        if i < 10:
+            assert identifier[i] == -1
+    assert np.isnan(np.mean(energy))
+    assert np.isnan(np.mean(forces))

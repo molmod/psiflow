@@ -9,7 +9,7 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms
+from psiflow.data import Dataset, Geometry
 from psiflow.hamiltonians.utils import app_add_contributions
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -80,7 +80,7 @@ class Hamiltonian:
 
     @staticmethod
     def load_calculators(
-        data: list[FlowAtoms],
+        data: list[Geometry],
         external: Optional[File],
     ) -> tuple:
         raise NotImplementedError

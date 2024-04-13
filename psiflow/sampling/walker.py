@@ -11,7 +11,8 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, check_equality
+from psiflow.data import Dataset, Geometry
+from psiflow.data.geometry import check_equality
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.order import OrderParameter
@@ -26,9 +27,9 @@ class Coupling:
 @typeguard.typechecked
 def _conditioned_reset(
     condition: bool,
-    state: FlowAtoms,
-    start: FlowAtoms,
-) -> FlowAtoms:
+    state: Geometry,
+    start: Geometry,
+) -> Geometry:
     from copy import deepcopy  # copy necessary!
 
     if condition:
@@ -43,9 +44,9 @@ conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"]
 @typeguard.typechecked
 @psiflow.serializable
 class Walker:
-    start: Union[FlowAtoms, AppFuture]
+    start: Union[Geometry, AppFuture]
     hamiltonian: Hamiltonian
-    state: Union[FlowAtoms, AppFuture, None]
+    state: Union[Geometry, AppFuture, None]
     temperature: Optional[float]
     pressure: Optional[float]
     nbeads: int
@@ -57,9 +58,9 @@ class Walker:
 
     def __init__(
         self,
-        start: Union[FlowAtoms, AppFuture],
+        start: Union[Geometry, AppFuture],
         hamiltonian: Optional[Hamiltonian] = None,
-        state: Union[FlowAtoms, AppFuture, None] = None,
+        state: Union[Geometry, AppFuture, None] = None,
         temperature: Optional[float] = 300,
         pressure: Optional[float] = None,
         nbeads: int = 1,
@@ -179,14 +180,14 @@ def _get_minimum_energy_states(
 ) -> tuple[int, ...]:
     import numpy
 
-    from psiflow.data import read_dataset
+    from psiflow.data import read_frames
 
     assert len(coefficients.shape) == 2
     assert len(inputs) == coefficients.shape[1]
 
     energies = []
     for i in range(len(inputs)):
-        data = read_dataset(
+        data = read_frames(
             slice(None),
             inputs=[inputs[i]],
         )

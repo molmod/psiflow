@@ -6,20 +6,20 @@ import typeguard
 from ase import Atoms
 from parsl.app.app import python_app
 
-from psiflow.data import FlowAtoms
+from psiflow.data import Geometry
 from psiflow.reference.reference import Reference
 
 
 @typeguard.typechecked
 def evaluate_emt(
-    atoms: Union[Atoms, FlowAtoms],
+    atoms: Union[Atoms, Geometry],
     inputs: List = [],
     outputs: List = [],
-) -> FlowAtoms:
+) -> Geometry:
     from ase.calculators.emt import EMT
 
-    if type(atoms) is not FlowAtoms:
-        atoms = FlowAtoms.from_atoms(atoms)
+    if type(atoms) is not Geometry:
+        atoms = Geometry.from_atoms(atoms)
     try:
         atoms.calc = EMT()
         atoms.info["energy"] = atoms.get_potential_energy()

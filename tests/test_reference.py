@@ -6,7 +6,7 @@ from ase.units import Bohr, Ha
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, NullState
+from psiflow.data import Dataset, Geometry, NullState
 from psiflow.reference import CP2K, EMT
 from psiflow.reference._cp2k import dict_to_str, parse_cp2k_output, str_to_dict
 
@@ -162,7 +162,7 @@ def test_cp2k_parse_output():
  STRESS|      z           0.576687140764     -0.112320480227      0.809207051007
 
     """
-    atoms = FlowAtoms(symbols=["O"], positions=np.zeros((1, 3)), pbc=False)
+    atoms = Geometry(symbols=["O"], positions=np.zeros((1, 3)), pbc=False)
     atoms = parse_cp2k_output(cp2k_output_str, ("energy", "forces"), atoms)
     assert atoms.reference_status
     assert atoms.info["energy"] == -14.202993407031412 * Ha
@@ -180,17 +180,17 @@ def test_reference_emt(context, dataset, tmp_path):
     assert evaluated.length().result() == len(atoms_list)
 
     atoms = reference.evaluate(dataset_[5]).result()
-    assert type(atoms) is FlowAtoms
+    assert type(atoms) is Geometry
     assert atoms.reference_status
     atoms = reference.evaluate(dataset_[6]).result()
-    assert type(atoms) is FlowAtoms
+    assert type(atoms) is Geometry
     assert not atoms.reference_status
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_success(context, simple_cp2k_input):
     reference = CP2K(simple_cp2k_input)
-    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=5 * np.eye(3),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
@@ -306,7 +306,7 @@ def test_cp2k_failure(context, tmp_path):
 &END FORCE_EVAL
 """  # incorrect input file
     reference = CP2K(cp2k_input)
-    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=5 * np.eye(3),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
@@ -324,7 +324,7 @@ def test_cp2k_failure(context, tmp_path):
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_timeout(context, simple_cp2k_input):
     reference = CP2K(simple_cp2k_input)
-    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=20 * np.eye(3),  # box way too large
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
@@ -338,7 +338,7 @@ def test_cp2k_timeout(context, simple_cp2k_input):
 
 def test_cp2k_energy(context, simple_cp2k_input):
     reference = CP2K(simple_cp2k_input, properties=("energy",))
-    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=5 * np.eye(3),  # box way too large
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
@@ -411,7 +411,7 @@ def test_cp2k_posthf(context):
 &END FORCE_EVAL
 """
     reference = CP2K(cp2k_input_str, properties=("energy",))
-    atoms = FlowAtoms(  # simple H2 at ~optimized interatomic distance
+    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         cell=5 * np.eye(3),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
