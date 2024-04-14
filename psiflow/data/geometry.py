@@ -147,8 +147,12 @@ class Geometry:
         return len(self.per_atom)
 
 
+def new_nullstate():
+    return Geometry.from_data(np.zeros(1), np.zeros((1, 3)), None)
+
+
 # use universal dummy state
-NullState = Geometry.from_data(np.zeros(1), np.zeros((1, 3)), None)
+NullState = new_nullstate()
 
 
 @typeguard.typechecked

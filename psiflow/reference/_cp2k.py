@@ -18,7 +18,7 @@ from parsl.app.python import PythonApp
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Geometry
+from psiflow.data import Geometry, NullState
 from psiflow.reference.reference import Reference
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -44,7 +44,7 @@ def dict_to_str(cp2k_input_dict: dict) -> str:
 
 
 @typeguard.typechecked
-def insert_atoms_in_input(cp2k_input_dict: dict, atoms: Geometry):
+def insert_atoms_in_input(cp2k_input_dict: dict, geometry: Geometry):
     from ase.data import chemical_symbols
 
     # get rid of topology if it's there
@@ -52,17 +52,15 @@ def insert_atoms_in_input(cp2k_input_dict: dict, atoms: Geometry):
 
     coord = []
     cell = {}
-    for i in range(len(atoms)):
-        coord.append(
-            "{} {} {} {}".format(
-                chemical_symbols[atoms.numbers[i]], *atoms.positions[i]
-            )
-        )
+    numbers = geometry.per_atom.numbers
+    positions = geometry.per_atom.positions
+    for i in range(len(geometry)):
+        coord.append("{} {} {} {}".format(chemical_symbols[numbers[i]], *positions[i]))
     cp2k_input_dict["force_eval"]["subsys"]["coord"] = {"*": coord}
 
-    assert atoms.pbc.any()  # CP2K needs cell info!
+    assert geometry.periodic  # CP2K needs cell info!
     for i, vector in enumerate(["A", "B", "C"]):
-        cell[vector] = "{} {} {}".format(*atoms.cell[i])
+        cell[vector] = "{} {} {}".format(*geometry.cell[i])
     cp2k_input_dict["force_eval"]["subsys"]["cell"] = cell
 
 
@@ -82,9 +80,9 @@ def set_global_section(cp2k_input_dict: dict, properties: tuple):
 
 
 def parse_cp2k_output(
-    cp2k_output_str: str, properties: tuple, atoms: Geometry
+    cp2k_output_str: str, properties: tuple, geometry: Geometry
 ) -> Geometry:
-    natoms = len(atoms)
+    natoms = len(geometry)
     all_lines = cp2k_output_str.split("\n")
 
     # read coordinates
@@ -94,14 +92,13 @@ def parse_cp2k_output(
             skip = 3
             lines = all_lines[i + skip : i + skip + natoms]
     if lines is None:
-        atoms.reference_status = False
-        return atoms
+        return NullState
     assert len(lines) == natoms
     positions = np.zeros((natoms, 3))
     for j, line in enumerate(lines):
         positions[j, :] = np.array([float(f) for f in line.split()[4:7]])
     assert np.allclose(
-        atoms.get_positions(), positions, atol=1e-2
+        geometry.per_atom.positions, positions, atol=1e-2
     )  # accurate up to 0.01 A
 
     # try and read energy
@@ -110,11 +107,10 @@ def parse_cp2k_output(
         if line.strip().startswith("ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]"):
             energy = float(line.split()[-1]) * Ha
     if energy is None:
-        atoms.reference_status = False
-        return atoms
-    atoms.reference_status = True
-    atoms.info["energy"] = energy
-    atoms.arrays.pop("forces", None)  # remove if present for some reason
+        return NullState
+    # atoms.reference_status = True
+    geometry.energy = energy
+    geometry.per_atom.forces[:] = np.nan
 
     # try and read forces if requested
     if "forces" in properties:
@@ -124,21 +120,21 @@ def parse_cp2k_output(
                 skip = 3
                 lines = all_lines[i + skip : i + skip + natoms]
         if lines is None:
-            atoms.reference_status = False
-            return atoms
+            return NullState
         assert len(lines) == natoms
         forces = np.zeros((natoms, 3))
         for j, line in enumerate(lines):
             forces[j, :] = np.array([float(f) for f in line.split()[3:6]])
         forces *= Ha / Bohr
-        atoms.arrays["forces"] = forces
-    atoms.info.pop("stress", None)  # remove if present for some reason
-    return atoms
+        geometry.per_atom.forces[:] = forces
+    # atoms.info.pop("stress", None)  # remove if present for some reason
+    geometry.stress = None
+    return geometry
 
 
 # typeguarding for some reason incompatible with WQ
 def cp2k_singlepoint_pre(
-    atoms: Geometry,
+    geometry: Geometry,
     cp2k_input_dict: dict,
     properties: tuple,
     cp2k_command: str,
@@ -153,7 +149,7 @@ def cp2k_singlepoint_pre(
     )
 
     set_global_section(cp2k_input_dict, properties)
-    insert_atoms_in_input(cp2k_input_dict, atoms)
+    insert_atoms_in_input(cp2k_input_dict, geometry)
     if "forces" in properties:
         cp2k_input_dict["force_eval"]["print"] = {"FORCES": {}}
     cp2k_input_str = dict_to_str(cp2k_input_dict)
@@ -172,27 +168,32 @@ def cp2k_singlepoint_pre(
 
 
 def cp2k_singlepoint_post(
-    atoms: Geometry,
+    geometry: Geometry,
     properties: tuple,
     inputs: list = [],
 ) -> Geometry:
     from psiflow.data import NullState
+    from psiflow.data.geometry import new_nullstate
     from psiflow.reference._cp2k import parse_cp2k_output
 
-    if atoms == NullState:
-        return NullState.copy()
+    if geometry == NullState:
+        return NullState.copy()  # copy?
 
-    atoms.reference_stdout = inputs[0]
-    atoms.reference_stderr = inputs[1]
-    with open(atoms.reference_stdout, "r") as f:
+    with open(inputs[0], "r") as f:
         cp2k_output_str = f.read()
-    return parse_cp2k_output(cp2k_output_str, properties, atoms)
+    geometry = parse_cp2k_output(cp2k_output_str, properties, geometry)
+    if geometry != NullState:
+        geometry.stdout = inputs[0]
+    else:  # a little hacky
+        geometry = new_nullstate()
+        geometry.stdout = inputs[0]
+    return geometry
 
 
 @typeguard.typechecked
 @join_app
 def evaluate_single(
-    atoms: Union[Geometry, AppFuture],
+    geometry: Union[Geometry, AppFuture],
     cp2k_input_dict: dict,
     properties: tuple,
     cp2k_command: str,
@@ -205,11 +206,11 @@ def evaluate_single(
     from psiflow.data import NullState
     from psiflow.utils import copy_app_future
 
-    if atoms == NullState:
+    if geometry == NullState:
         return copy_app_future(NullState)
     else:
         pre = app_pre(
-            atoms,
+            geometry,
             cp2k_input_dict,
             properties,
             cp2k_command=cp2k_command,
@@ -218,7 +219,7 @@ def evaluate_single(
             parsl_resource_specification=wq_resources,
         )
         return app_post(
-            atoms=atoms,
+            geometry=geometry,
             properties=properties,
             inputs=[pre.stdout, pre.stderr, pre],  # wait for bash app
         )

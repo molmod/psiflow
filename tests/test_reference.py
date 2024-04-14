@@ -162,60 +162,63 @@ def test_cp2k_parse_output():
  STRESS|      z           0.576687140764     -0.112320480227      0.809207051007
 
     """
-    atoms = Geometry(symbols=["O"], positions=np.zeros((1, 3)), pbc=False)
-    atoms = parse_cp2k_output(cp2k_output_str, ("energy", "forces"), atoms)
-    assert atoms.reference_status
-    assert atoms.info["energy"] == -14.202993407031412 * Ha
+    geometry = Geometry.from_data(
+        numbers=np.array([8]),
+        positions=np.zeros((1, 3)),
+        cell=np.zeros((3, 3)),
+    )
+    geometry = parse_cp2k_output(cp2k_output_str, ("energy", "forces"), geometry)
+    assert geometry.energy == -14.202993407031412 * Ha
 
 
 def test_reference_emt(context, dataset, tmp_path):
     reference = EMT()
     # modify dataset to include states for which EMT fails:
-    _ = reference.evaluate(dataset).as_list().result()
-    atoms_list = dataset.as_list().result()
-    atoms_list[6].numbers[1] = 90
-    atoms_list[9].numbers[1] = 3
-    dataset_ = Dataset(atoms_list)
+    # _ = reference.evaluate(dataset).geometries().result()
+    geometries = dataset.geometries().result()
+    geometries[6].per_atom.numbers[1] = 90
+    geometries[9].per_atom.numbers[1] = 3
+    dataset_ = Dataset(geometries)
     evaluated = reference.evaluate(dataset_)
-    assert evaluated.length().result() == len(atoms_list)
+    assert evaluated.length().result() == len(geometries)
 
-    atoms = reference.evaluate(dataset_[5]).result()
-    assert type(atoms) is Geometry
-    assert atoms.reference_status
-    atoms = reference.evaluate(dataset_[6]).result()
-    assert type(atoms) is Geometry
-    assert not atoms.reference_status
+    geometry = reference.evaluate(dataset_[5]).result()
+    assert type(geometry) is Geometry
+    assert geometry.energy is not None
+    geometry = reference.evaluate(dataset_[6]).result()
+    assert type(geometry) is Geometry
+    assert geometry == NullState
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_success(context, simple_cp2k_input):
     reference = CP2K(simple_cp2k_input)
-    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
+    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
-        cell=5 * np.eye(3),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-        pbc=True,
+        cell=5 * np.eye(3),
     )
-    dataset = Dataset([atoms])
+    dataset = Dataset([geometry])
 
     evaluated = reference.evaluate(dataset[0])
     assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().reference_status
 
-    assert Path(evaluated.result().reference_stdout).is_file()
-    assert Path(evaluated.result().reference_stderr).is_file()
-    assert "energy" in evaluated.result().info.keys()
-    assert "forces" in evaluated.result().arrays.keys()
+    geometry = evaluated.result()
+    assert geometry != NullState
+
+    assert Path(geometry.stdout).is_file()
+    assert geometry.energy is not None
+    assert not np.any(np.isnan(geometry.per_atom.forces))
     assert np.allclose(
         -1.167407360449355 * Ha,
-        evaluated.result().info["energy"],
+        geometry.energy,
     )
     forces_reference = np.array([[-0.00968014, 0.0, 0.0], [0.00967947, 0.0, 0.0]])
     forces_reference *= Ha
     forces_reference /= Bohr
     assert np.allclose(
         forces_reference,
-        evaluated.result().arrays["forces"],
+        geometry.per_atom.forces,
         atol=1e-5,
     )
 
@@ -224,7 +227,7 @@ def test_cp2k_success(context, simple_cp2k_input):
     assert state.result() == NullState
 
     # check number of mpi processes
-    with open(evaluated.result().reference_stdout, "r") as f:
+    with open(geometry.stdout, "r") as f:
         content = f.read()
     definition = psiflow.context().definitions["ReferenceEvaluation"]
     ncores = definition.cores_per_worker
@@ -306,17 +309,16 @@ def test_cp2k_failure(context, tmp_path):
 &END FORCE_EVAL
 """  # incorrect input file
     reference = CP2K(cp2k_input)
-    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
+    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
-        cell=5 * np.eye(3),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-        pbc=True,
+        cell=5 * np.eye(3),
     )
-    evaluated = reference.evaluate(atoms)
+    evaluated = reference.evaluate(geometry)
     assert isinstance(evaluated, AppFuture)
-    assert not evaluated.result().reference_status
-    assert "energy" not in evaluated.result().info.keys()
-    with open(evaluated.result().reference_stdout, "r") as f:
+    state = evaluated.result()
+    assert state == NullState
+    with open(state.stdout, "r") as f:
         log = f.read()
     assert "ABORT" in log  # verify error is captured
 
@@ -324,31 +326,28 @@ def test_cp2k_failure(context, tmp_path):
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_timeout(context, simple_cp2k_input):
     reference = CP2K(simple_cp2k_input)
-    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
+    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
-        cell=20 * np.eye(3),  # box way too large
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
-        pbc=True,
+        cell=20 * np.eye(3),  # box way too large
     )
-    evaluated = reference.evaluate(atoms)
+    evaluated = reference.evaluate(geometry)
     assert isinstance(evaluated, AppFuture)
-    assert not evaluated.result().reference_status
-    assert "energy" not in evaluated.result().info.keys()
+    state = evaluated.result()
+    assert state == NullState
 
 
 def test_cp2k_energy(context, simple_cp2k_input):
     reference = CP2K(simple_cp2k_input, properties=("energy",))
-    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
+    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
-        cell=5 * np.eye(3),  # box way too large
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
-        pbc=True,
+        cell=5 * np.eye(3),  # box way too large
     )
-    evaluated = reference.evaluate(atoms)
-    assert isinstance(evaluated, AppFuture)
-    assert evaluated.result().reference_status
-    assert "energy" in evaluated.result().info.keys()
-    assert "forces" not in evaluated.result().arrays.keys()
+    state = reference.evaluate(geometry).result()
+    assert state.energy is not None
+    assert state.stdout is not None
+    assert np.all(np.isnan(state.per_atom.forces))
 
 
 def test_emt_atomic_energies(context, dataset):
@@ -411,10 +410,9 @@ def test_cp2k_posthf(context):
 &END FORCE_EVAL
 """
     reference = CP2K(cp2k_input_str, properties=("energy",))
-    atoms = Geometry(  # simple H2 at ~optimized interatomic distance
+    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
-        cell=5 * np.eye(3),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-        pbc=True,
+        cell=5 * np.eye(3),
     )
-    assert reference.evaluate(atoms).result().reference_status
+    assert reference.evaluate(geometry).result().energy is not None

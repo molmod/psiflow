@@ -1,38 +1,36 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-from typing import List, Union
-
 import typeguard
-from ase import Atoms
 from parsl.app.app import python_app
 
-from psiflow.data import Geometry
+from psiflow.data import Geometry, NullState
 from psiflow.reference.reference import Reference
 
 
 @typeguard.typechecked
 def evaluate_emt(
-    atoms: Union[Atoms, Geometry],
-    inputs: List = [],
-    outputs: List = [],
+    geometry: Geometry,
+    inputs: list = [],
+    outputs: list = [],
 ) -> Geometry:
+    from ase import Atoms
     from ase.calculators.emt import EMT
 
-    if type(atoms) is not Geometry:
-        atoms = Geometry.from_atoms(atoms)
+    atoms = Atoms(
+        numbers=geometry.per_atom.numbers[:],
+        positions=geometry.per_atom.positions[:],
+        cell=geometry.cell,
+        pbc=geometry.periodic,
+    )
     try:
         atoms.calc = EMT()
-        atoms.info["energy"] = atoms.get_potential_energy()
-        atoms.arrays["forces"] = atoms.get_forces()
-        atoms.info["stress"] = atoms.get_stress(voigt=False)
-        atoms.reference_status = True
+        geometry.energy = atoms.get_potential_energy()
+        geometry.per_atom.forces[:] = atoms.get_forces()
+        geometry.stress = atoms.get_stress(voigt=False)
     except NotImplementedError as e:
-        atoms.reference_status = False
         print(e)
-    atoms.calc = None
-    atoms.reference_stderr = False
-    atoms.reference_stdout = False
-    return atoms
+        geometry = NullState
+    return geometry
 
 
 @typeguard.typechecked
