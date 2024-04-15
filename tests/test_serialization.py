@@ -69,15 +69,15 @@ def test_serial_simple(tmp_path):
 
     # check classes created before test execution, e.g. Dataset
     data = Dataset([NullState])
-    assert "data_future" in data._files
+    assert "extxyz" in data._files
     assert len(data._attrs) == 0
     assert len(data._serial) == 0
     with pytest.raises(typeguard.TypeCheckError):  # try something stupid
-        data.data_future = 0
+        data.extxyz = 0
 
     # test getter / setter
-    data.data_future = File("some_file")
-    assert type(data.data_future) is File
+    data.extxyz = File("some_file")
+    assert type(data.extxyz) is File
 
     # test basic serialization
     dumped_json = psiflow.serialize(data).result()
@@ -85,14 +85,14 @@ def test_serial_simple(tmp_path):
     assert len(dumped_json["Dataset"]["_attrs"]) == 0
     assert len(dumped_json["Dataset"]["_serial"]) == 0
     assert len(dumped_json["Dataset"]["_files"]) == 1
-    assert dumped_json["Dataset"]["_files"]["data_future"] == data.data_future.filepath
+    assert dumped_json["Dataset"]["_files"]["extxyz"] == data.extxyz.filepath
 
     # test copy_to serialization
     data = Dataset([NullState])
-    data.data_future.result()
-    filename = Path(data.data_future.filepath).name
-    assert os.path.exists(data.data_future.filepath)
+    data.extxyz.result()
+    filename = Path(data.extxyz.filepath).name
+    assert os.path.exists(data.extxyz.filepath)
     dumped_json = psiflow.serialize(data, copy_to=tmp_path / "test").result()
-    os.remove(data.data_future.filepath)
+    os.remove(data.extxyz.filepath)
     assert (tmp_path / "test").exists()
     assert (tmp_path / "test" / filename).exists()  # new file

@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 import numpy as np
 import typeguard
-from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
@@ -60,12 +59,14 @@ class EinsteinCalculator(Calculator):
 @typeguard.typechecked
 @psiflow.serializable
 class EinsteinCrystal(Hamiltonian):
-    atoms: Union[Geometry, AppFuture]
+    geometry: Union[Geometry, AppFuture]
     force_constant: float
 
-    def __init__(self, atoms: Union[Geometry, AppFuture], force_constant: float):
+    def __init__(
+        self, geometry: Union[Geometry, AppFuture[Geometry]], force_constant: float
+    ):
         super().__init__()
-        self.reference_geometry = copy_app_future(atoms)
+        self.reference_geometry = copy_app_future(geometry)
         self.force_constant = force_constant
         self.external = None  # needed
         self._create_apps()
@@ -84,17 +85,19 @@ class EinsteinCrystal(Hamiltonian):
     def load_calculators(
         data: list[Geometry],
         external: Optional[File],
-        reference_geometry: Atoms,
+        reference_geometry: Geometry,
         force_constant: float,
     ) -> tuple[list[EinsteinCalculator], np.ndarray]:
         import numpy as np
 
         from psiflow.hamiltonians._einstein import EinsteinCalculator
 
-        assert sum([len(a) == len(reference_geometry) for a in data])
-        assert sum([np.all(a.numbers == reference_geometry.numbers) for a in data])
+        assert sum([len(g) == len(reference_geometry) for g in data])
+        numbers = reference_geometry.per_atom.numbers
+        assert sum([np.all(g.per_atom.numbers == numbers) for g in data])
+
         calculators = [
-            EinsteinCalculator(reference_geometry.get_positions(), force_constant)
+            EinsteinCalculator(reference_geometry.per_atom.positions, force_constant)
         ]
         index_mapping = np.zeros(len(data), dtype=int)
         return calculators, index_mapping
@@ -110,8 +113,8 @@ class EinsteinCrystal(Hamiltonian):
 
     def serialize_calculator(self) -> DataFuture:
         @python_app(executors=["default_threads"])
-        def get_positions(atoms):
-            return atoms.get_positions()
+        def get_positions(geometry: Geometry):
+            return geometry.per_atom.positions.copy().astype(float)
 
         return dump_json(
             hamiltonian=self.__class__.__name__,

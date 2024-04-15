@@ -2,6 +2,7 @@ import json
 
 import numpy as np
 import pytest
+from ase import Atoms
 from ase.units import kJ, mol
 from parsl.data_provider.files import File
 
@@ -53,15 +54,15 @@ METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
 def test_einstein(context, dataset):
     hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
     evaluated = hamiltonian.evaluate(dataset[:10])
-    assert evaluated[0].result().info["energy"] == 0.0
+    assert evaluated[0].result().energy == 0.0
     for i in range(1, 10):
-        assert evaluated[i].result().info["energy"] > 0.0
+        assert evaluated[i].result().energy > 0.0
 
     # test batched evaluation
-    energies = np.array([evaluated[i].result().info["energy"] for i in range(10)])
+    energies = np.array([evaluated[i].result().energy for i in range(10)])
     evaluated = hamiltonian.evaluate(dataset[:10], batch_size=3)
     for i in range(10):
-        assert energies[i] == evaluated[i].result().info["energy"]
+        assert energies[i] == evaluated[i].result().energy
 
     # test equality
     hamiltonian_ = EinsteinCrystal(dataset[0], force_constant=1.1)
@@ -82,10 +83,10 @@ def test_einstein(context, dataset):
     evaluated_scaled = scaled.evaluate(dataset[:10])
     evaluated_actually = actually_scaled.evaluate(dataset[:10])
     for i in range(1, 10):
-        e = evaluated[i].result().info["energy"]
-        e_scaled = evaluated_scaled[i].result().info["energy"]
+        e = evaluated[i].result().energy
+        e_scaled = evaluated_scaled[i].result().energy
         assert 0.5 * e == e_scaled
-        assert 0.5 * e == evaluated_actually[i].result().info["energy"]
+        assert 0.5 * e == evaluated_actually[i].result().energy
         assert not e == 0
 
     other = EinsteinCrystal(dataset[0], 4.0)
@@ -98,14 +99,14 @@ def test_einstein(context, dataset):
     assert mixture.get_coefficients(hamiltonian + actually_scaled) is None
     evaluated_mixture = mixture.evaluate(dataset[:10])
     for i in range(1, 10):
-        e = evaluated[i].result().info["energy"]
-        e_mixture = evaluated_mixture[i].result().info["energy"]
-        e_other = evaluated_other[i].result().info["energy"]
+        e = evaluated[i].result().energy
+        e_mixture = evaluated_mixture[i].result().energy
+        e_other = evaluated_other[i].result().energy
         assert e_mixture == e + e_other
 
-        f = evaluated[i].result().arrays["forces"]
-        f_mixture = evaluated_mixture[i].result().arrays["forces"]
-        f_other = evaluated_other[i].result().arrays["forces"]
+        f = evaluated[i].result().per_atom.forces
+        f_mixture = evaluated_mixture[i].result().per_atom.forces
+        f_other = evaluated_other[i].result().per_atom.forces
         assert np.allclose(
             f_mixture,
             f + f_other,
@@ -114,13 +115,19 @@ def test_einstein(context, dataset):
     zero = Zero()
     evaluated_zero = zero.evaluate(evaluated)
     for i in range(evaluated_zero.length().result()):
-        assert "energy" not in evaluated_zero[i].result().info
+        assert evaluated_zero[i].result().energy is None
     assert hamiltonian == hamiltonian + zero
     assert 2 * hamiltonian + zero == 2 * hamiltonian
 
 
 def test_plumed_evaluate(context, dataset, tmp_path):
-    atoms = dataset[0].result()
+    geometry = dataset[0].result()
+    atoms = Atoms(
+        numbers=geometry.per_atom.numbers,
+        positions=geometry.per_atom.positions,
+        cell=geometry.cell,
+        pbc=geometry.periodic,
+    )
     center = 1
     kappa = 1
     plumed_input = """
@@ -201,11 +208,12 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
         center=center, kappa=kappa / (kJ / mol)
     )
     hamiltonian = PlumedHamiltonian(plumed_input)
-    evaluated = hamiltonian.evaluate(dataset).as_list().result()
-    for atoms in evaluated:
+    evaluated = hamiltonian.evaluate(dataset).geometries().result()
+    for geometry in evaluated:
+        volume = np.linalg.det(geometry.cell)
         assert np.allclose(
-            atoms.info["energy"],
-            kappa / 2 * (atoms.get_volume() - center) ** 2,
+            geometry.energy,
+            kappa / 2 * (volume - center) ** 2,
         )
 
     # use external grid as bias, check that file is read
@@ -231,12 +239,13 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     )
     hamiltonian = PlumedHamiltonian(plumed_input, data_future)
     data = hamiltonian.evaluate(dataset)
-    for i in range(data.length().result()):
-        assert data[i].result().info["energy"] > 0
+    assert np.all(data.get("energy")[0].result() > 0)
+    # for i in range(data.length().result()):
+    #    assert data[i].result().info["energy"] > 0
     hamiltonian = PlumedHamiltonian(plumed_input, File(path_hills))
     data = hamiltonian.evaluate(dataset)
     for i in range(data.length().result()):
-        assert data[i].result().info["energy"] > 0
+        assert data[i].result().energy > 0
 
 
 def test_json_dump(context):
@@ -273,14 +282,20 @@ def test_serialization(context, dataset, tmp_path, mace_model):
     data_future = hamiltonian.serialize_calculator()
     psiflow.wait()
     calculator = deserialize_calculator(data_future.filepath)
-    atoms = dataset[0].result()
+    geometry = dataset[0].result()
+    atoms = Atoms(
+        numbers=geometry.per_atom.numbers,
+        positions=geometry.per_atom.positions,
+        cell=geometry.cell,
+        pbc=geometry.periodic,
+    )
     atoms.calc = calculator
     for i in range(3):
         state = dataset[i].result()
-        atoms.set_positions(state.get_positions())
-        atoms.set_cell(state.get_cell())
+        atoms.set_positions(state.per_atom.positions)
+        atoms.set_cell(state.cell)
         e = atoms.get_potential_energy()
-        assert e == evaluated[i].result().info["energy"]
+        assert e == evaluated[i].result().energy
 
     # for plumed
     hills = """#! FIELDS time CV sigma_CV height biasf
@@ -309,14 +324,20 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     data_future = hamiltonian.serialize_calculator()
     psiflow.wait()
     calculator = deserialize_calculator(data_future.filepath)
-    atoms = dataset[0].result()
+    geometry = dataset[0].result()
+    atoms = Atoms(
+        numbers=geometry.per_atom.numbers,
+        positions=geometry.per_atom.positions,
+        cell=geometry.cell,
+        pbc=geometry.periodic,
+    )
     atoms.calc = calculator
     for i in range(3):
         state = dataset[i].result()
-        atoms.set_positions(state.get_positions())
-        atoms.set_cell(state.get_cell())
+        atoms.set_positions(state.per_atom.positions)
+        atoms.set_cell(state.cell)
         e = atoms.get_potential_energy()
-        assert e == evaluated[i].result().info["energy"]
+        assert e == evaluated[i].result().energy
 
     # for mace
     hamiltonian = MACEHamiltonian.from_model(mace_model)
@@ -324,28 +345,34 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
 
     data_future = hamiltonian.serialize_calculator()
     psiflow.wait()
+    print(data_future.filepath)
+    print(data_future.result())
     calculator = deserialize_calculator(
-        data_future.filepath, device="cuda", dtype="float32"
+        data_future.filepath, device="cpu", dtype="float32"
     )
-    atoms = dataset[0].result()
+    geometry = dataset[0].result()
+    atoms = Atoms(
+        numbers=geometry.per_atom.numbers,
+        positions=geometry.per_atom.positions,
+        cell=geometry.cell,
+        pbc=geometry.periodic,
+    )
     atoms.calc = calculator
     for i in range(3):
         state = dataset[i].result()
-        atoms.set_positions(state.get_positions())
-        atoms.set_cell(state.get_cell())
+        atoms.set_positions(state.per_atom.positions)
+        atoms.set_cell(state.cell)
         e = atoms.get_potential_energy()
-        assert e == evaluated[i].result().info["energy"]
+        assert e == evaluated[i].result().energy
 
 
 def test_max_force(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=0.5)
 
-    normal_forces = (
-        einstein.evaluate(dataset[:2]).as_list().result()[1].arrays["forces"]
-    )
+    normal_forces = einstein.evaluate(dataset[:2]).get("forces")[0].result()[1]
     assert np.all(np.linalg.norm(normal_forces, axis=1) < 30)
 
     einstein = EinsteinCrystal(dataset[0], force_constant=5000)
-    large_forces = einstein.evaluate(dataset[:2]).as_list().result()[1].arrays["forces"]
+    large_forces = einstein.evaluate(dataset[:2]).get("forces")[0].result()[1]
     with pytest.raises(ForceMagnitudeException):
         check_forces(large_forces, dataset[1].result(), max_force=10)

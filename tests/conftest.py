@@ -6,7 +6,6 @@ import numpy as np
 import parsl
 import pytest
 import yaml
-from ase import Atoms
 from ase.build import bulk, make_supercell
 from ase.calculators.emt import EMT
 
@@ -111,17 +110,15 @@ def mace_model(mace_config):
     model = MACE(**mace_config)
     # add additional state to initialize other atomic numbers
     # mace cannot handle partially periodic datasets
-    atoms = Atoms(
-        numbers=2 * [101],
+    geometry = Geometry.from_data(
+        numbers=np.array(2 * [101]),
         positions=np.array([[0, 0, 0], [2, 0, 0]]),
         cell=2 * np.eye(3),
-        pbc=True,
     )
-    atoms.info["energy"] = -1.0
-    atoms.arrays["forces"] = np.random.uniform(size=(2, 3))
+    geometry.energy = -1.0
+    geometry.per_atom.forces[:] = np.random.uniform(size=(2, 3))
     # atoms = FlowAtoms.from_atoms(atoms)
-    atoms.reference_status = True
-    model.initialize(dataset[:5] + Dataset([atoms]))
+    model.initialize(dataset[:5] + Dataset([geometry]))
     # psiflow.wait()
     return model
 

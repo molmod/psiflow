@@ -10,7 +10,7 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset, Geometry
-from psiflow.hamiltonians.utils import app_add_contributions
+from psiflow.hamiltonians.utils import add_contributions
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -26,7 +26,7 @@ def evaluate_batched(
 ):
     from math import ceil
 
-    from psiflow.data import app_join_dataset
+    from psiflow.data.data import join_frames
 
     if (batch_size is None) or (batch_size >= length):
         evaluated = [hamiltonian.single_evaluate(dataset)]
@@ -39,8 +39,8 @@ def evaluate_batched(
         last = dataset[(nbatches - 1) * batch_size :]
         evaluated.append(hamiltonian.single_evaluate(last))
 
-    return app_join_dataset(  # join_app requires returning AppFuture
-        inputs=[dataset.data_future for dataset in evaluated],
+    return join_frames(  # join_app requires returning AppFuture
+        inputs=[dataset.extxyz for dataset in evaluated],
         outputs=[outputs[0]],
     )
 
@@ -59,17 +59,17 @@ class Hamiltonian:
                 psiflow.context().new_file("data_", ".xyz")
             ],  # join_app needs outputs kwarg here!
         )
-        return Dataset(None, data_future=future.outputs[0])
+        return Dataset(None, future.outputs[0])
 
     # mostly for internal use
     def single_evaluate(self, dataset: Dataset) -> Dataset:
         future = self.evaluate_app(
             self.load_calculators,
-            inputs=[dataset.data_future, self.external],
+            inputs=[dataset.extxyz, self.external],
             outputs=[psiflow.context().new_file("data_", ".xyz")],
             **self.parameters,
         )
-        return Dataset(None, data_future=future.outputs[0])
+        return Dataset(None, future.outputs[0])
 
     def serialize_calculator(self) -> DataFuture:
         pass
@@ -136,12 +136,12 @@ class MixtureHamiltonian(Hamiltonian):
 
     def evaluate(self, dataset: Dataset, batch_size: Optional[int] = 100) -> Dataset:
         evaluated = [h.evaluate(dataset) for h in self.hamiltonians]
-        future = app_add_contributions(
+        future = add_contributions(
             tuple(self.coefficients),
-            inputs=[e.data_future for e in evaluated],
+            inputs=[e.extxyz for e in evaluated],
             outputs=[psiflow.context().new_file("data_", ".xyz")],
         )
-        return Dataset(None, data_future=future.outputs[0])
+        return Dataset(None, future.outputs[0])
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not MixtureHamiltonian:

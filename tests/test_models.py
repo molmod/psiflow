@@ -32,7 +32,7 @@ def test_mace_init(mace_config, dataset):
     evaluated = hamiltonian.evaluate(dataset)
 
     nstates = dataset.length().result()
-    energies = np.array([evaluated[i].result().info["energy"] for i in range(nstates)])
+    energies = np.array([evaluated[i].result().energy for i in range(nstates)])
     assert not np.any(np.allclose(energies, 0.0))
     energy_Cu = 3
     energy_H = 7
@@ -46,26 +46,22 @@ def test_mace_init(mace_config, dataset):
     for i in range(nstates):
         assert np.allclose(
             energies[i],
-            evaluated_.subtract_offset(Cu=energy_Cu, H=energy_H)[i]
-            .result()
-            .info["energy"],
+            evaluated_.subtract_offset(Cu=energy_Cu, H=energy_H)[i].result().energy,
         )
 
     second = psiflow.deserialize(psiflow.serialize(hamiltonian).result())
     evaluated = second.evaluate(dataset)
-    for i in range(nstates):
-        assert np.allclose(
-            evaluated_[i].result().info["energy"],
-            evaluated[i].result().info["energy"],
-        )
+    assert np.allclose(
+        evaluated.get("energy")[0].result(),
+        evaluated_.get("energy")[0].result(),
+    )
 
     hamiltonian.atomic_energies = {"Cu": 0, "H": 0, "jasldfkjsadf": 0}
     evaluated__ = hamiltonian.evaluate(dataset)
-    for i in range(nstates):
-        assert np.allclose(
-            energies[i],
-            evaluated__[i].result().info["energy"],
-        )
+    assert np.allclose(
+        energies.astype(np.float32),
+        evaluated__.get("energy")[0].result().reshape(-1),
+    )
     hamiltonian = MACEHamiltonian.from_model(model)
     model.reset()
     model.initialize(dataset[:3])

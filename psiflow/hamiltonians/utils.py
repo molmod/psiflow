@@ -1,8 +1,8 @@
-from typing import Callable, Union
+from typing import Callable
 
 import numpy as np
 import typeguard
-from ase import Atoms
+from ase.data import chemical_symbols
 from parsl.app.app import python_app
 
 from psiflow.data import Geometry
@@ -14,13 +14,14 @@ class ForceMagnitudeException(Exception):
 
 def check_forces(
     forces: np.ndarray,
-    atoms: Union[Atoms, Geometry],
+    geometry: Geometry,
     max_force: float,
 ):
     exceeded = np.linalg.norm(forces, axis=1) > max_force
     if np.sum(exceeded):
-        indices = np.arange(len(atoms))[exceeded]
-        symbols = np.array(atoms.symbols)[exceeded]
+        indices = np.arange(len(geometry))[exceeded]
+        numbers = geometry.per_atom.numbers[exceeded]
+        symbols = [chemical_symbols[n] for n in numbers]
         raise ForceMagnitudeException(
             "\nforce exceeded {} eV/A for atoms {}"
             " with chemical elements {}\n".format(
@@ -41,42 +42,47 @@ def evaluate_function(
     **parameters,  # dict values can be futures, so app must wait for those
 ) -> None:
     import numpy as np
+    from ase import Atoms
 
-    from psiflow.data import read_frames, write_frames
+    from psiflow.data.geometry import _read_frames, _write_frames
 
     assert len(inputs) >= 1
     assert len(outputs) == 1
-    data = read_frames(slice(None), inputs=[inputs[0]])
-    calculators, index_mapping = load_calculators(data, inputs[1], **parameters)
-    for i, atoms in enumerate(data):
+    states = _read_frames(inputs=[inputs[0]])
+    calculators, index_mapping = load_calculators(states, inputs[1], **parameters)
+    for i, state in enumerate(states):
         calculator = calculators[index_mapping[i]]
         calculator.reset()
-        atoms.reset()
+        atoms = Atoms(
+            numbers=state.per_atom.numbers,
+            positions=state.per_atom.positions,
+            cell=state.cell,
+            pbc=state.periodic,
+        )
         atoms.calc = calculator
-        atoms.info["energy"] = atoms.get_potential_energy()
-        atoms.arrays["forces"] = atoms.get_forces()
-        if atoms.pbc.any():
+        state.energy = atoms.get_potential_energy()
+        state.per_atom.forces[:] = atoms.get_forces()
+        if state.periodic:
             try:  # some models do not have stress support
                 stress = atoms.get_stress(voigt=False)
             except Exception as e:
                 print(e)
                 stress = np.zeros((3, 3))
-            atoms.info["stress"] = stress
-        else:  # remove if present
-            atoms.info.pop("stress", None)
-        atoms.calc = None
-    write_frames(data, outputs=[outputs[0]])
+            state.stress = stress
+    _write_frames(*states, outputs=[outputs[0]])
 
 
 @typeguard.typechecked
-def add_contributions(
+def _add_contributions(
     coefficients: tuple[float, ...],
     inputs: list = [],
     outputs: list = [],
 ) -> None:
-    from psiflow.data import read_frames, write_frames
+    import copy
 
-    contributions = [read_frames(slice(None), inputs=[i]) for i in inputs]
+    from psiflow.data.geometry import _read_frames, _write_frames
+
+    contributions = [_read_frames(inputs=[i]) for i in inputs]
     assert len(contributions) == len(coefficients)
     length = len(contributions[0])
     for contribution in contributions:
@@ -84,22 +90,23 @@ def add_contributions(
 
     data = []
     for i in range(length):
-        atoms_list = [contribution[i] for contribution in contributions]
-        energy_list = [atoms.info["energy"] for atoms in atoms_list]
-        forces_list = [atoms.arrays["forces"] for atoms in atoms_list]
+        geometries = [contribution[i] for contribution in contributions]
+        energy_list = [geometry.energy for geometry in geometries]
+        forces_list = [geometry.per_atom.forces for geometry in geometries]
 
         energy = sum([energy_list[i] * c for i, c in enumerate(coefficients)])
         forces = sum([forces_list[i] * c for i, c in enumerate(coefficients)])
-        atoms = atoms_list[0].copy()
-        atoms.info["energy"] = energy
-        atoms.arrays["forces"] = forces
 
-        if atoms_list[0].pbc.any():
-            stress_list = [atoms.info["stress"] for atoms in atoms_list]
+        geometry = copy.deepcopy(geometries[0])
+        geometry.energy = energy
+        geometry.per_atom.forces[:] = forces
+
+        if geometry.periodic:
+            stress_list = [g.stress for g in geometries]
             stress = sum([stress_list[i] * c for i, c in enumerate(coefficients)])
-            atoms.info["stress"] = stress
-        data.append(atoms)
-    write_frames(data, outputs=[outputs[0]])
+            geometry.stress = stress
+        data.append(geometry)
+    _write_frames(*data, outputs=[outputs[0]])
 
 
-app_add_contributions = python_app(add_contributions, executors=["default_threads"])
+add_contributions = python_app(_add_contributions, executors=["default_threads"])

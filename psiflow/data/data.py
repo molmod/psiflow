@@ -129,9 +129,9 @@ class Dataset:
         ).outputs[0]
         return Dataset(None, extxyz)
 
-    def get(self, quantities: list[str]):
+    def get(self, *quantities: str):
         result = extract_quantities(
-            quantities,
+            list(quantities),
             None,
             None,
             inputs=[self.extxyz],

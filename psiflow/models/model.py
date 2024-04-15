@@ -54,13 +54,13 @@ class Model:
         inputs = [self.model_future]
         if self.do_offset:
             inputs += [
-                training.subtract_offset(**self.atomic_energies).data_future,
-                validation.subtract_offset(**self.atomic_energies).data_future,
+                training.subtract_offset(**self.atomic_energies).extxyz,
+                validation.subtract_offset(**self.atomic_energies).extxyz,
             ]
         else:
             inputs += [
-                training.data_future,
-                validation.data_future,
+                training.extxyz,
+                validation.extxyz,
             ]
         future = self._train(
             asdict(self.config),
@@ -75,9 +75,9 @@ class Model:
         """Initializes the model based on a dataset"""
         assert self.model_future is None
         if self.do_offset:
-            inputs = [dataset.subtract_offset(**self.atomic_energies).data_future]
+            inputs = [dataset.subtract_offset(**self.atomic_energies).extxyz]
         else:
-            inputs = [dataset.data_future]
+            inputs = [dataset.extxyz]
         future = self._initialize(
             asdict(self.config),
             stdout=parsl.AUTO_LOGNAME,

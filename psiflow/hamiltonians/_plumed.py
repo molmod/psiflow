@@ -146,7 +146,7 @@ class PlumedCalculator(Calculator):
         if self.max_force is not None:
             check_forces(forces, atoms, self.max_force)
         self.results = {
-            "energy": energy,
+            "energy": energy[0],  # unpack to float
             "forces": forces,
             "stress": stress,
             "free_energy": energy,
