@@ -90,12 +90,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     model.add_atomic_energy("Cu", 4)
     model.save(tmp_path)
     model.initialize(dataset[:2])
-    e0 = (
-        MACEHamiltonian.from_model(model)
-        .evaluate(dataset.get(indices=[3]))[0]
-        .result()
-        .info["energy"]
-    )
+    e0 = MACEHamiltonian.from_model(model).evaluate(dataset[[3]])[0].result().energy
 
     psiflow.wait()
     assert (tmp_path / "MACE.yaml").exists()
@@ -108,12 +103,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     model_ = load_model(tmp_path)
     assert type(model_) is MACE
     assert model_.model_future is not None
-    e1 = (
-        MACEHamiltonian.from_model(model_)
-        .evaluate(dataset.get(indices=[3]))[0]
-        .result()
-        .info["energy"]
-    )
+    e1 = MACEHamiltonian.from_model(model_).evaluate(dataset[[3]])[0].result().energy
     assert np.allclose(e0, e1, atol=1e-4)  # up to single precision
 
 

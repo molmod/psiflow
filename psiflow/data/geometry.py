@@ -10,7 +10,6 @@ from ase.data import chemical_symbols
 from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
 from parsl.app.app import python_app
 
-import psiflow
 from psiflow.data.utils import reduce_box_vectors, transform_lower_triangular
 
 per_atom_dtype = np.dtype(
@@ -23,7 +22,6 @@ per_atom_dtype = np.dtype(
 
 
 @typeguard.typechecked
-@psiflow.serializable
 class Geometry:
     per_atom: np.recarray
     cell: np.ndarray
@@ -188,6 +186,8 @@ def _write_frames(*states: Geometry, outputs: list = []) -> None:
                 value = getattr(state, key)
                 if value is not None:
                     values_dict[key] = value
+            for key, value in state.order.items():
+                values_dict["order_" + key] = value
             comment += key_val_dict_to_str(values_dict)
             f.write("{}\n".format(len(state)))
             f.write("{}\n".format(comment))
@@ -220,7 +220,12 @@ def _read_frame(f: IO, natoms: int) -> Geometry:
         if len(values) > 4:
             per_atom.forces[i, :] = [float(_) for _ in values[4:7]]
 
-    return Geometry(
+    order = {}
+    for key, value in comment_dict.items():
+        if key.startswith("order_"):
+            order[key.replace("order_", "")] = value
+
+    geometry = Geometry(
         per_atom=per_atom,
         cell=comment_dict.pop("Lattice", np.zeros((3, 3))).T,  # transposed!
         energy=comment_dict.pop("energy", None),
@@ -230,12 +235,14 @@ def _read_frame(f: IO, natoms: int) -> Geometry:
         logprob=comment_dict.pop("logprob", None),
         stdout=comment_dict.pop("stdout", None),
         identifier=comment_dict.pop("identifier", None),
+        order=order,
     )
+    return geometry
 
 
 @typeguard.typechecked
 def _read_frames(
-    indices: Union[None, slice, list[int]] = None,
+    indices: Union[None, slice, list[int], int] = None,
     # safe: bool = False,
     inputs: list = [],
     outputs: list = [],
@@ -246,6 +253,15 @@ def _read_frames(
     length = _count_frames(inputs=inputs)
     if isinstance(indices, slice):
         indices = list(range(length)[indices])
+    elif isinstance(indices, int):
+        indices = [indices]
+    elif indices is None:
+        indices = list(range(length))
+
+    # should have converted everything to list
+    assert type(indices) is list
+    indices = [i % length for i in indices]
+
     data = []
     frame_count = 0
     with open(inputs[0], "r") as f:
@@ -289,12 +305,12 @@ check_equality = python_app(_check_equality, executors=["default_threads"])
 
 @typeguard.typechecked
 def _extract_quantities(
-    quantities: list[str],
+    quantities: tuple[str, ...],
     atom_indices: Optional[list[int]],
     elements: Optional[list[str]],
     data: Optional[list[Geometry]] = None,
     inputs: list = [],
-) -> list[np.ndarray]:
+) -> tuple[np.ndarray, ...]:
     from psiflow.data.geometry import _read_frames
 
     QUANTITIES = [
@@ -333,16 +349,16 @@ def _extract_quantities(
             array = np.empty((nframes, np.max(natoms), 1), dtype=np.uint8)
             array[:] = 0
         elif quantity in ["energy", "delta", "per_atom_energy"]:
-            array = np.empty((nframes, 1, 1), dtype=np.float32)
+            array = np.empty((nframes,), dtype=np.float32)
             array[:] = np.nan
         elif quantity in ["phase"]:
-            array = np.empty((nframes, 1, 1), dtype=str)
+            array = np.empty((nframes,), dtype=str)
             array[:] = ""
         elif quantity in ["logprob"]:
             array = np.empty((nframes, nprob, 1), dtype=np.float32)
             array[:] = np.nan
         elif quantity in ["identifier"]:
-            array = np.empty((nframes, 1, 1), dtype=np.int32)
+            array = np.empty((nframes,), dtype=np.int32)
             array[:] = -1
         else:
             raise AssertionError("missing quantity in if/else")
@@ -364,23 +380,23 @@ def _extract_quantities(
                 arrays[j][i, :, :] = geometry.numbers
             elif quantity == "energy":
                 if geometry.energy is not None:
-                    arrays[j][i, 0, 0] = geometry.energy
+                    arrays[j][i] = geometry.energy
             elif quantity == "delta":
                 if geometry.delta is not None:
-                    arrays[j][i, 0, 0] = geometry.delta
+                    arrays[j][i] = geometry.delta
             elif quantity == "per_atom_energy":
                 if geometry.energy is not None:
-                    arrays[j][i, 0, 0] = geometry.energy / natoms[i]
+                    arrays[j][i] = geometry.energy / natoms[i]
             elif quantity == "phase":
                 if geometry.phase is not None:
-                    arrays[j][i, 0, 0] = geometry.phase
+                    arrays[j][i] = geometry.phase
             elif quantity == "logprob":
                 if geometry.logprob is not None:
                     arrays[j][i, :, :] = geometry.logprob
             elif quantity == "identifier":
                 if geometry.identifier is not None:
-                    arrays[j][i, 0, 0] = geometry.identifier
-    return arrays
+                    arrays[j][i] = geometry.identifier
+    return tuple(arrays)
 
 
 extract_quantities = python_app(_extract_quantities, executors=["default_threads"])

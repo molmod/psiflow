@@ -5,12 +5,14 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
+from ase.data import atomic_numbers
 from ase.io import read, write
 from ase.units import Bohr, Ha, _e, _hbar, kB
 from ipi.engine.simulation import Simulation
 from ipi.utils.softexit import softexit
 
 from psiflow.data import Geometry
+from psiflow.data.geometry import _read_frames, _write_frames
 
 
 def parse_checkpoint(
@@ -45,6 +47,7 @@ def parse_checkpoint(
                 '"]',
             )
             symbols = ast.literal_eval(text)
+            numbers = [atomic_numbers[s] for s in symbols]
 
             text = "".join(list(system.iter(tag="cell"))[0].text.split())
             box = (
@@ -70,15 +73,14 @@ def parse_checkpoint(
             except IndexError:
                 time = 0.0
 
-            atoms = Geometry(
-                symbols=symbols,
+            geometry = Geometry.from_data(
+                numbers=np.array(numbers),
                 positions=np.mean(positions, axis=0),
-                pbc=True,
                 cell=box,
             )
-            atoms.info["temperature"] = temperature
-            atoms.info["time"] = time
-            states.append(atoms)
+            geometry.order["temperature"] = temperature
+            geometry.order["time"] = time
+            states.append(geometry)
             walker_index += 1
         else:
             break
@@ -135,7 +137,9 @@ def start(args):
 def cleanup(args):
     checkpoint = ET.parse("output.checkpoint")
     states = parse_checkpoint(checkpoint)
-    write(args.output_xyz, states)
+    _write_frames(*states, outputs=[args.output_xyz])
+    trajectory = _read_frames(inputs=["walker-0_output.trajectory_0.ase"])
+    print(trajectory)
 
 
 if __name__ == "__main__":

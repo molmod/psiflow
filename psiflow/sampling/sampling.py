@@ -468,7 +468,7 @@ def sample(
     ).outputs[0]
     inputs = [
         input_future,
-        Dataset([w.state for w in walkers]).data_future,
+        Dataset([w.state for w in walkers]).extxyz,
     ]
     inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
 
@@ -510,7 +510,7 @@ def sample(
         parsl_resource_specification=definition.wq_resources(len(walkers)),
     )
 
-    final_states = Dataset(None, data_future=result.outputs[0])
+    final_states = Dataset(None, result.outputs[0])
 
     for i, simulation_output in enumerate(simulation_outputs):
         state = final_states[i]
@@ -520,7 +520,7 @@ def sample(
         simulation_output.parse_data(result.outputs[i + 1])
         if step is not None:
             j = len(walkers) + 1 + i
-            trajectory = Dataset(None, data_future=result.outputs[j])
+            trajectory = Dataset(None, result.outputs[j])
             simulation_output.trajectory = trajectory
         if walkers[i].metadynamics is not None:
             walkers[i].metadynamics.wait_for(result)

@@ -1,7 +1,8 @@
-from typing import Callable
+from typing import Callable, Union
 
 import numpy as np
 import typeguard
+from ase import Atoms
 from ase.data import chemical_symbols
 from parsl.app.app import python_app
 
@@ -14,9 +15,12 @@ class ForceMagnitudeException(Exception):
 
 def check_forces(
     forces: np.ndarray,
-    geometry: Geometry,
+    geometry: Union[Geometry, Atoms],
     max_force: float,
 ):
+    if isinstance(geometry, Atoms):
+        geometry = Geometry.from_atoms(geometry)
+
     exceeded = np.linalg.norm(forces, axis=1) > max_force
     if np.sum(exceeded):
         indices = np.arange(len(geometry))[exceeded]

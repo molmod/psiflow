@@ -9,7 +9,12 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset, Geometry, NullState
-from psiflow.data.geometry import check_equality, read_frames
+from psiflow.data.geometry import (
+    _read_frames,
+    _write_frames,
+    check_equality,
+    read_frames,
+)
 from psiflow.data.utils import get_index_element_mask
 
 
@@ -125,6 +130,17 @@ def test_geometry(tmp_path):
             assert np.allclose(state.logprob, state_.logprob)
         assert state.stdout == state_.stdout
         assert state.identifier == state.identifier
+
+
+def test_readwrite_cycle(dataset, tmp_path):
+    data = dataset[:4].geometries().result()
+    data[2].order["test"] = 324
+    _write_frames(*data, outputs=[str(tmp_path / "test.xyz")])
+    loaded = Dataset(data)
+    assert "test" in loaded[2].result().order
+
+    states = _read_frames(inputs=[str(tmp_path / "test.xyz")])
+    assert "test" in states[2].order
 
 
 def test_dataset_empty(tmp_path):
@@ -340,13 +356,13 @@ def test_data_extract(dataset):
     state.delta = 6
 
     data = dataset[:5] + dataset[-5:] + Dataset([state])
-    energy, forces, identifier = data.get(["energy", "forces", "identifier"])
+    energy, forces, identifier = data.get("energy", "forces", "identifier")
     energy = energy.result()
     forces = forces.result()
     identifier = identifier.result()
     for i, geometry in enumerate(data.geometries().result()):
         if geometry.energy:
-            assert np.allclose(geometry.energy, energy[i].item())
+            assert np.allclose(geometry.energy, energy[i])
         n = len(geometry)
         assert np.allclose(
             geometry.per_atom.forces,
@@ -358,3 +374,4 @@ def test_data_extract(dataset):
             assert identifier[i] == -1
     assert np.isnan(np.mean(energy))
     assert np.isnan(np.mean(forces))
+    psiflow.wait()

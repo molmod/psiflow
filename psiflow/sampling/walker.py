@@ -72,9 +72,9 @@ class Walker:
         if type(start) is AppFuture:
             start = start.result()  # blocking
         if periodic is not None:
-            assert periodic == np.all(start.pbc)
+            assert periodic == np.all(start.periodic)
         else:
-            periodic = np.all(start.pbc)
+            periodic = np.all(start.periodic)
         self.start = start
         self.periodic = periodic
         if hamiltonian is None:
@@ -131,14 +131,14 @@ class Walker:
         similar_P = (w0.pressure is None) == (w1.pressure is None)
         similar_pimd = w0.nbeads == w1.nbeads
         similar_coupling = w0.coupling == w1.coupling
-        similar_pbc = w0.periodic == w1.periodic
+        similar_periodic = w0.periodic == w1.periodic
         similar_timestep = w0.timestep == w1.timestep
         return (
             similar_T
             and similar_P
             and similar_pimd
             and similar_coupling
-            and similar_pbc
+            and similar_periodic
             and similar_timestep
         )
 
@@ -180,18 +180,15 @@ def _get_minimum_energy_states(
 ) -> tuple[int, ...]:
     import numpy
 
-    from psiflow.data import read_frames
+    from psiflow.data.geometry import _read_frames
 
     assert len(coefficients.shape) == 2
     assert len(inputs) == coefficients.shape[1]
 
     energies = []
     for i in range(len(inputs)):
-        data = read_frames(
-            slice(None),
-            inputs=[inputs[i]],
-        )
-        energies.append([a.info["energy"] for a in data])
+        data = _read_frames(inputs=[inputs[i]])
+        energies.append([g.energy for g in data])
     energies = numpy.array(energies)
 
     indices = []
@@ -220,7 +217,7 @@ def quench(walkers: list[Walker], dataset: Dataset) -> None:
 
     indices = get_minimum_energy_states(
         coefficients,
-        inputs=[data.data_future for data in evaluated],
+        inputs=[data.extxyz for data in evaluated],
     )
     for i, walker in enumerate(walkers):
         walker.start = dataset[unpack_i(indices, i)][0]

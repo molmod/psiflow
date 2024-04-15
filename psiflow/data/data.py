@@ -131,13 +131,12 @@ class Dataset:
 
     def get(self, *quantities: str):
         result = extract_quantities(
-            list(quantities),
+            quantities,
             None,
             None,
             inputs=[self.extxyz],
         )
-        arrays = [unpack_i(result, i) for i in range(len(quantities))]
-        return tuple(arrays)
+        return tuple([unpack_i(result, i) for i in range(len(quantities))])
 
     def not_null(self) -> Dataset:
         extxyz = not_null(

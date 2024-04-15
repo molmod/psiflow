@@ -106,8 +106,8 @@ def _parse(
     state: Geometry,
     inputs: list = [],
 ) -> tuple[float, float, int]:
-    time = state.info["time"]
-    temperature = state.info["temperature"]
+    time = state.order.pop("time")
+    temperature = state.order.pop("temperature")
 
     # determine status based on stdout
     with open(inputs[0], "r") as f:

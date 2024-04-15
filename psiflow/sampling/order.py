@@ -17,9 +17,9 @@ def _insert_in_state(
     state: Geometry,
     name: str,
 ) -> Geometry:
-    value = state.info.pop("energy")
-    state.reset()
-    state.info[name] = value
+    value = state.energy
+    state.order[name] = value
+    state.energy = None
     return state
 
 

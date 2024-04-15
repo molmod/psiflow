@@ -111,6 +111,8 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
 
 def test_parse_checkpoint(checkpoint):
     states = parse_checkpoint(checkpoint)
+    assert "time" in states[0].order
+    assert "temperature" in states[0].order
     assert np.allclose(
         states[0].cell,
         np.array([[1, 0.0, 0], [0.1, 2, 0], [0, 0, 3]]) * Bohr,
@@ -167,8 +169,8 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         einstein.evaluate(simulation_outputs[1].trajectory),
     ]
     energies_ = [
-        np.array([a.info["energy"] for a in evaluated[0].as_list().result()]),
-        np.array([a.info["energy"] for a in evaluated[1].as_list().result()]),
+        evaluated[0].get("energy")[0].result().reshape(-1),
+        evaluated[1].get("energy")[0].result().reshape(-1),
     ]
     assert len(energies[0]) == evaluated[0].length().result()
     assert np.allclose(
@@ -221,7 +223,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         checkpoint_step=1,
     )[0]
     assert np.allclose(
-        hamiltonian.evaluate(dataset)[0].result().info["energy"],
+        hamiltonian.evaluate(dataset)[0].result().energy,
         simulation_output["potential{electronvolt}"].result()[0],
         atol=1e-3,
     )
@@ -259,8 +261,8 @@ def test_reset(dataset):
     )[0]
     assert simulation_output.status.result() == 0
     assert np.allclose(
-        walker.state.result().positions,
-        simulation_output.trajectory[-1].result().positions,
+        walker.state.result().per_atom.positions,
+        simulation_output.trajectory[-1].result().per_atom.positions,
     )
     assert not walker.is_reset().result()
 
@@ -357,8 +359,10 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         order_parameter=order,
     )
     simulation_output = sample([walker], steps=40)[0]
-    CV = simulation_output.state.result().info["CV"]
-    assert np.allclose(CV, dataset[3].result().get_volume())
+    state = simulation_output.state.result()
+    CV = state.order["CV"]
+    assert state.energy is None
+    assert np.allclose(CV, np.linalg.det(dataset[3].result().cell))
 
 
 def test_walker_serialization(dataset, tmp_path):
