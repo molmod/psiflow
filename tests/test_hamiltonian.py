@@ -51,12 +51,21 @@ METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
     )
 
 
-def test_einstein(context, dataset):
+def test_einstein(context, dataset, dataset_h2):
     hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
     evaluated = hamiltonian.evaluate(dataset[:10])
     assert evaluated[0].result().energy == 0.0
     for i in range(1, 10):
         assert evaluated[i].result().energy > 0.0
+        assert not np.allclose(evaluated[i].result().stress, 0.0)
+
+    # test nonperiodic evaluation
+    einstein = EinsteinCrystal(dataset_h2[3], force_constant=0.1)
+    data = einstein.evaluate(dataset_h2)
+    energies, forces, stress = data.get("energy", "forces", "stress")
+    assert np.all(energies.result() >= 0)
+    assert np.any(energies.result() > 0)
+    assert np.all(np.isnan(stress.result()))
 
     # test batched evaluation
     energies = np.array([evaluated[i].result().energy for i in range(10)])
@@ -369,10 +378,10 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
 def test_max_force(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=0.5)
 
-    normal_forces = einstein.evaluate(dataset[:2]).get("forces")[0].result()[1]
+    normal_forces = einstein.evaluate(dataset[:2]).get("forces").result()[1]
     assert np.all(np.linalg.norm(normal_forces, axis=1) < 30)
 
     einstein = EinsteinCrystal(dataset[0], force_constant=5000)
-    large_forces = einstein.evaluate(dataset[:2]).get("forces")[0].result()[1]
+    large_forces = einstein.evaluate(dataset[:2]).get("forces").result()[1]
     with pytest.raises(ForceMagnitudeException):
         check_forces(large_forces, dataset[1].result(), max_force=10)

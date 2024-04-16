@@ -28,6 +28,7 @@ from typing import Optional
 
 import mace
 import numpy as np
+import torch
 import torch.nn.functional
 from ase.calculators.calculator import Calculator, all_changes
 from ase.stress import full_3x3_to_voigt_6_stress

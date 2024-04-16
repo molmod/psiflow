@@ -12,7 +12,7 @@ from ipi.engine.simulation import Simulation
 from ipi.utils.softexit import softexit
 
 from psiflow.data import Geometry
-from psiflow.data.geometry import _read_frames, _write_frames
+from psiflow.data.geometry import _write_frames
 
 
 def parse_checkpoint(
@@ -138,8 +138,6 @@ def cleanup(args):
     checkpoint = ET.parse("output.checkpoint")
     states = parse_checkpoint(checkpoint)
     _write_frames(*states, outputs=[args.output_xyz])
-    trajectory = _read_frames(inputs=["walker-0_output.trajectory_0.ase"])
-    print(trajectory)
 
 
 if __name__ == "__main__":

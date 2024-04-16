@@ -52,15 +52,15 @@ def test_mace_init(mace_config, dataset):
     second = psiflow.deserialize(psiflow.serialize(hamiltonian).result())
     evaluated = second.evaluate(dataset)
     assert np.allclose(
-        evaluated.get("energy")[0].result(),
-        evaluated_.get("energy")[0].result(),
+        evaluated.get("energy").result(),
+        evaluated_.get("energy").result(),
     )
 
     hamiltonian.atomic_energies = {"Cu": 0, "H": 0, "jasldfkjsadf": 0}
     evaluated__ = hamiltonian.evaluate(dataset)
     assert np.allclose(
         energies.astype(np.float32),
-        evaluated__.get("energy")[0].result().reshape(-1),
+        evaluated__.get("energy").result().reshape(-1),
     )
     hamiltonian = MACEHamiltonian.from_model(model)
     model.reset()

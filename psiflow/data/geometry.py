@@ -9,6 +9,7 @@ from ase import Atoms
 from ase.data import chemical_symbols
 from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
 from parsl.app.app import python_app
+from parsl.data_provider.files import File
 
 from psiflow.data.utils import reduce_box_vectors, transform_lower_triangular
 
@@ -97,8 +98,8 @@ class Geometry:
             reduce_box_vectors(cell)
 
     @classmethod
-    def read(path: Union[str, Path], index: int = -1):
-        path = Path(path)
+    def read(cls, path: Union[str, Path], index: int = -1):
+        return _read_frames(inputs=[File(str(path))])[0]
 
     @property
     def periodic(self):
@@ -213,6 +214,7 @@ def _read_frame(f: IO, natoms: int) -> Geometry:
 
     # read and format per_atom data
     per_atom = np.recarray(natoms, dtype=per_atom_dtype)
+    per_atom.forces[:] = np.nan
     for i in range(natoms):
         values = f.readline().split()
         per_atom.numbers[i] = chemical_symbols.index(values[0])

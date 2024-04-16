@@ -93,6 +93,6 @@ if __name__ == "__main__":
     # address = Path.cwd().name[4:] + "/" + args.address.strip()
     client = SimpleSocketClient(unixsocket=args.address)
     try:
-        client.run(atoms)
+        client.run(atoms, use_stress=sum(atoms.pbc))
     except ForceMagnitudeException as e:
         print(e)

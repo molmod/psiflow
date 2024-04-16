@@ -141,12 +141,13 @@ class ModelEvaluation(ExecutionDefinition):
         self,
         max_replicas_per_worker: int = 1,
         max_simulation_time: Optional[float] = None,
-        timeout: float = (5 / 60),  # 5 seconds
+        timeout: float = (10 / 60),  # 5 seconds
         slots: int = 32,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
-        assert max_simulation_time * 60 < self.max_runtime
+        if max_simulation_time is not None:
+            assert max_simulation_time * 60 < self.max_runtime
         self.max_replicas_per_worker = max_replicas_per_worker
         self.max_simulation_time = max_simulation_time
         self.timeout = timeout
@@ -200,7 +201,8 @@ class ModelTraining(ExecutionDefinition):
         **kwargs,
     ) -> None:
         super().__init__(gpu=gpu, **kwargs)
-        assert max_training_time * 60 < self.max_runtime
+        if max_training_time is not None:
+            assert max_training_time * 60 < self.max_runtime
         self.max_training_time = max_training_time
 
     def train_command(self, initialize: bool = False):
@@ -236,7 +238,8 @@ class ReferenceEvaluation(ExecutionDefinition):
         **kwargs,
     ) -> None:
         super().__init__(cpu_affinity=cpu_affinity, **kwargs)
-        assert max_evaluation_time * 60 < self.max_runtime
+        if max_evaluation_time is not None:
+            assert max_evaluation_time * 60 < self.max_runtime
         self.max_evaluation_time = max_evaluation_time
         self.cp2k_executable = cp2k_executable
         if mpi_command is None:  # parse

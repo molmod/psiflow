@@ -5,6 +5,7 @@ from typing import Optional, Union
 import numpy as np
 import typeguard
 from ase.calculators.calculator import Calculator, all_changes
+from ase.stress import full_3x3_to_voigt_6_stress
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -20,12 +21,13 @@ from psiflow.utils import copy_app_future, dump_json
 class EinsteinCalculator(Calculator):
     """ASE Calculator for a simple Einstein crystal"""
 
-    implemented_properties = ["energy", "free_energy", "forces"]
+    implemented_properties = ["energy", "free_energy", "forces", "stress"]
 
     def __init__(
         self,
         centers: np.ndarray,
         force_constant: float,
+        volume: float,
         max_force: Optional[float] = None,
         **kwargs,
     ) -> None:
@@ -33,6 +35,7 @@ class EinsteinCalculator(Calculator):
         self.results = {}
         self.centers = centers
         self.force_constant = force_constant
+        self.volume = volume
         self.max_force = max_force
 
     def calculate(self, atoms=None, properties=None, system_changes=all_changes):
@@ -46,7 +49,6 @@ class EinsteinCalculator(Calculator):
             / 2
             * np.sum((atoms.get_positions() - self.centers) ** 2)
         )
-
         if self.max_force is not None:
             check_forces(forces, atoms, self.max_force)
         self.results = {
@@ -54,6 +56,11 @@ class EinsteinCalculator(Calculator):
             "free_energy": energy,
             "forces": forces,
         }
+        if sum(atoms.pbc):
+            assert self.volume > 0.0
+            delta = np.linalg.det(atoms.cell) - self.volume
+            self.results["stress"] = self.force_constant * np.eye(3) * delta
+            self.results["stress"] = full_3x3_to_voigt_6_stress(self.results["stress"])
 
 
 @typeguard.typechecked
@@ -96,9 +103,12 @@ class EinsteinCrystal(Hamiltonian):
         numbers = reference_geometry.per_atom.numbers
         assert sum([np.all(g.per_atom.numbers == numbers) for g in data])
 
-        calculators = [
-            EinsteinCalculator(reference_geometry.per_atom.positions, force_constant)
-        ]
+        einstein = EinsteinCalculator(
+            reference_geometry.per_atom.positions,
+            force_constant,
+            np.linalg.det(reference_geometry.cell),
+        )
+        calculators = [einstein]
         index_mapping = np.zeros(len(data), dtype=int)
         return calculators, index_mapping
 
@@ -116,16 +126,26 @@ class EinsteinCrystal(Hamiltonian):
         def get_positions(geometry: Geometry):
             return geometry.per_atom.positions.copy().astype(float)
 
+        @python_app(executors=["default_threads"])
+        def get_volume(geometry: Geometry):
+            return float(np.linalg.det(geometry.cell))
+
         return dump_json(
             hamiltonian=self.__class__.__name__,
             centers=get_positions(self.reference_geometry),
             force_constant=self.force_constant,
+            volume=get_volume(self.reference_geometry),
             outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
         ).outputs[0]
 
     @staticmethod
-    def deserialize_calculator(centers: list[list[float]], force_constant: float):
+    def deserialize_calculator(
+        centers: list[list[float]],
+        force_constant: float,
+        volume: float,
+    ):
         return EinsteinCalculator(
             np.array(centers),
             force_constant,
+            volume,
         )

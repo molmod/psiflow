@@ -6,6 +6,7 @@ import numpy as np
 import parsl
 import pytest
 import yaml
+from ase import Atoms
 from ase.build import bulk, make_supercell
 from ase.calculators.emt import EMT
 
@@ -125,7 +126,7 @@ def mace_model(mace_config):
 
 @pytest.fixture
 def dataset_h2(context):
-    h2 = Geometry(
+    h2 = Atoms(
         numbers=[1, 1],
         positions=[[0, 0, 0], [0.74, 0, 0]],
         pbc=False,
@@ -135,7 +136,7 @@ def dataset_h2(context):
         atoms.set_positions(
             atoms.get_positions() + np.random.uniform(-0.05, 0.05, size=(2, 3))
         )
-    return Dataset(data)
+    return Dataset([Geometry.from_atoms(a) for a in data])
 
 
 @pytest.fixture

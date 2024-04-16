@@ -433,6 +433,9 @@ def sample(
             "temperature{kelvin}",
             "potential{electronvolt}",
         ]
+    # make sure at least one checkpoint is being written
+    if steps < checkpoint_step:
+        checkpoint_step = steps
     output, simulation_outputs = setup_output(
         len(walkers),
         observables,
@@ -488,7 +491,7 @@ def sample(
     # add coupling inputs after all other ones;
     # these are updated again with the corresponding outputs from execute_ipi
     if coupling is not None:
-        inputs.append(coupling.inputs())
+        inputs += coupling.inputs()
         outputs.append(*[File(f.filepath) for f in coupling.inputs()])
 
     command_server = definition.server_command()

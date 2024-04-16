@@ -181,10 +181,9 @@ def _save_xml(
     element: ET.Element,
     outputs: list = [],
 ) -> None:
-    import xml.etree.ElementTree as ET_
-
-    with open(outputs[0], "wb") as f:
-        f.write(ET_.tostring(element))
+    tree = ET.ElementTree(element)
+    ET.indent(tree, "  ")
+    tree.write(outputs[0], encoding="utf-8", xml_declaration=True)
 
 
 save_xml = python_app(_save_xml, executors=["default_threads"])

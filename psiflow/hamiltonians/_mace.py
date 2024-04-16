@@ -1,6 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 from functools import partial
+from pathlib import Path
 from typing import Union
 
 import numpy as np
@@ -52,7 +53,7 @@ class MACEHamiltonian(Hamiltonian):
     def serialize_calculator(self) -> DataFuture:
         return dump_json(
             hamiltonian=self.__class__.__name__,
-            model_path=self.external.filepath,
+            model_path=str(Path(self.external.filepath).resolve()),
             atomic_energies=self.atomic_energies,
             inputs=[self.external],
             outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
@@ -65,6 +66,8 @@ class MACEHamiltonian(Hamiltonian):
         device: str,
         dtype: str,
     ) -> Calculator:
+        import torch
+
         from psiflow.models.mace_utils import MACECalculator
 
         calculator = MACECalculator(
@@ -73,6 +76,10 @@ class MACEHamiltonian(Hamiltonian):
             dtype=dtype,
             atomic_energies=atomic_energies,
         )
+        # somehow necessary to override this stuff
+        torch_dtype = getattr(torch, dtype)
+        calculator.model.to(torch_dtype)
+        torch.set_default_dtype(torch_dtype)
         return calculator
 
     @property

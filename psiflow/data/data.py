@@ -136,7 +136,10 @@ class Dataset:
             None,
             inputs=[self.extxyz],
         )
-        return tuple([unpack_i(result, i) for i in range(len(quantities))])
+        if len(quantities) == 1:
+            return unpack_i(result, 0)
+        else:
+            return tuple([unpack_i(result, i) for i in range(len(quantities))])
 
     def not_null(self) -> Dataset:
         extxyz = not_null(
