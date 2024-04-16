@@ -332,7 +332,7 @@ def _execute_ipi(
     client_args: list[str],
     keep_trajectory: bool,
     max_force: Optional[float],
-    coupling: Optional[Coupling],
+    coupling_command: Optional[str],
     command_server: str,
     command_client: str,
     *plumed_list: str,
@@ -378,8 +378,8 @@ def _execute_ipi(
                 i,
                 outputs[i + nwalkers + 1].filepath,
             )
-    if coupling is not None:
-        command_copy += coupling.copy()
+    if coupling_command is not None:
+        command_copy += coupling_command
     command_list = [
         tmp_command,
         cd_command,
@@ -492,17 +492,18 @@ def sample(
     # these are updated again with the corresponding outputs from execute_ipi
     if coupling is not None:
         inputs += coupling.inputs()
-        outputs.append(*[File(f.filepath) for f in coupling.inputs()])
+        outputs += [File(f.filepath) for f in coupling.inputs()]
 
     command_server = definition.server_command()
     command_client = definition.client_command()
+    resources = definition.wq_resources(len(walkers))
     result = execute_ipi(
         len(walkers),
         hamiltonian_names,
         client_args,
         (step is not None),
         max_force,
-        coupling,
+        coupling.copy(),  # do not pass coupling directly!
         command_server,
         command_client,
         *plumed_list,
@@ -510,7 +511,7 @@ def sample(
         stderr=parsl.AUTO_LOGNAME,
         inputs=inputs,
         outputs=outputs,
-        parsl_resource_specification=definition.wq_resources(len(walkers)),
+        parsl_resource_specification=resources,
     )
 
     final_states = Dataset(None, result.outputs[0])

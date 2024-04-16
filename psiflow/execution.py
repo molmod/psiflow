@@ -343,9 +343,7 @@ class ExecutionContext:
             path = Path.cwd().resolve() / "psiflow_internal"
         resolve_and_check(path)
         if path.exists():
-            assert not any(
-                path.iterdir()
-            ), "internal directory {} should be empty".format(path)
+            shutil.rmtree(path)
         path.mkdir(parents=True, exist_ok=True)
         parsl.set_file_logger(
             str(path / "parsl.log"),
