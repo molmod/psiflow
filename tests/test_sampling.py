@@ -345,7 +345,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     assert walkers[0].metadynamics is not None
     assert walkers[1].metadynamics is not None
 
-    _ = sample(walkers, steps=50)
+    _ = sample(walkers, steps=50, step=10)
 
     swaps = np.loadtxt(walkers[0].coupling.swapfile.result().filepath)
     assert len(swaps) > 0  # at least some successful swaps
