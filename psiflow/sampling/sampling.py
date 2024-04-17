@@ -330,16 +330,18 @@ def _execute_ipi(
     command_start += " --start_xyz={}".format(inputs[1].filepath)
     command_start += "  & \n"
     command_clients = ""
+    i = 0
     for i, name in enumerate(hamiltonian_names):
-        address = name.lower()
-        command_ = command_client + " --address={}".format(address)
-        command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
-        command_ += " --start={}".format(inputs[1].filepath)
-        if max_force is not None:
-            command_ += " --max_force={}".format(max_force)
-        command_ += " " + client_args[i] + " "
-        command_ += " & \n"
-        command_clients += command_
+        args = client_args[i]
+        for _j, arg in enumerate(args):
+            command_ = command_client + " --address={}".format(name.lower())
+            command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
+            command_ += " --start={}".format(inputs[1].filepath)
+            if max_force is not None:
+                command_ += " --max_force={}".format(max_force)
+            command_ += " " + arg + " "
+            command_ += " & \n"
+            command_clients += command_
 
     command_end = command_server
     command_end += " --cleanup"
@@ -451,12 +453,14 @@ def sample(
         input_future,
         Dataset([w.state for w in walkers]).extxyz,
     ]
-    inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
 
+    # remove any Harmonic instances because they are not implemented with sockets
     hamiltonian_names = list(hamiltonians_map.keys())
+
+    inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
     client_args = []
     for name in hamiltonian_names:
-        nclients, args = definition.get_client_args(name, len(walkers))
+        args = definition.get_client_args(name, len(walkers), motion="dynamics")
         client_args.append(args)
     outputs = [context.new_file("data_", ".xyz")]
     outputs += [context.new_file("simulation_", ".txt") for w in walkers]

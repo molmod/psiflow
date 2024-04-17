@@ -104,7 +104,7 @@ def setup_output(keep_trajectory: bool) -> ET.Element:
 
 def _execute_ipi(
     hamiltonian_names: list[str],
-    client_args: list[str],
+    client_args: list[list[str]],
     keep_trajectory: bool,
     command_server: str,
     command_client: str,
@@ -122,13 +122,15 @@ def _execute_ipi(
     command_start += "  & \n"
     command_clients = ""
     for i, name in enumerate(hamiltonian_names):
-        address = name.lower()
-        command_ = command_client + " --address={}".format(address)
-        command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
-        command_ += " --start={}".format(inputs[1].filepath)
-        command_ += " " + client_args[i] + " "
-        command_ += " & \n"
-        command_clients += command_
+        args = client_args[i]
+        assert len(args) == 1  # only have one client per hamiltonian
+        for _j, arg in enumerate(args):
+            command_ = command_client + " --address={}".format(name.lower())
+            command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
+            command_ += " --start={}".format(inputs[1].filepath)
+            command_ += " " + arg + " "
+            command_ += " & \n"
+            command_clients += command_
 
     command_end = command_server
     command_end += " --cleanup"
@@ -205,7 +207,7 @@ def optimize(
     hamiltonian_names = list(hamiltonians_map.keys())
     client_args = []
     for name in hamiltonian_names:
-        nclients, args = definition.get_client_args(name, 1)
+        args = definition.get_client_args(name, 1, "minimize")
         client_args.append(args)
     outputs = [context.new_file("data_", ".xyz")]
     if keep_trajectory:

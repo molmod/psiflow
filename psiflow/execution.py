@@ -139,19 +139,15 @@ class ExecutionDefinition:
 class ModelEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        max_replicas_per_worker: int = 1,
         max_simulation_time: Optional[float] = None,
         timeout: float = (10 / 60),  # 5 seconds
-        slots: int = 32,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         if max_simulation_time is not None:
             assert max_simulation_time * 60 < self.max_runtime
-        self.max_replicas_per_worker = max_replicas_per_worker
         self.max_simulation_time = max_simulation_time
         self.timeout = timeout
-        self.slots = slots
 
     def server_command(self):
         script = "$(python -c 'import psiflow.tools.server; print(psiflow.tools.server.__file__)')"
@@ -170,21 +166,30 @@ class ModelEvaluation(ExecutionDefinition):
         self,
         hamiltonian_name: str,
         nwalkers: int,
-    ) -> tuple[int, str]:
+        motion: str,
+    ) -> list[str]:
         if "MACE" in hamiltonian_name:
-            # nclients = nwalkers // self.replicas_per_gpu
-            if self.gpu:
-                return 1, "--device=cuda --dtype=float32"
+            if motion in ["minimize", "vibrations"]:
+                dtype = "float64"
             else:
-                return 1, "--device=cpu --dtype=float32"
+                dtype = "float32"
+            nclients = min(nwalkers, self.max_workers)
+            if self.gpu:
+                template = "--dtype={} --device=cuda:{}"
+                args = [template.format(dtype, i) for i in range(nclients)]
+            else:
+                template = "--dtype={} --device=cpu"
+                args = [template.format(dtype) for i in range(nclients)]
+            return args
         else:
-            return 1, ""
+            return [""]
 
     def wq_resources(self, nwalkers):
         if self.use_threadpool:
             return None
+        nclients = min(nwalkers, self.max_workers)
         resource_specification = {}
-        resource_specification["cores"] = self.cores_per_worker
+        resource_specification["cores"] = nclients * self.cores_per_worker
         resource_specification["disk"] = 1000  # some random nontrivial amount?
         memory = 2000 * self.cores_per_worker  # similarly rather random
         resource_specification["memory"] = int(memory)

@@ -16,6 +16,14 @@ logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
+def _multiply(x: Any, by: float) -> Any:
+    return by * x
+
+
+multiply = python_app(_multiply, executors=["default_threads"])
+
+
+@typeguard.typechecked
 def set_logger(  # hacky
     level: Union[str, int],  # 'DEBUG' or logging.DEBUG
 ):

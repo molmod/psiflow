@@ -5,6 +5,7 @@ from typing import Optional
 
 import parsl
 import typeguard
+from ase.units import Bohr, Ha
 from parsl.app.app import bash_app
 from parsl.dataflow.futures import AppFuture
 
@@ -12,7 +13,7 @@ import psiflow
 from psiflow.data import Dataset, Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 from psiflow.tools.optimize import setup_forces, setup_sockets
-from psiflow.utils import load_numpy, save_xml
+from psiflow.utils import load_numpy, multiply, save_xml
 
 
 @typeguard.typechecked
@@ -42,7 +43,7 @@ def setup_motion(
 
 def _execute_ipi(
     hamiltonian_names: list[str],
-    client_args: list[str],
+    client_args: list[list[str]],
     command_server: str,
     command_client: str,
     stdout: str = "",
@@ -59,13 +60,15 @@ def _execute_ipi(
     command_start += "  & \n"
     command_clients = ""
     for i, name in enumerate(hamiltonian_names):
-        address = name.lower()
-        command_ = command_client + " --address={}".format(address)
-        command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
-        command_ += " --start={}".format(inputs[1].filepath)
-        command_ += " " + client_args[i] + " "
-        command_ += " & \n"
-        command_clients += command_
+        args = client_args[i]
+        assert len(args) == 1  # only have one client per hamiltonian
+        for _j, arg in enumerate(args):
+            command_ = command_client + " --address={}".format(name.lower())
+            command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
+            command_ += " --start={}".format(inputs[1].filepath)
+            command_ += " " + arg + " "
+            command_ += " & \n"
+            command_clients += command_
 
     command_end = command_server
     command_end += " --cleanup;"
@@ -135,7 +138,7 @@ def compute_harmonic(
     hamiltonian_names = list(hamiltonians_map.keys())
     client_args = []
     for name in hamiltonian_names:
-        nclients, args = definition.get_client_args(name, 1)
+        args = definition.get_client_args(name, 1, "vibrations")
         client_args.append(args)
     outputs = [
         context.new_file("hess_", ".txt"),
@@ -156,4 +159,4 @@ def compute_harmonic(
         outputs=outputs,
         parsl_resource_specification=resources,
     )
-    return load_numpy(inputs=[result.outputs[0]])
+    return multiply(load_numpy(inputs=[result.outputs[0]]), Ha / Bohr**2)

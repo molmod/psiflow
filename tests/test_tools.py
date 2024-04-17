@@ -23,10 +23,15 @@ def test_optimize(dataset):
 
 def test_phonons(dataset):
     reference = dataset[2].result()
-    reference.cell = 100 * np.eye(3)
-    einstein = EinsteinCrystal(reference, force_constant=100)
+    constant = 10
+    einstein = EinsteinCrystal(reference, force_constant=constant)
+
     hessian = compute_harmonic(
         reference,
         einstein,
+        asr="none",  # einstein == translationally VARIANT
     )
-    print(hessian.result())
+    assert np.allclose(
+        hessian.result(),
+        constant * np.eye(3 * len(reference)),
+    )

@@ -1,5 +1,6 @@
 ---
 ModelEvaluation:
+  cores_per_worker: 1
   gpu: false
   max_simulation_time: 0.4
 ModelTraining:
