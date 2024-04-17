@@ -6,6 +6,7 @@ import typeguard
 from ase.calculators.calculator import Calculator
 
 from ._einstein import EinsteinCrystal  # noqa: F401
+from ._harmonic import Harmonic  # noqa: F401
 from ._mace import MACEHamiltonian  # noqa: F401
 from ._plumed import PlumedHamiltonian  # noqa: F401
 from .hamiltonian import Hamiltonian  # noqa: F401

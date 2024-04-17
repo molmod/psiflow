@@ -154,7 +154,7 @@ class ModelEvaluation(ExecutionDefinition):
         self.slots = slots
 
     def server_command(self):
-        script = "$(python -c 'import psiflow.sampling.server; print(psiflow.sampling.server.__file__)')"
+        script = "$(python -c 'import psiflow.tools.server; print(psiflow.tools.server.__file__)')"
         command_list = ["python", "-u", script]
         if self.max_simulation_time is not None:
             max_time = 0.9 * (60 * self.max_simulation_time)
@@ -162,7 +162,7 @@ class ModelEvaluation(ExecutionDefinition):
         return " ".join(command_list)
 
     def client_command(self):
-        script = "$(python -c 'import psiflow.sampling.client; print(psiflow.sampling.client.__file__)')"
+        script = "$(python -c 'import psiflow.tools.client; print(psiflow.tools.client.__file__)')"
         command_list = ["python", "-u", script]
         return " ".join(command_list)
 

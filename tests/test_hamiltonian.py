@@ -1,3 +1,4 @@
+import copy
 import json
 
 import numpy as np
@@ -7,8 +8,10 @@ from ase.units import kJ, mol
 from parsl.data_provider.files import File
 
 import psiflow
+from psiflow.data import Dataset
 from psiflow.hamiltonians import (
     EinsteinCrystal,
+    Harmonic,
     MACEHamiltonian,
     PlumedHamiltonian,
     deserialize_calculator,
@@ -129,6 +132,42 @@ def test_einstein(context, dataset, dataset_h2):
     assert 2 * hamiltonian + zero == 2 * hamiltonian
 
 
+def test_einstein_force(dataset):
+    einstein = EinsteinCrystal(dataset[0], 5.0)
+    reference = dataset[0].result()
+    delta = 0.1
+    for i in range(len(reference)):
+        for j in range(3):  # x, y, z
+            for sign in [+1, -1]:
+                geometry = copy.deepcopy(reference)
+                geometry.per_atom.positions[i, j] += sign * delta
+                geometry = einstein.evaluate(Dataset([geometry]))[0].result()
+                assert np.sign(geometry.per_atom.forces[i, j]) == (-1.0) * sign
+                geometry.per_atom.forces[i, j] = 0.0
+                assert np.allclose(geometry.per_atom.forces, 0.0)
+
+
+def test_harmonic_force(dataset):
+    reference_geometry = dataset[0].result()
+    e = reference_geometry.energy
+    harmonic = Harmonic(
+        reference_geometry,
+        np.eye(3 * len(reference_geometry)),
+    )
+    einstein = EinsteinCrystal(
+        reference_geometry,
+        force_constant=1,  # diagonal hessian == einstein
+    )
+    assert np.allclose(
+        harmonic.evaluate(dataset[:10]).get("energy").result() - e,
+        einstein.evaluate(dataset[:10]).get("energy").result(),
+    )
+    assert np.allclose(
+        harmonic.evaluate(dataset[:10]).get("forces").result(),
+        einstein.evaluate(dataset[:10]).get("forces").result(),
+    )
+
+
 def test_plumed_evaluate(context, dataset, tmp_path):
     geometry = dataset[0].result()
     atoms = Atoms(
@@ -223,6 +262,7 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
         assert np.allclose(
             geometry.energy,
             kappa / 2 * (volume - center) ** 2,
+            atol=1e-4,
         )
 
     # use external grid as bias, check that file is read

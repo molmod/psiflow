@@ -350,18 +350,22 @@ def start(args):
 
 
 def cleanup(args):
-    checkpoint = ET.parse("output.checkpoint")
-    states = parse_checkpoint(checkpoint)
-    _write_frames(*states, outputs=[args.output_xyz])
     with open("input.xml", "r") as f:
         content = f.read()
-    if "remd" in content:
-        remdsort("input.xml")
-        for filepath in glob.glob("SRT_*"):
-            source = filepath
-            target = filepath.replace("SRT_", "")
-            assert Path(target).exists()  # should exist
-            shutil.copyfile(source, target)
+    if "vibrations" in content:
+        # do stuff
+        pass
+    else:
+        checkpoint = ET.parse("output.checkpoint")
+        states = parse_checkpoint(checkpoint)
+        _write_frames(*states, outputs=[args.output_xyz])
+        if "remd" in content:
+            remdsort("input.xml")
+            for filepath in glob.glob("SRT_*"):
+                source = filepath
+                target = filepath.replace("SRT_", "")
+                assert Path(target).exists()  # should exist
+                shutil.copyfile(source, target)
 
 
 if __name__ == "__main__":

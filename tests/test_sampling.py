@@ -8,8 +8,8 @@ from psiflow.models import MACE
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.order import HamiltonianOrderParameter
 from psiflow.sampling.sampling import sample, template
-from psiflow.sampling.server import parse_checkpoint
 from psiflow.sampling.walker import Walker, partition, quench, replica_exchange
+from psiflow.tools.server import parse_checkpoint
 
 
 def test_walkers(dataset):

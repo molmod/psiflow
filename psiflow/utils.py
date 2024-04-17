@@ -190,6 +190,14 @@ save_xml = python_app(_save_xml, executors=["default_threads"])
 
 
 @typeguard.typechecked
+def _load_numpy(inputs: list[File] = [], **kwargs) -> np.ndarray:
+    return np.loadtxt(inputs[0], **kwargs)
+
+
+load_numpy = python_app(_load_numpy, executors=["default_threads"])
+
+
+@typeguard.typechecked
 def _read_yaml(inputs: list[File] = [], outputs: list[File] = []) -> dict:
     import yaml
 

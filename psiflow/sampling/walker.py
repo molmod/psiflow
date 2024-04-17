@@ -295,7 +295,7 @@ class ReplicaExchange(Coupling):
     def update(self, result: AppFuture):
         self.swapfile = result.outputs[-1]
 
-    def copy(self):
+    def copy_command(self):
         return "cp output.replica_exchange {}".format(self.swapfile.filepath)
 
 

@@ -14,6 +14,7 @@ from psiflow.data import Dataset
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian, Zero
 from psiflow.sampling.output import SimulationOutput
 from psiflow.sampling.walker import Coupling, Walker, partition
+from psiflow.tools import setup_sockets
 from psiflow.utils import save_xml
 
 
@@ -183,29 +184,6 @@ def setup_forces(weights_header: tuple[str, ...]) -> ET.Element:
         force = ET.Element("force", forcefield=name, weight=name.upper())
         forces.append(force)
     return forces
-
-
-@typeguard.typechecked
-def setup_sockets(
-    hamiltonians_map: dict[str, Hamiltonian],
-) -> list[ET.Element]:
-    sockets = []
-    for name in hamiltonians_map.keys():
-        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
-        timeout = ET.Element("timeout")
-        timeout.text = str(
-            60 * psiflow.context().definitions["ModelEvaluation"].timeout
-        )
-        ffsocket.append(timeout)
-        exit_on = ET.Element("exit_on_disconnect")
-        exit_on.text = " TRUE "
-        ffsocket.append(exit_on)
-        address = ET.Element("address")  # placeholder
-        address.text = name.lower()
-        ffsocket.append(address)
-
-        sockets.append(ffsocket)
-    return sockets
 
 
 @typeguard.typechecked
@@ -490,9 +468,14 @@ def sample(
 
     # add coupling inputs after all other ones;
     # these are updated again with the corresponding outputs from execute_ipi
+    # the if/else stuff has to happen outside of bash_app because coupling cannot
+    # be passed into a bash app as it cannot be serialized
     if coupling is not None:
         inputs += coupling.inputs()
         outputs += [File(f.filepath) for f in coupling.inputs()]
+        coupling_copy_command = coupling.copy_command()
+    else:
+        coupling_copy_command = None
 
     command_server = definition.server_command()
     command_client = definition.client_command()
@@ -503,7 +486,7 @@ def sample(
         client_args,
         (step is not None),
         max_force,
-        coupling.copy(),  # do not pass coupling directly!
+        coupling_copy_command,
         command_server,
         command_client,
         *plumed_list,
