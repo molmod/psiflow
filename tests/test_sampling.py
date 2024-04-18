@@ -142,7 +142,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         temperature=300,
         pressure=None,
         metadynamics=metadynamics,
-        hamiltonian=plumed + einstein,
+        hamiltonian=0.9 * plumed + einstein,
     )
     walker1 = Walker(
         start=dataset[0],
@@ -168,7 +168,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         simulation_outputs[1]["potential{electronvolt}"].result(),
     ]
     evaluated = [
-        (plumed + einstein).evaluate(simulation_outputs[0].trajectory),
+        (0.9 * plumed + einstein).evaluate(simulation_outputs[0].trajectory),
         einstein.evaluate(simulation_outputs[1].trajectory),
     ]
     energies_ = [
@@ -185,6 +185,24 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         time,
         np.arange(11) * 5e-4 * 10,
     )
+
+    # check pot components
+    assert np.allclose(
+        simulation_outputs[1].get_energy(walker1.hamiltonian).result(),
+        simulation_outputs[1]["potential{electronvolt}"].result(),
+    )
+    assert np.allclose(
+        simulation_outputs[0].get_energy(walker0.hamiltonian).result(),
+        simulation_outputs[0]["potential{electronvolt}"].result(),
+    )
+
+    manual_total = simulation_outputs[0].get_energy(plumed).result() * 0.9
+    manual_total += simulation_outputs[0].get_energy(einstein).result()
+    assert np.allclose(
+        manual_total,
+        simulation_outputs[0]["potential{electronvolt}"].result(),
+    )
+
     simulation_outputs = sample(
         [walker0, walker1], steps=100, step=10, observables=["ensemble_bias"]
     )

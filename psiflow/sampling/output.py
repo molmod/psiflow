@@ -10,8 +10,20 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset, Geometry
+from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian
 from psiflow.sampling.walker import Walker
 from psiflow.utils import unpack_i
+
+DEFAULT_OBSERVABLES = [
+    "time{picosecond}",
+    "temperature{kelvin}",
+    "potential{electronvolt}",
+]
+
+
+def potential_component_names(n: int):
+    str_format = "pot_component_raw({})"
+    return [str_format.format(i) + "{electronvolt}" for i in range(n)]
 
 
 def read_output(filename):  # from i-PI
@@ -81,10 +93,11 @@ def read_output(filename):  # from i-PI
     return values_dict, info_dict
 
 
+@typeguard.typechecked
 def _parse_data(
     keys: list[str],
     inputs: list = [],
-) -> dict[str, np.ndarray]:
+) -> list[np.ndarray]:
     from psiflow.sampling.output import read_output
 
     values, _ = read_output(inputs[0].filepath)
@@ -99,6 +112,21 @@ def _parse_data(
 
 
 parse_data = python_app(_parse_data, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _add_contributions(
+    coefficients: tuple[float, ...],
+    *values: np.ndarray,
+) -> np.ndarray:
+    assert len(coefficients) == len(values)
+    total = np.zeros(len(values[0]))
+    for i, c in enumerate(coefficients):
+        total += c * values[i]
+    return total
+
+
+add_contributions = python_app(_add_contributions, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -172,6 +200,7 @@ class SimulationOutput:
         self.time = None
         self.temperature = None
         self.trajectory = None
+        self.hamiltonians = None
 
     def __getitem__(self, key: str) -> AppFuture:
         if self._data.get(key, None) is None:
@@ -197,13 +226,31 @@ class SimulationOutput:
             walker.start,
         )
 
-    def parse_data(self, data_future: DataFuture):
+    def parse_data(
+        self,
+        data_future: DataFuture,
+        hamiltonians: list[Hamiltonian],
+    ):
         data = parse_data(
             list(self._data.keys()),
             inputs=[data_future],
         )
         for i, key in enumerate(self._data.keys()):
             self._data[key] = unpack_i(data, i)
+        self.hamiltonians = hamiltonians
+
+    def get_energy(self, hamiltonian: Hamiltonian) -> AppFuture:
+        all_h = MixtureHamiltonian(
+            list(self.hamiltonians),
+            [1.0 for h in self.hamiltonians],
+        )
+        coefficients = all_h.get_coefficients(1.0 * hamiltonian)
+        names = potential_component_names(len(self.hamiltonians))
+        values = [self._data[name] for name in names]
+        return add_contributions(
+            coefficients,
+            *values,
+        )
 
     def save(self, path: Union[str, Path]):
         if type(path) is str:

@@ -57,9 +57,7 @@ class ThermodynamicIntegration:
                     dataset[0],  # do quench later
                     hamiltonian,
                     temperature=T,
-                    pressure=walker_kwargs.pop("pressure", None),
-                    timestep=walker_kwargs.pop("timestep", 0.5),
-                    order_parameter=walker_kwargs.pop("order_parameter", None),
+                    **walker_kwargs,
                 )
                 walkers.append(walker)
 

@@ -54,9 +54,11 @@ def test_dihydrogen(dataset_h2):
     hessian = compute_harmonic(
         optimized,
         hamiltonian,
-        asr="poly",
+        asr="crystal",
+        pos_shift=0.001,
     )
     frequencies = compute_frequencies(hessian, geometry).result()
     # check that highest frequency in inv cm corresponds to 3500 - 4000
-    frequency_invcm = (frequencies[-1] * second) / (_c * 1e2)  # in invcm
-    assert np.abs(frequency_invcm - 4000) < 1000
+    frequencies_invcm = (frequencies * second) / (_c * 1e2)  # in invcm
+    print(frequencies_invcm)
+    assert np.abs(frequencies_invcm[-1] - 4000) < 1000

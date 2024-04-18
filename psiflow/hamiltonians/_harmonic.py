@@ -72,6 +72,27 @@ class Harmonic(Hamiltonian):
     def _create_apps(self):
         self.evaluate_app = python_app(evaluate_function, executors=["default_threads"])
 
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+        if type(hamiltonian) is not Harmonic:
+            return False
+        if hamiltonian.reference_geometry != self.reference_geometry:
+            return False
+
+        # slightly different check for numpy arrays
+        is_array0 = type(hamiltonian.hessian) is np.ndarray
+        is_array1 = type(self.hessian) is np.ndarray
+        if is_array0 and is_array1:
+            equal = np.allclose(
+                hamiltonian.hessian,
+                self.hessian,
+            )
+        else:
+            equal = hamiltonian.hessian == self.hessian
+
+        if not equal:
+            return False
+        return True
+
     @property
     def parameters(self: Hamiltonian) -> dict:
         return {

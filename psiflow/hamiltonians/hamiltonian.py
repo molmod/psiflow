@@ -189,14 +189,29 @@ class MixtureHamiltonian(Hamiltonian):
                     coefficients.append(c)
         return MixtureHamiltonian(hamiltonians, coefficients)
 
+    def get_index(self, hamiltonian) -> Optional[int]:
+        assert type(hamiltonian) is not MixtureHamiltonian
+        if hamiltonian not in self.hamiltonians:
+            return None
+        return self.hamiltonians.index(hamiltonian)
+
+    def get_indices(self, mixture) -> Optional[tuple[int, ...]]:
+        assert type(mixture) is MixtureHamiltonian
+        for h in mixture.hamiltonians:
+            if h not in self.hamiltonians:
+                return None
+        indices = []
+        for h in mixture.hamiltonians:
+            indices.append(self.get_index(h))
+        return tuple(indices)
+
     def get_coefficient(self, hamiltonian) -> Optional[float]:
         assert type(hamiltonian) is not MixtureHamiltonian
-        if hamiltonian in self.hamiltonians:
-            return self.coefficients[self.hamiltonians.index(hamiltonian)]
-        else:
+        if hamiltonian not in self.hamiltonians:
             return None
+        return self.coefficients[self.hamiltonians.index(hamiltonian)]
 
-    def get_coefficients(self, mixture) -> Optional[tuple]:
+    def get_coefficients(self, mixture) -> Optional[tuple[float, ...]]:
         assert type(mixture) is MixtureHamiltonian
         for h in mixture.hamiltonians:
             if h not in self.hamiltonians:

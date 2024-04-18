@@ -12,7 +12,11 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian, Zero
-from psiflow.sampling.output import SimulationOutput
+from psiflow.sampling.output import (
+    DEFAULT_OBSERVABLES,
+    SimulationOutput,
+    potential_component_names,
+)
 from psiflow.sampling.walker import Coupling, Walker, partition
 from psiflow.tools import setup_sockets
 from psiflow.utils import save_xml
@@ -243,11 +247,20 @@ def setup_system_template(
 @typeguard.typechecked
 def setup_output(
     nwalkers: int,
-    observables: list[str],
+    nhamiltonians: int,
+    observables: Optional[list[str]],
     step: Optional[int],
     checkpoint_step: int,
 ) -> tuple[ET.Element, list]:
     output = ET.Element("output", prefix="output")
+
+    if observables is None:
+        observables = []
+    full_list = (
+        DEFAULT_OBSERVABLES + potential_component_names(nhamiltonians) + observables
+    )
+    observables = list(set(full_list))
+
     if step is not None:
         checkpoint_step = step
         trajectory = ET.Element(
@@ -407,17 +420,12 @@ def sample(
     )
     smotion = setup_smotion(coupling, plumed_list)
 
-    if observables is None:
-        observables = [
-            "time{picosecond}",
-            "temperature{kelvin}",
-            "potential{electronvolt}",
-        ]
     # make sure at least one checkpoint is being written
     if steps < checkpoint_step:
         checkpoint_step = steps
     output, simulation_outputs = setup_output(
         len(walkers),
+        len(hamiltonians_map),  # for potential components
         observables,
         step,
         checkpoint_step,
@@ -508,7 +516,10 @@ def sample(
         if walkers[i].order_parameter is not None:
             state = walkers[i].order_parameter.evaluate(state)
         simulation_output.parse(result, state)
-        simulation_output.parse_data(result.outputs[i + 1])
+        simulation_output.parse_data(
+            result.outputs[i + 1],
+            hamiltonians=list(hamiltonians_map.values()),
+        )
         if step is not None:
             j = len(walkers) + 1 + i
             trajectory = Dataset(None, result.outputs[j])

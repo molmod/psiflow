@@ -167,6 +167,23 @@ def test_harmonic_force(dataset):
         einstein.evaluate(dataset[:10]).get("forces").result(),
     )
 
+    # test rudimentary __eq__
+    state = dataset[3]
+    h0 = Harmonic(
+        state,
+        np.eye(3 * len(reference_geometry)),
+    )
+    h1 = Harmonic(
+        state,
+        np.eye(3 * len(reference_geometry)),
+    )
+    assert h0 == h1
+    h2 = Harmonic(
+        dataset[3],
+        np.eye(3 * len(reference_geometry)),
+    )
+    assert h1 != h2
+
 
 def test_plumed_evaluate(context, dataset, tmp_path):
     geometry = dataset[0].result()
