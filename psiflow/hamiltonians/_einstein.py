@@ -56,8 +56,7 @@ class EinsteinCalculator(Calculator):
             "free_energy": energy,
             "forces": forces,
         }
-        if sum(atoms.pbc):
-            assert self.volume > 0.0
+        if sum(atoms.pbc) and self.volume > 0.0:
             delta = np.linalg.det(atoms.cell) - self.volume
             self.results["stress"] = self.force_constant * np.eye(3) * delta
             self.results["stress"] = full_3x3_to_voigt_6_stress(self.results["stress"])

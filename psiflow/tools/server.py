@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from ase.data import atomic_numbers
+from ase.geometry import Cell
 from ase.io import read, write
 from ase.units import Bohr, Ha, _e, _hbar, kB
 from ipi.engine.outputs import CheckpointOutput, PropertyOutput, TrajectoryOutput
@@ -21,6 +22,8 @@ from ipi.utils.softexit import softexit
 
 from psiflow.data import Geometry
 from psiflow.data.geometry import _write_frames
+
+NONPERIODIC_CELL = 1000 * np.eye(3)
 
 
 def remdsort(inputfile, prefix="SRT_"):
@@ -331,6 +334,10 @@ def start(args):
     data_start = read(args.start_xyz, index=":")
     assert len(data_start) == args.nwalkers
     for i in range(args.nwalkers):
+        atoms = data_start[i]
+        if not sum(atoms.pbc):  # set fake large cell for i-PI
+            atoms.pbc = True
+            atoms.cell = Cell(NONPERIODIC_CELL)
         write("start_{}.xyz".format(i), data_start[i])
 
     with open(args.input_xml, "r") as f:
@@ -358,6 +365,9 @@ def cleanup(args):
     else:
         checkpoint = ET.parse("output.checkpoint")
         states = parse_checkpoint(checkpoint)
+        for state in states:
+            if np.allclose(state.cell, NONPERIODIC_CELL):
+                state.cell[:] = 0.0
         _write_frames(*states, outputs=[args.output_xyz])
         if "remd" in content:
             remdsort("input.xml")
@@ -366,6 +376,20 @@ def cleanup(args):
                 target = filepath.replace("SRT_", "")
                 assert Path(target).exists()  # should exist
                 shutil.copyfile(source, target)
+        i = 0
+        while True:
+            assert i <= len(states)
+            path = Path("walker-{}_output.trajectory_0.ase".format(i))
+            if path.exists() and not states[i].periodic:  # load and replace cell
+                traj = read(path, index=":", format="xyz")
+                path.unlink()
+                for atoms in traj:
+                    atoms.pbc = False
+                    atoms.cell = None
+                write(path, traj, format="xyz")
+            else:
+                break
+            i += 1
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
 import numpy as np
+from ase.units import _c, second
 
-from psiflow.hamiltonians import EinsteinCrystal
+from psiflow.hamiltonians import EinsteinCrystal, get_mace_mp0
 from psiflow.tools import compute_harmonic, optimize
+from psiflow.tools.utils import compute_frequencies
 
 
 def test_optimize(dataset):
@@ -35,3 +37,26 @@ def test_phonons(dataset):
         hessian.result(),
         constant * np.eye(3 * len(reference)),
     )
+
+
+def test_dihydrogen(dataset_h2):
+    geometry = dataset_h2[0].result()
+    geometry.cell = 20 * np.eye(3)
+    hamiltonian = get_mace_mp0("small")
+    optimized = optimize(
+        geometry,
+        hamiltonian,
+        steps=2000,
+        ftol=1e-4,
+    ).result()
+    assert optimized.energy is not None
+    assert np.linalg.norm(optimized.per_atom.forces) < 1e-4
+    hessian = compute_harmonic(
+        optimized,
+        hamiltonian,
+        asr="poly",
+    )
+    frequencies = compute_frequencies(hessian, geometry).result()
+    # check that highest frequency in inv cm corresponds to 3500 - 4000
+    frequency_invcm = (frequencies[-1] * second) / (_c * 1e2)  # in invcm
+    assert np.abs(frequency_invcm - 4000) < 1000

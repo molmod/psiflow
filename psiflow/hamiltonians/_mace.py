@@ -1,5 +1,6 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import urllib
 from functools import partial
 from pathlib import Path
 from typing import Union
@@ -121,6 +122,10 @@ class MACEHamiltonian(Hamiltonian):
             dtype=dtype,
             atomic_energies=atomic_energies,
         )
+        # somehow necessary to set this again
+        torch_dtype = getattr(torch, dtype)
+        calculator.model.to(torch_dtype)
+        torch.set_default_dtype(torch_dtype)
         index_mapping = np.zeros(len(data), dtype=int)
         torch.set_num_threads(ncores)
         return [calculator], index_mapping
@@ -128,3 +133,18 @@ class MACEHamiltonian(Hamiltonian):
     @classmethod
     def from_model(cls, model: Model):
         return cls(model.model_future, model.atomic_energies)
+
+
+def get_mace_mp0(size: str = "small") -> MACEHamiltonian:
+    urls = dict(
+        small="http://tinyurl.com/46jrkm3v",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
+        medium="http://tinyurl.com/5yyxdm76",  # 2023-12-03-mace-128-L1_epoch-199.model
+        large="http://tinyurl.com/5f5yavf3",  # MACE_MPtrj_2022.9.model
+    )
+    assert size in urls
+    parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
+    urllib.request.urlretrieve(
+        urls[size],
+        parsl_file.filepath,
+    )
+    return MACEHamiltonian(parsl_file, {})

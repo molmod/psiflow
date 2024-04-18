@@ -64,7 +64,7 @@ class Walker:
         temperature: Optional[float] = 300,
         pressure: Optional[float] = None,
         nbeads: int = 1,
-        periodic: Optional[bool] = True,
+        periodic: Optional[bool] = None,
         timestep: float = 0.5,
         metadynamics: Optional[Metadynamics] = None,
         order_parameter: Optional[OrderParameter] = None,
@@ -72,9 +72,9 @@ class Walker:
         if type(start) is AppFuture:
             start = start.result()  # blocking
         if periodic is not None:
-            assert periodic == np.all(start.periodic)
+            assert periodic == bool(start.periodic)
         else:
-            periodic = np.all(start.periodic)
+            periodic = bool(start.periodic)
         self.start = start
         self.periodic = periodic
         if hamiltonian is None:
@@ -88,6 +88,8 @@ class Walker:
             self.start = order_parameter.evaluate(self.start)
 
         self.temperature = temperature
+        if pressure is not None:
+            assert self.periodic
         self.pressure = pressure
         self.nbeads = nbeads
         self.timestep = timestep
@@ -224,6 +226,23 @@ def quench(walkers: list[Walker], dataset: Dataset) -> None:
         walker.reset()
 
 
+def _random_indices(nindices: int, nstates: int) -> list[int]:
+    indices = np.random.randint(0, high=nstates, size=(nindices,))
+    return [int(i) for i in indices]
+
+
+random_indices = python_app(_random_indices, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def randomize(walkers: list[Walker], dataset: Dataset) -> None:
+    indices = random_indices(len(walkers), dataset.length())
+    for i, walker in enumerate(walkers):
+        walker.start = dataset[unpack_i(indices, i)][0]
+        walker.reset()
+
+
+@typeguard.typechecked
 def validate_coupling(walkers: list[Walker]):
     couplings = []
     counts = []

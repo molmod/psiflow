@@ -8,7 +8,13 @@ from psiflow.models import MACE
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.order import HamiltonianOrderParameter
 from psiflow.sampling.sampling import sample, template
-from psiflow.sampling.walker import Walker, partition, quench, replica_exchange
+from psiflow.sampling.walker import (
+    Walker,
+    partition,
+    quench,
+    randomize,
+    replica_exchange,
+)
 from psiflow.tools.server import parse_checkpoint
 
 
@@ -322,6 +328,28 @@ def test_quench(dataset):
     assert check_equality(walkers[1].start, dataset[3]).result()
     assert check_equality(walkers[2].start, dataset[11]).result()
     assert check_equality(walkers[3].start, dataset[3]).result()
+
+
+def test_randomize(dataset):
+    walkers = Walker(dataset[0]).multiply(300)
+    randomize(walkers, dataset)
+    length = dataset.length().result()
+    checks = []
+    for i, walker in enumerate(walkers):
+        assert walker.is_reset().result()
+        checks.append(check_equality(walker.start, dataset[i % length]))
+    checks = [bool(c.result()) for c in checks]
+    assert not all(checks)
+
+
+def test_walker_nonperiodic(dataset_h2):
+    einstein = EinsteinCrystal(dataset_h2[3], force_constant=1.0)
+    walker = Walker(dataset_h2[0], einstein)
+
+    output = sample([walker], steps=20, step=2)[0]
+    assert not output.state.result().periodic
+    for state in output.trajectory.geometries().result():
+        assert not state.periodic
 
 
 def test_rex(dataset):

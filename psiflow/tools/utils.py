@@ -36,3 +36,13 @@ def _mass_unweight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
 
 
 mass_unweight = python_app(_mass_unweight, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _compute_frequencies(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
+    assert hessian.shape[0] == hessian.shape[1]
+    assert len(geometry) * 3 == hessian.shape[0]
+    return np.sqrt(np.linalg.eigvalsh(_mass_weight(hessian, geometry))) / (2 * np.pi)
+
+
+compute_frequencies = python_app(_compute_frequencies, executors=["default_threads"])
