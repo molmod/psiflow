@@ -7,12 +7,15 @@ import typeguard
 from ase.calculators.calculator import Calculator, all_changes
 from ase.stress import full_3x3_to_voigt_6_stress
 from parsl.app.app import python_app
+from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.data import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 from psiflow.hamiltonians.utils import evaluate_function
+from psiflow.utils import dump_json
 
 
 @typeguard.typechecked
@@ -92,6 +95,35 @@ class Harmonic(Hamiltonian):
         if not equal:
             return False
         return True
+
+    def serialize_calculator(self) -> DataFuture:
+        @python_app(executors=["default_threads"])
+        def get_positions(geometry: Geometry):
+            return geometry.per_atom.positions.copy().astype(float)
+
+        @python_app(executors=["default_threads"])
+        def get_energy(geometry: Geometry):
+            return geometry.energy
+
+        return dump_json(
+            hamiltonian=self.__class__.__name__,
+            positions=get_positions(self.reference_geometry),
+            hessian=self.hessian,
+            energy=get_energy(self.reference_geometry),
+            outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
+        ).outputs[0]
+
+    @staticmethod
+    def deserialize_calculator(
+        positions: list[list[float]],
+        hessian: list[list[float]],
+        energy: float,
+    ):
+        return HarmonicCalculator(
+            np.array(positions),
+            np.array(hessian),
+            energy,
+        )
 
     @property
     def parameters(self: Hamiltonian) -> dict:

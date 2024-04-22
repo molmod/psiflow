@@ -21,7 +21,7 @@ from psiflow.hamiltonians._plumed import (
     remove_comments_printflush,
     set_path_in_plumed,
 )
-from psiflow.hamiltonians.hamiltonian import Zero
+from psiflow.hamiltonians.hamiltonian import MixtureHamiltonian, Zero
 from psiflow.hamiltonians.utils import ForceMagnitudeException, check_forces
 from psiflow.utils import copy_app_future, copy_data_future, dump_json
 
@@ -442,3 +442,10 @@ def test_max_force(dataset):
     large_forces = einstein.evaluate(dataset[:2]).get("forces").result()[1]
     with pytest.raises(ForceMagnitudeException):
         check_forces(large_forces, dataset[1].result(), max_force=10)
+
+
+def test_subtract(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=1.0)
+    h = einstein - einstein
+    assert isinstance(h, MixtureHamiltonian)
+    assert np.allclose(h.coefficients, 0.0)

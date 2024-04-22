@@ -1,7 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import xml.etree.ElementTree as ET
-from typing import Optional
+from typing import Optional, Union
 
 import parsl
 import typeguard
@@ -91,7 +91,7 @@ execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 
 @typeguard.typechecked
 def compute_harmonic(
-    state: Geometry,
+    state: Union[Geometry, AppFuture],
     hamiltonian: Hamiltonian,
     mode: str = "fd",
     asr: str = "crystal",

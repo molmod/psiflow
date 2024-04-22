@@ -72,7 +72,7 @@ class Hamiltonian:
         return Dataset(None, future.outputs[0])
 
     def serialize_calculator(self) -> DataFuture:
-        pass
+        raise NotImplementedError
 
     @property
     def parameters(self: Hamiltonian) -> dict:
@@ -97,6 +97,9 @@ class Hamiltonian:
         if type(hamiltonian) is MixtureHamiltonian:
             return hamiltonian.__add__(self)
         return 1.0 * self + 1.0 * hamiltonian
+
+    def __sub__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+        return self + (-1.0) * hamiltonian
 
     __rmul__ = __mul__  # handle float * Hamiltonian
 
