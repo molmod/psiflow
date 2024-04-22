@@ -8,14 +8,15 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Dataset, Geometry, NullState
-from psiflow.data.geometry import (
+from psiflow.data import (
+    Dataset,
     _read_frames,
     _write_frames,
     check_equality,
+    get_index_element_mask,
     read_frames,
 )
-from psiflow.data.utils import get_index_element_mask
+from psiflow.geometry import Geometry, NullState
 
 
 def test_geometry(tmp_path):
@@ -141,6 +142,23 @@ def test_readwrite_cycle(dataset, tmp_path):
 
     states = _read_frames(inputs=[str(tmp_path / "test.xyz")])
     assert "test" in states[2].order
+
+    s = """3
+energy=3.0 phase=c7eq
+C 0 1 2
+O 1 2 3
+F 4 5 6
+"""
+    geometry = Geometry.from_string(s, natoms=None)
+    assert len(geometry) == 3
+    assert geometry.energy == 3.0
+    assert geometry.phase == "c7eq"
+    assert not geometry.periodic
+    assert np.all(np.isnan(geometry.per_atom.forces))
+    assert np.allclose(
+        geometry.per_atom.numbers,
+        np.array([6, 8, 9]),
+    )
 
 
 def test_dataset_empty(tmp_path):
@@ -375,3 +393,7 @@ def test_data_extract(dataset):
     assert np.isnan(np.mean(energy))
     assert np.isnan(np.mean(forces))
     psiflow.wait()
+
+
+def test_data_nonperiodic(dataset_h2):
+    dataset_h2[0].result()

@@ -6,7 +6,8 @@ from ase.units import Bohr, Ha
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, Geometry, NullState
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry, NullState
 from psiflow.reference import CP2K, EMT
 from psiflow.reference._cp2k import dict_to_str, parse_cp2k_output, str_to_dict
 

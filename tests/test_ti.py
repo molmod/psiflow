@@ -1,4 +1,4 @@
-from psiflow.data.geometry import check_equality
+from psiflow.data import check_equality
 from psiflow.free_energy import Integration
 from psiflow.hamiltonians import EinsteinCrystal, Harmonic
 from psiflow.tools import compute_harmonic, optimize

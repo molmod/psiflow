@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from ase.units import Bohr
 
-from psiflow.data.geometry import check_equality
+from psiflow.data import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
 from psiflow.models import MACE
 from psiflow.sampling.metadynamics import Metadynamics

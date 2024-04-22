@@ -11,8 +11,8 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, Geometry
-from psiflow.data.geometry import check_equality
+from psiflow.data import Dataset, check_equality
+from psiflow.geometry import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.order import OrderParameter
@@ -182,7 +182,7 @@ def _get_minimum_energy_states(
 ) -> tuple[int, ...]:
     import numpy
 
-    from psiflow.data.geometry import _read_frames
+    from psiflow.data import _read_frames
 
     assert len(coefficients.shape) == 2
     assert len(inputs) == coefficients.shape[1]

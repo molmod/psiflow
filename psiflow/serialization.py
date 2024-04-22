@@ -10,6 +10,7 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+from psiflow.geometry import Geometry
 from psiflow.utils import copy_data_future, resolve_and_check
 
 _DataFuture = Union[File, DataFuture]
@@ -42,6 +43,7 @@ def create_setter(name, kind, type_hint):
 
 def update_init(init_func):
     def wrapper(self, *args, **kwargs):
+        self._geoms = {}
         self._files = {}
         self._attrs = {}
         self._serial = {}
@@ -59,7 +61,10 @@ def serializable(cls):
             if (File in args) or (DataFuture in args):
                 kind = "files"
             else:
-                kind = "attrs"
+                if Geometry in args:
+                    kind = "geoms"
+                else:
+                    kind = "attrs"
                 for arg in args:
                     if inspect.isclass(arg):
                         if issubclass(arg, Serializable):  # weird
@@ -71,6 +76,8 @@ def serializable(cls):
                 )
             if issubclass(type_hint, Serializable):
                 kind = "serial"
+            elif type_hint is Geometry:
+                kind = "geoms"
             else:
                 kind = "attrs"
         getter = create_getter(name, kind, type_hint)
@@ -168,7 +175,8 @@ def serialize(
     inputs = (
         list(obj._attrs.values())
         + list(obj._files.values())
-        + list(obj._serial.values())
+        # + list(obj._serial.values())
+        # + list(obj._geoms.values())
     )
 
     # populate _files dict;
@@ -205,6 +213,21 @@ def serialize(
             inputs.append(serialized)
         _serial[name] = serialized
     data["_serial"] = _serial
+
+    # populate _geoms dict:
+    # generate Geometry and AppFuture[Geometry] strings
+    @python_app(executors=["default_threads"])
+    def to_string(geometry: Optional[Geometry]) -> str:
+        if geometry is None:
+            return ""
+        else:
+            return geometry.to_string()
+
+    _geoms = {}
+    for key, value in obj._geoms.items():
+        _geoms[key] = to_string(value)
+    data["_geoms"] = _geoms
+    inputs += list(_geoms.values())
 
     if path_json is not None:
         outputs = [File(str(path_json))]
@@ -257,6 +280,10 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
     obj = cls.__new__(cls)
     obj._files = {k: File(v) for k, v in data[cls_name]["_files"].items()}
     obj._attrs = data[cls_name]["_attrs"]
+    obj._geoms = {
+        k: Geometry.from_string(s, natoms=None)
+        for k, s in data[cls_name]["_geoms"].items()
+    }
     _serial = {}
     for key, value in data[cls_name]["_serial"].items():
         if value is None:

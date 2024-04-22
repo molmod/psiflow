@@ -9,7 +9,8 @@ from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, Geometry
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian
 from psiflow.sampling.walker import Walker
 from psiflow.utils import unpack_i

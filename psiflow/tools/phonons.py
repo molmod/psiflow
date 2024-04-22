@@ -10,7 +10,8 @@ from parsl.app.app import bash_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, Geometry
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 from psiflow.tools.optimize import setup_forces, setup_sockets
 from psiflow.utils import load_numpy, multiply, save_xml

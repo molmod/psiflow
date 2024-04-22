@@ -3,7 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import typeguard
 from parsl.app.app import python_app
 
-from psiflow.data import Geometry, NullState
+from psiflow.geometry import Geometry, NullState
 from psiflow.reference.reference import Reference
 
 

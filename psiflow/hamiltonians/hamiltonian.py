@@ -9,7 +9,8 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Dataset, Geometry
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry
 from psiflow.hamiltonians.utils import add_contributions
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -26,7 +27,7 @@ def evaluate_batched(
 ):
     from math import ceil
 
-    from psiflow.data.data import join_frames
+    from psiflow.data import join_frames
 
     if (batch_size is None) or (batch_size >= length):
         evaluated = [hamiltonian.single_evaluate(dataset)]

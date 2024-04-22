@@ -10,7 +10,8 @@ from parsl.app.app import join_app, python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, Geometry, NullState
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry, NullState
 from psiflow.utils import copy_app_future
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -46,7 +47,7 @@ def evaluate_multiple(
     inputs: list = [],
     outputs: list = [],
 ):
-    from psiflow.data.geometry import _read_frames, write_frames
+    from psiflow.data import _read_frames, write_frames
 
     assert len(outputs) == 1
     assert len(inputs) == 1

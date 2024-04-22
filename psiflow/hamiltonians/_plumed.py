@@ -15,7 +15,7 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Geometry
+from psiflow.geometry import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 from psiflow.hamiltonians.utils import check_forces, evaluate_function
 from psiflow.utils import dump_json

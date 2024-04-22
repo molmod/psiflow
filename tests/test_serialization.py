@@ -5,9 +5,12 @@ from typing import Optional, Union
 import pytest
 import typeguard
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, NullState
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry, NullState, new_nullstate
+from psiflow.utils import copy_app_future
 
 
 def test_serial_simple(tmp_path):
@@ -23,6 +26,8 @@ def test_serial_simple(tmp_path):
         bam: Optional[SomeSerial]
         bao: SomeSerial
         bap: list[SomeSerial, ...]
+        baq: Union[Geometry, AppFuture]
+        bas: Geometry
 
         def __init__(self, **kwargs):
             for key, value in kwargs.items():
@@ -36,6 +41,8 @@ def test_serial_simple(tmp_path):
         bam=None,
         bao=SomeSerial(),
         bap=[SomeSerial(), SomeSerial()],
+        baq=copy_app_future(NullState),
+        bas=new_nullstate(),
     )
     assert instance.foo == 3
     assert instance._attrs["foo"] == 3
@@ -52,6 +59,9 @@ def test_serial_simple(tmp_path):
     assert tuple(instance._serial.keys()) == ("bam", "bao", "bap")
     assert type(instance._serial["bap"]) is list
     assert len(instance._serial["bap"]) == 2
+    assert len(instance._geoms) == 2
+    assert "baq" in instance._geoms
+    assert "bas" in instance._geoms
 
     # serialization/deserialization of 'complex' Test instance
     json_dump = psiflow.serialize(instance).result()
@@ -66,6 +76,9 @@ def test_serial_simple(tmp_path):
     assert type(instance_.bap[0]) is SomeSerial
     assert type(instance_.bap[1]) is SomeSerial
     assert id(instance) != id(instance_)
+    assert isinstance(instance_.baq, Geometry)
+    assert instance_.baq == NullState
+    assert instance_.bas == NullState
 
     # check classes created before test execution, e.g. Dataset
     data = Dataset([NullState])

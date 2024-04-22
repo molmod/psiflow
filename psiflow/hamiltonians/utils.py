@@ -6,7 +6,7 @@ from ase import Atoms
 from ase.data import chemical_symbols
 from parsl.app.app import python_app
 
-from psiflow.data import Geometry
+from psiflow.geometry import Geometry
 
 
 class ForceMagnitudeException(Exception):
@@ -48,7 +48,7 @@ def evaluate_function(
     import numpy as np
     from ase import Atoms
 
-    from psiflow.data.geometry import _read_frames, _write_frames
+    from psiflow.data import _read_frames, _write_frames
 
     assert len(inputs) >= 1
     assert len(outputs) == 1
@@ -84,7 +84,7 @@ def _add_contributions(
 ) -> None:
     import copy
 
-    from psiflow.data.geometry import _read_frames, _write_frames
+    from psiflow.data import _read_frames, _write_frames
 
     contributions = [_read_frames(inputs=[i]) for i in inputs]
     assert len(contributions) == len(coefficients)

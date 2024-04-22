@@ -18,7 +18,7 @@ from parsl.app.python import PythonApp
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Geometry, NullState
+from psiflow.geometry import Geometry, NullState
 from psiflow.reference.reference import Reference
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -172,8 +172,7 @@ def cp2k_singlepoint_post(
     properties: tuple,
     inputs: list = [],
 ) -> Geometry:
-    from psiflow.data import NullState
-    from psiflow.data.geometry import new_nullstate
+    from psiflow.geometry import NullState, new_nullstate
     from psiflow.reference._cp2k import parse_cp2k_output
 
     if geometry == NullState:
@@ -203,7 +202,7 @@ def evaluate_single(
 ) -> AppFuture:
     import parsl
 
-    from psiflow.data import NullState
+    from psiflow.geometry import NullState
     from psiflow.utils import copy_app_future
 
     if geometry == NullState:

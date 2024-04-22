@@ -8,7 +8,8 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, Geometry
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry
 from psiflow.hamiltonians._plumed import PlumedHamiltonian
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 
