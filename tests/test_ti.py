@@ -39,3 +39,6 @@ def test_integration_simple(dataset_h2):
 
     for state in integration.states:
         assert state.gradients["lambda"] is not None
+        # assert np.allclose(
+        #        state.gradients['lambda'].result(),
+        #        #harmonic.evaluate(

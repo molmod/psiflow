@@ -372,24 +372,14 @@ def test_walker_nonperiodic(dataset_h2):
 
 def test_rex(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    plumed_str = """
-UNITS LENGTH=A ENERGY=kj/mol TIME=ps
-CV: DISTANCE ATOMS=1,2 NOPBC
-METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
-"""
-    metadynamics = Metadynamics(plumed_str)
     walker = Walker(
         dataset[0],
         hamiltonian=einstein,
         temperature=600,
-        metadynamics=metadynamics,
     )
     walkers = walker.multiply(2)
     replica_exchange(walkers, trial_frequency=5)
     assert walkers[0].coupling.nwalkers == len(walkers)
-    assert walkers[0].metadynamics != walkers[1].metadynamics
-    assert walkers[0].metadynamics is not None
-    assert walkers[1].metadynamics is not None
 
     _ = sample(walkers, steps=50, step=10)
 

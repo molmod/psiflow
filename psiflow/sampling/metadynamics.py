@@ -9,7 +9,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.hamiltonians._plumed import remove_comments_printflush, set_path_in_plumed
-from psiflow.utils import copy_app_future
+from psiflow.utils import copy_app_future, copy_data_future
 
 
 @typeguard.typechecked
@@ -31,7 +31,7 @@ class Metadynamics:
         if type(external) in [str, Path]:
             external = File(str(external))
         if external is None:
-            external = psiflow.context().new_file("hills_", ".txt.")
+            external = psiflow.context().new_file("hills_", ".txt")
         else:
             assert external.filepath in _plumed_input
         _plumed_input = set_path_in_plumed(
@@ -44,8 +44,7 @@ class Metadynamics:
 
     def plumed_input(self):
         plumed_input = self._plumed_input
-        if self.external is not None:
-            plumed_input = plumed_input.replace("PLACEHOLDER", self.external.filepath)
+        plumed_input = plumed_input.replace("PLACEHOLDER", self.external.filepath)
         return plumed_input
 
     def input(self) -> AppFuture:
@@ -67,4 +66,13 @@ class Metadynamics:
         return self.plumed_input() == other.plumed_input()
 
     def copy(self) -> Metadynamics:
-        return Metadynamics(str(self.plumed_input()))
+        new_external = copy_data_future(
+            inputs=[self.external],
+            outputs=[psiflow.context().new_file("hills_", ".txt")],
+        ).outputs[0]
+        mtd = Metadynamics(
+            str(self.plumed_input()),
+        )
+        assert "PLACEHOLDER" in mtd._plumed_input  # instead of original filepath
+        mtd.external = new_external
+        return mtd

@@ -300,20 +300,19 @@ def setup_smotion(
     if has_coupling:
         smotion = coupling.get_smotion(has_metad)
     else:
-        if not has_metad:
-            smotion = ET.Element("smotion", mode="dummy")
-        else:
-            metaff = ET.Element("metaff")
-            bias_names = ["metad{}".format(i) for i in range(len(plumed_list))]
-            metaff.text = " [ " + " ".join(bias_names) + " ] "
-            metad = ET.Element("metad")
-            metad.append(metaff)
-            smotion_metad = ET.Element("smotion", mode="metad")
-            smotion_metad.append(metad)
-            if has_coupling:
-                smotion.append(smotion_metad)
-            else:  # overwrite dummy smotion
-                smotion = smotion_metad
+        smotion = ET.Element("smotion", mode="dummy")
+    if has_metad:
+        metaff = ET.Element("metaff")
+        bias_names = ["metad{}".format(i) for i in range(len(plumed_list))]
+        metaff.text = " [ " + " ".join(bias_names) + " ] "
+        metad = ET.Element("metad")
+        metad.append(metaff)
+        smotion_metad = ET.Element("smotion", mode="metad")
+        smotion_metad.append(metad)
+        if has_coupling:
+            smotion.append(smotion_metad)
+        else:  # overwrite dummy smotion
+            smotion = smotion_metad
     return smotion
 
 
