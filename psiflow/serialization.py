@@ -184,10 +184,16 @@ def serialize(
     _files = {}
     if copy_to is None:
         for key, _file in obj._files.items():
+            if _file is None:
+                _files[key] = None
+                continue
             _files[key] = _file.filepath
     else:
         copy_to.mkdir(exist_ok=True)
         for key, _file in obj._files.items():
+            if _file is None:
+                _files[key] = None
+                continue
             new_path = copy_to / Path(_file.filepath).name
             new_file = copy_data_future(
                 pass_on_exist=True,  # e.g. identical hamiltonians in different walkers
@@ -244,7 +250,13 @@ def serialize(
 @typeguard.typechecked
 def deserialize(data: dict, custom_cls: Optional[list] = None):
     from psiflow.data import Dataset
-    from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
+    from psiflow.hamiltonians import (
+        EinsteinCrystal,
+        Harmonic,
+        MACEHamiltonian,
+        PlumedHamiltonian,
+    )
+    from psiflow.hamiltonians.hamiltonian import MixtureHamiltonian
     from psiflow.models import MACE
     from psiflow.reference import CP2K
     from psiflow.sampling import (
@@ -265,6 +277,8 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
         MACEHamiltonian,
         EinsteinCrystal,
         PlumedHamiltonian,
+        Harmonic,
+        MixtureHamiltonian,
         Metadynamics,
         OrderParameter,
         ReplicaExchange,
@@ -278,7 +292,11 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
     assert cls is not None
 
     obj = cls.__new__(cls)
-    obj._files = {k: File(v) for k, v in data[cls_name]["_files"].items()}
+    obj._files = {}
+    for key, value in data[cls_name]["_files"].items():
+        if value is not None:
+            value = File(value)
+        obj._files[key] = value
     obj._attrs = data[cls_name]["_attrs"]
     obj._geoms = {
         k: Geometry.from_string(s, natoms=None)

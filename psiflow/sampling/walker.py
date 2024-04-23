@@ -45,7 +45,7 @@ conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"]
 @psiflow.serializable
 class Walker:
     start: Union[Geometry, AppFuture]
-    hamiltonian: Hamiltonian
+    hamiltonian: Optional[Hamiltonian]
     state: Union[Geometry, AppFuture, None]
     temperature: Optional[float]
     pressure: Optional[float]

@@ -55,7 +55,8 @@ METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
 
 
 def test_einstein(context, dataset, dataset_h2):
-    hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
+    state = dataset[0]
+    hamiltonian = EinsteinCrystal(state, force_constant=1)
     evaluated = hamiltonian.evaluate(dataset[:10])
     assert evaluated[0].result().energy == 0.0
     for i in range(1, 10):
@@ -77,9 +78,11 @@ def test_einstein(context, dataset, dataset_h2):
         assert energies[i] == evaluated[i].result().energy
 
     # test equality
-    hamiltonian_ = EinsteinCrystal(dataset[0], force_constant=1.1)
+    hamiltonian_ = EinsteinCrystal(state.result(), force_constant=1.1)
     assert not hamiltonian == hamiltonian_
-    hamiltonian_ = EinsteinCrystal(dataset[0], force_constant=1.0)
+    hamiltonian_ = EinsteinCrystal(state, force_constant=1.0)
+    assert hamiltonian != hamiltonian_  # app future copied
+    hamiltonian_.reference_geometry = hamiltonian.reference_geometry
     assert hamiltonian == hamiltonian_
     hamiltonian_ = EinsteinCrystal(dataset[1], force_constant=1.0)
     assert not hamiltonian == hamiltonian_
@@ -449,3 +452,48 @@ def test_subtract(dataset):
     h = einstein - einstein
     assert isinstance(h, MixtureHamiltonian)
     assert np.allclose(h.coefficients, 0.0)
+
+
+def test_hamiltonian_serialize(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=1.0)
+
+    kappa = 1
+    center = 100
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT={center} KAPPA={kappa}
+""".format(
+        center=center, kappa=kappa / (kJ / mol)
+    )
+    plumed = PlumedHamiltonian(plumed_input)
+    data = psiflow.serialize(einstein).result()
+    assert "EinsteinCrystal" in data
+    assert "reference_geometry" in data["EinsteinCrystal"]["_geoms"]
+    einstein_ = psiflow.deserialize(data)
+    assert np.allclose(
+        einstein.evaluate(dataset[:10]).get("energy").result(),
+        einstein_.evaluate(dataset[:10]).get("energy").result(),
+    )
+
+    mixed = 0.1 * einstein + 0.9 * plumed
+    assert "hamiltonians" in mixed._serial
+    assert "coefficients" in mixed._attrs
+    data = psiflow.serialize(mixed).result()
+    assert "MixtureHamiltonian" in data
+    assert "hamiltonians" in data["MixtureHamiltonian"]["_serial"]
+    mixed_ = psiflow.deserialize(data)
+    for i, h in enumerate(mixed.hamiltonians):
+        if isinstance(h, EinsteinCrystal):
+            assert h.force_constant == mixed_.hamiltonians[i].force_constant
+            assert (
+                h.reference_geometry.result()
+                == mixed_.hamiltonians[i].reference_geometry
+            )
+        else:
+            assert h == mixed_.hamiltonians[i]
+        assert mixed.coefficients[i] == mixed_.coefficients[i]
+    assert np.allclose(
+        mixed.evaluate(dataset[:10]).get("energy").result(),
+        mixed_.evaluate(dataset[:10]).get("energy").result(),
+    )

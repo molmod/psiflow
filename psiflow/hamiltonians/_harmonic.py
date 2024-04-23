@@ -58,6 +58,7 @@ class HarmonicCalculator(Calculator):
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class Harmonic(Hamiltonian):
     reference_geometry: Union[Geometry, AppFuture]
     hessian: Union[np.ndarray, AppFuture]

@@ -304,7 +304,7 @@ def setup_smotion(
     if has_metad:
         metaff = ET.Element("metaff")
         bias_names = ["metad{}".format(i) for i in range(len(plumed_list))]
-        metaff.text = " [ " + " ".join(bias_names) + " ] "
+        metaff.text = " [ " + ", ".join(bias_names) + " ] "
         metad = ET.Element("metad")
         metad.append(metaff)
         smotion_metad = ET.Element("smotion", mode="metad")

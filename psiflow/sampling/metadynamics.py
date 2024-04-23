@@ -23,10 +23,12 @@ class Metadynamics:
         plumed_input: str,
         external: Union[None, str, Path, psiflow._DataFuture] = None,
     ):
-        assert "METAD" in plumed_input
-        if "RESTART" not in plumed_input:
-            plumed_input = "RESTART\n" + plumed_input
         _plumed_input = remove_comments_printflush(plumed_input)
+        assert "METAD" in _plumed_input
+        if "RESTART" not in _plumed_input:
+            _plumed_input = "RESTART\n" + _plumed_input
+        if "FLUSH" not in _plumed_input:  # add at the end!
+            _plumed_input = _plumed_input + "FLUSH STRIDE=1\nPRINT"
 
         if type(external) in [str, Path]:
             external = File(str(external))

@@ -65,7 +65,7 @@ class EinsteinCalculator(Calculator):
 @typeguard.typechecked
 @psiflow.serializable
 class EinsteinCrystal(Hamiltonian):
-    geometry: Union[Geometry, AppFuture]
+    reference_geometry: Union[Geometry, AppFuture]
     force_constant: float
 
     def __init__(
@@ -116,7 +116,7 @@ class EinsteinCrystal(Hamiltonian):
             return False
         if not np.allclose(self.force_constant, hamiltonian.force_constant):
             return False
-        if self.reference_geometry.result() != hamiltonian.reference_geometry.result():
+        if self.reference_geometry != hamiltonian.reference_geometry:
             return False
         return True
 

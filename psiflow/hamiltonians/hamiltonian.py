@@ -47,6 +47,7 @@ def evaluate_batched(
 
 
 @typeguard.typechecked
+@psiflow.serializable  # otherwise MixtureHamiltonian.hamiltonians is not serialized
 class Hamiltonian:
     external: Optional[psiflow._DataFuture]
 
@@ -127,13 +128,13 @@ class Zero(Hamiltonian):
 @typeguard.typechecked
 @psiflow.serializable
 class MixtureHamiltonian(Hamiltonian):
-    hamiltonians: list[Hamiltonian, ...]
+    hamiltonians: list[Hamiltonian]
     coefficients: list[float]
 
     def __init__(
         self,
-        hamiltonians: list[Hamiltonian, ...],
-        coefficients: list[float, ...],
+        hamiltonians: list[Hamiltonian],
+        coefficients: list[float],
     ) -> None:
         self.hamiltonians = hamiltonians
         self.coefficients = coefficients
