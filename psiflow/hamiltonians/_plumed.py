@@ -9,6 +9,7 @@ from typing import Optional, Union
 import numpy as np
 import typeguard
 from ase.calculators.calculator import Calculator, all_changes
+from ase.stress import full_3x3_to_voigt_6_stress
 from ase.units import fs, kJ, mol, nm
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
@@ -141,7 +142,7 @@ class PlumedCalculator(Calculator):
         self.plumed.cmd("prepareCalc")
         self.plumed.cmd("performCalcNoUpdate")
         self.plumed.cmd("getBias", energy)
-        stress = virial / atoms.get_volume()
+        stress = full_3x3_to_voigt_6_stress(virial / atoms.get_volume())
 
         if self.max_force is not None:
             check_forces(forces, atoms, self.max_force)
@@ -149,7 +150,7 @@ class PlumedCalculator(Calculator):
             "energy": energy[0],  # unpack to float
             "forces": forces,
             "stress": stress,
-            "free_energy": energy,
+            "free_energy": energy[0],
         }
 
 

@@ -342,6 +342,7 @@ class ExecutionContext:
         default_threads: int = 1,
         htex_address: Optional[str] = None,
         container: Optional[dict] = None,
+        zip_staging: Optional[bool] = None,
         **kwargs,
     ) -> ExecutionContext:
         if path is None:
@@ -411,6 +412,16 @@ class ExecutionContext:
         executors.append(threadpool)
 
         # remove additional kwargs
+        # if zip_staging:
+
+        #    def zip_uri(base, task_record, err_or_out):
+        #        zip_path = base / "base.zip"
+        #        file = f"{task_record['func_name']}.{task_record['id']}.{task_record['try_id']}.{err_or_out}"
+        #        return File(f"zip:{zip_path}/{file}")
+
+        #    std_autopath = partial(zip_uri, path)
+        # else:
+        #    std_autopath = None
         config = Config(
             executors=executors,
             run_dir=str(path),
@@ -421,6 +432,7 @@ class ExecutionContext:
             strategy=strategy,
             max_idletime=max_idletime,
             internal_tasks_max_threads=internal_tasks_max_threads,
+            # std_autopath=std_autopath,
         )
         return ExecutionContext(config, definitions, path / "context_dir")
 

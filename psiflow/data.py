@@ -115,11 +115,16 @@ class Dataset:
         ).outputs[0]
         return Dataset(None, extxyz)
 
-    def get(self, *quantities: str):
+    def get(
+        self,
+        *quantities: str,
+        atom_indices: Optional[list[int]] = None,
+        elements: Optional[list[str]] = None,
+    ):
         result = extract_quantities(
             quantities,
-            None,
-            None,
+            atom_indices,
+            elements,
             inputs=[self.extxyz],
         )
         if len(quantities) == 1:
@@ -267,6 +272,7 @@ def _extract_quantities(
     else:
         assert len(inputs) == 0
     natoms = np.array([len(geometry) for geometry in data], dtype=int)
+    max_natoms = np.max(natoms)
     nframes = len(data)
     nprob = 0
     for state in data:
@@ -275,13 +281,13 @@ def _extract_quantities(
     arrays = []
     for quantity in quantities:
         if quantity in ["positions", "forces"]:
-            array = np.empty((nframes, np.max(natoms), 3), dtype=np.float32)
+            array = np.empty((nframes, max_natoms, 3), dtype=np.float32)
             array[:] = np.nan
         elif quantity in ["cell", "stress"]:
             array = np.empty((nframes, 3, 3), dtype=np.float32)
             array[:] = np.nan
         elif quantity in ["numbers"]:
-            array = np.empty((nframes, np.max(natoms), 1), dtype=np.uint8)
+            array = np.empty((nframes, max_natoms, 1), dtype=np.uint8)
             array[:] = 0
         elif quantity in ["energy", "delta", "per_atom_energy"]:
             array = np.empty((nframes,), dtype=np.float32)
@@ -300,12 +306,18 @@ def _extract_quantities(
         arrays.append(array)
 
     for i, geometry in enumerate(data):
+        mask = get_index_element_mask(
+            geometry.per_atom.numbers,
+            atom_indices,
+            elements,
+            natoms_padded=int(max_natoms),
+        )
+        natoms = len(geometry)
         for j, quantity in enumerate(quantities):
             if quantity == "positions":
-                arrays[j][i, :, :] = geometry.per_atom.positions
+                arrays[j][i, mask, :] = geometry.per_atom.positions[mask[:natoms]]
             elif quantity == "forces":
-                n = len(geometry)
-                arrays[j][i, :n, :] = geometry.per_atom.forces
+                arrays[j][i, mask, :] = geometry.per_atom.forces[mask[:natoms]]
             elif quantity == "cell":
                 arrays[j][i, :, :] = geometry.cell
             elif quantity == "stress":
@@ -582,8 +594,9 @@ def get_train_valid_indices(
 @typeguard.typechecked
 def get_index_element_mask(
     numbers: np.ndarray,
-    elements: Optional[list[str]],
     atom_indices: Optional[list[int]],
+    elements: Optional[list[str]],
+    natoms_padded: Optional[int] = None,
 ) -> np.ndarray:
     mask = np.array([True] * len(numbers))
 
@@ -598,4 +611,39 @@ def get_index_element_mask(
         mask_indices = np.array([False] * len(numbers))
         mask_indices[np.array(atom_indices)] = True
         mask = np.logical_and(mask, mask_indices)
+
+    if natoms_padded is not None:
+        assert natoms_padded >= len(numbers)
+        padding = natoms_padded - len(numbers)
+        mask = np.concatenate((mask, np.array([False] * padding)), axis=0).astype(bool)
     return mask
+
+
+@typeguard.typechecked
+def _compute_rmse(
+    array0,
+    array1,
+) -> float:
+    assert array0.shape == array1.shape
+    mask0 = np.logical_not(np.isnan(array0))
+    mask1 = np.logical_not(np.isnan(array1))
+    assert np.all(mask0 == mask1)
+    return np.sqrt(np.mean((array0[mask0] - array1[mask1]) ** 2))
+
+
+compute_rmse = python_app(_compute_rmse, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _compute_mae(
+    array0,
+    array1,
+) -> float:
+    assert array0.shape == array1.shape
+    mask0 = np.logical_not(np.isnan(array0))
+    mask1 = np.logical_not(np.isnan(array1))
+    assert np.all(mask0 == mask1)
+    return np.mean(np.abs(array0[mask0] - array1[mask1]))
+
+
+compute_mae = python_app(_compute_mae, executors=["default_threads"])

@@ -13,6 +13,7 @@ from psiflow.data import (
     _read_frames,
     _write_frames,
     check_equality,
+    compute_rmse,
     get_index_element_mask,
     read_frames,
 )
@@ -184,8 +185,6 @@ def test_dataset_append(dataset):
     empty = Dataset([])  # use [] instead of None
     empty += dataset
     assert l == empty.length().result()
-    # dataset.append(dataset)
-    # assert 2 * l == dataset.length().result()
     added = dataset + dataset
     assert added.length().result() == 2 * l
     assert dataset.length().result() == l  # must not have changed
@@ -244,37 +243,37 @@ def test_index_element_mask():
     elements = ["H"]
     indices = [0, 1, 4, 5]
     assert np.allclose(
-        get_index_element_mask(numbers, elements, indices),
         np.array([True, True, False, False, False, False, False, False]),
+        get_index_element_mask(numbers, indices, elements),
     )
     elements = ["H", "O"]
     indices = [0, 1, 4, 5]
     assert np.allclose(
-        get_index_element_mask(numbers, elements, indices),
         np.array([True, True, False, False, False, True, False, False]),
+        get_index_element_mask(numbers, indices, elements),
     )
     elements = ["H", "O"]
     indices = [3]
     assert np.allclose(
-        get_index_element_mask(numbers, elements, indices),
+        get_index_element_mask(numbers, indices, elements),
         np.array([False] * len(numbers)),
     )
     elements = ["H", "O"]
     indices = None
     assert np.allclose(
-        get_index_element_mask(numbers, elements, indices),
+        get_index_element_mask(numbers, indices, elements),
         np.array([True, True, True, False, False, True, True, True]),
     )
     elements = None
     indices = [0, 1, 2, 3, 5]
     assert np.allclose(
-        get_index_element_mask(numbers, elements, indices),
+        get_index_element_mask(numbers, indices, elements),
         np.array([True, True, True, True, False, True, False, False]),
     )
     elements = ["Cl"]  # not present at all
     indices = None
     assert np.allclose(
-        get_index_element_mask(numbers, elements, indices),
+        get_index_element_mask(numbers, indices, elements),
         np.array([False] * len(numbers)),
     )
 
@@ -394,6 +393,35 @@ def test_data_extract(dataset):
     assert np.isnan(np.mean(forces))
     psiflow.wait()
 
+    data = dataset[:5]
+    forces = data.get("forces", elements=["Cu"])
+    reference = np.zeros((5, 4, 3))
+    reference[:, 0, :] = np.nan
+    assert np.any(np.isnan(forces.result()))  # at H forces
+    value = compute_rmse(forces, reference)
 
-def test_data_nonperiodic(dataset_h2):
+    # last three atoms are Cu
+    forces = np.zeros((5, 4, 3))
+    for i in range(5):
+        forces[i, :] = data[i].result().per_atom.forces
+    forces[:, 0] = np.nan
+    assert np.allclose(
+        value.result(),
+        compute_rmse(forces, forces * np.zeros_like(forces)).result(),
+    )
+
+    # try weirdly specific indices
+    forces = np.zeros((5, 4, 3))
+    for i in range(5):
+        forces[i, 3] = data[i].result().per_atom.forces[3]
+        forces[i, 1] = data[i].result().per_atom.forces[1]
+    forces_ = data.get("forces", atom_indices=[3, 1]).result()
+    mask = np.invert(np.isnan(forces_))
+    assert np.allclose(
+        forces[mask],
+        forces_[mask],
+    )
+
+
+def test_compute_error(dataset, dataset_h2):
     dataset_h2[0].result()

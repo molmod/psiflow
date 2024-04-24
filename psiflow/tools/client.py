@@ -1,48 +1,11 @@
 import argparse
-import socket
-
-from ase.calculators.socketio import IPIProtocol, SocketClient
-from ase.io import read
+from pathlib import Path
 
 from psiflow.hamiltonians import deserialize_calculator
 from psiflow.hamiltonians.utils import ForceMagnitudeException
 
-
-class SimpleSocketClient(SocketClient):
-    def __init__(
-        self,
-        host="localhost",
-        port=None,
-        unixsocket=None,
-        timeout=None,
-        log=None,
-        comm=None,
-    ):
-        if comm is None:
-            from ase.parallel import world
-
-            comm = world
-
-        self.comm = comm
-
-        if self.comm.rank == 0:
-            if unixsocket is not None:
-                sock = socket.socket(socket.AF_UNIX)
-                sock.connect(unixsocket)
-            else:
-                raise NotImplementedError
-            sock.settimeout(timeout)
-            self.host = host
-            self.port = port
-            self.unixsocket = unixsocket
-
-            self.protocol = IPIProtocol(sock, txt=log)
-            self.log = self.protocol.log
-            self.closed = False
-
-            self.bead_index = 0
-            self.bead_initbytes = b""
-            self.state = "READY"
+# from ipi._driver.driver import run_driver
+# from ipi._driver.pes.ase import ASEDriver
 
 
 if __name__ == "__main__":
@@ -82,17 +45,24 @@ if __name__ == "__main__":
     assert args.address is not None
     assert args.start is not None
 
-    atoms = read(args.start)
-    atoms.calc = deserialize_calculator(
+    from ipi._driver.driver import run_driver
+    from ipi._driver.pes.ase import ASEDriver
+
+    # assert not args.start, args.start
+    driver = ASEDriver(args=args.start)
+    driver.ase_calculator = deserialize_calculator(
         args.path_hamiltonian,
         device=args.device,
         dtype=args.dtype,
         max_force=args.max_force,
     )
 
-    # address = Path.cwd().name[4:] + "/" + args.address.strip()
-    client = SimpleSocketClient(unixsocket=args.address)
     try:
-        client.run(atoms, use_stress=sum(atoms.pbc))
+        run_driver(
+            unix=True,
+            address=str(Path.cwd() / args.address),
+            driver=driver,
+            sockets_prefix="",
+        )
     except ForceMagnitudeException as e:
         print(e)

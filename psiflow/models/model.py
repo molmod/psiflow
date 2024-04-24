@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class Model:
     config: Optional[Any]
     model_future: Optional[psiflow._DataFuture]
