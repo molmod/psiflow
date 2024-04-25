@@ -319,6 +319,7 @@ def test_reset(dataset):
     assert simulation_output.status.result() == 2
     assert walker.is_reset().result()
     assert not check_equality(walker.state, simulation_output.state).result()
+    assert simulation_output.trajectory.length().result() == 1
 
     # check timeout
     simulation_output = sample(

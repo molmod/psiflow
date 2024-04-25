@@ -423,5 +423,9 @@ def test_data_extract(dataset):
     )
 
 
-def test_compute_error(dataset, dataset_h2):
-    dataset_h2[0].result()
+def test_filter(dataset, dataset_h2):
+    data = dataset + dataset_h2 + Dataset([NullState])
+    data = data.shuffle()
+    assert data.filter("cell").length().result() == dataset.length().result()
+    assert data.filter("energy").length().result() == dataset.length().result()
+    assert data.filter("forces").length().result() == dataset.length().result()

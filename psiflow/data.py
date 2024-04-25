@@ -1,11 +1,13 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import shutil
 from pathlib import Path
 from typing import Optional, Union
 
 import numpy as np
 import typeguard
 from ase.data import atomic_numbers, chemical_symbols
+from ase.geometry.geometry import find_mic
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
@@ -13,6 +15,19 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry, NullState
 from psiflow.utils import copy_data_future, resolve_and_check, unpack_i
+
+QUANTITIES = [
+    "positions",
+    "cell",
+    "numbers",
+    "energy",
+    "forces",
+    "stress",
+    "delta",
+    "logprob",
+    "phase",
+    "identifier",
+]
 
 
 @psiflow.serializable
@@ -37,10 +52,12 @@ class Dataset:
     def length(self) -> AppFuture:
         return count_frames(inputs=[self.extxyz])
 
-    def shuffle(self):  # blocking
-        indices = np.arange(self.length().result())
-        np.random.shuffle(indices)
-        return self.__getitem__([int(i) for i in indices])
+    def shuffle(self):
+        extxyz = shuffle(
+            inputs=[self.extxyz],
+            outputs=[psiflow.context().new_file("data_", ".xyz")],
+        ).outputs[0]
+        return Dataset(None, extxyz)
 
     def __getitem__(
         self,
@@ -121,6 +138,7 @@ class Dataset:
         atom_indices: Optional[list[int]] = None,
         elements: Optional[list[str]] = None,
     ):
+        assert all([q in QUANTITIES for q in quantities])
         result = extract_quantities(
             quantities,
             atom_indices,
@@ -131,6 +149,18 @@ class Dataset:
             return unpack_i(result, 0)
         else:
             return tuple([unpack_i(result, i) for i in range(len(quantities))])
+
+    def filter(
+        self,
+        quantity: str,
+    ) -> Dataset:
+        assert quantity in QUANTITIES
+        extxyz = app_filter(
+            quantity,
+            inputs=[self.extxyz],
+            outputs=[psiflow.context().new_file("data_", ".xyz")],
+        ).outputs[0]
+        return Dataset(None, extxyz)
 
     def not_null(self) -> Dataset:
         extxyz = not_null(
@@ -146,10 +176,11 @@ class Dataset:
         ).outputs[0]
         return Dataset(None, extxyz)
 
-    def split(self, fraction):  # auto-shuffles
+    def split(self, fraction, shuffle=True):  # auto-shuffles
         train, valid = get_train_valid_indices(
             self.length(),
             fraction,
+            shuffle,
         )
         return self.__getitem__(train), self.__getitem__(valid)
 
@@ -253,19 +284,6 @@ def _extract_quantities(
     data: Optional[list[Geometry]] = None,
     inputs: list = [],
 ) -> tuple[np.ndarray, ...]:
-    QUANTITIES = [
-        "positions",
-        "cell",
-        "numbers",
-        "energy",
-        "forces",
-        "stress",
-        "delta",
-        "logprob",
-        "phase",
-        "identifier",
-    ]
-    assert all([q in QUANTITIES for q in quantities])
     if data is None:
         assert len(inputs) == 1
         data = _read_frames(inputs=inputs)
@@ -351,11 +369,6 @@ extract_quantities = python_app(_extract_quantities, executors=["default_threads
 
 @typeguard.typechecked
 def _check_distances(state: Geometry, threshold: float) -> Geometry:
-    import numpy as np
-    from ase.geometry.geometry import find_mic
-
-    from psiflow.data import NullState
-
     if state == NullState:
         return NullState
     nrows = int(len(state) * (len(state) - 1) / 2)
@@ -378,12 +391,17 @@ def _check_distances(state: Geometry, threshold: float) -> Geometry:
 check_distances = python_app(_check_distances, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _assign_identifier(state: Geometry, identifier: int):
-    if not state == NullState:
+def _assign_identifier(
+    state: Geometry,
+    identifier: int,
+    discard: bool = False,
+) -> tuple[Geometry, int]:
+    if (state == NullState) or discard:
+        return state, identifier
+    else:
+        assert state.identifier is None
         state.identifier = identifier
-        identifier += 1
-    return state, identifier
+        return state, identifier + 1
 
 
 assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
@@ -425,8 +443,6 @@ def _join_frames(
     inputs: list = [],
     outputs: list = [],
 ):
-    import shutil
-
     assert len(outputs) == 1
 
     with open(outputs[0], "wb") as destination:
@@ -485,11 +501,6 @@ def _apply_offset(
     outputs: list = [],
     **atomic_energies: float,
 ) -> None:
-    import numpy as np
-
-    from psiflow.data import _read_frames, _write_frames
-    from psiflow.geometry import NullState
-
     assert len(inputs) == 1
     assert len(outputs) == 1
     data = _read_frames(inputs=[inputs[0]])
@@ -521,8 +532,6 @@ apply_offset = python_app(_apply_offset, executors=["default_threads"])
 
 @typeguard.typechecked
 def _get_elements(inputs: list = []) -> set[str]:
-    from psiflow.data import _read_frames
-
     data = _read_frames(inputs=[inputs[0]])
     return set([chemical_symbols[n] for g in data for n in g.per_atom.numbers])
 
@@ -532,8 +541,6 @@ get_elements = python_app(_get_elements, executors=["default_threads"])
 
 @typeguard.typechecked
 def _align_axes(inputs: list = [], outputs: list = []) -> None:
-    from psiflow.data import _read_frames, _write_frames
-
     data = _read_frames(inputs=[inputs[0]])
     for geometry in data:
         geometry.align_axes()
@@ -545,9 +552,6 @@ align_axes = python_app(_align_axes, executors=["default_threads"])
 
 @typeguard.typechecked
 def _not_null(inputs: list = [], outputs: list = []) -> None:
-    from psiflow.data import _read_frames, _write_frames
-    from psiflow.geometry import NullState
-
     data = _read_frames(inputs=[inputs[0]])
     i = 0
     while i < len(data):
@@ -562,18 +566,72 @@ not_null = python_app(_not_null, executors=["default_threads"])
 
 
 @typeguard.typechecked
+def _app_filter(
+    quantity: str,
+    inputs: list = [],
+    outputs: list = [],
+) -> None:
+    data = _read_frames(inputs=[inputs[0]])
+    i = 0
+    while i < len(data):
+        if quantity == "forces":
+            if np.all(np.invert(np.isnan(data[i].per_atom.forces))):
+                retain = True
+            else:
+                retain = False
+        elif quantity == "cell":
+            if not np.allclose(data[i].cell, 0.0):
+                retain = True
+            else:
+                retain = False
+        elif hasattr(data[i], quantity) and getattr(data[i], quantity) is not None:
+            retain = True
+        else:
+            retain = False
+
+        # pop if necessary:
+        if retain:
+            i += 1
+        else:
+            data.pop(i)
+
+    _write_frames(*data, outputs=[outputs[0]])
+
+
+app_filter = python_app(
+    _app_filter, executors=["default_threads"]
+)  # filter is protected
+
+
+@typeguard.typechecked
+def _shuffle(
+    inputs: list = [],
+    outputs: list = [],
+) -> None:
+    data = _read_frames(inputs=[inputs[0]])
+    indices = np.arange(len(data))
+    np.random.shuffle(indices)
+
+    shuffled = [data[int(i)] for i in indices]
+    _write_frames(*shuffled, outputs=[outputs[0]])
+
+
+shuffle = python_app(_shuffle, executors=["default_threads"])
+
+
+@typeguard.typechecked
 def _train_valid_indices(
     effective_nstates: int,
     train_valid_split: float,
+    shuffle: bool,
 ) -> tuple[list[int], list[int]]:
-    import numpy as np
-
     ntrain = int(np.floor(effective_nstates * train_valid_split))
     nvalid = effective_nstates - ntrain
     assert ntrain > 0
     assert nvalid > 0
     order = np.arange(ntrain + nvalid, dtype=int)
-    np.random.shuffle(order)
+    if shuffle:
+        np.random.shuffle(order)
     train_list = list(order[:ntrain])
     valid_list = list(order[ntrain : (ntrain + nvalid)])
     return [int(i) for i in train_list], [int(i) for i in valid_list]
@@ -586,8 +644,9 @@ train_valid_indices = python_app(_train_valid_indices, executors=["default_threa
 def get_train_valid_indices(
     effective_nstates: AppFuture,
     train_valid_split: float,
+    shuffle: bool,
 ) -> tuple[AppFuture, AppFuture]:
-    future = train_valid_indices(effective_nstates, train_valid_split)
+    future = train_valid_indices(effective_nstates, train_valid_split, shuffle)
     return unpack_i(future, 0), unpack_i(future, 1)
 
 

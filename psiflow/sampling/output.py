@@ -22,11 +22,13 @@ DEFAULT_OBSERVABLES = [
 ]
 
 
+@typeguard.typechecked
 def potential_component_names(n: int):
     str_format = "pot_component_raw({})"
     return [str_format.format(i) + "{electronvolt}" for i in range(n)]
 
 
+@typeguard.typechecked
 def read_output(filename):  # from i-PI
     # Regex pattern to match header lines and capture relevant parts
     header_pattern = re.compile(
@@ -171,6 +173,7 @@ def _update_walker(
 update_walker = python_app(_update_walker, executors=["default_threads"])
 
 
+@typeguard.typechecked
 @psiflow.serializable
 class SimulationOutput:
     """Gathers simulation output
