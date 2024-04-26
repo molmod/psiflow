@@ -138,7 +138,6 @@ class Dataset:
         atom_indices: Optional[list[int]] = None,
         elements: Optional[list[str]] = None,
     ):
-        assert all([q in QUANTITIES for q in quantities])
         result = extract_quantities(
             quantities,
             atom_indices,
@@ -289,13 +288,18 @@ def _extract_quantities(
         data = _read_frames(inputs=inputs)
     else:
         assert len(inputs) == 0
+    order_names = list(set([k for g in data for k in g.order]))
+    assert all([q in QUANTITIES + order_names for q in quantities])
     natoms = np.array([len(geometry) for geometry in data], dtype=int)
     max_natoms = np.max(natoms)
     nframes = len(data)
     nprob = 0
+    max_phase = 0
     for state in data:
         if state.logprob is not None:
             nprob = max(len(state.logprob), nprob)
+        if state.phase is not None:
+            max_phase = max(len(state.phase), max_phase)
     arrays = []
     for quantity in quantities:
         if quantity in ["positions", "forces"]:
@@ -305,20 +309,23 @@ def _extract_quantities(
             array = np.empty((nframes, 3, 3), dtype=np.float32)
             array[:] = np.nan
         elif quantity in ["numbers"]:
-            array = np.empty((nframes, max_natoms, 1), dtype=np.uint8)
+            array = np.empty((nframes, max_natoms), dtype=np.uint8)
             array[:] = 0
         elif quantity in ["energy", "delta", "per_atom_energy"]:
             array = np.empty((nframes,), dtype=np.float32)
             array[:] = np.nan
         elif quantity in ["phase"]:
-            array = np.empty((nframes,), dtype=str)
+            array = np.empty((nframes,), dtype=(np.unicode_, max_phase))
             array[:] = ""
         elif quantity in ["logprob"]:
-            array = np.empty((nframes, nprob, 1), dtype=np.float32)
+            array = np.empty((nframes, nprob), dtype=np.float32)
             array[:] = np.nan
         elif quantity in ["identifier"]:
             array = np.empty((nframes,), dtype=np.int32)
             array[:] = -1
+        elif quantity in order_names:
+            array = np.empty((nframes,), dtype=np.float32)
+            array[:] = np.nan
         else:
             raise AssertionError("missing quantity in if/else")
         arrays.append(array)
@@ -342,7 +349,7 @@ def _extract_quantities(
                 if geometry.stress is not None:
                     arrays[j][i, :, :] = geometry.stress
             elif quantity == "numbers":
-                arrays[j][i, :, :] = geometry.numbers
+                arrays[j][i, :] = geometry.numbers
             elif quantity == "energy":
                 if geometry.energy is not None:
                     arrays[j][i] = geometry.energy
@@ -357,10 +364,13 @@ def _extract_quantities(
                     arrays[j][i] = geometry.phase
             elif quantity == "logprob":
                 if geometry.logprob is not None:
-                    arrays[j][i, :, :] = geometry.logprob
+                    arrays[j][i, :] = geometry.logprob
             elif quantity == "identifier":
                 if geometry.identifier is not None:
                     arrays[j][i] = geometry.identifier
+            elif quantity in order_names:
+                if quantity in geometry.order:
+                    arrays[j][i] = geometry.order[quantity]
     return tuple(arrays)
 
 

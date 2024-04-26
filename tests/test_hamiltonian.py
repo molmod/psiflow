@@ -9,6 +9,7 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset
+from psiflow.geometry import NullState
 from psiflow.hamiltonians import (
     EinsteinCrystal,
     Harmonic,
@@ -62,6 +63,11 @@ def test_einstein(context, dataset, dataset_h2):
     for i in range(1, 10):
         assert evaluated[i].result().energy > 0.0
         assert not np.allclose(evaluated[i].result().stress, 0.0)
+
+    # test evaluation with NullState in data
+    data = hamiltonian.evaluate(dataset[:5] + Dataset([NullState]) + dataset[5:10])
+    energies = data.get("energy").result()
+    assert np.isnan(energies[5])
 
     # test nonperiodic evaluation
     einstein = EinsteinCrystal(dataset_h2[3], force_constant=0.1)

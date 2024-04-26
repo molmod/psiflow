@@ -140,11 +140,16 @@ class Harmonic(Hamiltonian):
         hessian: np.ndarray,
         reference_geometry: Geometry,
     ) -> tuple[list[HarmonicCalculator], np.ndarray]:
+        from psiflow.geometry import NullState
         from psiflow.hamiltonians._harmonic import HarmonicCalculator
 
-        assert sum([len(g) == len(reference_geometry) for g in data])
+        natoms = len(reference_geometry)
         numbers = reference_geometry.per_atom.numbers
-        assert sum([np.all(g.per_atom.numbers == numbers) for g in data])
+        for g in data:
+            if g == NullState:
+                continue
+            assert len(g) == natoms
+            assert np.all(g.per_atom.numbers == numbers)
 
         harmonic = HarmonicCalculator(
             reference_geometry.per_atom.positions,

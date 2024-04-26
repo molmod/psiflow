@@ -10,7 +10,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry
+from psiflow.geometry import Geometry, NullState
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian
 from psiflow.sampling.walker import Walker
 from psiflow.utils import unpack_i
@@ -174,6 +174,20 @@ update_walker = python_app(_update_walker, executors=["default_threads"])
 
 
 @typeguard.typechecked
+def _get_state(
+    geometry: Geometry,
+    status: int,
+) -> Geometry:
+    if status in [0, 1]:
+        return geometry
+    else:
+        return NullState
+
+
+get_state = python_app(_get_state, executors=["default_threads"])
+
+
+@typeguard.typechecked
 @psiflow.serializable
 class SimulationOutput:
     """Gathers simulation output
@@ -255,6 +269,9 @@ class SimulationOutput:
             coefficients,
             *values,
         )
+
+    def get_state(self):
+        return get_state(self.state, self.status)
 
     def save(self, path: Union[str, Path]):
         if type(path) is str:

@@ -96,11 +96,16 @@ class EinsteinCrystal(Hamiltonian):
     ) -> tuple[list[EinsteinCalculator], np.ndarray]:
         import numpy as np
 
+        from psiflow.geometry import NullState
         from psiflow.hamiltonians._einstein import EinsteinCalculator
 
-        assert sum([len(g) == len(reference_geometry) for g in data])
+        natoms = len(reference_geometry)
         numbers = reference_geometry.per_atom.numbers
-        assert sum([np.all(g.per_atom.numbers == numbers) for g in data])
+        for g in data:
+            if g == NullState:
+                continue
+            assert len(g) == natoms
+            assert np.all(g.per_atom.numbers == numbers)
 
         einstein = EinsteinCalculator(
             reference_geometry.per_atom.positions,

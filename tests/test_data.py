@@ -1,3 +1,4 @@
+import copy
 import os
 
 import numpy as np
@@ -85,6 +86,8 @@ def test_geometry(tmp_path):
         )
         assert data[i] == Geometry.from_atoms(fake_data[i])
     assert data[2].energy == 1.0
+    assert data[2].per_atom_energy == 1.0 / 7
+    assert data[3].per_atom_energy is None
     assert np.allclose(
         data[3].per_atom.forces,
         fake_data[3].arrays["forces"],
@@ -421,6 +424,32 @@ def test_data_extract(dataset):
         forces[mask],
         forces_[mask],
     )
+
+    # check order parameters
+    s = Geometry.from_string(
+        """
+3
+order_distance=2.3 energy=4
+O 0 0 0
+H 1 1 1
+H -1 1 1
+""",
+        None,
+    )
+    states = [copy.deepcopy(s) for i in range(5)]
+
+    states[1].order = {}
+    states[2].order = {"some": 4.2}
+    states[3].order["distance"] = 2.2
+    data = Dataset(states)
+    some, distance = data.get("some", "distance")
+    some = some.result()
+    distance = distance.result()
+    assert np.isnan(some[1])
+    assert np.allclose(some[2], 4.2)
+    assert np.allclose(distance[0], 2.3)
+    assert np.allclose(distance[3], 2.2)
+    assert np.isnan(distance[2])
 
 
 def test_filter(dataset, dataset_h2):

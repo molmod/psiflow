@@ -9,6 +9,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset, assign_identifier
 from psiflow.geometry import Geometry, NullState
+from psiflow.hamiltonians import Hamiltonian
 from psiflow.metrics import Metrics
 from psiflow.models import Model
 from psiflow.reference import Reference
@@ -25,8 +26,10 @@ def _compute_error(
     elif state0.energy is None or state1.energy is None:
         return np.nan, np.nan
     else:
-        e_rmse = np.abs(state0.energy - state1.energy)
-        f_rmse = np.sqrt(np.mean((state0.forces - state1.forces) ** 2))
+        e_rmse = np.abs(state0.per_atom_energy - state1.per_atom_energy)
+        f_rmse = np.sqrt(
+            np.mean((state0.per_atom.forces - state1.per_atom.forces) ** 2)
+        )
         return e_rmse, f_rmse
 
 
@@ -49,16 +52,16 @@ exceeds_error = python_app(_exceeds_error, executors=["default_threads"])
 
 def evaluate_outputs(
     outputs: list[SimulationOutput],
-    model: Model,
+    hamiltonian: Hamiltonian,
     reference: Reference,
     identifier: Union[AppFuture, int],
     error_thresholds_for_reset: tuple[float, float],
     error_thresholds_for_discard: tuple[float, float],
     metrics: Optional[Metrics] = None,
 ) -> Dataset:
-    states = [o.state for o in outputs]
+    states = [o.get_state() for o in outputs]  # take exit status into account
     eval_ref = [reference.evaluate(s) for s in states]
-    eval_mod = model.evaluate(Dataset(states))
+    eval_mod = hamiltonian.evaluate(Dataset(states))
     errors = [compute_error(s, eval_mod[i]) for i, s in enumerate(eval_ref)]
     processed_states = []
     resets = []
@@ -67,12 +70,25 @@ def evaluate_outputs(
         reset = exceeds_error(errors[i], error_thresholds_for_reset)
         resets.append(reset)
 
-        _ = assign_identifier(state, discard, identifier)
+        _ = assign_identifier(state, identifier, discard)
         assigned = unpack_i(_, 0)
         identifier = unpack_i(_, 1)
         processed_states.append(assigned)
 
-    data = Dataset(processed_states)
+    statuses = [o.status for o in outputs]
+    temperatures = [o.temperature for o in outputs]
+    times = [o.time for o in outputs]
+    metrics.parse_walker_logs(
+        statuses,
+        temperatures,
+        times,
+        errors,
+        eval_ref,
+        resets,
+        inputs=statuses + temperatures + errors + eval_ref + resets,  # make it wait
+    )
+
+    data = Dataset(processed_states).filter("energy")
     return identifier, data, resets
 
 

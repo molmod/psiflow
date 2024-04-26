@@ -49,12 +49,15 @@ def evaluate_function(
     from ase import Atoms
 
     from psiflow.data import _read_frames, _write_frames
+    from psiflow.geometry import NullState
 
     assert len(inputs) >= 1
     assert len(outputs) == 1
     states = _read_frames(inputs=[inputs[0]])
     calculators, index_mapping = load_calculators(states, inputs[1], **parameters)
     for i, state in enumerate(states):
+        if state == NullState:
+            continue
         calculator = calculators[index_mapping[i]]
         calculator.reset()
         atoms = Atoms(

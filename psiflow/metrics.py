@@ -3,167 +3,121 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import logging
 import os
 from pathlib import Path
-from typing import NamedTuple, Optional, Union
+from typing import Optional
 
 import numpy as np
 import typeguard
 import wandb
-from parsl.app.app import join_app, python_app
+from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Dataset, FlowAtoms, NullState
+from psiflow.geometry import Geometry
 from psiflow.models import Model
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
-def _trace_identifier(
-    identifier_traces: dict,
-    state: FlowAtoms,
-    iteration: Union[str, int],
-    walker_index: int,
-    nsteps: int,
-    is_reset: bool,
-    temperature: float,
-) -> dict:
-    if not state == NullState:  # same checks as sampling.py:assign_identifier
-        if state.reference_status:
-            identifier = state.info["identifier"]
-            assert identifier not in identifier_traces
-            identifier_traces[identifier] = (
-                iteration,
-                walker_index,
-                nsteps,
-                is_reset,
-                temperature,
-            )
-    return identifier_traces
-
-
-trace_identifier = python_app(_trace_identifier, executors=["default_threads"])
-
-
-@typeguard.typechecked
-def _save_walker_logs(data: dict[str, list], path: Path) -> str:
+def _create_table(data: np.recarray, outputs: list = []) -> str:
     from prettytable import PrettyTable
 
     pt = PrettyTable()
-    field_names = [
-        "walker_index",
-        "counter",
-        "is_discarded",
-        "is_reset",
-        "e_rsme",
-        "f_rmse",
-        "disagreement",
-        "temperature",
-        "identifier",
-    ]
-    for key in data:
-        if (key not in field_names) and not (key == "stdout"):
-            field_names.append(key)
-    field_names.append("stdout")
-    for key in field_names:
-        if key not in data:
-            continue
-        pt.add_column(key, data[key])
+    for name in data.dtype.names:
+        column = getattr(data, name)
+        pt.add_column(name, column)
     pt.align = "r"
     pt.float_format = "0.2"  # gets converted to %0.2f
     s = pt.get_formatted_string("text", sortby="walker_index")
-    with open(path, "w") as f:
-        f.write(s + "\n")
+    if len(outputs) > 0:
+        with open(outputs[0], "w") as f:
+            f.write(s + "\n")
     return s
 
 
-save_walker_logs = python_app(_save_walker_logs, executors=["default_threads"])
+create_table = python_app(_create_table, executors=["default_threads"])
 
 
 @typeguard.typechecked
-def _save_dataset_log(data: dict[str, list], path: Path) -> str:
-    from prettytable import PrettyTable
+def _parse_walker_logs(
+    statuses: list[int],
+    temperatures: list[float],
+    times: list[float],
+    errors: list[tuple[float, float]],
+    states: list[Geometry],
+    resets: list[bool],
+    inputs: list = [],
+) -> np.recarray:
+    from psiflow.data import _extract_quantities
 
-    pt = PrettyTable()
-    field_names = [
-        "identifier",
-        "e_rmse",
-        "f_rmse",
+    nwalkers = len(statuses)
+    assert nwalkers == len(temperatures)
+    assert nwalkers == len(times)
+    assert nwalkers == len(errors)
+    assert nwalkers == len(states)
+    assert nwalkers == len(resets)
+
+    dtypes = [
+        ("walker_index", np.int_),
+        ("status", np.int_),
+        ("temperature", np.single),
+        ("time", np.single),
+        ("e_rmse", np.single),
+        ("f_rmse", np.single),
+        ("reset", np.bool_),
     ]
-    for key in data:
-        if (key not in field_names) and not (key == "stdout"):
-            field_names.append(key)
-    field_names.append("stdout")
-    for key in field_names:
-        if key not in data:
-            continue
-        pt.add_column(key, data[key])
-    pt.align = "r"
-    pt.float_format = "0.2"  # gets converted to %0.2f
-    s = pt.get_formatted_string("text", sortby="identifier")
-    with open(path, "w") as f:
-        f.write(s + "\n")
-    return s
 
+    # check for additional columns : phase, logprob, delta, order parameters
+    identifiers, phases, logprobs, deltas = _extract_quantities(
+        ("identifier", "phase", "logprob", "delta"),
+        atom_indices=None,
+        elements=None,
+        data=states,
+    )
+    dtypes.append(("identifier", np.int_))
+    if not all([len(p) == 0 for p in phases]):
+        ncharacters = max([len(p) for p in phases])
+        dtypes.append(("phase", np.unicode_, ncharacters))
+    if not np.all(np.isnan(logprobs)):
+        dtypes.append(("logprob", np.float_, (logprobs.shape[1],)))  # max 64 characters
+    if not np.all(np.isnan(deltas)):
+        dtypes.append(("delta", np.float_))
 
-save_dataset_log = python_app(_save_dataset_log, executors=["default_threads"])
+    order_names = list(set([k for g in states for k in g.order]))
+    for name in order_names:
+        dtypes.append((name, np.float_))
+    order_parameters = _extract_quantities(
+        tuple(order_names),
+        atom_indices=None,
+        elements=None,
+        data=states,
+    )
 
+    names = [dtype[0] for dtype in dtypes]
 
-@typeguard.typechecked
-def _log_walker(
-    walker_index: int,
-    evaluated_state: FlowAtoms,
-    error: tuple[Optional[float], Optional[float]],
-    discard: bool,
-    condition: bool,
-    identifier: int,
-    disagreement: Optional[float] = None,
-    **metadata,
-) -> NamedTuple:
-    from pathlib import Path
-
-    data = {}
-    data["walker_index"] = walker_index
-    data["counter"] = metadata["counter"]
-    data["is_discarded"] = discard
-    data["is_reset"] = condition
-    data["e_rmse"] = error[0]
-    data["f_rmse"] = error[1]
-    data["disagreement"] = disagreement
-    data["temperature"] = metadata.get("temperature", None)
-
-    if not evaluated_state == NullState:
-        data["identifier"] = identifier - 1
-    else:
-        data["identifier"] = None
-
-    for name in metadata["state"].info:
-        if name.startswith("CV"):
-            data[name] = metadata["state"].info[name]
-
-    if "stdout" in metadata:
-        data["stdout"] = Path(metadata["stdout"]).stem
-    else:
-        data["stdout"] = None
+    data = np.recarray(nwalkers, dtype=np.dtype(dtypes))
+    for i in range(nwalkers):
+        data.walker_index[i] = i
+        data.status[i] = statuses[i]
+        data.temperature[i] = temperatures[i]
+        data.time[i] = times[i]
+        data.e_rmse[i] = errors[i][0] * 1000 / len(states[i])  # meV / atom
+        data.f_rmse[i] = errors[i][1] * 1000  # meV / angstrom
+        data.reset = resets[i]
+        if "identifier" in names:
+            data.identifier[i] = identifiers[i]
+        if "phase" in names:
+            data.phase[i] = phases[i]
+        if "logprob" in names:
+            data.logprob[i] = logprobs[i]
+        if "delta" in names:
+            data.delta[i] = deltas[i]
+        for j, name in enumerate(order_names):
+            getattr(data, name)[i] = order_parameters[j][i]
     return data
 
 
-log_walker = python_app(_log_walker, executors=["default_threads"])
-
-
-@typeguard.typechecked
-def _gather_walker_logs(*walker_data: dict) -> dict[str, list]:
-    data = {}
-    columns = list(set([v for wd in walker_data for v in wd.keys()]))
-    for key in columns:
-        values = []
-        for wd in walker_data:
-            values.append(wd.get(key, None))
-        data[key] = values
-    return data
-
-
-gather_walker_logs = python_app(_gather_walker_logs, executors=["default_threads"])
+parse_walker_logs = python_app(_parse_walker_logs, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -479,79 +433,3 @@ class Metrics:
     def insert_name(self, model: Model):
         model.config_raw["wandb_project"] = self.wandb_project
         model.config_raw["wandb_group"] = self.wandb_group
-
-    def log_walker(
-        self,
-        i,
-        walker,
-        metadata,
-        state,
-        error,
-        discard,
-        condition,
-        identifier,
-        disagreement=None,
-    ):
-        # log walker total counter value instead
-        # of counter from metadata
-        metadata_dict = metadata._asdict()
-        metadata_dict["counter"] = walker.counter
-        log = log_walker(
-            i,
-            state,
-            error,
-            discard,
-            condition,
-            identifier,
-            disagreement,
-            **metadata_dict,
-        )
-        self.walker_logs.append(log)
-        if hasattr(metadata, "temperature"):
-            temperature = metadata.temperature
-        else:
-            temperature = np.nan
-        self.identifier_traces = trace_identifier(
-            self.identifier_traces,
-            state,
-            self.iteration,
-            i,
-            walker.counter,
-            condition,
-            temperature,
-        )
-
-    def save(
-        self,
-        path: Union[str, Path],
-        model: Optional[Model] = None,
-        dataset: Optional[Dataset] = None,
-    ):
-        @join_app
-        def log_string(s: str) -> None:
-            logger.info("\n" + s + "\n")
-
-        path = Path(path)
-        if not path.exists():
-            path.mkdir()
-        walker_logs = None
-        dataset_log = None
-        if len(self.walker_logs) > 0:
-            walker_logs = gather_walker_logs(*self.walker_logs)
-            walker_logs_str = save_walker_logs(walker_logs, path / "walkers.log")
-            log_string(walker_logs_str)
-            self.walker_logs = []
-        if model is not None:
-            assert dataset is not None
-            inputs = [dataset.data_future, model.evaluate(dataset).data_future]
-            dataset_log = log_dataset(inputs=inputs)
-            save_dataset_log(dataset_log, path / "dataset.log")
-        if self.wandb_group is not None:
-            #  typically needs a result() from caller
-            return to_wandb(  # noqa: F841
-                self.wandb_id,
-                self.wandb_project,
-                walker_logs,
-                dataset_log,
-                self.identifier_traces,
-            )

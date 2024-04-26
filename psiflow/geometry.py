@@ -188,6 +188,13 @@ class Geometry:
     def periodic(self):
         return np.any(self.cell)
 
+    @property
+    def per_atom_energy(self):
+        if self.energy is None:
+            return None
+        else:
+            return self.energy / len(self)
+
     @classmethod
     def from_data(
         cls,
