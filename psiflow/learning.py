@@ -57,7 +57,7 @@ def evaluate_outputs(
     identifier: Union[AppFuture, int],
     error_thresholds_for_reset: tuple[float, float],
     error_thresholds_for_discard: tuple[float, float],
-    metrics: Optional[Metrics] = None,
+    metrics: Metrics,
 ) -> Dataset:
     states = [o.get_state() for o in outputs]  # take exit status into account
     eval_ref = [reference.evaluate(s) for s in states]
@@ -75,20 +75,13 @@ def evaluate_outputs(
         identifier = unpack_i(_, 1)
         processed_states.append(assigned)
 
-    statuses = [o.status for o in outputs]
-    temperatures = [o.temperature for o in outputs]
-    times = [o.time for o in outputs]
-    metrics.parse_walker_logs(
-        statuses,
-        temperatures,
-        times,
+    metrics.log_walkers(
+        outputs,
         errors,
         eval_ref,
         resets,
-        inputs=statuses + temperatures + errors + eval_ref + resets,  # make it wait
     )
-
-    data = Dataset(processed_states).filter("energy")
+    data = Dataset(processed_states).filter("identifier")
     return identifier, data, resets
 
 
@@ -103,8 +96,7 @@ class Learning:
     mix_training_validation: bool
     error_thresholds_for_reset: tuple[float, float]
     error_thresholds_for_discard: tuple[float, float]
-    wandb_group: Optional[str]
-    wandb_name: Optional[str]
+    metrics: Metrics
     iteration: int
 
     def __init__(
@@ -112,31 +104,33 @@ class Learning:
         model: Model,
         reference: Reference,
         path_output: Union[str, Path],
-        initial_data: Optional[Dataset] = None,
-        identifier: int = 0,
         train_valid_split: float = 0.9,
         mix_train_valid: bool = True,
         error_thresholds_for_reset: tuple[float, float] = (20, 300),
         error_thresholds_for_discard: tuple[float, float] = (30, 600),
+        wandb_project: Optional[str] = None,
         wandb_group: Optional[str] = None,
-        wandb_name: Optional[str] = None,
+        initial_data: Optional[Dataset] = None,
     ):
         self.model = model
         self.reference = reference
         self.path_output = Path(path_output)
         self.path_output.mkdir(exist_ok=False, parents=True)
-        if initial_data is None:
-            self.data = Dataset([])
-        else:
-            self.data = initial_data
-
-        self.identifier = identifier
         self.train_valid_split = train_valid_split
         self.mix_train_valid = mix_train_valid
         self.error_thresholds_for_reset = error_thresholds_for_reset
         self.error_thresholds_for_discard = error_thresholds_for_discard
-        self.wandb_group = wandb_group
-        self.wandb_name = wandb_name
+        self.metrics = Metrics(
+            wandb_project,
+            wandb_group,
+        )
+
+        if initial_data is None:
+            self.data = Dataset([])
+            self.identifier = 0
+        else:
+            self.data = initial_data
+            self.identifier = initial_data.assign_identifiers()
 
         self.iteration = 0
 

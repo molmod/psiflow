@@ -1,15 +1,54 @@
 import numpy as np
+from parsl.data_provider.files import File
 
+from psiflow.data import Dataset
 from psiflow.geometry import new_nullstate
 from psiflow.hamiltonians import EinsteinCrystal
 from psiflow.learning import evaluate_outputs
-from psiflow.metrics import _create_table, parse_walker_logs
+from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
 from psiflow.reference import EMT
 from psiflow.sampling import SimulationOutput
-from psiflow.utils import combine_futures
+from psiflow.utils import _load_metrics, _save_metrics, combine_futures, load_metrics
 
 
-def test_parse_walker_logs(dataset_h2):
+def test_load_save_metrics(tmp_path):
+    dtypes = [
+        ("a", np.float_, (2,)),
+        ("b", np.bool_),
+        ("c", np.int_),
+        ("d", np.unicode_, 4),
+    ]
+    dtype = np.dtype(dtypes)
+    data = np.recarray(2, dtype=np.dtype(dtypes))
+    data.d[0] = "asdf"
+    data.d[1] = "f"
+    data.b[0] = True
+    data.a[0, :] = np.array([0.2, 0.3])
+    data.a[1, :] = np.array([0.0, 0.0])
+    data.c[0] = 1002
+
+    reconstructed = reconstruct_dtypes(dtype)
+    for a, b in zip(dtypes, reconstructed):
+        assert a == b
+
+    path = tmp_path / "test.numpy"
+    _save_metrics(
+        data,
+        outputs=[File(str(path))],
+    )
+    assert path.exists()
+    data = _load_metrics(inputs=[File(str(path))])
+    assert data.d[0] == "asdf"
+    assert data.d[1] == "f"
+    assert data.b[0]
+    assert not data.b[1]
+    assert np.allclose(data.a[0], np.array([0.2, 0.3]))
+    assert np.allclose(data.a[1], 0.0)
+    assert data.c[0] == 1002
+    assert data.dtype.names == ("a", "b", "c", "d")
+
+
+def test_metrics(dataset_h2):
     data = dataset_h2[:10]
     data.assign_identifiers(8)
     states = [data[i] for i in range(data.length().result())]
@@ -30,7 +69,7 @@ def test_parse_walker_logs(dataset_h2):
     resets = [False] * 10
     resets[7] = True
 
-    data = parse_walker_logs(
+    data = parse_walker_log(
         combine_futures(inputs=statuses),
         combine_futures(inputs=temperatures),
         combine_futures(inputs=times),
@@ -51,7 +90,38 @@ def test_parse_walker_logs(dataset_h2):
 
     s = _create_table(data)
     assert "asldfkjasldfkjsadflkj" in s
-    print(s)
+
+    # convert to outputs
+    outputs = []
+    for i in range(10):
+        output = SimulationOutput([])
+        output.status = statuses[i]
+        output.temperature = temperatures[i]
+        output.state = states[i]
+        output.time = times[i]
+        outputs.append(output)
+
+    metrics = Metrics()
+
+    metrics.log_walkers(
+        outputs,
+        errors,
+        states,
+        resets,
+    )
+    data = load_metrics(inputs=[metrics.metrics]).result()
+    assert np.allclose(data.identifier, np.sort(data.identifier))
+    assert len(data) == 10 - 2  # 2 states either NullState or with None / -1 identifier
+    assert np.all(np.isnan(data.e_rmse[:, 1]))
+
+    einstein = EinsteinCrystal(dataset_h2[3], force_constant=1)
+    labeled = einstein.evaluate(Dataset(states)).filter("identifier")
+    einstein = EinsteinCrystal(dataset_h2[4], force_constant=1)  # different
+    metrics.update(labeled, einstein)
+    data_ = load_metrics(inputs=[metrics.metrics]).result()
+    e_rmse = data_.e_rmse
+    assert np.allclose(data.e_rmse[data.identifier != -1][:, 0], e_rmse[:, 1])
+    assert np.all(~np.isnan(e_rmse[:, 0]))
 
 
 def test_evaluate_outputs(dataset):
@@ -73,6 +143,7 @@ def test_evaluate_outputs(dataset):
         identifier=identifier,
         error_thresholds_for_reset=(1e6, 1e6),
         error_thresholds_for_discard=(1e6, 1e6),
+        metrics=Metrics(),
     )
     assert identifier.result() == 3 + len(outputs) - 2
     assert data.length().result() == len(outputs) - 2
@@ -89,5 +160,6 @@ def test_evaluate_outputs(dataset):
         identifier=identifier,
         error_thresholds_for_reset=(0, 0),
         error_thresholds_for_discard=(0, 0),
+        metrics=Metrics(),
     )
     assert all([r.result() for r in resets])

@@ -295,7 +295,6 @@ def test_dataset_gather(dataset):
 def test_data_elements(dataset):
     assert "H" in dataset.elements().result()
     assert "Cu" in dataset.elements().result()
-    print(dataset.elements().result())
     assert len(dataset.elements().result()) == 2
 
 
@@ -396,11 +395,11 @@ def test_data_extract(dataset):
     assert np.isnan(np.mean(forces))
     psiflow.wait()
 
-    data = dataset[:5]
+    data = dataset[:2] + Dataset([NullState]) + dataset[3:5]
     forces = data.get("forces", elements=["Cu"])
     reference = np.zeros((5, 4, 3))
-    reference[:, 0, :] = np.nan
-    assert np.any(np.isnan(forces.result()))  # at H forces
+    reference[2, :] = np.nan  # ensure nan is in same place
+    reference[:, 0] = np.nan  # ensure nan is in same place
     value = compute_rmse(forces, reference)
 
     # last three atoms are Cu
@@ -412,12 +411,25 @@ def test_data_extract(dataset):
         value.result(),
         compute_rmse(forces, forces * np.zeros_like(forces)).result(),
     )
+    unreduced = compute_rmse(
+        forces, forces * np.zeros_like(forces), reduce=False
+    ).result()
+    assert len(unreduced) == 5
+    unreduced_ = unreduced[np.array([0, 1, 3, 4], dtype=int)]
+    assert np.allclose(
+        np.sqrt(np.mean(np.square(unreduced_))),
+        value.result(),
+    )
 
     # try weirdly specific indices
     forces = np.zeros((5, 4, 3))
     for i in range(5):
-        forces[i, 3] = data[i].result().per_atom.forces[3]
-        forces[i, 1] = data[i].result().per_atom.forces[1]
+        g = data[i].result()
+        if len(g) >= 4:
+            forces[i, 3] = data[i].result().per_atom.forces[3]
+            forces[i, 1] = data[i].result().per_atom.forces[1]
+        else:
+            forces[i, :] = np.nan
     forces_ = data.get("forces", atom_indices=[3, 1]).result()
     mask = np.invert(np.isnan(forces_))
     assert np.allclose(

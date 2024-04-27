@@ -21,6 +21,7 @@ QUANTITIES = [
     "cell",
     "numbers",
     "energy",
+    "per_atom_energy",
     "forces",
     "stress",
     "delta",
@@ -358,7 +359,7 @@ def _extract_quantities(
                     arrays[j][i] = geometry.delta
             elif quantity == "per_atom_energy":
                 if geometry.energy is not None:
-                    arrays[j][i] = geometry.energy / natoms[i]
+                    arrays[j][i] = geometry.per_atom_energy
             elif quantity == "phase":
                 if geometry.phase is not None:
                     arrays[j][i] = geometry.phase
@@ -676,28 +677,47 @@ def get_index_element_mask(
             mask_elements = np.logical_or(mask_elements, (numbers == number))
         mask = np.logical_and(mask, mask_elements)
 
-    if atom_indices is not None:
-        mask_indices = np.array([False] * len(numbers))
-        mask_indices[np.array(atom_indices)] = True
-        mask = np.logical_and(mask, mask_indices)
-
     if natoms_padded is not None:
         assert natoms_padded >= len(numbers)
         padding = natoms_padded - len(numbers)
         mask = np.concatenate((mask, np.array([False] * padding)), axis=0).astype(bool)
+
+    if atom_indices is not None:  # below padding
+        mask_indices = np.array([False] * len(mask))
+        mask_indices[np.array(atom_indices)] = True
+        mask = np.logical_and(mask, mask_indices)
+
     return mask
 
 
 @typeguard.typechecked
 def _compute_rmse(
-    array0,
-    array1,
-) -> float:
+    array0: np.ndarray,
+    array1: np.ndarray,
+    reduce: bool = True,
+) -> Union[float, np.ndarray]:
     assert array0.shape == array1.shape
-    mask0 = np.logical_not(np.isnan(array0))
-    mask1 = np.logical_not(np.isnan(array1))
-    assert np.all(mask0 == mask1)
-    return np.sqrt(np.mean((array0[mask0] - array1[mask1]) ** 2))
+    assert np.all(np.isnan(array0) == np.isnan(array1))
+
+    se = (array0 - array1) ** 2
+    se = se.reshape(se.shape[0], -1)
+
+    if reduce:  # across both dimensions
+        mask = np.logical_not(np.isnan(se))
+        return np.sqrt(np.mean(se[mask]))
+    else:  # retain first dimension
+        if se.ndim == 1:
+            return se
+        else:
+            values = np.empty(len(se))
+            for i in range(len(se)):
+                if np.all(np.isnan(se[i])):
+                    values[i] = np.nan
+                else:
+                    mask = np.logical_not(np.isnan(se[i]))
+                    value = np.sqrt(np.mean(se[i][mask]))
+                    values[i] = value
+            return values
 
 
 compute_rmse = python_app(_compute_rmse, executors=["default_threads"])
@@ -707,12 +727,20 @@ compute_rmse = python_app(_compute_rmse, executors=["default_threads"])
 def _compute_mae(
     array0,
     array1,
-) -> float:
+    reduce: bool = True,
+) -> Union[float, np.ndarray]:
     assert array0.shape == array1.shape
     mask0 = np.logical_not(np.isnan(array0))
     mask1 = np.logical_not(np.isnan(array1))
     assert np.all(mask0 == mask1)
-    return np.mean(np.abs(array0[mask0] - array1[mask1]))
+    ae = np.abs(array0 - array1)
+    to_reduce = tuple(range(1, array0.ndim))
+    mask = np.logical_not(np.all(np.isnan(ae), axis=to_reduce))
+    ae = ae[mask0].reshape(np.sum(1 * mask), -1)
+    if reduce:  # across both dimensions
+        return np.sqrt(np.mean(ae))
+    else:  # retain first dimension
+        return np.sqrt(np.mean(ae, axis=1))
 
 
 compute_mae = python_app(_compute_mae, executors=["default_threads"])

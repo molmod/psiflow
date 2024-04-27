@@ -2,18 +2,21 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
 import os
-from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import typeguard
 import wandb
 from parsl.app.app import python_app
-from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
+from psiflow.data import Dataset
 from psiflow.geometry import Geometry
+from psiflow.hamiltonians import Hamiltonian
 from psiflow.models import Model
+from psiflow.sampling import SimulationOutput
+from psiflow.utils import combine_futures
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -39,7 +42,7 @@ create_table = python_app(_create_table, executors=["default_threads"])
 
 
 @typeguard.typechecked
-def _parse_walker_logs(
+def _parse_walker_log(
     statuses: list[int],
     temperatures: list[float],
     times: list[float],
@@ -65,6 +68,7 @@ def _parse_walker_logs(
         ("e_rmse", np.single),
         ("f_rmse", np.single),
         ("reset", np.bool_),
+        ("identifier", np.int_),  # useful, but also needed for proper dataset logging
     ]
 
     # check for additional columns : phase, logprob, delta, order parameters
@@ -74,7 +78,6 @@ def _parse_walker_logs(
         elements=None,
         data=states,
     )
-    dtypes.append(("identifier", np.int_))
     if not all([len(p) == 0 for p in phases]):
         ncharacters = max([len(p) for p in phases])
         dtypes.append(("phase", np.unicode_, ncharacters))
@@ -117,93 +120,7 @@ def _parse_walker_logs(
     return data
 
 
-parse_walker_logs = python_app(_parse_walker_logs, executors=["default_threads"])
-
-
-@typeguard.typechecked
-def _log_dataset(inputs: list[File] = []) -> dict[str, list]:
-    import numpy as np
-    from ase.data import chemical_symbols
-
-    from psiflow.data import read_dataset
-    from psiflow.utils import compute_error, get_index_element_mask
-
-    dataset0 = read_dataset(slice(None), inputs=[inputs[0]])
-    dataset1 = read_dataset(slice(None), inputs=[inputs[1]])
-    assert len(dataset0) == len(dataset1)
-
-    data = {}
-
-    # define x axis
-    x_axis = ["identifier"]
-    for atoms in dataset0:
-        assert "identifier" in atoms.info
-        for key in atoms.info:
-            if key.startswith("CV"):
-                x_axis.append(key)
-    x_axis = list(set(x_axis))
-    for key in x_axis:
-        if key not in data:
-            data[key] = []
-        for atoms in dataset0:
-            data[key].append(atoms.info.get(key, None))
-
-    # define y axis
-    _all = [set(a.numbers) for a in dataset0]
-    numbers = sorted(list(set(b for a in _all for b in a)))
-    symbols = [chemical_symbols[n] for n in numbers]
-    y_axis = ["e_rmse", "f_rmse"]
-    y_axis += ["f_rmse_{}".format(s) for s in symbols]
-
-    # define data array and fill
-    for key in y_axis:
-        data[key] = []
-    data["stdout"] = []
-    for atoms0, atoms1 in zip(dataset0, dataset1):
-        stdout = atoms0.info.get("reference_stdout", False)
-        if stdout:
-            stdout = Path(stdout).stem
-        else:
-            stdout = "NA"
-        data["stdout"].append(stdout)
-        data["e_rmse"].append(
-            compute_error(
-                atoms0,
-                atoms1,
-                "rmse",
-                mask=np.array([True] * len(atoms0)),
-                properties=["energy"],
-            )[0]
-        )
-        data["f_rmse"].append(
-            compute_error(
-                atoms0,
-                atoms1,
-                "rmse",
-                mask=np.array([True] * len(atoms0)),
-                properties=["forces"],
-            )[0]
-        )
-        for symbol in symbols:
-            mask = get_index_element_mask(
-                atoms0.numbers,
-                elements=[symbol],
-                atom_indices=None,
-            )
-            data["f_rmse_{}".format(symbol)].append(
-                compute_error(
-                    atoms0,
-                    atoms1,
-                    "rmse",
-                    mask=mask,
-                    properties=["forces"],
-                )[0]
-            )
-    assert len(list(data.keys())) == len(x_axis) + len(y_axis) + 1
-    return data
-
-
-log_dataset = python_app(_log_dataset, executors=["default_threads"])
+parse_walker_log = python_app(_parse_walker_log, executors=["default_threads"])
 
 
 def fix_plotly_layout(figure):
@@ -245,159 +162,268 @@ symbols are colored based on average temperature
     )
 
 
-@typeguard.typechecked
-def _to_wandb(
-    wandb_id: str,
-    wandb_project: str,
-    walker_logs: Optional[dict],
-    dataset_log: Optional[dict],
-    identifier_traces: Optional[dict],
-):
-    import os
-    import tempfile
+# @typeguard.typechecked
+# def _to_wandb(
+#     wandb_id: str,
+#     wandb_project: str,
+#     inputs: list = [],
+# ):
+#     import os
+#     import tempfile
+#
+#     import colorcet as cc
+#     import matplotlib.colors as mcolors
+#     import numpy as np
+#     import pandas as pd
+#     import plotly.express as px
+#     import wandb
+#
+#     figures = {}
+#     if walker_logs is not None:
+#         y = np.array(walker_logs["f_rmse"])
+#         for key in walker_logs:
+#             if key == "walker_index":
+#                 name = "index"
+#                 tickformat = ".0f"
+#             elif key.startswith("CV"):
+#                 name = key
+#                 tickformat = ".2f"
+#             else:
+#                 name = None
+#                 tickformat = None
+#             if name is not None:
+#                 x = np.array(walker_logs[key])
+#                 figure = px.scatter(x=x, y=y)
+#                 figure.update_xaxes(type="linear", tickformat=tickformat)
+#                 title = "walkers_f_rmse_" + name
+#                 fix_plotly_layout(figure)
+#                 figure.update_layout(yaxis_title="forces RMSE [meV/A]")
+#                 figures[title] = figure
+#
+#     # convert dataset_log to pandas dataframe and add identifier tracing
+#     customdata = []
+#     identifiers = dataset_log["identifier"]
+#     for index in identifiers:
+#         customdata.append(identifier_traces.get(index, (np.nan,) * 5))
+#     customdata = np.array(customdata, dtype=np.float32)
+#     dataset_log["iteration"] = customdata[:, 0]
+#     dataset_log["walker_index"] = customdata[:, 1]
+#     dataset_log["nsteps"] = customdata[:, 2]
+#     dataset_log["marker_symbol"] = 1 * customdata[:, 3]
+#     dataset_log["temperature"] = customdata[:, 4]
+#     df = pd.DataFrame.from_dict(dataset_log)
+#
+#     df_na = df[df["temperature"].isna()]
+#     df_not_na = df[df["temperature"].notna()]
+#
+#     # sort to get markers right!
+#     df_not_na = df_not_na.sort_values(by="marker_symbol")
+#     df_na = df_na.sort_values(by="marker_symbol")
+#
+#     cmap = cc.cm.CET_I1
+#     colors = [mcolors.to_hex(cmap(i)) for i in np.linspace(0, 1, cmap.N)]
+#
+#     if dataset_log is not None:
+#         for x_axis in dataset_log:
+#             if x_axis.startswith("CV") or (x_axis == "identifier"):
+#                 for y_axis in dataset_log:
+#                     if (y_axis == "e_rmse") or y_axis.startswith("f_rmse"):
+#                         figure_ = px.scatter(
+#                             data_frame=df_na,
+#                             x=x_axis,
+#                             y=y_axis,
+#                             custom_data=[
+#                                 "iteration",
+#                                 "walker_index",
+#                                 "nsteps",
+#                                 "identifier",
+#                                 "marker_symbol",
+#                             ],
+#                             symbol="marker_symbol",
+#                             symbol_sequence=["circle", "star-diamond"],
+#                             color_discrete_sequence=["darkgray"],
+#                         )
+#                         figure = px.scatter(
+#                             data_frame=df_not_na,
+#                             x=x_axis,
+#                             y=y_axis,
+#                             custom_data=[
+#                                 "iteration",
+#                                 "walker_index",
+#                                 "nsteps",
+#                                 "identifier",
+#                                 "marker_symbol",
+#                                 "temperature",
+#                             ],
+#                             symbol="marker_symbol",
+#                             symbol_sequence=["circle", "star-diamond"],
+#                             color="temperature",
+#                             color_continuous_scale=colors,
+#                         )
+#                         for trace in figure_.data:
+#                             figure.add_trace(trace)
+#                         figure.update_traces(  # wandb cannot deal with lines in non-circle symbols!
+#                             marker={"size": 12},
+#                             selector=dict(marker_symbol="star-diamond"),
+#                         )
+#                         figure.update_traces(
+#                             marker={
+#                                 "size": 10,
+#                                 "line": dict(width=1.0, color="DarkSlateGray"),
+#                             },
+#                             selector=dict(marker_symbol="circle"),
+#                         )
+#                         figure.update_traces(
+#                             hovertemplate=(
+#                                 "<b>iteration</b>: %{customdata[0]}<br>"
+#                                 + "<b>walker index</b>: %{customdata[1]}<br>"
+#                                 + "<b>steps</b>: %{customdata[2]}<br>"
+#                                 + "<b>identifier</b>: %{customdata[3]}<br>"
+#                                 + "<extra></extra>"
+#                             ),
+#                         )
+#                         figure.update_xaxes(type="linear")
+#                         title = "dataset_" + y_axis + "_" + x_axis
+#                         fix_plotly_layout(figure)
+#                         if "e_rmse" in y_axis:
+#                             figure.update_layout(
+#                                 yaxis_title="<b>energy RMSE [meV/atom]</b>"
+#                             )
+#                         else:
+#                             figure.update_layout(
+#                                 yaxis_title="<b>forces RMSE [meV/atom]</b>"
+#                             )
+#                         figure.update_layout(xaxis_title="<b>" + x_axis + "</b>")
+#                         figures[title] = figure
+#     os.environ["WANDB_SILENT"] = "True"
+#     path_wandb = Path(tempfile.mkdtemp())
+#     # id is only unique per project
+#     wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume="allow")
+#     wandb.log(figures)
+#     wandb.finish()
+#
+#
+# to_wandb = python_app(_to_wandb, executors=["default_threads"])
 
-    import colorcet as cc
-    import matplotlib.colors as mcolors
-    import numpy as np
-    import pandas as pd
-    import plotly.express as px
-    import wandb
 
-    figures = {}
-    if walker_logs is not None:
-        y = np.array(walker_logs["f_rmse"])
-        for key in walker_logs:
-            if key == "walker_index":
-                name = "index"
-                tickformat = ".0f"
-            elif key.startswith("CV"):
-                name = key
-                tickformat = ".2f"
+def reconstruct_dtypes(dtype):
+    dtypes = []
+    for name in dtype.names:
+        field_dtype = dtype[name]
+        # Check if the field has a shape (for multidimensional data)
+        if field_dtype.shape:
+            dtypes.append((name, field_dtype.base, field_dtype.shape))
+        else:
+            # Handling unicode/string by specifying the fixed size explicitly
+            if np.issubdtype(field_dtype, np.string_) or np.issubdtype(
+                field_dtype, np.unicode_
+            ):
+                # Get character length for unicode/string types
+                char_length = (
+                    field_dtype.itemsize
+                    if np.issubdtype(field_dtype, np.string_)
+                    else field_dtype.itemsize // 4
+                )
+                dtypes.append((name, field_dtype.type, char_length))
             else:
-                name = None
-                tickformat = None
-            if name is not None:
-                x = np.array(walker_logs[key])
-                figure = px.scatter(x=x, y=y)
-                figure.update_xaxes(type="linear", tickformat=tickformat)
-                title = "walkers_f_rmse_" + name
-                fix_plotly_layout(figure)
-                figure.update_layout(yaxis_title="forces RMSE [meV/A]")
-                figures[title] = figure
-
-    # convert dataset_log to pandas dataframe and add identifier tracing
-    customdata = []
-    identifiers = dataset_log["identifier"]
-    for index in identifiers:
-        customdata.append(identifier_traces.get(index, (np.nan,) * 5))
-    customdata = np.array(customdata, dtype=np.float32)
-    dataset_log["iteration"] = customdata[:, 0]
-    dataset_log["walker_index"] = customdata[:, 1]
-    dataset_log["nsteps"] = customdata[:, 2]
-    dataset_log["marker_symbol"] = 1 * customdata[:, 3]
-    dataset_log["temperature"] = customdata[:, 4]
-    df = pd.DataFrame.from_dict(dataset_log)
-
-    df_na = df[df["temperature"].isna()]
-    df_not_na = df[df["temperature"].notna()]
-
-    # sort to get markers right!
-    df_not_na = df_not_na.sort_values(by="marker_symbol")
-    df_na = df_na.sort_values(by="marker_symbol")
-
-    cmap = cc.cm.CET_I1
-    colors = [mcolors.to_hex(cmap(i)) for i in np.linspace(0, 1, cmap.N)]
-
-    if dataset_log is not None:
-        for x_axis in dataset_log:
-            if x_axis.startswith("CV") or (x_axis == "identifier"):
-                for y_axis in dataset_log:
-                    if (y_axis == "e_rmse") or y_axis.startswith("f_rmse"):
-                        figure_ = px.scatter(
-                            data_frame=df_na,
-                            x=x_axis,
-                            y=y_axis,
-                            custom_data=[
-                                "iteration",
-                                "walker_index",
-                                "nsteps",
-                                "identifier",
-                                "marker_symbol",
-                            ],
-                            symbol="marker_symbol",
-                            symbol_sequence=["circle", "star-diamond"],
-                            color_discrete_sequence=["darkgray"],
-                        )
-                        figure = px.scatter(
-                            data_frame=df_not_na,
-                            x=x_axis,
-                            y=y_axis,
-                            custom_data=[
-                                "iteration",
-                                "walker_index",
-                                "nsteps",
-                                "identifier",
-                                "marker_symbol",
-                                "temperature",
-                            ],
-                            symbol="marker_symbol",
-                            symbol_sequence=["circle", "star-diamond"],
-                            color="temperature",
-                            color_continuous_scale=colors,
-                        )
-                        for trace in figure_.data:
-                            figure.add_trace(trace)
-                        figure.update_traces(  # wandb cannot deal with lines in non-circle symbols!
-                            marker={"size": 12},
-                            selector=dict(marker_symbol="star-diamond"),
-                        )
-                        figure.update_traces(
-                            marker={
-                                "size": 10,
-                                "line": dict(width=1.0, color="DarkSlateGray"),
-                            },
-                            selector=dict(marker_symbol="circle"),
-                        )
-                        figure.update_traces(
-                            hovertemplate=(
-                                "<b>iteration</b>: %{customdata[0]}<br>"
-                                + "<b>walker index</b>: %{customdata[1]}<br>"
-                                + "<b>steps</b>: %{customdata[2]}<br>"
-                                + "<b>identifier</b>: %{customdata[3]}<br>"
-                                + "<extra></extra>"
-                            ),
-                        )
-                        figure.update_xaxes(type="linear")
-                        title = "dataset_" + y_axis + "_" + x_axis
-                        fix_plotly_layout(figure)
-                        if "e_rmse" in y_axis:
-                            figure.update_layout(
-                                yaxis_title="<b>energy RMSE [meV/atom]</b>"
-                            )
-                        else:
-                            figure.update_layout(
-                                yaxis_title="<b>forces RMSE [meV/atom]</b>"
-                            )
-                        figure.update_layout(xaxis_title="<b>" + x_axis + "</b>")
-                        figures[title] = figure
-    os.environ["WANDB_SILENT"] = "True"
-    path_wandb = Path(tempfile.mkdtemp())
-    # id is only unique per project
-    wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume="allow")
-    wandb.log(figures)
-    wandb.finish()
-
-
-to_wandb = python_app(_to_wandb, executors=["default_threads"])
+                dtypes.append((name, field_dtype.type))
+    return dtypes
 
 
 @typeguard.typechecked
+def _add_walker_log(
+    walker_log: np.recarray,
+    inputs: list = [],
+    outputs: list = [],
+) -> None:
+    from psiflow.utils import _load_metrics, _save_metrics
+
+    walker_log = walker_log[walker_log.identifier != -1]
+    walker_log = np.sort(walker_log, order="identifier")
+
+    if os.path.isfile(inputs[0]) and os.path.getsize(inputs[0]) > 0:
+        metrics = _load_metrics(inputs=[inputs[0]])
+        dtype = metrics.dtype
+        metrics = np.concatenate(
+            (metrics, np.recarray(len(walker_log), dtype=dtype)),
+            axis=0,
+        )
+        start = len(metrics) - len(walker_log)
+    else:  # initialize dtype based on walkers
+        dtypes = reconstruct_dtypes(walker_log.dtype)
+        for i, dtype in enumerate(list(dtypes)):
+            if dtype[0] in ["e_rmse", "f_rmse"]:
+                dtypes[i] = (dtype[0], np.float_, (2,))
+        dtype = np.dtype(dtypes)
+        metrics = np.recarray(len(walker_log), dtype=dtype)
+        start = 0
+
+    for walker_index in range(len(walker_log)):
+        i = walker_index + start
+        for name in metrics.dtype.names:
+            if name not in ["e_rmse", "f_rmse"]:
+                getattr(metrics, name)[i] = getattr(walker_log, name)[i]
+            else:
+                getattr(metrics, name)[i, 0] = getattr(walker_log, name)[i]
+                getattr(metrics, name)[i, 1] = np.nan
+
+    _save_metrics(metrics, outputs=[outputs[0]])
+
+
+add_walker_log = python_app(_add_walker_log, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _update_logs(
+    inputs: list = [],
+    outputs: list = [],
+):
+    from psiflow.data import _compute_rmse, _extract_quantities, _read_frames
+    from psiflow.utils import _load_metrics, _save_metrics
+
+    data0 = _read_frames(inputs=[inputs[1]])
+    data1 = _read_frames(inputs=[inputs[2]])
+
+    energy0 = _extract_quantities(("per_atom_energy",), None, None, data=data0)[0]
+    energy1 = _extract_quantities(("per_atom_energy",), None, None, data=data1)[0]
+    e_rmse = _compute_rmse(energy0, energy1, reduce=False)
+
+    forces0 = _extract_quantities(("forces",), None, None, data=data0)[0]
+    forces1 = _extract_quantities(("forces",), None, None, data=data1)[0]
+    f_rmse = _compute_rmse(forces0, forces1, reduce=False)
+
+    identifiers = _extract_quantities(("identifier",), None, None, data=data0)[0]
+    assert np.all(identifiers >= 0)
+    indices = np.argsort(identifiers)
+
+    e_rmse = e_rmse[indices]
+    f_rmse = f_rmse[indices]
+
+    metrics = _load_metrics(inputs=[inputs[0]])
+    assert np.allclose(metrics.identifier, identifiers[indices])  # check order
+    metrics.e_rmse[:, 1] = metrics.e_rmse[:, 0]
+    metrics.e_rmse[:, 0] = e_rmse
+    metrics.f_rmse[:, 1] = metrics.f_rmse[:, 0]
+    metrics.f_rmse[:, 0] = f_rmse
+    _save_metrics(metrics, outputs=[outputs[0]])
+
+
+update_logs = python_app(_update_logs, executors=["default_threads"])
+
+
+@typeguard.typechecked
+@psiflow.serializable
 class Metrics:
+    wandb_group: Optional[str]
+    wandb_project: Optional[str]
+    wandb_id: Optional[str]
+    metrics: psiflow._DataFuture
+
     def __init__(
         self,
         wandb_group: Optional[str] = None,
         wandb_project: Optional[str] = None,
-        wandb_id: Optional[str] = None,
+        metrics: Optional[psiflow._DataFuture] = None,
     ) -> None:
         self.wandb_group = wandb_group
         self.wandb_project = wandb_project
@@ -419,17 +445,43 @@ class Metrics:
                 dir=psiflow.context().path,
                 resume=resume,
             )
-        self.walker_logs = []
-        self.identifier_traces = {}
-        self.iteration = 0
-
-    def as_dict(self):
-        return {
-            "wandb_group": self.wandb_group,
-            "wandb_project": self.wandb_project,
-            "wandb_id": self.wandb_id,
-        }
+        if metrics is None:
+            metrics = psiflow.context().new_file("metrics_", ".numpy")
+        self.metrics = metrics
 
     def insert_name(self, model: Model):
         model.config_raw["wandb_project"] = self.wandb_project
         model.config_raw["wandb_group"] = self.wandb_group
+
+    def log_walkers(
+        self,
+        outputs: list[SimulationOutput],
+        errors: list[Union[AppFuture, tuple]],
+        states: list[Union[AppFuture, Geometry]],
+        resets: list[Union[AppFuture, bool]],
+    ):
+        statuses = [o.status for o in outputs]
+        temperatures = [o.temperature for o in outputs]
+        times = [o.time for o in outputs]
+        walker_log = parse_walker_log(
+            combine_futures(inputs=statuses),
+            combine_futures(inputs=temperatures),
+            combine_futures(inputs=times),
+            combine_futures(inputs=errors),
+            combine_futures(inputs=states),
+            combine_futures(inputs=resets),
+        )
+        metrics = add_walker_log(
+            walker_log,
+            inputs=[self.metrics],
+            outputs=[psiflow.context().new_file("metrics_", ".numpy")],
+        ).outputs[0]
+        self.metrics = metrics
+
+    def update(self, data: Dataset, hamiltonian: Hamiltonian):
+        data_ = hamiltonian.evaluate(data)
+        metrics = update_logs(
+            inputs=[self.metrics, data.extxyz, data_.extxyz],
+            outputs=[psiflow.context().new_file("metrics_", ".numpy")],
+        ).outputs[0]
+        self.metrics = metrics

@@ -8,7 +8,6 @@ from typing import Any, Union
 
 import numpy as np
 import typeguard
-from ase import Atoms
 from parsl.app.app import join_app, python_app
 from parsl.data_provider.files import File
 
@@ -244,60 +243,6 @@ def resolve_and_check(path: Path) -> Path:
     return path
 
 
-def compute_error(
-    atoms_0: Atoms,
-    atoms_1: Atoms,
-    metric: str,
-    mask: np.ndarray,
-    properties: list[str],
-) -> tuple:
-    import numpy as np
-    from ase.units import Pascal
-
-    errors = np.zeros(len(properties))
-    assert mask.dtype == bool
-    if not np.any(mask):  # should still return a tuple
-        return tuple([np.nan for i in range(len(properties))])
-    if "energy" in properties:
-        assert "energy" in atoms_0.info.keys()
-        assert "energy" in atoms_1.info.keys()
-    if "forces" in properties:
-        assert "forces" in atoms_0.arrays.keys()
-        assert "forces" in atoms_1.arrays.keys()
-    if "stress" in properties:
-        assert "stress" in atoms_0.info.keys()
-        assert "stress" in atoms_1.info.keys()
-    for j, property_ in enumerate(properties):
-        if property_ == "energy":
-            array_0 = np.array([atoms_0.info["energy"]]).reshape((1, 1))
-            array_1 = np.array([atoms_1.info["energy"]]).reshape((1, 1))
-            array_0 /= len(atoms_0)  # per atom energy error
-            array_1 /= len(atoms_1)
-            array_0 *= 1000  # in meV/atom
-            array_1 *= 1000
-        elif property_ == "forces":
-            array_0 = atoms_0.arrays["forces"][mask, :]
-            array_1 = atoms_1.arrays["forces"][mask, :]
-            array_0 *= 1000  # in meV/angstrom
-            array_1 *= 1000
-        elif property_ == "stress":
-            array_0 = atoms_0.info["stress"].reshape((1, 9))
-            array_1 = atoms_1.info["stress"].reshape((1, 9))
-            array_0 /= 1e6 * Pascal  # in MPa
-            array_1 /= 1e6 * Pascal
-        else:
-            raise ValueError("property {} unknown!".format(property_))
-        if metric == "mae":
-            errors[j] = np.mean(np.abs(array_0 - array_1))
-        elif metric == "rmse":
-            errors[j] = np.sqrt(np.mean((array_0 - array_1) ** 2))
-        elif metric == "max":
-            errors[j] = np.max(np.linalg.norm(array_0 - array_1, axis=1))
-        else:
-            raise ValueError("metric {} unknown!".format(metric))
-    return tuple([float(e) for e in errors])
-
-
 @typeguard.typechecked
 def apply_temperature_ramp(
     T_min: float, T_max: float, nsteps: int, current_temperature: float
@@ -312,3 +257,20 @@ def apply_temperature_ramp(
             return T_max
     else:
         return T_max
+
+
+@typeguard.typechecked
+def _load_metrics(inputs: list = []) -> np.recarray:
+    return np.load(inputs[0], allow_pickle=True)
+
+
+load_metrics = python_app(_load_metrics, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _save_metrics(data: np.recarray, outputs: list = []) -> None:
+    with open(outputs[0], "wb") as f:
+        data.dump(f)
+
+
+save_metrics = python_app(_save_metrics, executors=["default_threads"])
