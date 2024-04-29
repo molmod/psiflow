@@ -60,6 +60,8 @@ class EinsteinCalculator(Calculator):
             delta = np.linalg.det(atoms.cell) - self.volume
             self.results["stress"] = self.force_constant * np.eye(3) * delta
             self.results["stress"] = full_3x3_to_voigt_6_stress(self.results["stress"])
+        else:
+            self.results["stress"] = np.zeros(6)  # required by ASEDriver
 
 
 @typeguard.typechecked

@@ -2,6 +2,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
 import os
+from pathlib import Path
 from typing import Optional, Union
 
 import numpy as np
@@ -162,148 +163,148 @@ symbols are colored based on average temperature
     )
 
 
-# @typeguard.typechecked
-# def _to_wandb(
-#     wandb_id: str,
-#     wandb_project: str,
-#     inputs: list = [],
-# ):
-#     import os
-#     import tempfile
-#
-#     import colorcet as cc
-#     import matplotlib.colors as mcolors
-#     import numpy as np
-#     import pandas as pd
-#     import plotly.express as px
-#     import wandb
-#
-#     figures = {}
-#     if walker_logs is not None:
-#         y = np.array(walker_logs["f_rmse"])
-#         for key in walker_logs:
-#             if key == "walker_index":
-#                 name = "index"
-#                 tickformat = ".0f"
-#             elif key.startswith("CV"):
-#                 name = key
-#                 tickformat = ".2f"
-#             else:
-#                 name = None
-#                 tickformat = None
-#             if name is not None:
-#                 x = np.array(walker_logs[key])
-#                 figure = px.scatter(x=x, y=y)
-#                 figure.update_xaxes(type="linear", tickformat=tickformat)
-#                 title = "walkers_f_rmse_" + name
-#                 fix_plotly_layout(figure)
-#                 figure.update_layout(yaxis_title="forces RMSE [meV/A]")
-#                 figures[title] = figure
-#
-#     # convert dataset_log to pandas dataframe and add identifier tracing
-#     customdata = []
-#     identifiers = dataset_log["identifier"]
-#     for index in identifiers:
-#         customdata.append(identifier_traces.get(index, (np.nan,) * 5))
-#     customdata = np.array(customdata, dtype=np.float32)
-#     dataset_log["iteration"] = customdata[:, 0]
-#     dataset_log["walker_index"] = customdata[:, 1]
-#     dataset_log["nsteps"] = customdata[:, 2]
-#     dataset_log["marker_symbol"] = 1 * customdata[:, 3]
-#     dataset_log["temperature"] = customdata[:, 4]
-#     df = pd.DataFrame.from_dict(dataset_log)
-#
-#     df_na = df[df["temperature"].isna()]
-#     df_not_na = df[df["temperature"].notna()]
-#
-#     # sort to get markers right!
-#     df_not_na = df_not_na.sort_values(by="marker_symbol")
-#     df_na = df_na.sort_values(by="marker_symbol")
-#
-#     cmap = cc.cm.CET_I1
-#     colors = [mcolors.to_hex(cmap(i)) for i in np.linspace(0, 1, cmap.N)]
-#
-#     if dataset_log is not None:
-#         for x_axis in dataset_log:
-#             if x_axis.startswith("CV") or (x_axis == "identifier"):
-#                 for y_axis in dataset_log:
-#                     if (y_axis == "e_rmse") or y_axis.startswith("f_rmse"):
-#                         figure_ = px.scatter(
-#                             data_frame=df_na,
-#                             x=x_axis,
-#                             y=y_axis,
-#                             custom_data=[
-#                                 "iteration",
-#                                 "walker_index",
-#                                 "nsteps",
-#                                 "identifier",
-#                                 "marker_symbol",
-#                             ],
-#                             symbol="marker_symbol",
-#                             symbol_sequence=["circle", "star-diamond"],
-#                             color_discrete_sequence=["darkgray"],
-#                         )
-#                         figure = px.scatter(
-#                             data_frame=df_not_na,
-#                             x=x_axis,
-#                             y=y_axis,
-#                             custom_data=[
-#                                 "iteration",
-#                                 "walker_index",
-#                                 "nsteps",
-#                                 "identifier",
-#                                 "marker_symbol",
-#                                 "temperature",
-#                             ],
-#                             symbol="marker_symbol",
-#                             symbol_sequence=["circle", "star-diamond"],
-#                             color="temperature",
-#                             color_continuous_scale=colors,
-#                         )
-#                         for trace in figure_.data:
-#                             figure.add_trace(trace)
-#                         figure.update_traces(  # wandb cannot deal with lines in non-circle symbols!
-#                             marker={"size": 12},
-#                             selector=dict(marker_symbol="star-diamond"),
-#                         )
-#                         figure.update_traces(
-#                             marker={
-#                                 "size": 10,
-#                                 "line": dict(width=1.0, color="DarkSlateGray"),
-#                             },
-#                             selector=dict(marker_symbol="circle"),
-#                         )
-#                         figure.update_traces(
-#                             hovertemplate=(
-#                                 "<b>iteration</b>: %{customdata[0]}<br>"
-#                                 + "<b>walker index</b>: %{customdata[1]}<br>"
-#                                 + "<b>steps</b>: %{customdata[2]}<br>"
-#                                 + "<b>identifier</b>: %{customdata[3]}<br>"
-#                                 + "<extra></extra>"
-#                             ),
-#                         )
-#                         figure.update_xaxes(type="linear")
-#                         title = "dataset_" + y_axis + "_" + x_axis
-#                         fix_plotly_layout(figure)
-#                         if "e_rmse" in y_axis:
-#                             figure.update_layout(
-#                                 yaxis_title="<b>energy RMSE [meV/atom]</b>"
-#                             )
-#                         else:
-#                             figure.update_layout(
-#                                 yaxis_title="<b>forces RMSE [meV/atom]</b>"
-#                             )
-#                         figure.update_layout(xaxis_title="<b>" + x_axis + "</b>")
-#                         figures[title] = figure
-#     os.environ["WANDB_SILENT"] = "True"
-#     path_wandb = Path(tempfile.mkdtemp())
-#     # id is only unique per project
-#     wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume="allow")
-#     wandb.log(figures)
-#     wandb.finish()
-#
-#
-# to_wandb = python_app(_to_wandb, executors=["default_threads"])
+@typeguard.typechecked
+def _to_wandb(
+    wandb_id: str,
+    wandb_project: str,
+    inputs: list = [],
+):
+    import os
+    import tempfile
+
+    import colorcet as cc
+    import matplotlib.colors as mcolors
+    import numpy as np
+    import pandas as pd
+    import plotly.express as px
+    import wandb
+
+    from psiflow.utils import _load_metrics
+
+    Y_AXES = [
+        "delta",
+        "phase",
+        "logprob",
+        "e_rmse",
+        "f_rmse",
+        "iteration",
+        "temperature",
+        "time",
+        "status",
+        "reset",
+    ]
+
+    metrics = _load_metrics(inputs=[inputs[0]])
+
+    data_names = []
+    for name in metrics.dtype.names:
+        m = getattr(metrics, name)
+        if m.dtype == np.float_ and not np.all(np.isnan(m)):
+            pass
+        elif m.dtype.kind == "U" and any([len(s) for s in m]):
+            pass
+        elif m.dtype == bool and np.any(m):
+            pass
+        elif m.dtype == np.int_:
+            pass
+        else:
+            continue
+        data_names.append(name)
+
+    # create data arrays with and without delta_e / delta_f color coding
+    metrics.e_rmse *= 1000  # meV/atom
+    metrics.f_rmse *= 1000  # meV/angstrom
+    # mask_e = np.logical_not(np.isnan(metrics.e_rmse[:, 0]))
+    # mask_f = np.logical_not(np.isnan(metrics.f_rmse[:, 0]))
+    # total_e_rmse = np.sqrt(np.mean(metrics.e_rmse[mask_e] ** 2))
+    # total_f_rmse = np.sqrt(np.mean(metrics.f_rmse[mask_f] ** 2))
+
+    data = {name: getattr(metrics, name) for name in data_names}
+    data["delta_e_rmse"] = metrics.e_rmse[:, 0] - metrics.e_rmse[:, 1]
+    data["delta_f_rmse"] = metrics.f_rmse[:, 0] - metrics.f_rmse[:, 1]
+    df = pd.DataFrame.from_dict(data)
+
+    # convert missing strings to empty string, not 0.0
+    for name in metrics.dtype.names:
+        if name in df.columns and getattr(metrics, name).dtype.kind == "U":
+            df[name] = df[name].replace("", np.nan).fillna("")
+
+    cmap = cc.cm.CET_D4
+    colors = [mcolors.to_hex(cmap(i)) for i in np.linspace(0, 1, cmap.N)]
+
+    figures = {}
+    for name in data_names:
+        if name not in Y_AXES:  # it's an x axis
+            x_axis = name
+            for y in ["e_rmse", "f_rmse"]:
+                key = "delta_" + y
+                df_na = df[df[key].isna()]
+                df_not_na = df[df[key].notna()]
+
+                hover_names = []
+                hover_template = ""
+                for name in data_names:
+                    if name in [x_axis, y]:
+                        continue
+                    if getattr(metrics, name).dtype == np.float_:
+                        format_str = ":.2f"
+                    elif getattr(metrics, name).dtype == np.int_:
+                        format_str = ":d"
+                    elif getattr(metrics, name).dtype.kind == "U":
+                        format_str = ""
+                    else:
+                        format_str = ""
+                    index = len(hover_names)
+                    s = f"<b>{name}</b>: %{{customdata[{index}]{format_str}}}<br>"
+                    hover_template += s
+                    hover_names.append(name)
+
+                figure_ = px.scatter(
+                    data_frame=df_na,
+                    x=x_axis,
+                    y=y,
+                    custom_data=hover_names,
+                    symbol_sequence=["circle"],
+                    color_discrete_sequence=["darkgray"],
+                )
+                figure = px.scatter(
+                    data_frame=df_not_na,
+                    x=x_axis,
+                    y=y,
+                    custom_data=hover_names,
+                    color=key,
+                    color_continuous_scale=colors,
+                    symbol_sequence=["circle"],
+                )
+                for trace in figure_.data:
+                    figure.add_trace(trace)
+                figure.update_traces(
+                    marker={
+                        "size": 10,
+                        "line": dict(width=1.0, color="DarkSlateGray"),
+                        "symbol": "circle",
+                    },
+                )
+
+                figure.update_traces(hovertemplate=hover_template)
+                figure.update_xaxes(type="linear")
+                figure.update_yaxes(type="linear")
+                title = y + "_" + x_axis
+                fix_plotly_layout(figure)
+                if y == "e_rmse":
+                    figure.update_layout(yaxis_title="<b>energy RMSE [meV/atom]</b>")
+                else:
+                    figure.update_layout(yaxis_title="<b>forces RMSE [meV/atom]</b>")
+                figure.update_layout(xaxis_title="<b>" + x_axis + "</b>")
+                figures[title] = figure
+        os.environ["WANDB_SILENT"] = "True"
+        path_wandb = Path(tempfile.mkdtemp())
+        wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume="allow")
+        wandb.log(figures)
+        wandb.finish()
+
+
+to_wandb = python_app(_to_wandb, executors=["default_threads"])
 
 
 def reconstruct_dtypes(dtype):
@@ -485,3 +486,10 @@ class Metrics:
             outputs=[psiflow.context().new_file("metrics_", ".numpy")],
         ).outputs[0]
         self.metrics = metrics
+
+    def to_wandb(self):
+        return to_wandb(
+            self.wandb_id,
+            self.wandb_project,
+            inputs=[self.metrics],
+        )

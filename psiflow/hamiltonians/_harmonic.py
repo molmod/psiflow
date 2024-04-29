@@ -20,7 +20,7 @@ from psiflow.utils import dump_json
 
 @typeguard.typechecked
 class HarmonicCalculator(Calculator):
-    implemented_properties = ["energy", "free_energy", "forces"]
+    implemented_properties = ["energy", "free_energy", "forces", "stress"]
 
     def __init__(
         self,
@@ -52,6 +52,7 @@ class HarmonicCalculator(Calculator):
             "energy": energy,
             "free_energy": energy,
             "forces": (-1.0) * grad.reshape(-1, 3),
+            "stress": np.zeros((3, 3)),
         }
         if sum(atoms.pbc):
             self.results["stress"] = full_3x3_to_voigt_6_stress(np.zeros((3, 3)))

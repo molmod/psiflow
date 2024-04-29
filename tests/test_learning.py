@@ -1,6 +1,7 @@
 import numpy as np
 from parsl.data_provider.files import File
 
+import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import new_nullstate
 from psiflow.hamiltonians import EinsteinCrystal
@@ -8,7 +9,13 @@ from psiflow.learning import evaluate_outputs
 from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
 from psiflow.reference import EMT
 from psiflow.sampling import SimulationOutput
-from psiflow.utils import _load_metrics, _save_metrics, combine_futures, load_metrics
+from psiflow.utils import (
+    _load_metrics,
+    _save_metrics,
+    combine_futures,
+    load_metrics,
+    save_metrics,
+)
 
 
 def test_load_save_metrics(tmp_path):
@@ -163,3 +170,39 @@ def test_evaluate_outputs(dataset):
         metrics=Metrics(),
     )
     assert all([r.result() for r in resets])
+
+
+def test_wandb():
+    dtypes = [
+        ("e_rmse", np.float_, (2,)),
+        ("f_rmse", np.float_, (2,)),
+        ("reset", np.bool_),
+        ("identifier", np.int_),
+        ("phase", np.unicode_, 8),
+        ("some_cv", np.float_),
+    ]
+    data = np.recarray(4, dtype=np.dtype(dtypes))
+
+    data.identifier[:] = np.arange(4)
+    data.some_cv[:] = np.arange(4)
+    data.some_cv[2] = np.nan
+    data.phase[1] = "asdfa"
+    data.reset[1] = True
+
+    data.e_rmse[:] = np.random.uniform(0, 2, size=(4, 2))
+    data.f_rmse[:] = np.random.uniform(0, 2, size=(4, 2))
+    metrics_future = save_metrics(
+        data,
+        outputs=[psiflow.context().new_file("metrics_", ".numpy")],
+    ).outputs[0]
+
+    metrics = Metrics("test_group", "test_project", metrics_future)
+    metrics.to_wandb()
+
+    serialized = psiflow.serialize(metrics).result()
+    metrics = psiflow.deserialize(serialized)
+
+    data_ = load_metrics(inputs=[metrics.metrics]).result()
+    assert np.allclose(data.e_rmse, data_.e_rmse)
+    assert np.allclose(data.some_cv, data_.some_cv, equal_nan=True)
+    psiflow.wait()

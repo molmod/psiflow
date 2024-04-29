@@ -257,6 +257,7 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
         PlumedHamiltonian,
     )
     from psiflow.hamiltonians.hamiltonian import MixtureHamiltonian
+    from psiflow.metrics import Metrics
     from psiflow.models import MACE
     from psiflow.reference import CP2K
     from psiflow.sampling import (
@@ -284,6 +285,7 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
         ReplicaExchange,
         SimulationOutput,
         Walker,
+        Metrics,
     ]:
         SERIALIZABLES[cls.__name__] = cls
 

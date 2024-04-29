@@ -1,1 +1,1 @@
-from .ti import Integration  # noqa: F401
+from .integration import Integration  # noqa: F401
