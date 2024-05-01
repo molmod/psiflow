@@ -157,7 +157,10 @@ class PlumedCalculator(Calculator):
         self.plumed.cmd("prepareCalc")
         self.plumed.cmd("performCalcNoUpdate")
         self.plumed.cmd("getBias", energy)
-        stress = full_3x3_to_voigt_6_stress(virial / atoms.get_volume())
+        if all(atoms.pbc):
+            stress = full_3x3_to_voigt_6_stress(virial / atoms.get_volume())
+        else:
+            stress = np.zeros(6)
 
         if self.max_force is not None:
             check_forces(forces, atoms, self.max_force)

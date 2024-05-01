@@ -146,3 +146,13 @@ def get_mace_mp0(size: str = "small") -> MACEHamiltonian:
         parsl_file.filepath,
     )
     return MACEHamiltonian(parsl_file, {})
+
+
+def get_mace_cc() -> MACEHamiltonian:
+    url = "https://github.com/ACEsuit/mace/raw/main/mace/calculators/foundations_models/ani500k_large_CC.model"
+    parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
+    urllib.request.urlretrieve(
+        url,
+        parsl_file.filepath,
+    )
+    return MACEHamiltonian(parsl_file, {})

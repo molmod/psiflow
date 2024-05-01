@@ -6,7 +6,7 @@ import typeguard
 
 from ._einstein import EinsteinCrystal  # noqa: F401
 from ._harmonic import Harmonic  # noqa: F401
-from ._mace import MACEHamiltonian, get_mace_mp0  # noqa: F401
+from ._mace import MACEHamiltonian, get_mace_cc, get_mace_mp0  # noqa: F401
 from ._plumed import PlumedHamiltonian  # noqa: F401
 from .hamiltonian import Hamiltonian  # noqa: F401
 

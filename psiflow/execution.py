@@ -335,7 +335,7 @@ class ExecutionContext:
         parsl_log_level: str = "INFO",
         psiflow_log_level: str = "INFO",
         usage_tracking: bool = True,
-        retries: int = 2,
+        retries: int = 0,
         strategy: str = "simple",
         max_idletime: float = 20,
         internal_tasks_max_threads: int = 10,
