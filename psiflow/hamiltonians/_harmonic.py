@@ -1,11 +1,9 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import typeguard
-from ase.calculators.calculator import Calculator, all_changes
-from ase.stress import full_3x3_to_voigt_6_stress
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -13,49 +11,8 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians.hamiltonian import Hamiltonian
-from psiflow.hamiltonians.utils import evaluate_function
+from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
 from psiflow.utils import dump_json
-
-
-@typeguard.typechecked
-class HarmonicCalculator(Calculator):
-    implemented_properties = ["energy", "free_energy", "forces", "stress"]
-
-    def __init__(
-        self,
-        positions: np.ndarray,
-        hessian: np.ndarray,
-        energy: float,
-        max_force: Optional[float] = None,
-        **kwargs,
-    ):
-        Calculator.__init__(self, **kwargs)
-        assert hessian.shape[0] == 3 * positions.shape[0]
-        self.positions = positions
-        self.hessian = hessian
-        self.energy = energy
-        self.max_force = max_force
-
-    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
-        # call to base-class to set atoms attribute
-        Calculator.calculate(self, atoms)
-        assert self.hessian.shape[0] == 3 * len(atoms)
-
-        pos = atoms.positions.reshape(-1)
-
-        delta = pos - self.positions.reshape(-1)
-        grad = np.dot(self.hessian, delta)
-        energy = self.energy + 0.5 * np.dot(delta, grad)
-
-        self.results = {
-            "energy": energy,
-            "free_energy": energy,
-            "forces": (-1.0) * grad.reshape(-1, 3),
-            "stress": np.zeros((3, 3)),
-        }
-        if sum(atoms.pbc):
-            self.results["stress"] = full_3x3_to_voigt_6_stress(np.zeros((3, 3)))
 
 
 @typeguard.typechecked
@@ -75,7 +32,7 @@ class Harmonic(Hamiltonian):
         self._create_apps()
 
     def _create_apps(self):
-        self.evaluate_app = python_app(evaluate_function, executors=["default_threads"])
+        self.evaluate_app = python_app(evaluate_function, executors=["default_htex"])
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not Harmonic:
@@ -121,6 +78,8 @@ class Harmonic(Hamiltonian):
         hessian: list[list[float]],
         energy: float,
     ):
+        from psiflow.hamiltonians.utils import HarmonicCalculator
+
         return HarmonicCalculator(
             np.array(positions),
             np.array(hessian),
@@ -140,9 +99,9 @@ class Harmonic(Hamiltonian):
         external: Optional[File],
         hessian: np.ndarray,
         reference_geometry: Geometry,
-    ) -> tuple[list[HarmonicCalculator], np.ndarray]:
+    ) -> tuple[list[Any], np.ndarray]:
         from psiflow.geometry import NullState
-        from psiflow.hamiltonians._harmonic import HarmonicCalculator
+        from psiflow.hamiltonians.utils import HarmonicCalculator
 
         natoms = len(reference_geometry)
         numbers = reference_geometry.per_atom.numbers

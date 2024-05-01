@@ -17,13 +17,13 @@ from psiflow.hamiltonians import (
     PlumedHamiltonian,
     deserialize_calculator,
 )
-from psiflow.hamiltonians._plumed import (
-    PlumedCalculator,
-    remove_comments_printflush,
-    set_path_in_plumed,
-)
+from psiflow.hamiltonians._plumed import remove_comments_printflush, set_path_in_plumed
 from psiflow.hamiltonians.hamiltonian import MixtureHamiltonian, Zero
-from psiflow.hamiltonians.utils import ForceMagnitudeException, check_forces
+from psiflow.hamiltonians.utils import (
+    ForceMagnitudeException,
+    PlumedCalculator,
+    check_forces,
+)
 from psiflow.utils import copy_app_future, copy_data_future, dump_json
 
 

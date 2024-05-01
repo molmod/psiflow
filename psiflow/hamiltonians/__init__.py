@@ -1,9 +1,8 @@
 import json
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import typeguard
-from ase.calculators.calculator import Calculator
 
 from ._einstein import EinsteinCrystal  # noqa: F401
 from ._harmonic import Harmonic  # noqa: F401
@@ -18,7 +17,7 @@ def deserialize_calculator(
     device: Optional[str] = None,
     dtype: Optional[str] = None,
     max_force: Optional[float] = None,
-) -> Calculator:
+) -> Any:
     with open(path, "r") as f:
         data = json.loads(f.read())
     assert "hamiltonian" in data

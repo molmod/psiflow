@@ -3,10 +3,10 @@ from typing import Union
 
 import typeguard
 import yaml
-from ase.data import chemical_symbols
 from parsl.data_provider.files import File
 
 import psiflow
+from psiflow.geometry import chemical_symbols
 from psiflow.models._mace import MACE, MACEConfig  # noqa: F401
 from psiflow.models.model import Model
 from psiflow.utils import copy_data_future, resolve_and_check

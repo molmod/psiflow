@@ -1,7 +1,6 @@
 import copy
 
 import numpy as np
-import torch
 from parsl.app.futures import DataFuture
 
 import psiflow
@@ -24,7 +23,6 @@ def test_mace_init(mace_config, dataset):
     model.seed = 1
     model.initialize(dataset[:3])
     assert isinstance(model.model_future, DataFuture)
-    torch.load(model.model_future.result().filepath)  # should work
 
     # create hamiltonian and verify addition of atomic energies
     hamiltonian = MACEHamiltonian.from_model(model)

@@ -3,19 +3,17 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import urllib
 from functools import partial
 from pathlib import Path
-from typing import Union
+from typing import Any, Union
 
 import numpy as np
 import typeguard
-from ase.calculators.calculator import Calculator
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians.hamiltonian import Hamiltonian
-from psiflow.hamiltonians.utils import evaluate_function
+from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
 from psiflow.models.model import Model
 from psiflow.utils import dump_json
 
@@ -66,7 +64,7 @@ class MACEHamiltonian(Hamiltonian):
         atomic_energies: dict,
         device: str,
         dtype: str,
-    ) -> Calculator:
+    ) -> Any:
         import torch
 
         from psiflow.models.mace_utils import MACECalculator
@@ -110,7 +108,7 @@ class MACEHamiltonian(Hamiltonian):
         ncores: int,
         device: str,
         dtype: str,  # float64 for optimizations
-    ) -> tuple[list[Calculator], np.ndarray]:
+    ) -> tuple[list[Any], np.ndarray]:
         import numpy as np
         import torch
 

@@ -7,7 +7,6 @@ from typing import Optional, Union
 
 import numpy as np
 import typeguard
-import wandb
 from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
@@ -304,7 +303,7 @@ def _to_wandb(
         wandb.finish()
 
 
-to_wandb = python_app(_to_wandb, executors=["default_threads"])
+to_wandb = python_app(_to_wandb, executors=["default_htex"])
 
 
 def reconstruct_dtypes(dtype):
@@ -413,6 +412,39 @@ update_logs = python_app(_update_logs, executors=["default_threads"])
 
 
 @typeguard.typechecked
+def _initialize_wandb(
+    wandb_group: str,
+    wandb_project: str,
+    wandb_name: str,
+    wandb_id: Optional[str],
+    wandb_api_key: str,
+    path_wandb: Path,
+) -> str:
+    import os
+
+    import wandb
+
+    os.environ["WANDB_SILENT"] = "True"
+    if wandb_id is None:
+        wandb_id = wandb.sdk.lib.runid.generate_id()
+        resume = None
+    else:
+        resume = "must"
+    wandb.init(
+        id=wandb_id,
+        project=wandb_project,
+        group=wandb_group,
+        name=wandb_name,
+        dir=path_wandb,
+        resume=resume,
+    )
+    return wandb_id
+
+
+initialize_wandb = python_app(_initialize_wandb, executors=["default_htex"])
+
+
+@typeguard.typechecked
 @psiflow.serializable
 class Metrics:
     wandb_group: Optional[str]
@@ -428,26 +460,20 @@ class Metrics:
     ) -> None:
         self.wandb_group = wandb_group
         self.wandb_project = wandb_project
-        self.wandb_name = "main"
-        self.wandb_id = None
-        if self.wandb_group is not None:
-            os.environ["WANDB_SILENT"] = "True"
+        if wandb_group is not None and wandb_project is not None:
             assert "WANDB_API_KEY" in os.environ
-            if self.wandb_id is None:
-                self.wandb_id = wandb.sdk.lib.runid.generate_id()
-                resume = None
-            else:
-                resume = "must"
-            wandb.init(
-                id=self.wandb_id,
-                project=self.wandb_project,
-                group=self.wandb_group,
-                name=self.wandb_name,
-                dir=psiflow.context().path,
-                resume=resume,
-            )
+            self.wandb_id = initialize_wandb(
+                wandb_group,
+                wandb_project,
+                "metrics",
+                None,
+                os.environ["WANDB_API_KEY"],
+                psiflow.context().path,
+            ).result()
+
         if metrics is None:
             metrics = psiflow.context().new_file("metrics_", ".numpy")
+
         self.metrics = metrics
 
     def insert_name(self, model: Model):
@@ -488,6 +514,8 @@ class Metrics:
         self.metrics = metrics
 
     def to_wandb(self):
+        if self.wandb_group is None and self.wandb_project is None:
+            raise ValueError("initialize Metrics with wandb group and project names")
         return to_wandb(
             self.wandb_id,
             self.wandb_project,

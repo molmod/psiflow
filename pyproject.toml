@@ -13,16 +13,11 @@ dependencies = [
     "ase>=3.22.1",
     "pyyaml>=6.0",
     "numpy>=1.22.3",
-    "wandb>=0.14.0",
-    "plotly",
     "parsl",
     "prettytable",
-    "pandas",
     "psutil",
-    "colorcet",
     "cp2k-input-tools",
     "pytimeparse",
-    "extxyz",
     ]
 
 [project.optional-dependencies]

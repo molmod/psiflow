@@ -1,12 +1,16 @@
-from typing import Callable, Union
+import os
+import tempfile
+from pathlib import Path
+from typing import Any, Optional, Union
 
 import numpy as np
 import typeguard
-from ase import Atoms
-from ase.data import chemical_symbols
-from parsl.app.app import python_app
+from ase.calculators.calculator import Calculator, all_changes
+from ase.stress import full_3x3_to_voigt_6_stress
+from ase.units import fs, kJ, mol, nm
+from parsl.data_provider.files import File
 
-from psiflow.geometry import Geometry
+from psiflow.geometry import Geometry, chemical_symbols
 
 
 class ForceMagnitudeException(Exception):
@@ -15,10 +19,10 @@ class ForceMagnitudeException(Exception):
 
 def check_forces(
     forces: np.ndarray,
-    geometry: Union[Geometry, Atoms],
+    geometry: Any,
     max_force: float,
 ):
-    if isinstance(geometry, Atoms):
+    if not isinstance(geometry, Geometry):
         geometry = Geometry.from_atoms(geometry)
 
     exceeded = np.linalg.norm(forces, axis=1) > max_force
@@ -38,82 +42,168 @@ def check_forces(
         pass
 
 
-@typeguard.typechecked
-def evaluate_function(
-    load_calculators: Callable,
-    inputs: list = [],
-    outputs: list = [],
-    **parameters,  # dict values can be futures, so app must wait for those
-) -> None:
-    import numpy as np
-    from ase import Atoms
+class EinsteinCalculator(Calculator):
+    """ASE Calculator for a simple Einstein crystal"""
 
-    from psiflow.data import _read_frames, _write_frames
-    from psiflow.geometry import NullState
+    implemented_properties = ["energy", "free_energy", "forces", "stress"]
 
-    assert len(inputs) >= 1
-    assert len(outputs) == 1
-    states = _read_frames(inputs=[inputs[0]])
-    calculators, index_mapping = load_calculators(states, inputs[1], **parameters)
-    for i, state in enumerate(states):
-        if state == NullState:
-            continue
-        calculator = calculators[index_mapping[i]]
-        calculator.reset()
-        atoms = Atoms(
-            numbers=state.per_atom.numbers,
-            positions=state.per_atom.positions,
-            cell=state.cell,
-            pbc=state.periodic,
+    def __init__(
+        self,
+        centers: np.ndarray,
+        force_constant: float,
+        volume: float,
+        max_force: Optional[float] = None,
+        **kwargs,
+    ) -> None:
+        Calculator.__init__(self, **kwargs)
+        self.results = {}
+        self.centers = centers
+        self.force_constant = force_constant
+        self.volume = volume
+        self.max_force = max_force
+
+    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+        # call to base-class to set atoms attribute
+        Calculator.calculate(self, atoms)
+
+        assert self.centers.shape[0] == len(atoms)
+        forces = (-1.0) * self.force_constant * (atoms.get_positions() - self.centers)
+        energy = (
+            self.force_constant
+            / 2
+            * np.sum((atoms.get_positions() - self.centers) ** 2)
         )
-        atoms.calc = calculator
-        state.energy = atoms.get_potential_energy()
-        state.per_atom.forces[:] = atoms.get_forces()
-        if state.periodic:
-            try:  # some models do not have stress support
-                stress = atoms.get_stress(voigt=False)
-            except Exception as e:
-                print(e)
-                stress = np.zeros((3, 3))
-            state.stress = stress
-    _write_frames(*states, outputs=[outputs[0]])
+        if self.max_force is not None:
+            check_forces(forces, atoms, self.max_force)
+        self.results = {
+            "energy": energy,
+            "free_energy": energy,
+            "forces": forces,
+        }
+        if sum(atoms.pbc) and self.volume > 0.0:
+            delta = np.linalg.det(atoms.cell) - self.volume
+            self.results["stress"] = self.force_constant * np.eye(3) * delta
+            self.results["stress"] = full_3x3_to_voigt_6_stress(self.results["stress"])
+        else:
+            self.results["stress"] = np.zeros(6)  # required by ASEDriver
 
 
 @typeguard.typechecked
-def _add_contributions(
-    coefficients: tuple[float, ...],
-    inputs: list = [],
-    outputs: list = [],
-) -> None:
-    import copy
+class PlumedCalculator(Calculator):
+    implemented_properties = ["energy", "free_energy", "forces", "stress"]
 
-    from psiflow.data import _read_frames, _write_frames
+    def __init__(
+        self,
+        plumed_input: str,
+        external: Union[str, Path, File, None] = None,
+        max_force: Optional[float] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.plumed_input = plumed_input
+        if external is not None:
+            if isinstance(external, File):
+                external = external.filepath
+            assert Path(external).exists()
+        self.external = external
+        self.max_force = max_force
 
-    contributions = [_read_frames(inputs=[i]) for i in inputs]
-    assert len(contributions) == len(coefficients)
-    length = len(contributions[0])
-    for contribution in contributions:
-        assert len(contribution) == length
+        self.tmp = tempfile.NamedTemporaryFile(
+            prefix="plumed_", mode="w+", delete=False
+        )
+        # plumed creates a back up if this file would already exist
+        os.remove(self.tmp.name)
 
-    data = []
-    for i in range(length):
-        geometries = [contribution[i] for contribution in contributions]
-        energy_list = [geometry.energy for geometry in geometries]
-        forces_list = [geometry.per_atom.forces for geometry in geometries]
+        from plumed import Plumed
 
-        energy = sum([energy_list[i] * c for i, c in enumerate(coefficients)])
-        forces = sum([forces_list[i] * c for i, c in enumerate(coefficients)])
+        plumed = Plumed()
+        ps = 1000 * fs
+        plumed.cmd("setMDEnergyUnits", mol / kJ)
+        plumed.cmd("setMDLengthUnits", 1 / nm)
+        plumed.cmd("setMDTimeUnits", 1 / ps)
+        plumed.cmd("setMDChargeUnits", 1.0)
+        plumed.cmd("setMDMassUnits", 1.0)
 
-        geometry = copy.deepcopy(geometries[0])
-        geometry.energy = energy
-        geometry.per_atom.forces[:] = forces
+        # plumed.cmd("setMDEngine", "ASE")
+        plumed.cmd("setLogFile", self.tmp.name)
+        # plumed.cmd("setTimestep", float(timestep))
+        plumed.cmd("setRestart", True)
+        self.plumed = plumed
+        self.initialize_plumed = True  # need natoms to initialize
 
-        if geometry.periodic:
-            stress_list = [g.stress for g in geometries]
-            stress = sum([stress_list[i] * c for i, c in enumerate(coefficients)])
-            geometry.stress = stress
-        data.append(geometry)
-    _write_frames(*data, outputs=[outputs[0]])
+    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+        Calculator.calculate(self, atoms)
+        if self.initialize_plumed:
+            self.plumed.cmd("setNatoms", len(atoms))
+            self.plumed.cmd("init")
+            plumed_input = self.plumed_input
+            for line in plumed_input.split("\n"):
+                self.plumed.cmd("readInputLine", line)
+            self.initialize_plumed = False
+            os.remove(self.tmp.name)  # remove whatever plumed has created
+
+        if atoms.pbc.any():
+            self.plumed.cmd("setBox", np.asarray(atoms.cell))
+
+        # set positions
+        energy = np.zeros((1,))
+        forces = np.zeros((len(atoms), 3))
+        virial = np.zeros((3, 3))
+        self.plumed.cmd("setStep", 0)
+        self.plumed.cmd("setPositions", atoms.get_positions())
+        self.plumed.cmd("setMasses", atoms.get_masses())
+        self.plumed.cmd("setForces", forces)
+        self.plumed.cmd("setVirial", virial)
+        self.plumed.cmd("prepareCalc")
+        self.plumed.cmd("performCalcNoUpdate")
+        self.plumed.cmd("getBias", energy)
+        stress = full_3x3_to_voigt_6_stress(virial / atoms.get_volume())
+
+        if self.max_force is not None:
+            check_forces(forces, atoms, self.max_force)
+        self.results = {
+            "energy": energy[0],  # unpack to float
+            "forces": forces,
+            "stress": stress,
+            "free_energy": energy[0],
+        }
 
 
-add_contributions = python_app(_add_contributions, executors=["default_threads"])
+@typeguard.typechecked
+class HarmonicCalculator(Calculator):
+    implemented_properties = ["energy", "free_energy", "forces", "stress"]
+
+    def __init__(
+        self,
+        positions: np.ndarray,
+        hessian: np.ndarray,
+        energy: float,
+        max_force: Optional[float] = None,
+        **kwargs,
+    ):
+        Calculator.__init__(self, **kwargs)
+        assert hessian.shape[0] == 3 * positions.shape[0]
+        self.positions = positions
+        self.hessian = hessian
+        self.energy = energy
+        self.max_force = max_force
+
+    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+        # call to base-class to set atoms attribute
+        Calculator.calculate(self, atoms)
+        assert self.hessian.shape[0] == 3 * len(atoms)
+
+        pos = atoms.positions.reshape(-1)
+
+        delta = pos - self.positions.reshape(-1)
+        grad = np.dot(self.hessian, delta)
+        energy = self.energy + 0.5 * np.dot(delta, grad)
+
+        self.results = {
+            "energy": energy,
+            "free_energy": energy,
+            "forces": (-1.0) * grad.reshape(-1, 3),
+            "stress": np.zeros((3, 3)),
+        }
+        if sum(atoms.pbc):
+            self.results["stress"] = full_3x3_to_voigt_6_stress(np.zeros((3, 3)))

@@ -1,11 +1,9 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import typeguard
-from ase.calculators.calculator import Calculator, all_changes
-from ase.stress import full_3x3_to_voigt_6_stress
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -13,55 +11,8 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians.hamiltonian import Hamiltonian
-from psiflow.hamiltonians.utils import check_forces, evaluate_function
+from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
 from psiflow.utils import copy_app_future, dump_json
-
-
-class EinsteinCalculator(Calculator):
-    """ASE Calculator for a simple Einstein crystal"""
-
-    implemented_properties = ["energy", "free_energy", "forces", "stress"]
-
-    def __init__(
-        self,
-        centers: np.ndarray,
-        force_constant: float,
-        volume: float,
-        max_force: Optional[float] = None,
-        **kwargs,
-    ) -> None:
-        Calculator.__init__(self, **kwargs)
-        self.results = {}
-        self.centers = centers
-        self.force_constant = force_constant
-        self.volume = volume
-        self.max_force = max_force
-
-    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
-        # call to base-class to set atoms attribute
-        Calculator.calculate(self, atoms)
-
-        assert self.centers.shape[0] == len(atoms)
-        forces = (-1.0) * self.force_constant * (atoms.get_positions() - self.centers)
-        energy = (
-            self.force_constant
-            / 2
-            * np.sum((atoms.get_positions() - self.centers) ** 2)
-        )
-        if self.max_force is not None:
-            check_forces(forces, atoms, self.max_force)
-        self.results = {
-            "energy": energy,
-            "free_energy": energy,
-            "forces": forces,
-        }
-        if sum(atoms.pbc) and self.volume > 0.0:
-            delta = np.linalg.det(atoms.cell) - self.volume
-            self.results["stress"] = self.force_constant * np.eye(3) * delta
-            self.results["stress"] = full_3x3_to_voigt_6_stress(self.results["stress"])
-        else:
-            self.results["stress"] = np.zeros(6)  # required by ASEDriver
 
 
 @typeguard.typechecked
@@ -80,7 +31,7 @@ class EinsteinCrystal(Hamiltonian):
         self._create_apps()
 
     def _create_apps(self):
-        self.evaluate_app = python_app(evaluate_function, executors=["default_threads"])
+        self.evaluate_app = python_app(evaluate_function, executors=["default_htex"])
 
     @property
     def parameters(self: Hamiltonian) -> dict:
@@ -95,11 +46,11 @@ class EinsteinCrystal(Hamiltonian):
         external: Optional[File],
         reference_geometry: Geometry,
         force_constant: float,
-    ) -> tuple[list[EinsteinCalculator], np.ndarray]:
+    ) -> tuple[list[Any], np.ndarray]:
         import numpy as np
 
         from psiflow.geometry import NullState
-        from psiflow.hamiltonians._einstein import EinsteinCalculator
+        from psiflow.hamiltonians.utils import EinsteinCalculator
 
         natoms = len(reference_geometry)
         numbers = reference_geometry.per_atom.numbers
@@ -150,6 +101,8 @@ class EinsteinCrystal(Hamiltonian):
         force_constant: float,
         volume: float,
     ):
+        from psiflow.hamiltonians.utils import EinsteinCalculator
+
         return EinsteinCalculator(
             np.array(centers),
             force_constant,
