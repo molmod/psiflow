@@ -229,7 +229,10 @@ def setup_system_template(
     start.text = " start_INDEX.xyz "
     initialize.append(start)
     velocities = ET.Element("velocities", mode="thermal", units="kelvin")
-    velocities.text = " TEMP "
+    if 'TEMP' in weights_table[0]:  # valid template parameter
+        velocities.text = " TEMP "
+    else:
+        velocities.text = " 300 "
     initialize.append(velocities)
 
     system = ET.Element("system", prefix="walker-INDEX")
