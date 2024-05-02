@@ -4,7 +4,7 @@ import numpy as np
 from parsl.app.futures import DataFuture
 
 import psiflow
-from psiflow.data import Dataset
+from psiflow.data import compute_rmse
 from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models import MACE, load_model
 
@@ -75,11 +75,17 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     model = MACE(**mace_config)
     model.initialize(training)
     hamiltonian0 = MACEHamiltonian.from_model(model)
-    errors0 = Dataset.get_errors(validation, hamiltonian0.evaluate(validation))
+    rmse0 = compute_rmse(
+        validation.get("per_atom_energy"),
+        hamiltonian0.evaluate(validation).get("per_atom_energy"),
+    )
     model.train(training, validation)
     hamiltonian1 = MACEHamiltonian.from_model(model)
-    errors1 = Dataset.get_errors(validation, hamiltonian1.evaluate(validation))
-    assert np.mean(errors0.result(), axis=0)[1] > np.mean(errors1.result(), axis=0)[1]
+    rmse1 = compute_rmse(
+        validation.get("per_atom_energy"),
+        hamiltonian1.evaluate(validation).get("per_atom_energy"),
+    )
+    assert rmse0.result() > rmse1.result()
 
 
 def test_mace_save_load(mace_config, dataset, tmp_path):

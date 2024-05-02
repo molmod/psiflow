@@ -422,9 +422,10 @@ def _initialize_wandb(
 ) -> str:
     import os
 
+    os.environ["WANDB_API_KEY"] = wandb_api_key
+    os.environ["WANDB_SILENT"] = "True"
     import wandb
 
-    os.environ["WANDB_SILENT"] = "True"
     if wandb_id is None:
         wandb_id = wandb.sdk.lib.runid.generate_id()
         resume = None

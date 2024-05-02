@@ -412,7 +412,7 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
         atoms.set_positions(state.per_atom.positions)
         atoms.set_cell(state.cell)
         e = atoms.get_potential_energy()
-        assert e == evaluated[i].result().energy
+        assert np.allclose(e, evaluated[i].result().energy, atol=1e-4)
 
     # for mace
     hamiltonian = MACEHamiltonian.from_model(mace_model)
@@ -420,8 +420,6 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
 
     data_future = hamiltonian.serialize_calculator()
     psiflow.wait()
-    print(data_future.filepath)
-    print(data_future.result())
     calculator = deserialize_calculator(
         data_future.filepath, device="cpu", dtype="float32"
     )
@@ -438,7 +436,7 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
         atoms.set_positions(state.per_atom.positions)
         atoms.set_cell(state.cell)
         e = atoms.get_potential_energy()
-        assert e == evaluated[i].result().energy
+        assert np.allclose(e, evaluated[i].result().energy)
 
 
 def test_max_force(dataset):

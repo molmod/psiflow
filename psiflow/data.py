@@ -704,7 +704,7 @@ def _compute_rmse(
 
     if reduce:  # across both dimensions
         mask = np.logical_not(np.isnan(se))
-        return np.sqrt(np.mean(se[mask]))
+        return float(np.sqrt(np.mean(se[mask])))
     else:  # retain first dimension
         if se.ndim == 1:
             return se
@@ -738,7 +738,7 @@ def _compute_mae(
     mask = np.logical_not(np.all(np.isnan(ae), axis=to_reduce))
     ae = ae[mask0].reshape(np.sum(1 * mask), -1)
     if reduce:  # across both dimensions
-        return np.sqrt(np.mean(ae))
+        return float(np.sqrt(np.mean(ae)))
     else:  # retain first dimension
         return np.sqrt(np.mean(ae, axis=1))
 

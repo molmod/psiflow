@@ -30,12 +30,16 @@ class Metadynamics:
         if "FLUSH" not in _plumed_input:  # add at the end!
             _plumed_input = _plumed_input + "FLUSH STRIDE=1\nPRINT"
 
+        # PLUMED + WQ cannot deal with nonexisting hills files!
         if type(external) in [str, Path]:
             external = File(str(external))
+            Path(external).touch()
         if external is None:
             external = psiflow.context().new_file("hills_", ".txt")
+            Path(external.filepath).touch()
         else:
             assert external.filepath in _plumed_input
+            Path(external.filepath).touch()
         _plumed_input = set_path_in_plumed(
             _plumed_input,
             "METAD",
