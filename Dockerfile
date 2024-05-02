@@ -59,6 +59,7 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
 ARG GIT_COMMIT_SHA
 RUN pip install --no-cache-dir git+https://github.com/lab-cosmo/i-pi.git@feat/socket_prefix
 RUN pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@ipi
-RUN pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.org/whl/cu118
+ARG GPU_LIBRARY
+RUN pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.org/whl/${GPU_LIBRARY}
 RUN pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.3
 RUN pip install --no-cache-dir wandb plotly plumed 
