@@ -274,3 +274,31 @@ def _save_metrics(data: np.recarray, outputs: list = []) -> None:
 
 
 save_metrics = python_app(_save_metrics, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def container_launch_command(
+    uri: str,
+    engine: str = "apptainer",
+    gpu: bool = False,
+    addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs",
+    entrypoint: str = "/usr/local/bin/entry.sh",
+) -> str:
+    assert engine in ["apptainer", "singularity"]
+    assert len(uri) > 0
+
+    launch_command = ""
+    launch_command += engine
+    launch_command += " exec "
+    launch_command += addopts
+    launch_command += " --bind {}".format(
+        Path.cwd().resolve()
+    )  # access to data / internal dir
+    launch_command += " --env PARSL_CORES=${PARSL_CORES}"
+    if gpu:
+        if "rocm" in uri:
+            launch_command += " --rocm"
+        else:  # default
+            launch_command += " --nv"
+    launch_command += " {} {} ".format(uri, entrypoint)
+    return launch_command

@@ -23,12 +23,11 @@ from parsl.executors import (
     WorkQueueExecutor,
 )
 from parsl.executors.base import ParslExecutor
-from parsl.launchers.launchers import SimpleLauncher, SrunLauncher
+from parsl.launchers import SimpleLauncher, WrappedLauncher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.parsl_utils import ContainerizedLauncher, ContainerizedSrunLauncher
-from psiflow.utils import resolve_and_check, set_logger
+from psiflow.utils import container_launch_command, resolve_and_check, set_logger
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -83,6 +82,14 @@ class ExecutionDefinition:
                 "--timeout={}".format(30),
                 "--wall-time={}".format(self.max_runtime),
             ]
+
+            # hacky; if the launcher is a WrappedLauncher, switch to SimpleLauncher
+            # and prepend the command to worker_executable
+            if isinstance(self.parsl_provider.launcher, WrappedLauncher):
+                prepend = self.parsl_provider.launcher.prepend
+                self.parsl_provider.launcher = SimpleLauncher()
+            else:
+                prepend = ""
             executor = WorkQueueExecutor(
                 label=self.name,
                 working_dir=str(path / self.name),
@@ -93,6 +100,7 @@ class ExecutionDefinition:
                 max_retries=0,
                 coprocess=False,
                 worker_options=" ".join(worker_options),
+                worker_executable="{} work_queue_worker".format(prepend),
             )
         return executor
 
@@ -117,18 +125,14 @@ class ExecutionDefinition:
 
         # if multi-node blocks are requested, make sure we're using SlurmProvider
         if provider_dict.get("nodes_per_block", 1) > 1:
-            assert (
-                provider_keys[0] == "SlurmProvider"
-            ), "multi-node blocks only supported for SLURM"
-            if container is not None:
-                launcher = ContainerizedSrunLauncher(
-                    **container,
-                    enable_gpu=config_dict.get("gpu", False),
-                )
-            else:
-                launcher = SrunLauncher()
+            raise NotImplementedError
         else:
-            launcher = SimpleLauncher()
+            if container is not None:
+                gpu = config_dict.get("gpu", False)
+                launch_command = container_launch_command(gpu=gpu, **container)
+                launcher = WrappedLauncher(prepend=launch_command)
+            else:
+                launcher = SimpleLauncher()
 
         # initialize provider
         parsl_provider = provider_cls(launcher=launcher, **provider_dict)
@@ -249,9 +253,7 @@ class ReferenceEvaluation(ExecutionDefinition):
         self.cp2k_executable = cp2k_executable
         if mpi_command is None:  # parse
             ranks = self.cores_per_worker  # use nprocs = ncores, nthreads = 1
-            mpi_command = "mpirun -np {} -bind-to core -rmk user -launcher fork -x OMP_NUM_THREADS=1".format(
-                ranks
-            )
+            mpi_command = "mpirun -np {} -x OMP_NUM_THREADS=1".format(ranks)
         self.mpi_command = mpi_command
         if name is not None:
             self.name = name  # if not None, the name of the reference class
@@ -392,7 +394,7 @@ class ExecutionContext:
 
         # create default executors
         if container is not None:
-            launcher = ContainerizedLauncher(**container)
+            launcher = WrappedLauncher(prepend=container_launch_command(**container))
         else:
             launcher = SimpleLauncher()
         htex = HighThroughputExecutor(
