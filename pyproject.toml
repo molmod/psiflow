@@ -50,6 +50,8 @@ include = [
     "psiflow.hamiltonians",
     "psiflow.reference",
     "psiflow.sampling",
+    "psiflow.tools",
+    "psiflow.free_energy",
     ]
 
 

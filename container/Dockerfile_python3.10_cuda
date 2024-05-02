@@ -30,11 +30,12 @@ RUN update-ca-certificates
 RUN /usr/local/bin/_dockerfile_initialize_user_accounts.sh && \
     /usr/local/bin/_dockerfile_setup_root_prefix.sh
 
-# modify entrypoint to also activate cp2k 
+# modify entrypoint to also activate cp2k, but do not set up the included (lib)torch
 RUN head -n -1 /usr/local/bin/_entrypoint.sh > /usr/local/bin/entry.sh
-RUN echo "source /opt/cp2k-toolchain/install/setup\n" >> /usr/local/bin/entry.sh
+RUN sed '/torch/Id' /opt/cp2k/tools/toolchain/install/setup > /opt/cp2k/tools/toolchain/install/setup_notorch
+RUN echo "source /opt/cp2k/tools/toolchain/install/setup_notorch\n" >> /usr/local/bin/entry.sh
 RUN echo "export PATH=\"/opt/cp2k/exe/local:\${PATH}\"\n" >> /usr/local/bin/entry.sh
-RUN echo "export PATH=\"/opt/cp2k-toolchain/install/mpich-4.0.3/bin:\${PATH}\"\n" >> /usr/local/bin/entry.sh
+
 RUN echo "exec \"\$@\"" >> /usr/local/bin/entry.sh
 RUN chmod +x /usr/local/bin/entry.sh
 
@@ -42,7 +43,7 @@ USER $MAMBA_USER
 
 SHELL ["/usr/local/bin/_dockerfile_shell.sh"]
 
-ENTRYPOINT ["/usr/local/bin/_entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entry.sh"]
 # Optional: if you want to customize the ENTRYPOINT and have a conda
 # environment activated, then do this:
 # ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "my_entrypoint_program"]

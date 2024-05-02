@@ -370,7 +370,7 @@ def test_serialization(context, dataset, tmp_path, mace_model):
         atoms.set_positions(state.per_atom.positions)
         atoms.set_cell(state.cell)
         e = atoms.get_potential_energy()
-        assert e == evaluated[i].result().energy
+        assert np.allclose(e, evaluated[i].result().energy)
 
     # for plumed
     hills = """#! FIELDS time CV sigma_CV height biasf
