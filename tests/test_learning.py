@@ -5,7 +5,7 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import new_nullstate
 from psiflow.hamiltonians import EinsteinCrystal
-from psiflow.learning import evaluate_outputs
+from psiflow.learning import Learning, evaluate_outputs
 from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
 from psiflow.reference import EMT
 from psiflow.sampling import SimulationOutput
@@ -206,3 +206,9 @@ def test_wandb():
     assert np.allclose(data.e_rmse, data_.e_rmse)
     assert np.allclose(data.some_cv, data_.some_cv, equal_nan=True)
     psiflow.wait()
+
+
+def test_learning(tmp_path):
+    learning = Learning(EMT(), tmp_path / "output")
+    assert learning.iteration == -1
+    assert learning.identifier == 0

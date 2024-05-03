@@ -14,7 +14,6 @@ from parsl.data_provider.files import File
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
-from psiflow.models.model import Model
 from psiflow.utils import dump_json
 
 
@@ -127,10 +126,6 @@ class MACEHamiltonian(Hamiltonian):
         index_mapping = np.zeros(len(data), dtype=int)
         torch.set_num_threads(ncores)
         return [calculator], index_mapping
-
-    @classmethod
-    def from_model(cls, model: Model):
-        return cls(model.model_future, model.atomic_energies)
 
 
 def get_mace_mp0(size: str = "small") -> MACEHamiltonian:

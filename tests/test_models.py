@@ -5,7 +5,6 @@ from parsl.app.futures import DataFuture
 
 import psiflow
 from psiflow.data import compute_rmse
-from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models import MACE, load_model
 
 
@@ -25,8 +24,8 @@ def test_mace_init(mace_config, dataset):
     assert isinstance(model.model_future, DataFuture)
 
     # create hamiltonian and verify addition of atomic energies
-    hamiltonian = MACEHamiltonian.from_model(model)
-    assert hamiltonian == MACEHamiltonian.from_model(model)
+    hamiltonian = model.create_hamiltonian()
+    assert hamiltonian == model.create_hamiltonian()
     evaluated = hamiltonian.evaluate(dataset)
 
     nstates = dataset.length().result()
@@ -38,7 +37,7 @@ def test_mace_init(mace_config, dataset):
         "Cu": energy_Cu,
         "H": energy_H,
     }
-    assert hamiltonian != MACEHamiltonian.from_model(model)  # atomic energies
+    assert hamiltonian != model.create_hamiltonian()  # atomic energies
 
     evaluated_ = hamiltonian.evaluate(dataset)
     for i in range(nstates):
@@ -60,10 +59,10 @@ def test_mace_init(mace_config, dataset):
         energies.astype(np.float32),
         evaluated__.get("energy").result().reshape(-1),
     )
-    hamiltonian = MACEHamiltonian.from_model(model)
+    hamiltonian = model.create_hamiltonian()
     model.reset()
     model.initialize(dataset[:3])
-    assert hamiltonian != MACEHamiltonian.from_model(model)
+    assert hamiltonian != model.create_hamiltonian()
 
 
 def test_mace_train(gpu, mace_config, dataset, tmp_path):
@@ -74,13 +73,13 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     validation = dataset[-5:]
     model = MACE(**mace_config)
     model.initialize(training)
-    hamiltonian0 = MACEHamiltonian.from_model(model)
+    hamiltonian0 = model.create_hamiltonian()
     rmse0 = compute_rmse(
         validation.get("per_atom_energy"),
         hamiltonian0.evaluate(validation).get("per_atom_energy"),
     )
     model.train(training, validation)
-    hamiltonian1 = MACEHamiltonian.from_model(model)
+    hamiltonian1 = model.create_hamiltonian()
     rmse1 = compute_rmse(
         validation.get("per_atom_energy"),
         hamiltonian1.evaluate(validation).get("per_atom_energy"),
@@ -94,7 +93,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     model.add_atomic_energy("Cu", 4)
     model.save(tmp_path)
     model.initialize(dataset[:2])
-    e0 = MACEHamiltonian.from_model(model).evaluate(dataset[[3]])[0].result().energy
+    e0 = model.create_hamiltonian().evaluate(dataset[[3]])[0].result().energy
 
     psiflow.wait()
     assert (tmp_path / "MACE.yaml").exists()
@@ -107,7 +106,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     model_ = load_model(tmp_path)
     assert type(model_) is MACE
     assert model_.model_future is not None
-    e1 = MACEHamiltonian.from_model(model_).evaluate(dataset[[3]])[0].result().energy
+    e1 = model_.create_hamiltonian().evaluate(dataset[[3]])[0].result().energy
     assert np.allclose(e0, e1, atol=1e-4)  # up to single precision
 
 

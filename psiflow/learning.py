@@ -1,3 +1,6 @@
+from __future__ import annotations  # necessary for type-guarding class methods
+
+import shutil
 from pathlib import Path
 from typing import Optional, Union
 
@@ -13,7 +16,7 @@ from psiflow.hamiltonians import Hamiltonian
 from psiflow.metrics import Metrics
 from psiflow.models import Model
 from psiflow.reference import Reference
-from psiflow.sampling import SimulationOutput, Walker
+from psiflow.sampling import SimulationOutput, Walker, sample
 from psiflow.utils import unpack_i
 
 
@@ -88,12 +91,10 @@ def evaluate_outputs(
 @typeguard.typechecked
 @psiflow.serializable
 class Learning:
-    model: Model
     reference: Reference
     path_output: Path
     identifier: Union[AppFuture, int]
     train_valid_split: float
-    mix_training_validation: bool
     error_thresholds_for_reset: tuple[float, float]
     error_thresholds_for_discard: tuple[float, float]
     metrics: Metrics
@@ -101,23 +102,19 @@ class Learning:
 
     def __init__(
         self,
-        model: Model,
         reference: Reference,
         path_output: Union[str, Path],
         train_valid_split: float = 0.9,
-        mix_train_valid: bool = True,
         error_thresholds_for_reset: tuple[float, float] = (20, 300),
         error_thresholds_for_discard: tuple[float, float] = (30, 600),
         wandb_project: Optional[str] = None,
         wandb_group: Optional[str] = None,
         initial_data: Optional[Dataset] = None,
     ):
-        self.model = model
         self.reference = reference
         self.path_output = Path(path_output)
         self.path_output.mkdir(exist_ok=False, parents=True)
         self.train_valid_split = train_valid_split
-        self.mix_train_valid = mix_train_valid
         self.error_thresholds_for_reset = error_thresholds_for_reset
         self.error_thresholds_for_discard = error_thresholds_for_discard
         self.metrics = Metrics(
@@ -132,27 +129,144 @@ class Learning:
             self.data = initial_data
             self.identifier = initial_data.assign_identifiers()
 
-        self.iteration = 0
+        self.iteration = -1
 
-    def skip(self) -> bool:
-        pass
+    def update(self, learning: Learning) -> None:
+        assert str(self.path_output) == str(learning.path_output)
+        self.train_valid_split = learning.train_valid_split
+        self.error_thresholds_for_reset = learning.error_thresholds_for_reset
+        self.error_thresholds_for_discard = learning.error_thresholds_for_discard
+        self.metrics = learning.metrics
+        self.reference = learning.reference
+        self.data = learning.data
+        self.identifier = learning.identifier
+        self.iteration = learning.iteration
 
-    def save(
-        self, serialize: bool = True
-    ) -> bool:  # human-readable format and serialized
-        assert not self.skip()
+    def skip(self, name: str) -> bool:
+        if not (self.path_output / name).exists():
+            return False
+        else:  # check that the iteration has completed, or delete
+            if not (self.path_output / name / "_restart" / "learning.json").exists():
+                shutil.rmtree(self.path_output / name)
+                return False
+            else:
+                return True
+
+    def save(self, name: str, model: Model, walkers: list[Walker]) -> None:
+        model.save(self.path_output / name)
+        self.data.save(self.path_output / name / "data.xyz")
+
+        path = self.path_output / name / "_restart"
+        path.mkdir(exist_ok=False, parents=True)
+        for i, walker in enumerate(walkers):
+            psiflow.serialize(
+                walker,
+                path_json=path / "{}.json".format(i),
+                copy_to=path,
+            )
+        psiflow.serialize(model, path_json=path / "model.json", copy_to=path)
+        psiflow.serialize(self, path_json=path / "learning.json", copy_to=path)
+        psiflow.wait()
+
+    def load(self, name: str) -> None:
+        path = self.path_output / name / "_restart"
+        self.update(psiflow.deserialize(path / "learning.json"))
+        model = psiflow.deserialize(path / "model.json")
+
+        i = 0
+        walkers = []
+        while True:
+            path_walker = path / "{}.json".format(i)
+            if path_walker.exists():
+                walkers.append(psiflow.deserialize(path_walker))
+        return model, walkers
 
     def pretraining(
         self,
         walkers: list[Walker],
-        universal_potential: str,
+        hamiltonian: Hamiltonian,
+        steps: int,
         **sampling_kwargs,
-    ) -> Dataset:
-        pass
+    ) -> tuple[Model, list[Walker]]:
+        self.iteration += 1
+        name = "{}_{}".format(self.iteration, "pretraining")
+        if self.skip(name):
+            model, walkers = self.load(name)
+        else:
+            backup = []
+            for w in walkers:
+                backup.append(w.hamiltonian)
+                w.hamiltonian = w.hamiltonian + hamiltonian
+
+            step = sampling_kwargs.get("step", None)
+            if step is None:
+                step = 1
+            nevaluations = steps // step
+            for _i in range(nevaluations):
+                outputs = sample(walkers, steps, **sampling_kwargs)
+                identifier, data, _ = evaluate_outputs(  # ignore resets
+                    outputs,
+                    hamiltonian,
+                    self.reference,
+                    self.identifier,
+                    self.error_thresholds_for_reset,
+                    self.error_thresholds_for_discard,
+                    self.metrics,
+                )
+                self.identifier = identifier
+                self.data += data  # automatically sorted based on identifier
+
+            train, valid = self.data.split(self.train_valid_split)  # also shuffles
+            model.reset()
+            model.initialize(train)
+            model.train(train, valid)
+
+            # restore original walker hamiltonians and apply conditional reset
+            for w, h in zip(walkers, backup):
+                w.hamiltonian = h
+
+            self.save(name, model, walkers)
+        return model, walkers
 
     def sample_qm_train(
         self,
         walkers: list[Walker],
+        steps: int,
         **sampling_kwargs,
-    ) -> Dataset:
-        pass
+    ) -> tuple[Model, list[Walker]]:
+        self.iteration += 1
+        name = "{}_{}".format(self.iteration, "sample_qm_train")
+        if self.skip(name):
+            model, walkers = self.load(name)
+        else:
+            hamiltonian = model.create_hamiltonian()
+            backup = []
+            for w in walkers:
+                backup.append(w.hamiltonian)
+                w.hamiltonian = w.hamiltonian + hamiltonian
+
+            outputs = sample(walkers, steps, **sampling_kwargs)
+            identifier, data, resets = evaluate_outputs(
+                outputs,
+                hamiltonian,
+                self.reference,
+                self.identifier,
+                self.error_thresholds_for_reset,
+                self.error_thresholds_for_discard,
+                self.metrics,
+            )
+            self.identifier = identifier
+            self.data += data  # automatically sorted based on identifier
+
+            train, valid = self.data.split(self.train_valid_split)  # also shuffles
+            model.reset()
+            model.initialize(train)
+            model.train(train, valid)
+
+            # restore original walker hamiltonians and apply conditional reset
+            for i, (w, h) in enumerate(zip(walkers, backup)):
+                w.hamiltonian = h
+                w.reset(resets[i])
+
+            self.save(name, model, walkers)
+        return model, walkers

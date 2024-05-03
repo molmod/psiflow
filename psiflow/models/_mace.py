@@ -10,6 +10,7 @@ from parsl.app.app import bash_app
 from parsl.data_provider.files import File
 
 import psiflow
+from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models.model import Model
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -229,3 +230,7 @@ class MACE(Model):
     @seed.setter
     def seed(self, arg: int) -> None:
         self.config.seed = arg
+
+    def create_hamiltonian(self) -> MACEHamiltonian:
+        assert self.model_future is not None
+        return MACEHamiltonian(self.model_future, self.atomic_energies)

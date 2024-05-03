@@ -13,7 +13,6 @@ from psiflow.geometry import NullState
 from psiflow.hamiltonians import (
     EinsteinCrystal,
     Harmonic,
-    MACEHamiltonian,
     PlumedHamiltonian,
     deserialize_calculator,
 )
@@ -415,7 +414,7 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
         assert np.allclose(e, evaluated[i].result().energy, atol=1e-4)
 
     # for mace
-    hamiltonian = MACEHamiltonian.from_model(mace_model)
+    hamiltonian = mace_model.create_hamiltonian()
     evaluated = hamiltonian.evaluate(dataset[:3])
 
     data_future = hamiltonian.serialize_calculator()

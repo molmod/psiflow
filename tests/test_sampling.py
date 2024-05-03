@@ -6,7 +6,7 @@ from ase.units import Bohr
 
 import psiflow
 from psiflow.data import check_equality
-from psiflow.hamiltonians import EinsteinCrystal, MACEHamiltonian, PlumedHamiltonian
+from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
 from psiflow.models import MACE
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.order import HamiltonianOrderParameter
@@ -228,7 +228,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
 
     model = MACE(**mace_config)
     model.initialize(dataset[:3])
-    hamiltonian = MACEHamiltonian.from_model(model)
+    hamiltonian = model.create_hamiltonian()
     walker = Walker(
         start=dataset[0],
         temperature=600,
