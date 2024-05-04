@@ -16,7 +16,7 @@ def main():
     walkers = [Walker(geometry, mace, temperature=300, pressure=p) for p in pressures]
 
     name = "volume{angstrom3}"
-    outputs = sample(walkers, steps=10, step=2, observables=[name])
+    outputs = sample(walkers, steps=4000, step=50, observables=[name])
     volumes = [np.mean(o[name].result()) for o in outputs]
 
     p = np.polyfit(volumes, pressures, deg=1)
