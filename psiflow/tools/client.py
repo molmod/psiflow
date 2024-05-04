@@ -65,4 +65,6 @@ if __name__ == "__main__":
             sockets_prefix="",
         )
     except ForceMagnitudeException as e:
+        print(e)  # induce timeout in server
+    except ConnectionResetError as e:  # some other client induced a timeout
         print(e)

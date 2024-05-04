@@ -15,6 +15,14 @@ logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
+def _boolean_or(*args: Union[bool, np.bool_]) -> bool:
+    return any(args)
+
+
+boolean_or = python_app(_boolean_or, executors=["default_threads"])
+
+
+@typeguard.typechecked
 def _multiply(x: Any, by: float) -> Any:
     return by * x
 
@@ -172,6 +180,7 @@ def _save_yaml(
                 pass
         return arg
 
+    input_dict = dict(input_dict)
     for key, value in extra_keys.items():
         assert key not in input_dict
         input_dict[key] = value

@@ -26,7 +26,6 @@ from psiflow.utils import save_xml
 def template(
     walkers: list[Walker],
 ) -> tuple[dict[str, Hamiltonian], list[tuple], list[AppFuture]]:
-    assert len(partition(walkers)) == 1
     # multiply by 1.0 to ensure result is Mixture in case len(walkers) == 1
     total_hamiltonian = 1.0 * sum([w.hamiltonian for w in walkers], start=Zero())
     assert not total_hamiltonian == Zero()
@@ -393,7 +392,7 @@ execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 
 
 @typeguard.typechecked
-def sample(
+def _sample(
     walkers: list[Walker],
     steps: int,
     step: Optional[int] = None,
@@ -534,3 +533,33 @@ def sample(
         coupling.update(result)
 
     return simulation_outputs
+
+
+@typeguard.typechecked
+def sample(
+    walkers: list[Walker],
+    steps: int,
+    step: Optional[int] = None,
+    max_force: Optional[float] = None,
+    observables: Optional[list[str]] = None,
+    motion_defaults: Union[None, str, ET.Element] = None,
+    prng_seed: int = 12345,
+    checkpoint_step: int = 100,
+) -> list[SimulationOutput]:
+    indices = partition(walkers)
+    outputs = [None] * len(walkers)
+    for group in indices:
+        _walkers = [walkers[index] for index in group]
+        _outputs = _sample(
+            _walkers,
+            steps,
+            step=step,
+            max_force=max_force,
+            observables=observables,
+            motion_defaults=motion_defaults,
+            prng_seed=prng_seed,
+            checkpoint_step=checkpoint_step,
+        )
+        for i, index in enumerate(group):
+            outputs[index] = _outputs[i]
+    return outputs

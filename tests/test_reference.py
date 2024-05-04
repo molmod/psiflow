@@ -372,10 +372,14 @@ def test_cp2k_atomic_energies(
 def test_cp2k_serialize(dataset, simple_cp2k_input):
     element = "H"
     reference = CP2K(simple_cp2k_input, properties=("energy",))
+    assert "properties" in reference._attrs
+    assert "cp2k_input_dict" in reference._attrs
+    assert "cp2k_input_str" in reference._attrs
     energy = reference.compute_atomic_energy(element, box_size=4)
 
     data = psiflow.serialize(reference).result()
     reference = psiflow.deserialize(data)
+    assert type(reference.properties) is list
     assert np.allclose(
         energy.result(),
         reference.compute_atomic_energy(element, box_size=4).result(),

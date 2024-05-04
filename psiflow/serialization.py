@@ -1,6 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import inspect
+import json
 from pathlib import Path
 from typing import Optional, Union, get_args, get_origin, get_type_hints
 
@@ -111,9 +112,7 @@ def _dump_json(
     inputs: list = [],
     outputs: list = [],
     **kwargs,
-) -> dict:
-    import json
-
+) -> str:
     import numpy as np
     from parsl.dataflow.futures import AppFuture
 
@@ -153,7 +152,7 @@ def _dump_json(
     if len(outputs) > 0:
         with open(outputs[0], "w") as f:
             f.write(s)
-    return kwargs
+    return s
 
 
 dump_json = python_app(_dump_json, executors=["default_threads"])
@@ -248,7 +247,7 @@ def serialize(
 
 
 @typeguard.typechecked
-def deserialize(data: dict, custom_cls: Optional[list] = None):
+def deserialize(data_str: str, custom_cls: Optional[list] = None):
     from psiflow.data import Dataset
     from psiflow.hamiltonians import (
         EinsteinCrystal,
@@ -260,7 +259,7 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
     from psiflow.learning import Learning
     from psiflow.metrics import Metrics
     from psiflow.models import MACE
-    from psiflow.reference import CP2K
+    from psiflow.reference import CP2K, EMT
     from psiflow.sampling import (
         Metadynamics,
         OrderParameter,
@@ -276,6 +275,7 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
         Dataset,
         MACE,
         CP2K,
+        EMT,
         MACEHamiltonian,
         EinsteinCrystal,
         PlumedHamiltonian,
@@ -291,6 +291,7 @@ def deserialize(data: dict, custom_cls: Optional[list] = None):
     ]:
         SERIALIZABLES[cls.__name__] = cls
 
+    data = json.loads(data_str)
     cls_name = list(data.keys())[0]
     cls = SERIALIZABLES.get(cls_name, None)
     assert cls is not None

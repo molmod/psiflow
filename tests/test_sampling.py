@@ -41,30 +41,19 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
 
     walkers = [walker]
     walkers.append(Walker(dataset[0], 0.5 * einstein_, nbeads=4, metadynamics=mtd1))
-    assert not Walker.is_similar(walkers[0], walkers[1])
-    assert len(partition(walkers)) == 2
     walkers.append(Walker(dataset[0], einstein + plumed, nbeads=4))
-    assert Walker.is_similar(walkers[1], walkers[2])
-    assert len(partition(walkers)) == 2
     walkers.append(
         Walker(dataset[0], einstein, pressure=0, temperature=300, metadynamics=mtd1)
     )
-    assert not Walker.is_similar(walkers[0], walkers[-1])
-    assert len(partition(walkers)) == 3
     walkers.append(
         Walker(dataset[0], einstein_, pressure=100, temperature=600, metadynamics=mtd1)
     )
-    assert len(partition(walkers)) == 3
     walkers.append(Walker(dataset[0], einstein, temperature=600, metadynamics=mtd1))
-    partitions = partition(walkers)
-    assert len(partitions) == 3
-    assert len(partitions[0]) == 2
-    assert len(partitions[1]) == 2
-    assert len(partitions[2]) == 2
 
-    # nvt partition
-    hamiltonians_map, weights_table, plumed_list = template(partitions[0])
-    assert partitions[0][0].nvt
+    # nvt
+    _walkers = [walkers[0], walkers[-1]]
+    hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    assert _walkers[0].nvt
     assert len(hamiltonians_map) == 1
     assert weights_table[0] == ("TEMP", "EinsteinCrystal0", "METAD0", "METAD1")
     assert len(plumed_list) == 2
@@ -72,10 +61,10 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     assert weights_table[2] == (600, 1.0, 0.0, 1.0)
 
     # remove
-    partitions[0][0].metadynamics = None
-    partitions[0][1].metadynamics = None
-    hamiltonians_map, weights_table, plumed_list = template(partitions[0])
-    assert partitions[0][0].nvt
+    _walkers[0].metadynamics = None
+    _walkers[1].metadynamics = None
+    hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    assert _walkers[0].nvt
     assert len(hamiltonians_map) == 1
     assert weights_table[0] == ("TEMP", "EinsteinCrystal0")
     assert len(plumed_list) == 0
@@ -83,8 +72,9 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     assert weights_table[2] == (600, 1.0)
 
     # pimd partition
-    hamiltonians_map, weights_table, plumed_list = template(partitions[1])
-    assert partitions[1][0].pimd
+    _walkers = [walkers[1], walkers[2]]
+    hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    assert _walkers[0].pimd
     assert len(hamiltonians_map) == 3
     assert weights_table[0] == (
         "TEMP",
@@ -97,11 +87,12 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     assert weights_table[2] == (300, 1.0, 0.0, 1.0, 0.0)
 
     # npt partition
+    _walkers = [walkers[3], walkers[4]]
     with pytest.raises(AssertionError):  # mtd objects were equal
-        hamiltonians_map, weights_table, plumed_list = template(partitions[2])
-    partitions[2][0].metadynamics = Metadynamics("METAD: FILE=bla")
-    hamiltonians_map, weights_table, plumed_list = template(partitions[2])
-    assert partitions[2][0].npt
+        hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    _walkers[0].metadynamics = Metadynamics("METAD: FILE=bla")
+    hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    assert _walkers[0].npt
     assert len(hamiltonians_map) == 2
     assert weights_table[0] == (
         "TEMP",
@@ -384,6 +375,8 @@ def test_rex(dataset):
     walkers = walker.multiply(2)
     replica_exchange(walkers, trial_frequency=5)
     assert walkers[0].coupling.nwalkers == len(walkers)
+    assert len(partition(walkers)) == 1
+    assert len(partition(walkers)[0]) == 2
 
     _ = sample(walkers, steps=50, step=10)
 
@@ -394,7 +387,11 @@ def test_rex(dataset):
     walkers += Walker(dataset[0], hamiltonian=10 * einstein).multiply(2)
     with pytest.raises(AssertionError):
         replica_exchange(walkers)
-    assert len(partition(walkers)) == 2
+    assert len(partition(walkers)) == 3
+    assert partition(walkers)[0][0] == 0
+    assert partition(walkers)[0][1] == 1
+    assert partition(walkers)[1][0] == 2
+    assert partition(walkers)[2][0] == 3
 
 
 def test_order_parameter(dataset):

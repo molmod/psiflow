@@ -127,23 +127,6 @@ class Walker:
             walkers.append(walker)
         return walkers
 
-    @staticmethod
-    def is_similar(w0: Walker, w1: Walker):
-        similar_T = (w0.temperature is None) == (w1.temperature is None)
-        similar_P = (w0.pressure is None) == (w1.pressure is None)
-        similar_pimd = w0.nbeads == w1.nbeads
-        similar_coupling = w0.coupling == w1.coupling
-        similar_periodic = w0.periodic == w1.periodic
-        similar_timestep = w0.timestep == w1.timestep
-        return (
-            similar_T
-            and similar_P
-            and similar_pimd
-            and similar_coupling
-            and similar_periodic
-            and similar_timestep
-        )
-
     @property
     def pimd(self):
         return self.nbeads != 1
@@ -162,17 +145,19 @@ class Walker:
 
 
 @typeguard.typechecked
-def partition(walkers: list[Walker]) -> list[list[Walker]]:
-    partitions = []
-    for walker in walkers:
+def partition(walkers: list[Walker]) -> list[list[int]]:
+    indices = []
+    for i, walker in enumerate(walkers):
         found = False
-        for partition in partitions:
-            if Walker.is_similar(walker, partition[0]):
-                partition.append(walker)
-                found = True
+        if walker.coupling is not None:
+            for group in indices:
+                if walker.coupling == walkers[group[0]].coupling:
+                    assert not found
+                    group.append(i)
+                    found = True
         if not found:
-            partitions.append([walker])
-    return partitions
+            indices.append([i])
+    return indices
 
 
 @typeguard.typechecked
@@ -323,8 +308,8 @@ def replica_exchange(
     trial_frequency: int = 50,
     rescale_kinetic: bool = True,
 ) -> None:
-    assert len(partition(walkers)) == 1
-    assert walkers[0].coupling is None
+    for w in walkers:
+        assert w.coupling is None
     rex = ReplicaExchange(trial_frequency, rescale_kinetic, len(walkers))
     for walker in walkers:
         walker.coupling = rex

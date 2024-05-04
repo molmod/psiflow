@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from typing import Optional, Union
@@ -95,10 +96,11 @@ def test_serial_simple(tmp_path):
     # test basic serialization
     dumped_json = psiflow.serialize(data).result()
     assert "Dataset" in dumped_json
-    assert len(dumped_json["Dataset"]["_attrs"]) == 0
-    assert len(dumped_json["Dataset"]["_serial"]) == 0
-    assert len(dumped_json["Dataset"]["_files"]) == 1
-    assert dumped_json["Dataset"]["_files"]["extxyz"] == data.extxyz.filepath
+    data_dict = json.loads(dumped_json)
+    assert len(data_dict["Dataset"]["_attrs"]) == 0
+    assert len(data_dict["Dataset"]["_serial"]) == 0
+    assert len(data_dict["Dataset"]["_files"]) == 1
+    assert data_dict["Dataset"]["_files"]["extxyz"] == data.extxyz.filepath
 
     # test copy_to serialization
     data = Dataset([NullState])

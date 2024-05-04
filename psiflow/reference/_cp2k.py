@@ -227,11 +227,16 @@ def evaluate_single(
 @typeguard.typechecked
 @psiflow.serializable
 class CP2K(Reference):
+    properties: list[str]  # json does deserialize(serialize(tuple)) = list
     cp2k_input_str: str
     cp2k_input_dict: dict
 
-    def __init__(self, cp2k_input_str: str, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        cp2k_input_str: str,
+        properties: Union[tuple, list] = ("energy", "forces"),
+    ):
+        self.properties = list(properties)
         check_input(cp2k_input_str)
         self.cp2k_input_str = cp2k_input_str
         self.cp2k_input_dict = str_to_dict(cp2k_input_str)
@@ -247,7 +252,7 @@ class CP2K(Reference):
         self.evaluate_single = partial(
             evaluate_single,
             cp2k_input_dict=self.cp2k_input_dict,
-            properties=self.properties,
+            properties=tuple(self.properties),
             cp2k_command=cp2k_command,
             wq_resources=wq_resources,
             app_pre=app_pre,

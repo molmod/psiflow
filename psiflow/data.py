@@ -6,12 +6,13 @@ from typing import Optional, Union
 
 import numpy as np
 import typeguard
+from ase.data import atomic_numbers, chemical_symbols
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.geometry import Geometry, NullState, atomic_numbers, chemical_symbols
+from psiflow.geometry import Geometry, NullState
 from psiflow.utils import copy_data_future, resolve_and_check, unpack_i
 
 QUANTITIES = [

@@ -1,13 +1,14 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from functools import partial
-from typing import Optional
+from typing import Optional, Union
 
 import typeguard
 from parsl.app.app import bash_app
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.hamiltonians import MACEHamiltonian
@@ -191,13 +192,20 @@ def train(
 @typeguard.typechecked
 @psiflow.serializable
 class MACE(Model):
+    _config: dict
+    model_future: Optional[psiflow._DataFuture]
+    atomic_energies: dict[str, Union[float, AppFuture]]
+
     def __init__(self, **config) -> None:
-        super().__init__()
-        config = MACEConfig(**config)
+        config = MACEConfig(**config)  # validate input
         assert not config.swa, "usage of SWA is currently not supported"
-        assert config.save_cpu  # assert model is saved to CPU after training
+        config.save_cpu = True  # assert model is saved to CPU after training
         config.device = "cpu"
-        self.config = config
+        self._config = asdict(config)
+
+        self.model_future = None
+        self.atomic_energies = {}
+
         self._create_apps()
 
     def _create_apps(self):  # initialize apps
@@ -225,11 +233,11 @@ class MACE(Model):
 
     @property
     def seed(self) -> int:
-        return self.config.seed
+        return self._config["seed"]
 
     @seed.setter
     def seed(self, arg: int) -> None:
-        self.config.seed = arg
+        self._config["seed"] = arg
 
     def create_hamiltonian(self) -> MACEHamiltonian:
         assert self.model_future is not None

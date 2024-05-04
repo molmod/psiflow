@@ -10,9 +10,21 @@ from psiflow.models import MACE, load_model
 
 def test_mace_init(mace_config, dataset):
     model = MACE(**mace_config)
+    assert "model_future" in model._files
     assert model.model_future is None
     model.initialize(dataset[:1])
     assert model.model_future is not None
+
+    _config = model._config
+
+    data_str = psiflow.serialize(model).result()
+    model = psiflow.deserialize(data_str)
+
+    _config_ = model._config
+    for key, value in _config.items():
+        assert key in _config_
+        if type(value) is not list:
+            assert value == _config_[key]
 
     config = copy.deepcopy(mace_config)
     config[
@@ -115,5 +127,5 @@ def test_mace_seed(mace_config):
     assert model.seed == 0
     model.seed = 111
     assert model.seed == 111
-    model.config.seed = 112
+    model._config["seed"] = 112
     assert model.seed == 112

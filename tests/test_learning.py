@@ -8,7 +8,7 @@ from psiflow.hamiltonians import EinsteinCrystal
 from psiflow.learning import Learning, evaluate_outputs
 from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
 from psiflow.reference import EMT
-from psiflow.sampling import SimulationOutput
+from psiflow.sampling import SimulationOutput, Walker
 from psiflow.utils import (
     _load_metrics,
     _save_metrics,
@@ -69,7 +69,7 @@ def test_metrics(dataset_h2):
     states[7] = new_nullstate()
     states[1].result().logprob = np.array([-1.0, 1.0])
 
-    errors = [tuple(np.random.uniform(0, 1, size=2)) for i in range(len(states))]
+    errors = [np.random.uniform(0, 1, size=2) for i in range(len(states))]
     statuses = [0] * 10
     temperatures = [400] * 10
     times = [3.0] * 10
@@ -130,6 +130,21 @@ def test_metrics(dataset_h2):
     assert np.allclose(data.e_rmse[data.identifier != -1][:, 0], e_rmse[:, 1])
     assert np.all(~np.isnan(e_rmse[:, 0]))
 
+    # do it twice
+    metrics.log_walkers(
+        outputs,
+        errors,
+        states,
+        resets,
+    )
+    double_identifier = np.concatenate(
+        (data.identifier, data.identifier),
+        axis=0,
+        dtype=np.int_,
+    )
+    data = load_metrics(inputs=[metrics.metrics]).result()
+    assert np.allclose(data.identifier, double_identifier)
+
 
 def test_evaluate_outputs(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=2)
@@ -142,22 +157,22 @@ def test_evaluate_outputs(dataset):
     outputs[3].state = new_nullstate()
     outputs[7].status = 2  # should be null state
 
+    # resets for 3 and 7 happen in sample() method, not in evaluate_outputs!
+
     identifier = 3
     identifier, data, resets = evaluate_outputs(
         outputs,
         einstein,
         EMT(),
         identifier=identifier,
-        error_thresholds_for_reset=(1e6, 1e6),
-        error_thresholds_for_discard=(1e6, 1e6),
+        error_thresholds_for_reset=[None, None],  # never reset
+        error_thresholds_for_discard=[None, None],
         metrics=Metrics(),
     )
     assert identifier.result() == 3 + len(outputs) - 2
     assert data.length().result() == len(outputs) - 2
     assert data.filter("forces").length().result() == len(outputs) - 2
 
-    assert resets[3].result()
-    assert resets[7].result()
     assert not all([r.result() for r in resets])
 
     identifier, data, resets = evaluate_outputs(
@@ -165,11 +180,15 @@ def test_evaluate_outputs(dataset):
         einstein,
         EMT(),
         identifier=identifier,
-        error_thresholds_for_reset=(0, 0),
-        error_thresholds_for_discard=(0, 0),
+        error_thresholds_for_reset=[0.0, 0.0],
+        error_thresholds_for_discard=[0.0, 0.0],
         metrics=Metrics(),
     )
-    assert all([r.result() for r in resets])
+    for i in range(10):
+        if i not in [3, 7]:
+            assert resets[i].result()  # already reset
+        else:
+            assert not resets[i].result()
 
 
 def test_wandb():
@@ -208,7 +227,66 @@ def test_wandb():
     psiflow.wait()
 
 
-def test_learning(tmp_path):
+def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
     learning = Learning(EMT(), tmp_path / "output")
+    assert "reference" in learning._serial
+    assert "metrics" in learning._serial
     assert learning.iteration == -1
     assert learning.identifier == 0
+    assert not learning.skip("-1_pretraining")
+
+    data = psiflow.serialize(learning).result()
+    learning_ = psiflow.deserialize(data)
+    learning.update(learning_)
+
+    walkers = [
+        Walker(dataset[0], EinsteinCrystal(dataset[1], 1.0)),
+        Walker(dataset[0], EinsteinCrystal(dataset[5], 1.0)),
+        Walker(dataset[1], EinsteinCrystal(dataset[2], 1000)),
+    ]
+    mace_model, walkers = learning.sample_qm_train(
+        mace_model,
+        walkers,
+        steps=5,
+        max_force=10,
+    )
+    # assumes no resets happen because of error thresholds!
+    assert learning.iteration == 0
+    assert not walkers[0].is_reset().result()
+    assert walkers[2].is_reset().result()
+    psiflow.wait()
+
+    metrics = load_metrics(inputs=[learning.metrics.metrics]).result()
+    assert len(metrics) == 2  # NullStates for status not in [0, 1]
+    assert np.allclose(
+        metrics.identifier,
+        np.array([0, 1], dtype=np.int_),
+    )
+    assert np.allclose(
+        metrics.walker_index,
+        np.array([0, 1], dtype=np.int_),
+    )
+
+    assert learning.skip("0_sample_qm_train")
+    model_, walkers_ = learning.load("0_sample_qm_train")
+    for w, w_ in zip(walkers, walkers_):
+        assert (
+            w.state.result() == w_.state
+        )  # no result call necessary after deserialize
+        assert np.allclose(
+            w.hamiltonian.evaluate(Dataset([w.state])).get("energy").result(),
+            w_.hamiltonian.evaluate(Dataset([w_.state])).get("energy").result(),
+        )
+
+    mace_model, walkers = learning.sample_qm_train(
+        model_,
+        walkers_,
+        steps=5,
+        max_force=10,
+    )
+    metrics = load_metrics(inputs=[learning.metrics.metrics]).result()
+    assert len(metrics) == 4
+    assert np.allclose(
+        metrics.identifier,
+        np.array([0, 1, 2, 3], dtype=np.int_),
+    )

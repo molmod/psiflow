@@ -470,10 +470,10 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
         center=center, kappa=kappa / (kJ / mol)
     )
     plumed = PlumedHamiltonian(plumed_input)
-    data = psiflow.serialize(einstein).result()
+    data = json.loads(psiflow.serialize(einstein).result())
     assert "EinsteinCrystal" in data
     assert "reference_geometry" in data["EinsteinCrystal"]["_geoms"]
-    einstein_ = psiflow.deserialize(data)
+    einstein_ = psiflow.deserialize(json.dumps(data))
     assert np.allclose(
         einstein.evaluate(dataset[:10]).get("energy").result(),
         einstein_.evaluate(dataset[:10]).get("energy").result(),
@@ -482,10 +482,10 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
     mixed = 0.1 * einstein + 0.9 * plumed
     assert "hamiltonians" in mixed._serial
     assert "coefficients" in mixed._attrs
-    data = psiflow.serialize(mixed).result()
+    data = json.loads(psiflow.serialize(mixed).result())
     assert "MixtureHamiltonian" in data
     assert "hamiltonians" in data["MixtureHamiltonian"]["_serial"]
-    mixed_ = psiflow.deserialize(data)
+    mixed_ = psiflow.deserialize(json.dumps(data))
     for i, h in enumerate(mixed.hamiltonians):
         if isinstance(h, EinsteinCrystal):
             assert h.force_constant == mixed_.hamiltonians[i].force_constant

@@ -12,7 +12,6 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian
-from psiflow.sampling.walker import Walker
 from psiflow.utils import unpack_i
 
 DEFAULT_OBSERVABLES = [
@@ -98,12 +97,12 @@ def read_output(filename):  # from i-PI
 
 @typeguard.typechecked
 def _parse_data(
+    status: int,
     keys: list[str],
     inputs: list = [],
 ) -> list[np.ndarray]:
     from psiflow.sampling.output import read_output
 
-    values, _ = read_output(inputs[0].filepath)
     bare_keys = []
     for key in keys:
         if "{" in key:
@@ -111,6 +110,9 @@ def _parse_data(
         else:
             bare_key = key
         bare_keys.append(bare_key)
+    if status not in [0, 1]:
+        return [np.zeros(0) for key in bare_keys]  # read_output might fail
+    values, _ = read_output(inputs[0].filepath)
     return [values[key] for key in bare_keys]
 
 
@@ -157,14 +159,14 @@ def _parse(
 parse = python_app(_parse, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _update_walker(
-    state: Geometry,
     status: int,
+    state: Geometry,
     start: Geometry,
 ) -> Geometry:
-    # success or timeout are OK; see .output.py :: SimulationOutput
-    if status in [0, 1]:
+    from psiflow.geometry import NullState
+
+    if (status in [0, 1]) and state != NullState:
         return state
     else:
         return start
@@ -237,25 +239,26 @@ class SimulationOutput:
         self.temperature = unpack_i(parsed, 1)
         self.status = unpack_i(parsed, 2)
 
-    def update_walker(self, walker: Walker):
-        walker.state = update_walker(
-            self.state,
-            self.status,
-            walker.start,
-        )
-
     def parse_data(
         self,
         data_future: DataFuture,
         hamiltonians: list[Hamiltonian],
     ):
         data = parse_data(
+            self.status,
             list(self._data.keys()),
             inputs=[data_future],
         )
         for i, key in enumerate(self._data.keys()):
             self._data[key] = unpack_i(data, i)
         self.hamiltonians = hamiltonians
+
+    def update_walker(self, walker):
+        walker.state = update_walker(
+            self.status,
+            self.state,
+            walker.start,
+        )
 
     def get_energy(self, hamiltonian: Hamiltonian) -> AppFuture:
         all_h = MixtureHamiltonian(

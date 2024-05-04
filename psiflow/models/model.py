@@ -3,7 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 import parsl
 import typeguard
@@ -20,14 +20,9 @@ logger = logging.getLogger(__name__)  # logging per module
 @typeguard.typechecked
 @psiflow.serializable
 class Model:
-    config: Optional[Any]
+    _config: dict
     model_future: Optional[psiflow._DataFuture]
     atomic_energies: dict
-
-    def __init__(self) -> None:
-        self.config = None
-        self.model_future = None
-        self.atomic_energies = {}
 
     def add_atomic_energy(self, element: str, energy: Union[float, AppFuture]) -> None:
         assert self.model_future is None, (
@@ -64,7 +59,7 @@ class Model:
                 validation.extxyz,
             ]
         future = self._train(
-            asdict(self.config),
+            dict(self._config),
             stdout=parsl.AUTO_LOGNAME,
             stderr=parsl.AUTO_LOGNAME,
             inputs=inputs,
@@ -80,7 +75,7 @@ class Model:
         else:
             inputs = [dataset.extxyz]
         future = self._initialize(
-            asdict(self.config),
+            self._config,
             stdout=parsl.AUTO_LOGNAME,
             stderr=parsl.AUTO_LOGNAME,
             inputs=inputs,
@@ -106,7 +101,7 @@ class Model:
             for key, value in self.atomic_energies.items()
         }
         save_yaml(
-            asdict(self.config),
+            self._config,
             outputs=[File(str(path_config))],
             **atomic_energies,
         )

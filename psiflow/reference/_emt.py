@@ -1,8 +1,11 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+from typing import Union
+
 import typeguard
 from parsl.app.app import python_app
 
+import psiflow
 from psiflow.geometry import Geometry, NullState
 from psiflow.reference.reference import Reference
 
@@ -34,9 +37,13 @@ def evaluate_emt(
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class EMT(Reference):
-    """Container class for EMT calculations (only used for testing purposes)"""
+    properties: list[str]
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, properties: Union[list, tuple] = ("energy", "forces")):
+        self.properties = list(properties)
+        self._create_apps()
+
+    def _create_apps(self):
         self.evaluate_single = python_app(evaluate_emt, executors=["default_threads"])

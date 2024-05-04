@@ -66,11 +66,9 @@ def evaluate_multiple(
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class Reference:
-    properties: tuple[str, ...]
-
-    def __init__(self, properties: tuple = ("energy", "forces")) -> None:
-        self.properties = properties
+    properties: list[str]
 
     def evaluate(
         self,

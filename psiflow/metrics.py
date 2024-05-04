@@ -44,9 +44,9 @@ create_table = python_app(_create_table, executors=["default_threads"])
 @typeguard.typechecked
 def _parse_walker_log(
     statuses: list[int],
-    temperatures: list[float],
-    times: list[float],
-    errors: list[tuple[float, float]],
+    temperatures: list[Optional[float]],
+    times: list[Optional[float]],
+    errors: list[np.ndarray],
     states: list[Geometry],
     resets: list[bool],
     inputs: list = [],
@@ -67,8 +67,8 @@ def _parse_walker_log(
         ("time", np.single),
         ("e_rmse", np.single),
         ("f_rmse", np.single),
-        ("reset", np.bool_),
         ("identifier", np.int_),  # useful, but also needed for proper dataset logging
+        ("reset", np.bool_),
     ]
 
     # check for additional columns : phase, logprob, delta, order parameters
@@ -106,7 +106,7 @@ def _parse_walker_log(
         data.time[i] = times[i]
         data.e_rmse[i] = errors[i][0] * 1000 / len(states[i])  # meV / atom
         data.f_rmse[i] = errors[i][1] * 1000  # meV / angstrom
-        data.reset = resets[i]
+        data.reset[i] = resets[i]
         if "identifier" in names:
             data.identifier[i] = identifiers[i]
         if "phase" in names:
@@ -336,6 +336,8 @@ def _add_walker_log(
     inputs: list = [],
     outputs: list = [],
 ) -> None:
+    from numpy.lib.recfunctions import stack_arrays
+
     from psiflow.utils import _load_metrics, _save_metrics
 
     walker_log = walker_log[walker_log.identifier != -1]
@@ -344,9 +346,10 @@ def _add_walker_log(
     if os.path.isfile(inputs[0]) and os.path.getsize(inputs[0]) > 0:
         metrics = _load_metrics(inputs=[inputs[0]])
         dtype = metrics.dtype
-        metrics = np.concatenate(
+        metrics = stack_arrays(  # np.concatenate is not compatible with recarray
             (metrics, np.recarray(len(walker_log), dtype=dtype)),
-            axis=0,
+            asrecarray=True,
+            usemask=False,
         )
         start = len(metrics) - len(walker_log)
     else:  # initialize dtype based on walkers
@@ -361,11 +364,13 @@ def _add_walker_log(
     for walker_index in range(len(walker_log)):
         i = walker_index + start
         for name in metrics.dtype.names:
-            if name not in ["e_rmse", "f_rmse"]:
-                getattr(metrics, name)[i] = getattr(walker_log, name)[i]
-            else:
-                getattr(metrics, name)[i, 0] = getattr(walker_log, name)[i]
+            if name in ["e_rmse", "f_rmse"]:
+                getattr(metrics, name)[i, 0] = getattr(walker_log, name)[walker_index]
                 getattr(metrics, name)[i, 1] = np.nan
+            elif name == "walker_index":
+                getattr(metrics, name)[i] = walker_index
+            else:
+                getattr(metrics, name)[i] = getattr(walker_log, name)[walker_index]
 
     _save_metrics(metrics, outputs=[outputs[0]])
 
@@ -484,7 +489,7 @@ class Metrics:
     def log_walkers(
         self,
         outputs: list[SimulationOutput],
-        errors: list[Union[AppFuture, tuple]],
+        errors: list[Union[AppFuture, np.ndarray]],
         states: list[Union[AppFuture, Geometry]],
         resets: list[Union[AppFuture, bool]],
     ):
