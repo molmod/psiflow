@@ -150,6 +150,19 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         step=10,
     )
 
+    # check PIMD output
+    walker = Walker(
+        start=dataset[2],
+        temperature=200,
+        pressure=None,
+        hamiltonian=einstein,
+        nbeads=4,
+    )
+    output = sample([walker], steps=10, step=5)[0]
+    for state in output.trajectory.geometries().result():
+        assert len(state) == len(dataset[2].result())
+    assert output.trajectory.length().result() == 3
+
     # check whether metadynamics file has correct dependency
     with open(metadynamics.external.result().filepath, "r") as f:
         content = f.read()

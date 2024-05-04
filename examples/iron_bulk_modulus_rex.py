@@ -5,7 +5,6 @@ import psiflow
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import get_mace_mp0
 from psiflow.sampling import Walker, sample
-from psiflow.sampling.walker import replica_exchange
 
 
 def main():
@@ -15,7 +14,6 @@ def main():
 
     pressures = (-10 + np.arange(5) * 5) * 1e3  # in GPa
     walkers = [Walker(geometry, mace, temperature=300, pressure=p) for p in pressures]
-    replica_exchange(walkers, trial_frequency=1)
 
     name = "volume{angstrom3}"
     outputs = sample(walkers, steps=10, step=2, observables=[name])

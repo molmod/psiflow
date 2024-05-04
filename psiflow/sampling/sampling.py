@@ -270,6 +270,7 @@ def setup_output(
             filename="trajectory",
             stride=str(step),
             format="ase",
+            bead="0",
         )
         trajectory.text = r" positions{angstrom} "
         output.append(trajectory)
