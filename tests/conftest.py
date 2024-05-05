@@ -49,6 +49,7 @@ def context(request, tmp_path_factory):
 
     def cleanup():
         parsl.dfk().wait_for_current_tasks()
+        parsl.dfk().cleanup()
 
     request.addfinalizer(cleanup)
     return context

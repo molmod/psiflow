@@ -460,12 +460,11 @@ class ExecutionContextLoader:
                         "use_threadpool": True,
                     },
                     "ReferenceEvaluation": {
-                        "max_evaluation_time": 1e9,
+                        "max_evaluation_time": 1e7,
                         "mpi_command": "mpirun -np 1",
                         "use_threadpool": True,
                     },
                 }
-                psiflow_config = {}
                 path = Path.cwd() / ".psiflow_internal"
                 if path.exists():
                     shutil.rmtree(path)
@@ -491,3 +490,7 @@ class ExecutionContextLoader:
     @classmethod
     def wait(cls):
         parsl.wait_for_current_tasks()
+
+    @classmethod
+    def cleanup(cls):
+        parsl.dfk().cleanup()
