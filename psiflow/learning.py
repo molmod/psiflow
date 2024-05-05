@@ -219,12 +219,17 @@ class Learning:
                 backup.append(w.hamiltonian)
                 w.hamiltonian = w.hamiltonian + hamiltonian
 
-            step = sampling_kwargs.get("step", None)
+            step = sampling_kwargs.pop("step", None)
             if step is None:
                 step = steps
             nevaluations = steps // step
             for _i in range(nevaluations):
-                outputs = sample(walkers, steps, **sampling_kwargs)
+                outputs = sample(
+                        walkers,
+                        steps=step,
+                        step=None,
+                        **sampling_kwargs,
+                        )
                 identifier, data, _ = evaluate_outputs(  # ignore resets
                     outputs,
                     hamiltonian,

@@ -2,7 +2,7 @@
 FROM mambaorg/micromamba:1.5.8 as micromamba
 
 # This is the image we are going add micromaba to:
-FROM cp2k/cp2k:2024.1_openmpi_generic_psmp
+FROM cp2k/cp2k:2023.2_openmpi_generic_psmp
 
 USER root
 
