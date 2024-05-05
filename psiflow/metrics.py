@@ -1,6 +1,5 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import logging
 import os
 from pathlib import Path
 from typing import Optional, Union
@@ -16,9 +15,9 @@ from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.models import Model
 from psiflow.sampling import SimulationOutput
-from psiflow.utils import combine_futures
+from psiflow.utils import combine_futures, log_message, setup_logger
 
-logger = logging.getLogger(__name__)  # logging per module
+logger = setup_logger(__name__)
 
 
 @typeguard.typechecked
@@ -221,6 +220,8 @@ def _to_wandb(
     data = {name: getattr(metrics, name) for name in data_names}
     data["delta_e_rmse"] = metrics.e_rmse[:, 0] - metrics.e_rmse[:, 1]
     data["delta_f_rmse"] = metrics.f_rmse[:, 0] - metrics.f_rmse[:, 1]
+    data["e_rmse"] = metrics.e_rmse[:, 0]  # ensure arrays are one dimensional
+    data["f_rmse"] = metrics.f_rmse[:, 0]
     df = pd.DataFrame.from_dict(data)
 
     # convert missing strings to empty string, not 0.0
@@ -504,6 +505,7 @@ class Metrics:
             combine_futures(inputs=states),
             combine_futures(inputs=resets),
         )
+        log_message(logger, "\n{}", create_table(walker_log))
         metrics = add_walker_log(
             walker_log,
             inputs=[self.metrics],

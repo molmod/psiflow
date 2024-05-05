@@ -17,7 +17,9 @@ from psiflow.metrics import Metrics
 from psiflow.models import Model
 from psiflow.reference import Reference
 from psiflow.sampling import SimulationOutput, Walker, sample
-from psiflow.utils import boolean_or, unpack_i
+from psiflow.utils import boolean_or, setup_logger, unpack_i
+
+logger = setup_logger(__name__)
 
 
 @typeguard.typechecked
@@ -196,7 +198,10 @@ class Learning:
                 break
         return model, walkers
 
-    def pretraining(
+    def log(self, name):
+        logger.log("\t+++  {}  +++".format(name))
+
+    def passive_learning(
         self,
         model: Model,
         walkers: list[Walker],
@@ -205,7 +210,7 @@ class Learning:
         **sampling_kwargs,
     ) -> tuple[Model, list[Walker]]:
         self.iteration += 1
-        name = "{}_{}".format(self.iteration, "pretraining")
+        name = "{}_{}".format(self.iteration, "passive_learning")
         if self.skip(name):
             model, walkers = self.load(name)
         else:
@@ -244,7 +249,7 @@ class Learning:
             self.save(name, model, walkers)
         return model, walkers
 
-    def sample_qm_train(
+    def active_learning(
         self,
         model: Model,
         walkers: list[Walker],
@@ -252,7 +257,7 @@ class Learning:
         **sampling_kwargs,
     ) -> tuple[Model, list[Walker]]:
         self.iteration += 1
-        name = "{}_{}".format(self.iteration, "sample_qm_train")
+        name = "{}_{}".format(self.iteration, "active_learning")
         if self.skip(name):
             model, walkers = self.load(name)
         else:

@@ -27,7 +27,7 @@ from parsl.launchers import SimpleLauncher, WrappedLauncher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.utils import container_launch_command, resolve_and_check, set_logger
+from psiflow.utils import container_launch_command, resolve_and_check
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -334,8 +334,7 @@ class ExecutionContext:
     def from_config(
         cls,
         path: Optional[Union[str, Path]] = None,
-        parsl_log_level: str = "INFO",
-        psiflow_log_level: str = "INFO",
+        parsl_log_level: str = "WARNING",
         usage_tracking: bool = True,
         retries: int = 0,
         strategy: str = "simple",
@@ -354,11 +353,10 @@ class ExecutionContext:
             shutil.rmtree(path)
         path.mkdir(parents=True, exist_ok=True)
         parsl.set_file_logger(
-            str(path / "parsl.log"),
-            "parsl",
-            getattr(logging, parsl_log_level),
+            filename=str(path / "parsl.log"),
+            name="parsl",
+            level=getattr(logging, parsl_log_level),
         )
-        set_logger(psiflow_log_level)
 
         # create definitions
         model_evaluation = ModelEvaluation.from_config(

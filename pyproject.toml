@@ -70,6 +70,6 @@ addopts = [
     "--import-mode=append",
     "--psiflow-config=configs/threadpool.yaml",
     "-W ignore::DeprecationWarning",
-    #"--log-cli-level=WARNING",
+    "--log-cli-level=WARNING",
 ]
 testpaths = ["tests"]

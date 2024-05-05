@@ -233,7 +233,7 @@ def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
     assert "metrics" in learning._serial
     assert learning.iteration == -1
     assert learning.identifier == 0
-    assert not learning.skip("-1_pretraining")
+    assert not learning.skip("-1_passive_learning")
 
     data = psiflow.serialize(learning).result()
     learning_ = psiflow.deserialize(data)
@@ -244,7 +244,7 @@ def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
         Walker(dataset[0], EinsteinCrystal(dataset[5], 1.0)),
         Walker(dataset[1], EinsteinCrystal(dataset[2], 1000)),
     ]
-    mace_model, walkers = learning.sample_qm_train(
+    mace_model, walkers = learning.active_learning(
         mace_model,
         walkers,
         steps=5,
@@ -267,8 +267,8 @@ def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
         np.array([0, 1], dtype=np.int_),
     )
 
-    assert learning.skip("0_sample_qm_train")
-    model_, walkers_ = learning.load("0_sample_qm_train")
+    assert learning.skip("0_active_learning")
+    model_, walkers_ = learning.load("0_active_learning")
     for w, w_ in zip(walkers, walkers_):
         assert (
             w.state.result() == w_.state
@@ -278,7 +278,7 @@ def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
             w_.hamiltonian.evaluate(Dataset([w_.state])).get("energy").result(),
         )
 
-    mace_model, walkers = learning.sample_qm_train(
+    mace_model, walkers = learning.active_learning(
         model_,
         walkers_,
         steps=5,

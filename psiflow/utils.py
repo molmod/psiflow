@@ -8,10 +8,8 @@ from typing import Any, Union
 
 import numpy as np
 import typeguard
-from parsl.app.app import join_app, python_app
+from parsl.app.app import python_app
 from parsl.data_provider.files import File
-
-logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
@@ -31,32 +29,24 @@ multiply = python_app(_multiply, executors=["default_threads"])
 
 
 @typeguard.typechecked
-def set_logger(  # hacky
-    level: Union[str, int],  # 'DEBUG' or logging.DEBUG
-):
-    formatter = logging.Formatter(fmt="%(levelname)s - %(name)s - %(message)s")
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(formatter)
-    names = [
-        "psiflow.data",
-        "psiflow.committee",
-        "psiflow.metrics",
-        "psiflow.execution",
-        "psiflow.state",
-        "psiflow.learning",
-        "psiflow.learning_utils",
-        "psiflow.utils",
-        "psiflow.parsl_utils",
-        "psiflow.models.model",
-        "psiflow.models.mace",
-        "psiflow.reference._cp2k",
-        "psiflow.reference._emt",
-        "psiflow.reference._pyscf",
-    ]
-    for name in names:
-        logger = logging.getLogger(name)
-        logger.setLevel(level)
-        logger.addHandler(handler)
+def setup_logger(module_name):
+    # Create logger instance for the module
+    module_logger = logging.getLogger(module_name)
+
+    # Set the desired format string
+    formatter = logging.Formatter("%(name)s - %(message)s")
+
+    # Create handler to send logs to stdout
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setFormatter(formatter)
+
+    # Add handler to the logger instance
+    module_logger.addHandler(stdout_handler)
+
+    # Set the logging level for the logger
+    module_logger.setLevel(logging.INFO)
+
+    return module_logger
 
 
 @typeguard.typechecked
@@ -138,11 +128,15 @@ def _copy_app_future(future: Any, inputs: list = [], outputs: list = []) -> Any:
 copy_app_future = python_app(_copy_app_future, executors=["default_threads"])
 
 
-@join_app
 @typeguard.typechecked
-def log_message(message, *futures):
-    logger.info(message.format(*futures))
-    return copy_app_future(0)
+def _log_message(logger, message, *futures):
+    if len(futures) > 0:
+        logger.info(message.format(*futures))
+    else:
+        logger.info(message)
+
+
+log_message = python_app(_log_message, executors=["default_threads"])
 
 
 def _pack(*args):

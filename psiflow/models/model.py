@@ -1,6 +1,5 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import logging
 from dataclasses import asdict
 from pathlib import Path
 from typing import Optional, Union
@@ -12,9 +11,15 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.utils import copy_data_future, log_message, resolve_and_check, save_yaml
+from psiflow.utils import (
+    copy_data_future,
+    log_message,
+    resolve_and_check,
+    save_yaml,
+    setup_logger,
+)
 
-logger = logging.getLogger(__name__)  # logging per module
+logger = setup_logger(__name__)
 
 
 @typeguard.typechecked
@@ -43,6 +48,7 @@ class Model:
 
     def train(self, training: Dataset, validation: Dataset) -> None:
         log_message(
+            logger,
             "training model using {} states for training and {} for validation",
             training.length(),
             validation.length(),
