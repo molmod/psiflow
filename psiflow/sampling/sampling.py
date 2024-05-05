@@ -493,7 +493,8 @@ def _sample(
 
     command_server = definition.server_command()
     command_client = definition.client_command()
-    resources = definition.wq_resources(len(walkers))
+    max_nclients = int(sum([w.nbeads for w in walkers]))
+    resources = definition.wq_resources(max_nclients)
     result = execute_ipi(
         len(walkers),
         hamiltonian_names,
