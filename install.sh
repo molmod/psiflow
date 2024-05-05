@@ -10,7 +10,7 @@ micromamba activate _psiflow_env
 pip install git+https://github.com/molmod/psiflow.git@ipi
 
 # create activate.sh
-echo "export ORIGDIR=$(pwd)" >> activate.sh
+echo "ORIGDIR=$PWD" >> activate.sh
 echo "cd $(pwd)" >> activate.sh
 echo "export MAMBA_ROOT_PREFIX=$(pwd)" >> activate.sh
 echo 'eval "$(./bin/micromamba shell hook -s posix)"' >> activate.sh
