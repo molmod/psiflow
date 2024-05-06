@@ -241,4 +241,10 @@ class MACE(Model):
 
     def create_hamiltonian(self) -> MACEHamiltonian:
         assert self.model_future is not None
+
+        # wait for atomic energy calculations if necessary:
+        for element in list(self.atomic_energies):
+            value = self.atomic_energies[element]
+            if isinstance(value, AppFuture):
+                self.atomic_energies[element] = value.result()
         return MACEHamiltonian(self.model_future, self.atomic_energies)
