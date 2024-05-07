@@ -5,9 +5,10 @@ files=(
 	"formic_acid_transition.py"
 	"h2_static_dynamic.py"
 	"iron_bulk_modulus.py"
-	"water_cp2k_noise.py"
 	"iron_thermodynamic_integration.py"
+	"water_cp2k_noise.py"
     "water_path_integral_md.py"
+    "water_train_validate.py"
 )
 
 run_dir=$(pwd)/run_examples
