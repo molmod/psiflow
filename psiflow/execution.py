@@ -50,14 +50,18 @@ class ExecutionDefinition:
         self.name = self.__class__.__name__
 
     @property
-    def max_workers(self):
+    def cores_available(self):
         if type(self.parsl_provider) is LocalProvider:  # noqa: F405
             cores_available = psutil.cpu_count(logical=False)
         elif type(self.parsl_provider) is SlurmProvider:
             cores_available = self.parsl_provider.cores_per_node
         else:
             cores_available = float("inf")
-        return max(1, math.floor(cores_available / self.cores_per_worker))
+        return cores_available
+
+    @property
+    def max_workers(self):
+        return max(1, math.floor(self.cores_available / self.cores_per_worker))
 
     @property
     def max_runtime(self):
@@ -81,6 +85,7 @@ class ExecutionDefinition:
                 "--parent-death",
                 "--timeout={}".format(30),
                 "--wall-time={}".format(self.max_runtime),
+                "--cores={}".format(self.max_workers * self.cores_available),
             ]
 
             # hacky; if the launcher is a WrappedLauncher, switch to SimpleLauncher
@@ -233,7 +238,6 @@ class ModelTraining(ExecutionDefinition):
         memory = 2000 * self.cores_per_worker  # similarly rather random
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_training_time
-        resource_specification["gpus"] = 1
         return resource_specification
 
 
