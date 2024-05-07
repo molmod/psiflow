@@ -11,7 +11,6 @@ ReferenceEvaluation:
     account: "project_465001125"
     nodes_per_block: 1
     cores_per_node: 128
-    parallelism: 0.25
     init_blocks: 0
     max_blocks: 10
     walltime: "01:00:00"
@@ -23,7 +22,6 @@ ModelEvaluation:
     account: "project_465001125"
     nodes_per_block: 1
     cores_per_node: 56
-    parallelism: 0.125
     init_blocks: 0
     max_blocks: 50
     walltime: "01:00:00"
