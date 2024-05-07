@@ -3,7 +3,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
-import parsl
 import pytest
 import yaml
 from ase import Atoms
@@ -46,13 +45,8 @@ def context(request, tmp_path_factory):
         psiflow_config["path"] = tmp_path_factory.mktemp("psiflow_internal")
         psiflow.load(psiflow_config)
         context = psiflow.context()
-
-    def cleanup():
-        parsl.dfk().wait_for_current_tasks()
-        parsl.dfk().cleanup()
-
-    request.addfinalizer(cleanup)
-    return context
+    with context:
+        yield 0
 
 
 @pytest.fixture(scope="session")

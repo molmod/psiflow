@@ -70,6 +70,5 @@ def main():
 
 
 if __name__ == "__main__":
-    psiflow.load()
-    main()
-    psiflow.wait()
+    with psiflow.load():
+        main()

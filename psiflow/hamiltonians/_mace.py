@@ -130,9 +130,7 @@ class MACEHamiltonian(Hamiltonian):
 
 def get_mace_mp0(size: str = "small") -> MACEHamiltonian:
     urls = dict(
-        small="http://tinyurl.com/46jrkm3v",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
-        medium="http://tinyurl.com/5yyxdm76",  # 2023-12-03-mace-128-L1_epoch-199.model
-        large="http://tinyurl.com/5f5yavf3",  # MACE_MPtrj_2022.9.model
+        small="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
     )
     assert size in urls
     parsl_file = psiflow.context().new_file("mace_mp_", ".pth")

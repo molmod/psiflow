@@ -101,7 +101,8 @@ class ExecutionDefinition:
                 coprocess=False,
                 worker_options=" ".join(worker_options),
                 worker_executable="{} work_queue_worker".format(prepend),
-                scaling_assume_core_slots_per_worker=self.max_workers * self.cores_per_worker,
+                scaling_assume_core_slots_per_worker=self.max_workers
+                * self.cores_per_worker,
             )
         return executor
 
@@ -319,6 +320,13 @@ class ExecutionContext:
         self.file_index = {}
         parsl.load(config)
 
+    def __enter__(self):
+        return parsl.dfk()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        logger.debug("Exiting the context manager, calling cleanup for DFK")
+        parsl.dfk().cleanup()
+
     def new_file(self, prefix: str, suffix: str) -> File:
         assert prefix[-1] == "_"
         assert suffix[0] == "."
@@ -480,6 +488,7 @@ class ExecutionContextLoader:
                 with open(path_config, "r") as f:
                     psiflow_config = yaml.safe_load(f)
         cls._context = ExecutionContext.from_config(**psiflow_config)
+        return cls._context
 
     @classmethod
     def context(cls):
@@ -490,7 +499,3 @@ class ExecutionContextLoader:
     @classmethod
     def wait(cls):
         parsl.wait_for_current_tasks()
-
-    @classmethod
-    def cleanup(cls):
-        parsl.dfk().cleanup()

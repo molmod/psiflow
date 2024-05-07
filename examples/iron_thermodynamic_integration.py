@@ -47,10 +47,9 @@ def main():
         xy[i, 1] = state.gradients["lambda"].result()
 
     delta_F = np.trapz(xy[:, 1], xy[:, 0])  # TODO: analytical reference
-    print('delta F: {}'.format(delta_F))
+    print("delta F: {}".format(delta_F))
+
 
 if __name__ == "__main__":
-    psiflow.load()
-    main()
-    psiflow.wait()
-    psiflow.cleanup()
+    with psiflow.load():
+        main()

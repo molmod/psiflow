@@ -9,4 +9,3 @@ from .serialization import (  # noqa: F401
 load = ExecutionContextLoader.load
 context = ExecutionContextLoader.context
 wait = ExecutionContextLoader.wait
-cleanup = ExecutionContextLoader.cleanup

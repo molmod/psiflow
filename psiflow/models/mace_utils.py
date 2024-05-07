@@ -67,6 +67,10 @@ class MACECalculator(Calculator):
 
         torch_tools.set_default_dtype(dtype)
         self.device = torch_tools.init_device(device)
+
+        # remove unwanted streamhandler added by MACE / torch!
+        logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
+
         self.energy_units_to_eV = energy_units_to_eV
         self.length_units_to_A = length_units_to_A
         self.model = torch.load(f=model_path, map_location=device)

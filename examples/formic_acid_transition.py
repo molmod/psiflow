@@ -61,6 +61,5 @@ RESTRAINT ARG=CV AT=0.0 KAPPA=300
 
 
 if __name__ == "__main__":
-    psiflow.load()
-    main()
-    psiflow.wait()
+    with psiflow.load():
+        main()

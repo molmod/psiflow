@@ -225,18 +225,21 @@ class Learning:
             nevaluations = steps // step
             for _i in range(nevaluations):
                 outputs = sample(
-                        walkers,
-                        steps=step,
-                        step=None,
-                        **sampling_kwargs,
-                        )
+                    walkers,
+                    steps=step,
+                    step=None,
+                    **sampling_kwargs,
+                )
+                # only apply thresholds to forces, not to energies since large offset can exist
+                threshold_reset = [None, self.error_thresholds_for_reset[1]]
+                threshold_discard = [None, self.error_thresholds_for_discard[1]]
                 identifier, data, _ = evaluate_outputs(  # ignore resets
                     outputs,
                     hamiltonian,
                     self.reference,
                     self.identifier,
-                    self.error_thresholds_for_reset,
-                    self.error_thresholds_for_discard,
+                    threshold_reset,
+                    threshold_discard,
                     self.metrics,
                 )
                 self.identifier = identifier
