@@ -1,31 +1,47 @@
 ---
-htex_address: null
+parsl_log_level: WARNING
+container:
+  engine: 'singularity'
+  uri: 'oras://ghcr.io/molmod/psiflow:develop_python3.10_rocm5.6'
+ReferenceEvaluation:
+  cores_per_worker: 32
+  max_evaluation_time: 20
+  SlurmProvider:
+    partition: "standard"
+    account: "project_465001125"
+    nodes_per_block: 1
+    cores_per_node: 128
+    parallelism: 0.25
+    init_blocks: 0
+    max_blocks: 10
+    walltime: "01:00:00"
 ModelEvaluation:
   cores_per_worker: 7
-  simulation_engine: 'yaff'
+  gpu: True
   SlurmProvider:
-    partition: "dev-g"
-    account: "project_*"
+    partition: "standard-g"
+    account: "project_465001125"
     nodes_per_block: 1
-    cores_per_node: 7
+    cores_per_node: 56
+    parallelism: 0.125
     init_blocks: 0
-    max_blocks: 20
-    walltime: "00:30:00"
-    exclusive: false
-    scheduler_options: "#SBATCH --gres=gpu:1\n"
-    worker_init: "ml rocm/5.2.3\n"
+    max_blocks: 50
+    walltime: "01:00:00"
+    exclusive: true
+    scheduler_options: "#SBATCH --gres=gpu:8\n"
+    worker_init: "ml LUMI/23.09 && ml partition/G && ml rocm/5.6\n"
 ModelTraining:
   cores_per_worker: 7
   gpu: true
   SlurmProvider:
-    partition: "dev-g"
-    account: "project_*"
+    partition: "small-g"
+    account: "project_465001125"
     nodes_per_block: 1
     cores_per_node: 7
     init_blocks: 0
-    max_blocks: 20
-    walltime: "00:30:00"
+    max_blocks: 10
+    walltime: "01:00:00"
     exclusive: false
     scheduler_options: "#SBATCH --gres=gpu:1\n"
-    worker_init: "ml rocm/5.2.3\n"
+    worker_init: "ml LUMI/23.09 && ml partition/G && ml rocm/5.6\n"
 ...
