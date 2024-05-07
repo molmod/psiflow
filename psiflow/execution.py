@@ -328,6 +328,7 @@ class ExecutionContext:
         return parsl.dfk()
 
     def __exit__(self, exc_type, exc_value, traceback):
+        parsl.wait_for_current_tasks()
         logger.debug("Exiting the context manager, calling cleanup for DFK")
         parsl.dfk().cleanup()
 
