@@ -354,7 +354,7 @@ class ExecutionContext:
         strategy: str = "simple",
         max_idletime: float = 20,
         internal_tasks_max_threads: int = 10,
-        default_threads: int = 1,
+        default_threads: int = 4,
         htex_address: Optional[str] = None,
         container: Optional[dict] = None,
         zip_staging: Optional[bool] = None,
