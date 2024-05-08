@@ -206,7 +206,7 @@ class HarmonicCalculator(Calculator):
             "energy": energy,
             "free_energy": energy,
             "forces": (-1.0) * grad.reshape(-1, 3),
-            "stress": np.zeros((3, 3)),
+            "stress": np.zeros(6),
         }
         if sum(atoms.pbc):
             self.results["stress"] = full_3x3_to_voigt_6_stress(np.zeros((3, 3)))

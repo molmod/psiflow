@@ -20,9 +20,8 @@ def _boolean_or(*args: Union[bool, np.bool_]) -> bool:
 boolean_or = python_app(_boolean_or, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _multiply(x: Any, by: float) -> Any:
-    return by * x
+def _multiply(a, b):
+    return a * b
 
 
 multiply = python_app(_multiply, executors=["default_threads"])
