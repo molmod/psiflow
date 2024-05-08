@@ -81,11 +81,12 @@ class ExecutionDefinition:
                 label=self.name,
             )
         else:
+            cores = self.max_workers * self.cores_per_worker
             worker_options = [
                 "--parent-death",
                 "--timeout={}".format(30),
                 "--wall-time={}".format(self.max_runtime),
-                "--cores={}".format(self.max_workers * self.cores_available),
+                "--cores={}".format(cores),
             ]
 
             # hacky; if the launcher is a WrappedLauncher, switch to SimpleLauncher
@@ -106,8 +107,7 @@ class ExecutionDefinition:
                 coprocess=False,
                 worker_options=" ".join(worker_options),
                 worker_executable="{} work_queue_worker".format(prepend),
-                scaling_assume_core_slots_per_worker=self.max_workers
-                * self.cores_per_worker,
+                scaling_assume_core_slots_per_worker=cores,
             )
         return executor
 

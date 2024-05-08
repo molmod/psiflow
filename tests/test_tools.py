@@ -3,7 +3,7 @@ from ase.units import _c, second
 
 from psiflow.hamiltonians import EinsteinCrystal, get_mace_mp0
 from psiflow.tools import compute_harmonic, optimize
-from psiflow.tools.utils import compute_frequencies
+from psiflow.tools.utils import compute_free_energy, compute_frequencies
 
 
 def test_optimize(dataset):
@@ -60,5 +60,14 @@ def test_dihydrogen(dataset_h2):
     frequencies = compute_frequencies(hessian, geometry).result()
     # check that highest frequency in inv cm corresponds to 3500 - 4000
     frequencies_invcm = (frequencies * second) / (_c * 1e2)  # in invcm
-    print(frequencies_invcm)
     assert np.abs(frequencies_invcm[-1] - 4000) < 1000
+
+
+def test_frequency_oscillator():
+    for quantum in [True, False]:
+        f0 = compute_free_energy(1.0, 300, quantum=quantum).result()
+        f1 = compute_free_energy(1.1, 300, quantum=quantum).result()
+        assert f1 > f0
+
+        f2 = compute_free_energy(1.0, 400, quantum=quantum).result()
+        assert f0 > f2

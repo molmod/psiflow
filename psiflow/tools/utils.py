@@ -1,8 +1,11 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+from typing import Union
+
 import numpy as np
 import typeguard
 from ase.data import atomic_masses
+from ase.units import J, _c, _hplanck, _k, kB, second
 from parsl.app.app import python_app
 
 from psiflow.data import Geometry
@@ -46,3 +49,32 @@ def _compute_frequencies(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
 
 
 compute_frequencies = python_app(_compute_frequencies, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _compute_free_energy(
+    frequencies: Union[float, np.ndarray],
+    temperature: float,
+    quantum: bool = False,
+    threshold: float = 1,  # in invcm
+) -> float:
+    if isinstance(frequencies, float):
+        frequencies = np.array([frequencies], dtype=float)
+
+    threshold_ = threshold / second * (100 * _c)  # from invcm to ASE
+    frequencies = frequencies[frequencies > threshold_]
+
+    # _hplanck in J s
+    # _k in J / K
+    if quantum:
+        arg = (-1.0) * _hplanck * frequencies * second / (_k * temperature)
+        F = kB * temperature * np.sum(np.log(1 - np.exp(arg)))
+        F += _hplanck * J * second * np.sum(frequencies) / 2
+    else:
+        constant = kB * temperature * np.log(_hplanck / (_k * temperature))
+        actual = kB * temperature * np.log(frequencies)
+        F = len(frequencies) * constant + np.sum(actual)
+    return F
+
+
+compute_free_energy = python_app(_compute_free_energy, executors=["default_threads"])
