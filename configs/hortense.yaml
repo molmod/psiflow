@@ -1,0 +1,47 @@
+---
+container:
+  engine: "apptainer"
+  uri: "oras://ghcr.io/molmod/psiflow:develop_python3.10_cuda"
+ModelEvaluation:
+  cores_per_worker: 12
+  gpu: True
+  max_simulation_time: 20
+  SlurmProvider:
+    partition: "gpu_rome_a100"
+    account: "2023_070"
+    nodes_per_block: 1    # each block fits on (less than) one node
+    cores_per_node: 48     # number of cores per slurm job
+    init_blocks: 0        # initialize a block at the start of the workflow
+    max_blocks: 1         # do not use more than one block
+    walltime: "12:00:00"  # walltime per block
+    exclusive: false      # rest of compute node free to use
+    scheduler_options: "#SBATCH --clusters=dodrio\n#SBATCH --gpus=4\n"
+ModelTraining:
+  cores_per_worker: 12
+  gpu: true
+  max_training_time: 40
+  SlurmProvider:
+    partition: "gpu_rome_a100"
+    account: "2023_070"
+    nodes_per_block: 1
+    cores_per_node: 12
+    init_blocks: 0
+    max_blocks: 1
+    walltime: "12:00:00"
+    exclusive: false
+    scheduler_options: "#SBATCH --clusters=dodrio\n#SBATCH --gpus=1\n"
+ReferenceEvaluation:
+  cores_per_worker: 64
+  max_evaluation_time: 30
+  SlurmProvider:
+    partition: "cpu_rome"
+    account: "starting_2024_030"
+    nodes_per_block: 1
+    cores_per_node: 64
+    init_blocks: 0
+    min_blocks: 0
+    max_blocks: 50
+    walltime: "06:00:00"
+    exclusive: false
+    scheduler_options: "#SBATCH --clusters=dodrio\n"
+...
