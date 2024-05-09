@@ -259,7 +259,9 @@ class ReferenceEvaluation(ExecutionDefinition):
         self.cp2k_executable = cp2k_executable
         if mpi_command is None:  # parse
             ranks = self.cores_per_worker  # use nprocs = ncores, nthreads = 1
-            mpi_command = "mpirun -np {} -x OMP_NUM_THREADS=1".format(ranks)
+            mpi_command = "mpirun -np {} ".format(ranks)
+            mpi_command += "-x OMP_NUM_THREADS=1 "  # cp2k runs best with these settings
+            mpi_command += "--bind-to core --map-by core"  # set explicitly
         self.mpi_command = mpi_command
         if name is not None:
             self.name = name  # if not None, the name of the reference class

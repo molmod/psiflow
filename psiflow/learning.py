@@ -119,7 +119,7 @@ class Learning:
     ):
         self.reference = reference
         self.path_output = str(path_output)
-        Path(self.path_output).mkdir(exist_ok=False, parents=True)
+        Path(self.path_output).mkdir(exist_ok=True, parents=True)
         self.train_valid_split = train_valid_split
         self.error_thresholds_for_reset = list(error_thresholds_for_reset)
         self.error_thresholds_for_discard = list(error_thresholds_for_discard)
