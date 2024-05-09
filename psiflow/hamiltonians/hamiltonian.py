@@ -20,7 +20,7 @@ def evaluate_function(
     load_calculators: Callable,
     inputs: list = [],
     outputs: list = [],
-    parsl_resource_specification: Optional[dict] = None,
+    parsl_resource_specification: dict = {},
     **parameters,  # dict values can be futures, so app must wait for those
 ) -> None:
     import numpy as np

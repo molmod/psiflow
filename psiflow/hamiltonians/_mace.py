@@ -46,9 +46,15 @@ class MACEHamiltonian(Hamiltonian):
             ncores=ncores,
             device=device,
             dtype="float32",
-            parsl_resource_specification=resources,
         )
-        self.evaluate_app = python_app(infused_evaluate, executors=[evaluation.name])
+        evaluate_app = python_app(infused_evaluate, executors=[evaluation.name])
+        if resources is not None:
+            self.evaluate_app = partial(
+                    evaluate_app,
+                    parsl_resource_specification=resources,
+                    )
+        else:
+            self.evaluate_app = evaluate_app
 
     def serialize_calculator(self) -> DataFuture:
         return dump_json(
