@@ -4,7 +4,7 @@ from ase.units import kB
 from psiflow.data import check_equality
 from psiflow.free_energy import Integration
 from psiflow.hamiltonians import EinsteinCrystal, Harmonic
-from psiflow.tools import optimize, compute_harmonic
+from psiflow.tools import compute_harmonic, optimize
 from psiflow.utils import multiply
 
 
@@ -53,9 +53,9 @@ def test_integration_simple(dataset):
             np.mean(energies.result()) / (kB * state.temperature),
         )
 
-    #frequencies = compute_frequencies(hessian, geometry)
+    # frequencies = compute_frequencies(hessian, geometry)
     F0 = harmonic.compute_free_energy(temperature=300).result()
-    scaled = Harmonic(multiply(hessian, 0.9), geometry)
+    scaled = Harmonic(geometry, multiply(hessian, 0.9))
     F1 = scaled.compute_free_energy(temperature=300).result()
 
     integrated = integration.along_delta(temperature=300).result()
