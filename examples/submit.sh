@@ -11,10 +11,10 @@ files=(
     "water_train_validate.py"
 )
 
+curl -O https://raw.githubusercontent.com/molmod/psiflow/ipi/configs/lumi.yaml
+
 run_dir=$(pwd)/run_examples
 mkdir $run_dir && cp lumi.yaml $run_dir && cd $run_dir
-
-curl -O https://raw.githubusercontent.com/molmod/psiflow/ipi/configs/lumi.yaml
 
 # Loop over each filename
 for filename in "${files[@]}"
