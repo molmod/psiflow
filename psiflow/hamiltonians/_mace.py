@@ -35,6 +35,7 @@ class MACEHamiltonian(Hamiltonian):
 
     def _create_apps(self):
         evaluation = psiflow.context().definitions["ModelEvaluation"]
+        resources = evaluation.wq_resources(1)
         ncores = evaluation.cores_per_worker
         if evaluation.gpu:
             device = "cuda"
@@ -45,6 +46,7 @@ class MACEHamiltonian(Hamiltonian):
             ncores=ncores,
             device=device,
             dtype="float32",
+            parsl_resource_specification=resources,
         )
         self.evaluate_app = python_app(infused_evaluate, executors=[evaluation.name])
 

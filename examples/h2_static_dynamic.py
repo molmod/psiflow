@@ -5,7 +5,8 @@ import psiflow
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import get_mace_mp0
 from psiflow.sampling import Walker, sample
-from psiflow.tools import compute_frequencies, compute_harmonic, optimize
+from psiflow.tools import compute_harmonic, optimize
+from psiflow.hamiltonians._harmonic import compute_frequencies
 
 
 def frequency_dynamic(start, hamiltonian):

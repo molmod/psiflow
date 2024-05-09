@@ -243,7 +243,7 @@ class ModelTraining(ExecutionDefinition):
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_training_time
         if self.gpu:
-            resource_specification['gpus'] = nclients
+            resource_specification['gpus'] = 1
         return resource_specification
 
 

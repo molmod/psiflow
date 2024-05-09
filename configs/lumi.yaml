@@ -6,6 +6,7 @@ container:
 ReferenceEvaluation:
   cores_per_worker: 32
   max_evaluation_time: 20
+  mpi_command: 'mpirun -np 32 -x OMP_NUM_THREADS=1'  # avoid core binding
   SlurmProvider:
     partition: "standard"
     account: "project_465001125"

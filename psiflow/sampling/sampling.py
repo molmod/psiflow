@@ -468,10 +468,11 @@ def _sample(
     # remove any Harmonic instances because they are not implemented with sockets
     hamiltonian_names = list(hamiltonians_map.keys())
 
+    max_nclients = int(sum([w.nbeads for w in walkers]))
     inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
     client_args = []
     for name in hamiltonian_names:
-        args = definition.get_client_args(name, len(walkers), motion="dynamics")
+        args = definition.get_client_args(name, max_nclients, motion="dynamics")
         client_args.append(args)
     outputs = [context.new_file("data_", ".xyz")]
     outputs += [context.new_file("simulation_", ".txt") for w in walkers]
@@ -494,7 +495,6 @@ def _sample(
 
     command_server = definition.server_command()
     command_client = definition.client_command()
-    max_nclients = int(sum([w.nbeads for w in walkers]))
     resources = definition.wq_resources(max_nclients)
     result = execute_ipi(
         len(walkers),
