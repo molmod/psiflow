@@ -5,7 +5,7 @@ files=(
 	"formic_acid_transition.py"
 	"h2_static_dynamic.py"
 	"iron_bulk_modulus.py"
-	"iron_thermodynamic_integration.py"
+	"iron_harmonic_fcc_bcc.py"
 	"water_cp2k_noise.py"
     "water_path_integral_md.py"
     "water_train_validate.py"
