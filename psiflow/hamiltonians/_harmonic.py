@@ -4,13 +4,14 @@ from typing import Any, Optional, Union
 
 import numpy as np
 import typeguard
+from ase.units import J, _c, _hplanck, _k, kB, second
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.geometry import Geometry
+from psiflow.geometry import Geometry, mass_weight
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
 from psiflow.utils import dump_json
 
@@ -72,6 +73,23 @@ class Harmonic(Hamiltonian):
             outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
         ).outputs[0]
 
+    def compute_free_energy(
+        self,
+        temperature: float,
+        quantum: bool = False,
+        threshold: float = 1,
+    ) -> AppFuture:
+        frequencies = compute_frequencies(
+            self.hessian,
+            self.reference_geometry,
+        )
+        return compute_free_energy(
+            frequencies,
+            temperature=temperature,
+            quantum=quantum,
+            threshold=threshold,
+        )
+
     @staticmethod
     def deserialize_calculator(
         positions: list[list[float]],
@@ -119,3 +137,42 @@ class Harmonic(Hamiltonian):
         calculators = [harmonic]
         index_mapping = np.zeros(len(data), dtype=int)
         return calculators, index_mapping
+
+
+@typeguard.typechecked
+def _compute_frequencies(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
+    assert hessian.shape[0] == hessian.shape[1]
+    assert len(geometry) * 3 == hessian.shape[0]
+    return np.sqrt(np.linalg.eigvalsh(mass_weight(hessian, geometry))) / (2 * np.pi)
+
+
+compute_frequencies = python_app(_compute_frequencies, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _compute_free_energy(
+    frequencies: Union[float, np.ndarray],
+    temperature: float,
+    quantum: bool = False,
+    threshold: float = 1,  # in invcm
+) -> float:
+    if isinstance(frequencies, float):
+        frequencies = np.array([frequencies], dtype=float)
+
+    threshold_ = threshold / second * (100 * _c)  # from invcm to ASE
+    frequencies = frequencies[frequencies > threshold_]
+
+    # _hplanck in J s
+    # _k in J / K
+    if quantum:
+        arg = (-1.0) * _hplanck * frequencies * second / (_k * temperature)
+        F = kB * temperature * np.sum(np.log(1 - np.exp(arg)))
+        F += _hplanck * J * second * np.sum(frequencies) / 2
+    else:
+        constant = kB * temperature * np.log(_hplanck)
+        actual = kB * temperature * np.log(frequencies / (kB * temperature))
+        F = len(frequencies) * constant + np.sum(actual)
+    return F
+
+
+compute_free_energy = python_app(_compute_free_energy, executors=["default_threads"])

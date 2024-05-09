@@ -3,7 +3,7 @@ from ase.units import _c, second
 
 from psiflow.hamiltonians import EinsteinCrystal, get_mace_mp0
 from psiflow.tools import compute_harmonic, optimize
-from psiflow.tools.utils import compute_free_energy, compute_frequencies
+from psiflow.hamiltonians._harmonic import compute_free_energy, compute_frequencies
 
 
 def test_optimize(dataset):

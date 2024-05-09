@@ -106,7 +106,7 @@ def _copy_data_future(
     assert len(inputs) == 1
     assert len(outputs) == 1
     if Path(outputs[0]).is_file() and pass_on_exist:
-        return 0
+        return None
     if Path(inputs[0]).is_file():
         shutil.copyfile(inputs[0], outputs[0])
     else:  # no need to copy empty file
@@ -243,22 +243,6 @@ def resolve_and_check(path: Path) -> Path:
             " that will get bound into the container.".format(path, Path.cwd())
         )
     return path
-
-
-@typeguard.typechecked
-def apply_temperature_ramp(
-    T_min: float, T_max: float, nsteps: int, current_temperature: float
-) -> float:
-    assert T_max > T_min
-    if nsteps > 1:
-        delta_beta = (1 / T_min - 1 / T_max) / (nsteps - 1)
-        next_beta = 1 / current_temperature - delta_beta
-        if (next_beta > 0) and (next_beta > 1 / T_max):
-            return 1 / next_beta
-        else:
-            return T_max
-    else:
-        return T_max
 
 
 @typeguard.typechecked

@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 import typeguard
 from ase import Atoms
-from ase.data import chemical_symbols
+from ase.data import atomic_masses, chemical_symbols
 from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
 
 per_atom_dtype = np.dtype(
@@ -311,3 +311,27 @@ def reduce_box_vectors(cell: np.ndarray):
     cell[2, :] = cell[2, :] - cell[1, :] * np.round(cell[2, 1] / cell[1, 1])
     cell[2, :] = cell[2, :] - cell[0, :] * np.round(cell[2, 0] / cell[0, 0])
     cell[1, :] = cell[1, :] - cell[0, :] * np.round(cell[1, 0] / cell[0, 0])
+
+
+@typeguard.typechecked
+def get_mass_matrix(geometry: Geometry) -> np.ndarray:
+    masses = np.repeat(
+        np.array([atomic_masses[n] for n in geometry.per_atom.numbers]),
+        3,
+    )
+    sqrt_inv = 1 / np.sqrt(masses)
+    return np.outer(sqrt_inv, sqrt_inv)
+
+
+@typeguard.typechecked
+def mass_weight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
+    assert hessian.shape[0] == hessian.shape[1]
+    assert len(geometry) * 3 == hessian.shape[0]
+    return hessian * get_mass_matrix(geometry)
+
+
+@typeguard.typechecked
+def mass_unweight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
+    assert hessian.shape[0] == hessian.shape[1]
+    assert len(geometry) * 3 == hessian.shape[0]
+    return hessian / get_mass_matrix(geometry)

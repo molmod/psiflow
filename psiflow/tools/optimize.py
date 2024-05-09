@@ -161,7 +161,7 @@ execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 def optimize(
     state: Union[Geometry, AppFuture],
     hamiltonian: Hamiltonian,
-    steps: int,
+    steps: int = 5000,
     keep_trajectory: bool = False,
     mode: str = "lbfgs",
     etol: float = 1e-3,
