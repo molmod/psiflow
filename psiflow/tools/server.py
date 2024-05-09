@@ -425,4 +425,18 @@ if __name__ == "__main__":
     if not args.cleanup:
         start(args)
     else:
-        cleanup(args)
+        try:
+            cleanup(args)
+        except:
+            print('i-PI cleanup failed!')
+            print('files in directory:')
+            for filepath in Path.cwd().glob('*'):
+                print(filepath)
+            print('')
+
+            names = [p.name for p in Path.cwd().glob('*')]
+            if 'output.checkpoint' in names:
+                with open('output.checkpoint', 'r') as f:
+                    print(f.read())
+            else:
+                print('no output.checkpoint found')

@@ -205,6 +205,8 @@ class ModelEvaluation(ExecutionDefinition):
         memory = 2000 * self.cores_per_worker  # similarly rather random
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_simulation_time
+        if self.gpu:
+            resource_specification['gpus'] = nclients
         return resource_specification
 
 
@@ -238,6 +240,8 @@ class ModelTraining(ExecutionDefinition):
         memory = 2000 * self.cores_per_worker  # similarly rather random
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_training_time
+        if self.gpu:
+            resource_specification['gpus'] = nclients
         return resource_specification
 
 

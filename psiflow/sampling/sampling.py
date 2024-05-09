@@ -99,7 +99,7 @@ def template(
 
 
 @typeguard.typechecked
-def setup_motion(walker: Walker) -> ET.Element:
+def setup_motion(walker: Walker, fix_com: bool) -> ET.Element:
     timestep_element = ET.Element("timestep", units="femtosecond")
     timestep_element.text = str(walker.timestep)
 
@@ -138,7 +138,7 @@ def setup_motion(walker: Walker) -> ET.Element:
     motion = ET.Element("motion", mode="dynamics")
     motion.append(dynamics)
     fixcom = ET.Element("fixcom")
-    fixcom.text = " False "
+    fixcom.text = " {} ".format(fix_com)
     motion.append(fixcom)  # ensure kinetic_md ~ temperature
     return motion
 
@@ -400,6 +400,7 @@ def _sample(
     max_force: Optional[float] = None,
     observables: Optional[list[str]] = None,
     motion_defaults: Union[None, str, ET.Element] = None,
+    fix_com: bool = False,
     prng_seed: int = 12345,
     checkpoint_step: int = 100,
 ) -> list[SimulationOutput]:
@@ -410,7 +411,7 @@ def _sample(
     if motion_defaults is not None:
         raise NotImplementedError
 
-    motion = setup_motion(walkers[0])
+    motion = setup_motion(walkers[0], fix_com)
     ensemble = setup_ensemble(weights_table[0])
     forces = setup_forces(weights_table[0])
     system_template = setup_system_template(
@@ -545,6 +546,7 @@ def sample(
     max_force: Optional[float] = None,
     observables: Optional[list[str]] = None,
     motion_defaults: Union[None, str, ET.Element] = None,
+    fix_com: bool = False,
     prng_seed: int = 12345,
     checkpoint_step: int = 100,
 ) -> list[SimulationOutput]:
@@ -559,6 +561,7 @@ def sample(
             max_force=max_force,
             observables=observables,
             motion_defaults=motion_defaults,
+            fix_com=fix_com,
             prng_seed=prng_seed,
             checkpoint_step=checkpoint_step,
         )
