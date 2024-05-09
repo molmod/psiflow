@@ -88,6 +88,8 @@ class ExecutionDefinition:
                 "--wall-time={}".format(self.max_runtime),
                 "--cores={}".format(cores),
             ]
+            if self.gpu:
+                worker_options.append("--gpus={}".format(self.max_workers))
 
             # hacky; if the launcher is a WrappedLauncher, switch to SimpleLauncher
             # and prepend the command to worker_executable
