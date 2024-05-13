@@ -255,7 +255,7 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         MACEHamiltonian,
         PlumedHamiltonian,
     )
-    from psiflow.hamiltonians.hamiltonian import MixtureHamiltonian
+    from psiflow.hamiltonians.hamiltonian import MixtureHamiltonian, Zero
     from psiflow.learning import Learning
     from psiflow.metrics import Metrics
     from psiflow.models import MACE

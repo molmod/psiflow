@@ -500,3 +500,8 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
         mixed.evaluate(dataset[:10]).get("energy").result(),
         mixed_.evaluate(dataset[:10]).get("energy").result(),
     )
+
+    data = json.loads(psiflow.serialize(Zero()).result())
+    assert 'Zero' in data
+    zero = psiflow.deserialize(json.dumps(data))
+    assert isinstance(zero, Zero)

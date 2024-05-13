@@ -148,7 +148,10 @@ class Hamiltonian:
 
 
 @typeguard.typechecked
+@psiflow.serializable
 class Zero(Hamiltonian):
+    external: None
+
     def single_evaluate(self, dataset: Dataset) -> Dataset:
         return dataset.reset()
 
