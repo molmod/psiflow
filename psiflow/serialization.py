@@ -276,6 +276,7 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         MACE,
         CP2K,
         EMT,
+        Zero,
         MACEHamiltonian,
         EinsteinCrystal,
         PlumedHamiltonian,
