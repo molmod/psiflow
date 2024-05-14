@@ -96,7 +96,10 @@ def parse_cp2k_output(
     assert len(lines) == natoms
     positions = np.zeros((natoms, 3))
     for j, line in enumerate(lines):
-        positions[j, :] = np.array([float(f) for f in line.split()[4:7]])
+        try:
+            positions[j, :] = np.array([float(f) for f in line.split()[4:7]])
+        except ValueError:  # if positions exploded, CP2K puts *** instead of float
+            return NullState
     assert np.allclose(
         geometry.per_atom.positions, positions, atol=1e-2
     )  # accurate up to 0.01 A

@@ -31,8 +31,9 @@ def compute_delta_f(harmonic: Harmonic, scaling: float, temperature: float):
     integration.sample(steps=5000, step=10, fix_com=True)
     integration.compute_gradients()
 
+    beta = 1 / (kB * temperature)
     f_delta = integration.along_delta(temperature=temperature).result()
-    return f_delta[-1]  # at hamiltonian H = 0.9 * harmonic
+    return f_delta[-1] / beta # at hamiltonian H = 0.9 * harmonic
 
 
 def main():
@@ -66,7 +67,7 @@ def main():
 
     computed_ddf = f_harmonic_bcc.result() - f_harmonic_fcc.result()
     computed_ddf += delta_f_bcc - delta_f_fcc
-    print('computed delta(delta(F)) [eV]: {}'.format(computed_ddf))
+    print('   computed delta(delta(F)) [eV]: {}'.format(computed_ddf))
 
 
 if __name__ == "__main__":
