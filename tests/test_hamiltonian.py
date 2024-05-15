@@ -502,6 +502,6 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
     )
 
     data = json.loads(psiflow.serialize(Zero()).result())
-    assert 'Zero' in data
+    assert "Zero" in data
     zero = psiflow.deserialize(json.dumps(data))
     assert isinstance(zero, Zero)

@@ -208,7 +208,7 @@ class ModelEvaluation(ExecutionDefinition):
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_simulation_time
         if self.gpu:
-            resource_specification['gpus'] = nclients
+            resource_specification["gpus"] = nclients
         return resource_specification
 
 
@@ -235,7 +235,7 @@ class ModelTraining(ExecutionDefinition):
 
     def wq_resources(self):
         if self.use_threadpool:
-            return None
+            return {}
         resource_specification = {}
         resource_specification["cores"] = self.cores_per_worker
         resource_specification["disk"] = 1000  # some random nontrivial amount?
@@ -243,7 +243,7 @@ class ModelTraining(ExecutionDefinition):
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_training_time
         if self.gpu:
-            resource_specification['gpus'] = 1
+            resource_specification["gpus"] = 1
         return resource_specification
 
 
@@ -293,7 +293,7 @@ class ReferenceEvaluation(ExecutionDefinition):
 
     def wq_resources(self):
         if self.use_threadpool:
-            return None
+            return {}
         resource_specification = {}
         resource_specification["cores"] = self.cores_per_worker
         resource_specification["disk"] = 1000  # some random nontrivial amount?

@@ -3,7 +3,7 @@ from ase.units import _c, second
 
 from psiflow.hamiltonians import EinsteinCrystal, get_mace_mp0
 from psiflow.hamiltonians._harmonic import compute_free_energy, compute_frequencies
-from psiflow.tools import compute_harmonic, optimize
+from psiflow.tools import compute_harmonic, optimize, optimize_dataset
 
 
 def test_optimize(dataset):
@@ -21,6 +21,10 @@ def test_optimize(dataset):
     #        atol=1e-4,
     #        )
     assert np.allclose(final.energy, 0.0)  # einstein energy >= 0
+
+    optimized = optimize_dataset(dataset[:3], einstein, steps=1000000)
+    for g in optimized.geometries().result():
+        assert np.allclose(g.energy, 0.0)
 
 
 def test_phonons(dataset):

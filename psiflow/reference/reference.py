@@ -28,8 +28,8 @@ def _extract_energy(state: Geometry):
 extract_energy = python_app(_extract_energy, executors=["default_threads"])
 
 
-@typeguard.typechecked
 @join_app
+@typeguard.typechecked
 def get_minimum_energy(element, configs, *energies):
     logger.info("atomic energies for element {}:".format(element))
     for config, energy in zip(configs, energies):
@@ -39,8 +39,8 @@ def get_minimum_energy(element, configs, *energies):
     return copy_app_future(energy)
 
 
-@typeguard.typechecked
 @join_app
+@typeguard.typechecked
 def evaluate_multiple(
     reference: Reference,
     nstates: int,

@@ -12,7 +12,7 @@ def main():
     geometry = Geometry.from_atoms(make_supercell(iron, 3 * np.eye(3)))
     mace = get_mace_mp0()
 
-    pressures = (-10 + np.arange(5) * 5) * 1e3  # in GPa
+    pressures = (-10 + np.arange(5) * 5) * 1e3  # in MPa
     walkers = [Walker(geometry, mace, temperature=300, pressure=p) for p in pressures]
 
     name = "volume{angstrom3}"

@@ -138,9 +138,8 @@ add_contributions = python_app(_add_contributions, executors=["default_threads"]
 def _parse(
     state: Geometry,
     inputs: list = [],
-) -> tuple[float, float, int]:
+) -> tuple[float, int]:
     time = state.order.pop("time")
-    temperature = state.order.pop("temperature")
 
     # determine status based on stdout
     with open(inputs[0], "r") as f:
@@ -153,12 +152,13 @@ def _parse(
         status = 0  # everything OK
     else:
         status = -1
-    return time, temperature, status
+    return time, status
 
 
 parse = python_app(_parse, executors=["default_threads"])
 
 
+@typeguard.typechecked
 def _update_walker(
     status: int,
     state: Geometry,
@@ -236,8 +236,7 @@ class SimulationOutput:
         self.stdout = result.stdout
         parsed = parse(state, inputs=[result.stdout, result.stderr])
         self.time = unpack_i(parsed, 0)
-        self.temperature = unpack_i(parsed, 1)
-        self.status = unpack_i(parsed, 2)
+        self.status = unpack_i(parsed, 1)
 
     def parse_data(
         self,
@@ -252,6 +251,8 @@ class SimulationOutput:
         for i, key in enumerate(self._data.keys()):
             self._data[key] = unpack_i(data, i)
         self.hamiltonians = hamiltonians
+        assert "temperature{kelvin}" in self._data.keys()
+        self.temperature = unpack_i(self._data["temperature{kelvin}"], -1)
 
     def update_walker(self, walker):
         walker.state = update_walker(

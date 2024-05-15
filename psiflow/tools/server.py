@@ -11,7 +11,7 @@ import numpy as np
 from ase.data import atomic_numbers
 from ase.geometry import Cell
 from ase.io import read, write
-from ase.units import Bohr, Ha, _e, _hbar, kB
+from ase.units import Bohr, Ha, _e, _hbar
 from ipi.engine.outputs import CheckpointOutput, PropertyOutput, TrajectoryOutput
 from ipi.engine.properties import getkey
 from ipi.engine.simulation import Simulation
@@ -272,17 +272,6 @@ def parse_checkpoint(
                 np.array(ast.literal_eval(text)).reshape(3, 3).T * Bohr
             )  # transpose for convention
 
-            # parse temperature
-            text = "".join(list(beads.iter(tag="p"))[0].text.split())
-            momenta = np.array(ast.literal_eval(text))
-            momenta = momenta.reshape(nbeads, natoms, 3)
-            text = "".join(list(beads.iter(tag="m"))[0].text.split())
-            masses = np.array(ast.literal_eval(text)).reshape(1, natoms, 1)
-
-            kinetic_per_dof = np.mean(momenta**2 / (2 * masses))
-            kinetic_per_dof *= Ha
-            temperature = 2 * kinetic_per_dof / kB
-
             # get current internal system time
             ensemble = list(system.iter(tag="ensemble"))[0]
             conversion = (_hbar / (_e * Ha)) * 1e12
@@ -296,7 +285,6 @@ def parse_checkpoint(
                 positions=np.mean(positions, axis=0),
                 cell=box,
             )
-            geometry.order["temperature"] = temperature
             geometry.order["time"] = time
             states.append(geometry)
             walker_index += 1
@@ -427,16 +415,16 @@ if __name__ == "__main__":
     else:
         try:
             cleanup(args)
-        except:
-            print('i-PI cleanup failed!')
-            print('files in directory:')
-            for filepath in Path.cwd().glob('*'):
+        except BaseException:
+            print("i-PI cleanup failed!")
+            print("files in directory:")
+            for filepath in Path.cwd().glob("*"):
                 print(filepath)
-            print('')
+            print("")
 
-            names = [p.name for p in Path.cwd().glob('*')]
-            if 'output.checkpoint' in names:
-                with open('output.checkpoint', 'r') as f:
+            names = [p.name for p in Path.cwd().glob("*")]
+            if "output.checkpoint" in names:
+                with open("output.checkpoint", "r") as f:
                     print(f.read())
             else:
-                print('no output.checkpoint found')
+                print("no output.checkpoint found")

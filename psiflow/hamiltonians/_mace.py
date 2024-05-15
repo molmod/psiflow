@@ -50,9 +50,9 @@ class MACEHamiltonian(Hamiltonian):
         evaluate_app = python_app(infused_evaluate, executors=[evaluation.name])
         if resources is not None:
             self.evaluate_app = partial(
-                    evaluate_app,
-                    parsl_resource_specification=resources,
-                    )
+                evaluate_app,
+                parsl_resource_specification=resources,
+            )
         else:
             self.evaluate_app = evaluate_app
 

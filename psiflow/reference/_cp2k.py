@@ -192,8 +192,8 @@ def cp2k_singlepoint_post(
     return geometry
 
 
-@typeguard.typechecked
 @join_app
+@typeguard.typechecked
 def evaluate_single(
     geometry: Union[Geometry, AppFuture],
     cp2k_input_dict: dict,

@@ -6,11 +6,11 @@ from typing import Optional, Union
 import parsl
 import typeguard
 from ase.units import Bohr, Ha
-from parsl.app.app import bash_app
+from parsl.app.app import bash_app, join_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset
+from psiflow.data import Dataset, write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 from psiflow.utils import save_xml
@@ -237,3 +237,26 @@ def optimize(
         return final, trajectory
     else:
         return final
+
+
+@join_app
+@typeguard.typechecked
+def _optimize_dataset(
+    geometries: list[Geometry], *args, outputs: list = [], **kwargs
+) -> AppFuture:
+    assert not kwargs.get("keep_trajectory", False)
+    optimized = []
+    for geometry in geometries:
+        optimized.append(optimize(geometry, *args, **kwargs))
+    return write_frames(*optimized, outputs=[outputs[0]])
+
+
+@typeguard.typechecked
+def optimize_dataset(dataset: Dataset, *args, **kwargs) -> Dataset:
+    extxyz = _optimize_dataset(
+        dataset.geometries(),
+        *args,
+        outputs=[psiflow.context().new_file("data_", ".xyz")],
+        **kwargs,
+    ).outputs[0]
+    return Dataset(None, extxyz)

@@ -109,7 +109,6 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
 def test_parse_checkpoint(checkpoint):
     states = parse_checkpoint(checkpoint)
     assert "time" in states[0].order
-    assert "temperature" in states[0].order
     assert np.allclose(
         states[0].cell,
         np.array([[1, 0.0, 0], [0.1, 2, 0], [0, 0, 3]]) * Bohr,
@@ -162,6 +161,8 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     for state in output.trajectory.geometries().result():
         assert len(state) == len(dataset[2].result())
     assert output.trajectory.length().result() == 3
+    assert output.temperature is not None
+    assert np.abs(output.temperature.result() - 200 < 200)
 
     # check whether metadynamics file has correct dependency
     with open(metadynamics.external.result().filepath, "r") as f:
@@ -249,6 +250,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
             "temperature{kelvin}",
         ],
         checkpoint_step=1,
+        fix_com=False,  # otherwise temperature won't match
     )[0]
     assert np.allclose(
         hamiltonian.evaluate(dataset)[0].result().energy,

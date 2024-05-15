@@ -333,7 +333,7 @@ def _execute_ipi(
     stderr: str = "",
     inputs: list = [],
     outputs: list = [],
-    parsl_resource_specification: Optional[dict] = None,
+    parsl_resource_specification: Optional[dict] = {},
 ) -> str:
     tmp_command = "tmpdir=$(mktemp -d);"
     cd_command = "cd $tmpdir;"
@@ -400,7 +400,7 @@ def _sample(
     max_force: Optional[float] = None,
     observables: Optional[list[str]] = None,
     motion_defaults: Union[None, str, ET.Element] = None,
-    fix_com: bool = False,
+    fix_com: bool = True,
     prng_seed: int = 12345,
     checkpoint_step: int = 100,
 ) -> list[SimulationOutput]:
