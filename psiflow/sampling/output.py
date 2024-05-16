@@ -1,3 +1,4 @@
+import copy
 import re
 from pathlib import Path
 from typing import Optional, Union
@@ -25,6 +26,18 @@ DEFAULT_OBSERVABLES = [
 def potential_component_names(n: int):
     str_format = "pot_component_raw({})"
     return [str_format.format(i) + "{electronvolt}" for i in range(n)]
+
+
+@typeguard.typechecked
+def _get_final_temperature(temperatures: np.ndarray) -> float:
+    if not len(temperatures) > 0:
+        return np.nan
+    return temperatures[-1]
+
+
+get_final_temperature = python_app(
+    _get_final_temperature, executors=["default_threads"]
+)
 
 
 @typeguard.typechecked
@@ -98,6 +111,7 @@ def read_output(filename):  # from i-PI
 @typeguard.typechecked
 def _parse_data(
     status: int,
+    start: int,
     keys: list[str],
     inputs: list = [],
 ) -> list[np.ndarray]:
@@ -113,7 +127,7 @@ def _parse_data(
     if status not in [0, 1]:
         return [np.zeros(0) for key in bare_keys]  # read_output might fail
     values, _ = read_output(inputs[0].filepath)
-    return [values[key] for key in bare_keys]
+    return [values[key][start:] for key in bare_keys]
 
 
 parse_data = python_app(_parse_data, executors=["default_threads"])
@@ -169,7 +183,7 @@ def _update_walker(
     if (status in [0, 1]) and state != NullState:
         return state
     else:
-        return start
+        return copy.deepcopy(start)
 
 
 update_walker = python_app(_update_walker, executors=["default_threads"])
@@ -240,11 +254,13 @@ class SimulationOutput:
 
     def parse_data(
         self,
+        start: int,
         data_future: DataFuture,
         hamiltonians: list[Hamiltonian],
     ):
         data = parse_data(
             self.status,
+            start,
             list(self._data.keys()),
             inputs=[data_future],
         )
@@ -252,7 +268,7 @@ class SimulationOutput:
             self._data[key] = unpack_i(data, i)
         self.hamiltonians = hamiltonians
         assert "temperature{kelvin}" in self._data.keys()
-        self.temperature = unpack_i(self._data["temperature{kelvin}"], -1)
+        self.temperature = get_final_temperature(self._data["temperature{kelvin}"])
 
     def update_walker(self, walker):
         walker.state = update_walker(

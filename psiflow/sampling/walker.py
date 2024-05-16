@@ -16,7 +16,7 @@ from psiflow.geometry import Geometry
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.order import OrderParameter
-from psiflow.utils import copy_app_future, unpack_i
+from psiflow.utils import copy_app_future
 
 
 @typeguard.typechecked
@@ -35,7 +35,7 @@ def _conditioned_reset(
     if condition:
         return deepcopy(start)
     else:
-        return deepcopy(state)
+        return state
 
 
 conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"])
@@ -164,7 +164,7 @@ def partition(walkers: list[Walker]) -> list[list[int]]:
 def _get_minimum_energy_states(
     coefficients: np.ndarray,
     inputs: list = [],
-    ) -> list[int]:
+) -> list[int]:
     import numpy
 
     from psiflow.data import _read_frames

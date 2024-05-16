@@ -1,5 +1,6 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import math
 import xml.etree.ElementTree as ET
 from typing import Optional, Union
 
@@ -252,6 +253,7 @@ def setup_output(
     nhamiltonians: int,
     observables: Optional[list[str]],
     step: Optional[int],
+    keep_trajectory: bool,
     checkpoint_step: int,
 ) -> tuple[ET.Element, list]:
     output = ET.Element("output", prefix="output")
@@ -263,8 +265,17 @@ def setup_output(
     )
     observables = list(set(full_list))
 
-    if step is not None:
-        checkpoint_step = step
+    if step is None:
+        step = checkpoint_step
+
+    checkpoint = ET.Element(
+        "checkpoint",
+        filename="checkpoint",
+        stride=str(checkpoint_step),
+        overwrite="True",
+    )
+    output.append(checkpoint)
+    if keep_trajectory:
         trajectory = ET.Element(
             "trajectory",
             filename="trajectory",
@@ -274,17 +285,10 @@ def setup_output(
         )
         trajectory.text = r" positions{angstrom} "
         output.append(trajectory)
-    checkpoint = ET.Element(
-        "checkpoint",
-        filename="checkpoint",
-        stride=str(checkpoint_step),
-        overwrite="True",
-    )
-    output.append(checkpoint)
     properties = ET.Element(
         "properties",
         filename="properties",
-        stride=str(checkpoint_step),
+        stride=str(step),
     )
     properties.text = " [ " + ", ".join(observables) + " ] "
     output.append(properties)
@@ -397,12 +401,14 @@ def _sample(
     walkers: list[Walker],
     steps: int,
     step: Optional[int] = None,
+    start: int = 0,
+    keep_trajectory: bool = True,
     max_force: Optional[float] = None,
     observables: Optional[list[str]] = None,
     motion_defaults: Union[None, str, ET.Element] = None,
     fix_com: bool = True,
     prng_seed: int = 12345,
-    checkpoint_step: int = 100,
+    checkpoint_step: Optional[int] = None,
 ) -> list[SimulationOutput]:
     assert len(walkers) > 0
     hamiltonians_map, weights_table, plumed_list = template(walkers)
@@ -424,13 +430,24 @@ def _sample(
     smotion = setup_smotion(coupling, plumed_list)
 
     # make sure at least one checkpoint is being written
-    if steps < checkpoint_step:
-        checkpoint_step = steps
+    if checkpoint_step is None:  # default to every 5% of simulation progress
+        if step is None:
+            checkpoint_step = math.ceil(steps / 20)
+        else:
+            checkpoint_step = step
+    else:
+        if steps < checkpoint_step:  # technically a user error
+            checkpoint_step = steps
+    if step is not None:
+        start = math.floor(start / step)  # start is applied on subsampled quantities
+    if step is None:
+        keep_trajectory = False
     output, simulation_outputs = setup_output(
         len(walkers),
         len(hamiltonians_map),  # for potential components
         observables,
         step,
+        keep_trajectory,
         checkpoint_step,
     )
     simulation = ET.Element("simulation", verbosity="high")
@@ -476,7 +493,7 @@ def _sample(
         client_args.append(args)
     outputs = [context.new_file("data_", ".xyz")]
     outputs += [context.new_file("simulation_", ".txt") for w in walkers]
-    if step is not None:
+    if keep_trajectory:
         outputs += [context.new_file("data_", ".xyz") for w in walkers]
         assert len(outputs) == 2 * len(walkers) + 1
     else:
@@ -500,7 +517,7 @@ def _sample(
         len(walkers),
         hamiltonian_names,
         client_args,
-        (step is not None),
+        keep_trajectory,
         max_force,
         coupling_copy_command,
         command_server,
@@ -521,12 +538,15 @@ def _sample(
             state = walkers[i].order_parameter.evaluate(state)
         simulation_output.parse(result, state)
         simulation_output.parse_data(
+            start,
             result.outputs[i + 1],
             hamiltonians=list(hamiltonians_map.values()),
         )
-        if step is not None:
+        if keep_trajectory:
             j = len(walkers) + 1 + i
             trajectory = Dataset(None, result.outputs[j])
+            if start > 0:
+                trajectory = trajectory[start:]
             simulation_output.trajectory = trajectory
         if walkers[i].metadynamics is not None:
             walkers[i].metadynamics.wait_for(result)
@@ -543,12 +563,14 @@ def sample(
     walkers: list[Walker],
     steps: int,
     step: Optional[int] = None,
+    start: int = 0,
+    keep_trajectory: bool = True,
     max_force: Optional[float] = None,
     observables: Optional[list[str]] = None,
     motion_defaults: Union[None, str, ET.Element] = None,
-    fix_com: bool = False,
+    fix_com: bool = True,
     prng_seed: int = 12345,
-    checkpoint_step: int = 100,
+    checkpoint_step: Optional[int] = None,
 ) -> list[SimulationOutput]:
     indices = partition(walkers)
     outputs = [None] * len(walkers)
@@ -558,6 +580,8 @@ def sample(
             _walkers,
             steps,
             step=step,
+            start=start,
+            keep_trajectory=keep_trajectory,
             max_force=max_force,
             observables=observables,
             motion_defaults=motion_defaults,

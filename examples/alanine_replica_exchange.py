@@ -40,8 +40,8 @@ def compute_dihedrals(positions):
 
 
 def main():
-    c7eq = np.array([2.8, 2.9])  # roughly
-    c7ax = np.array([1.2, -0.9])
+    c7eq = np.array([2.8, 2.9])  # noqa: F841
+    c7ax = np.array([1.2, -0.9])  # noqa: F841
     alanine = Geometry.from_string(  # starts in c7ax config
         """
 22

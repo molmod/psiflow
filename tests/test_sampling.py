@@ -148,6 +148,22 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         steps=100,
         step=10,
     )
+    assert simulation_outputs[0].trajectory.length().result() == 11
+    pos0 = simulation_outputs[0].trajectory[-1].result().per_atom.positions
+    pos1 = walker0.state.result().per_atom.positions
+    assert np.allclose(
+        pos0,
+        pos1,
+    )
+    e = simulation_outputs[0]["potential{electronvolt}"].result()
+    assert len(e) == 11
+
+    o = sample([walker0], steps=20, step=2, start=10, keep_trajectory=False)[0]
+    assert o.trajectory is None
+    assert len(o["potential{electronvolt}"].result()) == 6
+    o = sample([walker0], steps=20, step=2, start=10, keep_trajectory=True)[0]
+    assert o.trajectory.length().result() == 6
+    assert len(o["potential{electronvolt}"].result()) == 6
 
     # check PIMD output
     walker = Walker(
@@ -250,7 +266,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
             "temperature{kelvin}",
         ],
         checkpoint_step=1,
-        fix_com=False,  # otherwise temperature won't match
+        fix_com=True,  # otherwise temperature won't match
     )[0]
     assert np.allclose(
         hamiltonian.evaluate(dataset)[0].result().energy,
@@ -307,13 +323,15 @@ def test_reset(dataset):
         [walker],
         steps=50,
         step=10,
+        keep_trajectory=True,
     )[0]
     assert simulation_output.status.result() == 0
+    assert not walker.is_reset().result()
+    assert simulation_output.trajectory.length().result() == 6
     assert np.allclose(
         walker.state.result().per_atom.positions,
         simulation_output.trajectory[-1].result().per_atom.positions,
     )
-    assert not walker.is_reset().result()
 
     walker.hamiltonian = EinsteinCrystal(dataset[0], force_constant=1000)
     simulation_output = sample(
