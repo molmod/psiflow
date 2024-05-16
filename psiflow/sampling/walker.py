@@ -164,7 +164,7 @@ def partition(walkers: list[Walker]) -> list[list[int]]:
 def _get_minimum_energy_states(
     coefficients: np.ndarray,
     inputs: list = [],
-) -> tuple[int, ...]:
+    ) -> list[int]:
     import numpy
 
     from psiflow.data import _read_frames
@@ -182,7 +182,7 @@ def _get_minimum_energy_states(
     for c in coefficients:
         energy = numpy.sum(c.reshape(-1, 1) * energies, axis=0)
         indices.append(int(numpy.argmin(energy)))
-    return tuple(indices)
+    return indices
 
 
 get_minimum_energy_states = python_app(
@@ -206,8 +206,9 @@ def quench(walkers: list[Walker], dataset: Dataset) -> None:
         coefficients,
         inputs=[data.extxyz for data in evaluated],
     )
+    data = dataset[indices]
     for i, walker in enumerate(walkers):
-        walker.start = dataset[unpack_i(indices, i)][0]
+        walker.start = data[i]
         walker.reset()
 
 
@@ -222,8 +223,9 @@ random_indices = python_app(_random_indices, executors=["default_threads"])
 @typeguard.typechecked
 def randomize(walkers: list[Walker], dataset: Dataset) -> None:
     indices = random_indices(len(walkers), dataset.length())
+    data = dataset[indices]
     for i, walker in enumerate(walkers):
-        walker.start = dataset[unpack_i(indices, i)][0]
+        walker.start = data[i]
         walker.reset()
 
 

@@ -63,3 +63,36 @@ RUN pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.o
 RUN pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.3
 ARG GIT_COMMIT_SHA
 RUN pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@ipi
+
+
+# install GPAW with MPI from cp2k
+#USER root
+#RUN git clone https://gitlab.com/libxc/libxc.git &&  \
+#cd libxc &&  \
+#apt install autogen autoconf libtool && \
+#autoreconf -i && \
+#./configure && \
+#make && \
+#make check && \
+#make install
+USER root
+RUN apt install libxc-dev -y
+USER $MAMBA_USER
+RUN source /opt/cp2k/tools/toolchain/install/setup && \
+export C_INCLUDE_PATH=$CPATH && \
+export LIBRARY_PATH=$LD_LIBRARY_PATH && \
+echo "C INCLUDE PATH" $C_INCLUDE_PATH && \
+pip install gpaw
+USER root
+RUN mkdir /opt/gpaw-data
+RUN yes | gpaw install-data /opt/gpaw-data || true
+ENV GPAW_SETUP_PATH=/opt/gpaw-data
+USER $MAMBA_USER
+
+#RUN echo "export GPAW_SETUP_PATH=\"/opt/gpaw-data\n" >> /usr/local/bin/entry.sh
+
+#ENV C_INCLUDE_PATH=$CPATH
+#RUN echo "export C_INCLUDE_PATH=\${CPATH}\"\n" >> /usr/local/bin/entry.sh
+#RUN /usr/local/bin/entry.sh
+#RUN echo "source /opt/cp2k/tools/toolchain/install/setup_notorch\n" >> /usr/local/bin/entry_gpaw.sh
+#RUN echo "source /opt/cp2k/tools/toolchain/install/setup_notorch\n" >> /usr/local/bin/entry_gpaw.sh
