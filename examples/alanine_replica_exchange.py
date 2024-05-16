@@ -8,7 +8,7 @@ from psiflow.sampling.walker import replica_exchange
 
 
 def compute_dihedrals(positions):
-    indices_phi = np.array([4, 6, 8 , 14], dtype=int)
+    indices_phi = np.array([4, 6, 8, 14], dtype=int)
     indices_psi = np.array([6, 8, 14, 16], dtype=int)
 
     dihedrals = []
@@ -33,7 +33,7 @@ def compute_dihedrals(positions):
         n1 = n1 / n1_norm
         n2 = n2 / n2_norm
 
-        dot_product = np.einsum('ij,ij->i', n1, n2)
+        dot_product = np.einsum("ij,ij->i", n1, n2)
         dot_product = np.clip(dot_product, -1.0, 1.0)
         dihedrals.append(np.arccos(dot_product))
     return dihedrals[0], dihedrals[1]  # phi, psi
@@ -43,7 +43,7 @@ def main():
     c7eq = np.array([2.8, 2.9])  # roughly
     c7ax = np.array([1.2, -0.9])
     alanine = Geometry.from_string(  # starts in c7ax config
-"""
+        """
 22
 Properties=species:S:1:pos:R:3 pbc="F F F"
 H       12.16254811      17.00740464      -2.89412387
@@ -75,20 +75,19 @@ H       13.27142638      10.63298597      -1.06170510
     walkers = []
     for temperature in [150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1100]:
         walker = Walker(
-                alanine,
-                mace,
-                temperature=temperature,
-                )
+            alanine,
+            mace,
+            temperature=temperature,
+        )
         walkers.append(walker)
     replica_exchange(walkers, trial_frequency=50)
 
     outputs = sample(walkers, steps=20000, step=200)
-    phi, psi = compute_dihedrals(outputs[0].trajectory.get('positions').result())
+    phi, psi = compute_dihedrals(outputs[0].trajectory.get("positions").result())
     for f, s in zip(phi, psi):  # some c7eq conformations should appear here
-        print('{:5.3f}  {:5.3f}'.format(f, s))
+        print("{:5.3f}  {:5.3f}".format(f, s))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     with psiflow.load():
         main()
-

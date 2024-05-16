@@ -9,6 +9,7 @@ files=(
 	"water_cp2k_noise.py"
     "water_path_integral_md.py"
     "water_train_validate.py"
+    "alanine_replica_exchange.py"
 )
 
 curl -O https://raw.githubusercontent.com/molmod/psiflow/ipi/configs/lumi.yaml

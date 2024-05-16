@@ -24,7 +24,7 @@ def get_OH_distances(geometries):
 
 
 def main():
-    geometry = Dataset.load("data/h2o_64.xyz")[0]
+    geometry = Dataset.load("data/h2o_32.xyz")[0]
     mace = get_mace_mp0()
 
     trajectories = []
@@ -35,7 +35,7 @@ def main():
             nbeads=2**i,
             temperature=300,
         )
-        outputs = sample([walker], steps=5000, step=20)
+        outputs = sample([walker], steps=2000, step=20)
         trajectories.append(outputs[0].trajectory)
 
     for i, trajectory in enumerate(trajectories):
