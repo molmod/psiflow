@@ -191,7 +191,8 @@ class Integration:
         x = self.delta_coefficients
         y = [state.gradients["delta"] for state in states]
         f = integrate(x, *y)
-        return multiply(f, kB * temperature)
+        return f
+        # return multiply(f, kB * temperature)
 
     def along_temperature(self, delta_coefficient: Optional[float] = None):
         if delta_coefficient is None:
@@ -206,7 +207,8 @@ class Integration:
         x = self.temperatures
         y = [state.gradients["temperature"] for state in states]
         f = integrate(x, *y)
-        return multiply(f, kB * self.temperatures)
+        return f
+        # return multiply(f, kB * self.temperatures)
 
     @property
     def ntemperatures(self):

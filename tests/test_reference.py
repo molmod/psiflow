@@ -8,7 +8,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
-from psiflow.reference import CP2K, EMT
+from psiflow.reference import CP2K, EMT, GPAW
 from psiflow.reference._cp2k import dict_to_str, parse_cp2k_output, str_to_dict
 
 
@@ -421,3 +421,24 @@ def test_cp2k_posthf(context):
         cell=5 * np.eye(3),
     )
     assert reference.evaluate(geometry).result().energy is not None
+
+
+def test_gpaw_single(dataset, dataset_h2):
+    gpaw = GPAW(
+        mode="fd",
+        nbands=0,
+        xc="LDA",
+        h=0.1,
+        minimal_box_multiple=2,
+    )
+    state = gpaw.evaluate(dataset_h2[0]).result()
+    assert state.energy is not None
+    assert state.energy < 0.0
+    assert np.allclose(
+        state.per_atom.positions,
+        dataset_h2[0].result().per_atom.positions,
+    )
+    assert gpaw.compute_atomic_energy("Zr", box_size=9).result() == 0.0
+
+    gpaw = GPAW(askdfj="asdfk")  # invalid input
+    assert gpaw.evaluate(dataset_h2[1]).result() == NullState

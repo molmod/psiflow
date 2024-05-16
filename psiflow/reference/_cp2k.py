@@ -170,6 +170,7 @@ def cp2k_singlepoint_pre(
     return " ".join(command_list)
 
 
+@typeguard.typechecked
 def cp2k_singlepoint_post(
     geometry: Geometry,
     properties: tuple,

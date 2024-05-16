@@ -291,6 +291,18 @@ class ReferenceEvaluation(ExecutionDefinition):
             )
         return command
 
+    def gpaw_command(self):
+        script = "$(python -c 'import psiflow.reference.gpaw_; print(psiflow.reference.gpaw_.__file__)')"
+        command_list = [self.mpi_command, "gpaw", "python", script]
+        if self.max_evaluation_time is not None:
+            max_time = 0.9 * (60 * self.max_evaluation_time)
+            command_list = [
+                "timeout -s 15 {}s".format(max_time),
+                *command_list,
+                "|| true",
+            ]
+        return " ".join(command_list)
+
     def wq_resources(self):
         if self.use_threadpool:
             return {}
