@@ -12,13 +12,14 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian
+from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian, Zero
 from psiflow.utils import unpack_i
 
 DEFAULT_OBSERVABLES = [
     "time{picosecond}",
     "temperature{kelvin}",
     "potential{electronvolt}",
+    "volume{angstrom3}",
 ]
 
 
@@ -282,6 +283,9 @@ class SimulationOutput:
             list(self.hamiltonians),
             [1.0 for h in self.hamiltonians],
         )
+        if hamiltonian == Zero():
+            name = potential_component_names(1)[0]
+            return add_contributions((0.0,), self._data[name])
         coefficients = all_h.get_coefficients(1.0 * hamiltonian)
         names = potential_component_names(len(self.hamiltonians))
         values = [self._data[name] for name in names]

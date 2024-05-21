@@ -72,3 +72,26 @@ def test_integration_simple(dataset):
     # print('\nalong temperature')
     # print('   computed delta_F: {}'.format(integrated[-1] / (kB * 400)))
     # print('theoretical delta_F: {}'.format(F2 / (kB * 400) - F1 / (kB * 300)))
+
+
+def test_integration_temperature(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=1)
+    integration = Integration(
+        hamiltonian=einstein,
+        temperatures=[300, 400],
+        pressure=0.0,
+    )
+    integration.create_walkers(dataset[:3])
+    integration.sample(steps=10, step=1)
+    integration.compute_gradients()
+    gradient0 = integration.states[0].gradients["temperature"]
+
+    integration = Integration(
+        hamiltonian=einstein,
+        temperatures=[300, 400],
+    )
+    integration.create_walkers(dataset[:3])
+    integration.sample(steps=10, step=1)
+    integration.compute_gradients()
+    gradient1 = integration.states[0].gradients["temperature"]
+    assert np.allclose(gradient0.result(), gradient1.result())

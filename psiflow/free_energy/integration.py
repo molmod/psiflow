@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import numpy as np
 import typeguard
-from ase.units import kB
+from ase.units import bar, kB
 from parsl.app.app import python_app
 
 from psiflow.data import Dataset
@@ -72,8 +72,6 @@ class ThermodynamicState:
     ):
         self.temperature_gradient(output, hamiltonian)
         self.delta_gradient(output)
-        if self.pressure is not None:
-            self.pressure_gradient(output)
         if self.mass is not None:
             self.mass_gradient(output)
 
@@ -83,11 +81,16 @@ class ThermodynamicState:
         hamiltonian: Optional[Hamiltonian] = None,
     ):
         energies = output.get_energy(hamiltonian)
+        _energy = take_mean(energies)
+        if self.pressure is not None:  # use enthalpy
+            volumes = output["volume{angstrom3}"]
+            pv = multiply(take_mean(volumes), 10 * bar * self.pressure)
+            _energy = compute_sum(_energy, pv)
 
         # grad_u = < - u / kBT**2 >
         # grad_k = < - E_kin > / kBT**2 >
         gradient_u = multiply(
-            take_mean(energies),
+            _energy,
             (-1.0) / (kB * self.temperature**2),
         )
         gradient_k = (-1.0) * (3 * self.natoms - 3) / (2 * self.temperature)
@@ -100,9 +103,6 @@ class ThermodynamicState:
             1 / (kB * self.temperature),
         )
 
-    def pressure_gradient(output):
-        raise NotImplementedError
-
     def mass_gradient(output):
         raise NotImplementedError
 
@@ -113,8 +113,9 @@ class Integration:
         self,
         hamiltonian: Hamiltonian,
         temperatures: Union[list[float], np.ndarray],
-        delta_hamiltonian: Optional[Hamiltonian],
-        delta_coefficients: Union[list[float], np.ndarray, None],
+        delta_hamiltonian: Optional[Hamiltonian] = None,
+        delta_coefficients: Union[list[float], np.ndarray, None] = None,
+        pressure: Optional[float] = None,
     ):
         self.hamiltonian = hamiltonian
         self.temperatures = np.array(temperatures, dtype=float)
@@ -125,9 +126,10 @@ class Integration:
         else:
             self.delta_coefficients = np.array([0.0])
             self.delta_hamiltonian = Zero()
+        self.pressure = pressure
 
-        assert len(np.unique(temperatures)) == len(temperatures)
-        assert len(np.unique(delta_coefficients)) == len(delta_coefficients)
+        assert len(np.unique(self.temperatures)) == len(self.temperatures)
+        assert len(np.unique(self.delta_coefficients)) == len(self.delta_coefficients)
 
         self.states = []
         self.walkers = []
@@ -154,7 +156,7 @@ class Integration:
                     temperature=T,
                     natoms=natoms,
                     delta_hamiltonian=self.delta_hamiltonian,
-                    pressure=None,
+                    pressure=self.pressure,
                     mass=None,
                 )
                 self.states.append(state)
