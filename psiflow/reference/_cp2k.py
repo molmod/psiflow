@@ -66,7 +66,9 @@ def insert_atoms_in_input(cp2k_input_dict: dict, geometry: Geometry):
 
 @typeguard.typechecked
 def set_global_section(cp2k_input_dict: dict, properties: tuple):
-    global_dict = {}
+    if "global" not in cp2k_input_dict:
+        cp2k_input_dict["global"] = {}
+    global_dict = cp2k_input_dict["global"]
     if properties == ("energy",):
         global_dict["run_type"] = "ENERGY"
     elif properties == ("energy", "forces"):
@@ -74,9 +76,10 @@ def set_global_section(cp2k_input_dict: dict, properties: tuple):
     else:
         raise ValueError("invalid properties: {}".format(properties))
 
-    global_dict["preferred_diag_library"] = "SL"
-    global_dict["fm"] = {"type_of_matrix_multiplication": "SCALAPACK"}
-    cp2k_input_dict["global"] = global_dict
+    if "preferred_diag_library" not in global_dict:
+        global_dict["preferred_diag_library"] = "SL"
+    if "fm" not in global_dict:
+        global_dict["fm"] = {"type_of_matrix_multiplication": "SCALAPACK"}
 
 
 def parse_cp2k_output(
