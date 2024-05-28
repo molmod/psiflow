@@ -1,98 +1,74 @@
-# bring in the micromamba image so we can copy files from it
-FROM mambaorg/micromamba:1.5.8 as micromamba
+FROM ubuntu:22.04
 
-# This is the image we are going add micromaba to:
-FROM cp2k/cp2k:2023.2_openmpi_generic_psmp
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
 
-USER root
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-venv \
+    python3.10-dev \
+    build-essential \
+    cmake \
+    wget \
+    git \
+    zlib1g-dev \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    libgsl-dev \
+    perl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# if your image defaults to a non-root user, then you may want to make the
-# next 3 ARG commands match the values in your image. You can get the values
-# by running: docker run --rm -it my/image id -a
-ARG MAMBA_USER=mambauser
-ARG MAMBA_USER_ID=57439
-ARG MAMBA_USER_GID=57439
-ENV MAMBA_USER=$MAMBA_USER
-ENV MAMBA_ROOT_PREFIX="/opt/conda"
-ENV MAMBA_EXE="/bin/micromamba"
+RUN python3.10 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --upgrade pip
 
-COPY --from=micromamba "$MAMBA_EXE" "$MAMBA_EXE"
-COPY --from=micromamba /usr/local/bin/_activate_current_env.sh /usr/local/bin/_activate_current_env.sh
-COPY --from=micromamba /usr/local/bin/_dockerfile_shell.sh /usr/local/bin/_dockerfile_shell.sh
-COPY --from=micromamba /usr/local/bin/_entrypoint.sh /usr/local/bin/_entrypoint.sh
-COPY --from=micromamba /usr/local/bin/_dockerfile_initialize_user_accounts.sh /usr/local/bin/_dockerfile_initialize_user_accounts.sh
-COPY --from=micromamba /usr/local/bin/_dockerfile_setup_root_prefix.sh /usr/local/bin/_dockerfile_setup_root_prefix.sh
+# Install PLUMED
+ARG PLUMED_VERSION
+RUN wget https://github.com/plumed/plumed2/archive/refs/tags/v${PLUMED_VERSION}.tar.gz \
+    && tar -xzf v${PLUMED_VERSION}.tar.gz \
+    && cd plumed2-${PLUMED_VERSION} \
+    && ./configure --prefix=/usr/local/plumed \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf plumed2-${PLUMED_VERSION} v${PLUMED_VERSION}.tar.gz
 
-RUN apt-get update
-RUN apt-get install ca-certificates git -y
-RUN update-ca-certificates
+# Ensure cctools can find the Python environment
+ENV PYTHONPATH="/opt/venv/lib/python3.10/site-packages:$PYTHONPATH"
+ENV PATH="/opt/venv/bin:$PATH"
 
-RUN /usr/local/bin/_dockerfile_initialize_user_accounts.sh && \
-    /usr/local/bin/_dockerfile_setup_root_prefix.sh
+# Install cctools
+ARG CCTOOLS_VERSION
+RUN wget https://github.com/cooperative-computing-lab/cctools/archive/refs/tags/release/${CCTOOLS_VERSION}.tar.gz \
+    && tar -xzf ${CCTOOLS_VERSION}.tar.gz \
+    && cd cctools-release-${CCTOOLS_VERSION} \
+    && ./configure --prefix=/usr/local/cctools \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf cctools-release-${CCTOOLS_VERSION} ${CCTOOLS_VERSION}.tar.gz
 
-# modify entrypoint to also activate cp2k, but do not set up the included (lib)torch
-RUN head -n -1 /usr/local/bin/_entrypoint.sh > /usr/local/bin/entry.sh
-RUN sed '/torch/Id' /opt/cp2k/tools/toolchain/install/setup > /opt/cp2k/tools/toolchain/install/setup_notorch
-RUN echo "source /opt/cp2k/tools/toolchain/install/setup_notorch\n" >> /usr/local/bin/entry.sh
-RUN echo "export PATH=\"/opt/cp2k/exe/local:\${PATH}\"\n" >> /usr/local/bin/entry.sh
+# Set environment variables for PLUMED and cctools
+ENV PATH="/usr/local/plumed/bin:/usr/local/cctools/bin:$PATH"
+ENV LD_LIBRARY_PATH="/usr/local/plumed/lib:/usr/local/cctools/lib:$LD_LIBRARY_PATH"
 
-RUN echo "exec \"\$@\"" >> /usr/local/bin/entry.sh
-RUN chmod +x /usr/local/bin/entry.sh
+# Create entrypoint script
+RUN echo '#!/bin/bash\nsource /opt/venv/bin/activate\nexec "$@"' > /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-USER $MAMBA_USER
-
-SHELL ["/usr/local/bin/_dockerfile_shell.sh"]
-
-ENTRYPOINT ["/usr/local/bin/entry.sh"]
-# Optional: if you want to customize the ENTRYPOINT and have a conda
-# environment activated, then do this:
-# ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "my_entrypoint_program"]
-
-# You can modify the CMD statement as needed....
-CMD ["/bin/bash"]
-
-RUN micromamba install -n base --yes -c conda-forge \
-    python=3.10 pip ndcctools py-plumed && \
-    micromamba clean -af --yes
-ARG MAMBA_DOCKERFILE_ACTIVATE=1  # (otherwise python will not be found)
-
-RUN pip install --no-cache-dir wandb plotly plumed 
-RUN pip install --no-cache-dir git+https://github.com/lab-cosmo/i-pi.git@feat/socket_prefix
+ARG PSIFLOW_VERSION
+ARG PARSL_VERSION
 ARG GPU_LIBRARY
-RUN pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.org/whl/${GPU_LIBRARY}
-RUN pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.3
-ARG GIT_COMMIT_SHA
-RUN pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@ipi
+RUN /bin/bash -c -o pipefail \
+    "source /opt/venv/bin/activate && \
+     pip install --no-cache-dir wandb plotly plumed && \
+     pip install --no-cache-dir git+https://github.com/lab-cosmo/i-pi.git@feat/socket_prefix && \
+     pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@${PSIFLOW_VERSION} && \
+     pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.org/whl/${GPU_LIBRARY} && \
+     pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.3"
 
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-# install GPAW with MPI from cp2k
-#USER root
-#RUN git clone https://gitlab.com/libxc/libxc.git &&  \
-#cd libxc &&  \
-#apt install autogen autoconf libtool && \
-#autoreconf -i && \
-#./configure && \
-#make && \
-#make check && \
-#make install
-USER root
-RUN apt install libxc-dev -y
-USER $MAMBA_USER
-RUN source /opt/cp2k/tools/toolchain/install/setup && \
-export C_INCLUDE_PATH=$CPATH && \
-export LIBRARY_PATH=$LD_LIBRARY_PATH && \
-echo "C INCLUDE PATH" $C_INCLUDE_PATH && \
-pip install gpaw
-USER root
-RUN mkdir /opt/gpaw-data
-RUN yes | gpaw install-data /opt/gpaw-data || true
-ENV GPAW_SETUP_PATH=/opt/gpaw-data
-USER $MAMBA_USER
-
-#RUN echo "export GPAW_SETUP_PATH=\"/opt/gpaw-data\n" >> /usr/local/bin/entry.sh
-
-#ENV C_INCLUDE_PATH=$CPATH
-#RUN echo "export C_INCLUDE_PATH=\${CPATH}\"\n" >> /usr/local/bin/entry.sh
-#RUN /usr/local/bin/entry.sh
-#RUN echo "source /opt/cp2k/tools/toolchain/install/setup_notorch\n" >> /usr/local/bin/entry_gpaw.sh
-#RUN echo "source /opt/cp2k/tools/toolchain/install/setup_notorch\n" >> /usr/local/bin/entry_gpaw.sh
+# Default command
+CMD ["bash"]

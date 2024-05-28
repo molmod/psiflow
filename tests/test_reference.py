@@ -230,7 +230,7 @@ def test_cp2k_success(context, simple_cp2k_input):
     # check number of mpi processes
     with open(geometry.stdout, "r") as f:
         content = f.read()
-    definition = psiflow.context().definitions["ReferenceEvaluation"]
+    definition = psiflow.context().definitions["CP2K"]
     ncores = definition.cores_per_worker
     lines = content.split("\n")
     for line in lines:

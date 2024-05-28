@@ -1,0 +1,80 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-venv \
+    python3.10-dev \
+    build-essential \
+    autoconf \
+    automake \
+    libtool \
+    make \
+    cmake \
+    wget \
+    git \
+    libopenblas-dev \
+    libfftw3-dev \
+    libopenmpi-dev \
+    openmpi-bin \
+    libscalapack-mpi-dev \
+    libelpa-dev \
+    libomp-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3.10 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --upgrade pip
+
+RUN /bin/bash -c -o pipefail \
+    "source /opt/venv/bin/activate && \
+     pip install --no-cache-dir numpy && \
+     pip install --no-cache-dir git+https://gitlab.com/ase/ase"
+
+# install libxc
+RUN cd /opt && \
+    wget https://gitlab.com/libxc/libxc/-/archive/6.2.2/libxc-6.2.2.tar.bz2 -O libxc-6.2.2.tar.bz2 && \
+    tar -xvf libxc-6.2.2.tar.bz2 && \
+    cd libxc-6.2.2 && \
+    autoreconf -i && \
+    ./configure --prefix=/usr/local CFLAGS="-fPIC" && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
+
+# install GPAW
+WORKDIR /opt/gpaw
+ENV GPAW_CONFIG=/opt/gpaw/siteconfig.py
+RUN echo "scalapack = True" >> siteconfig.py \
+    && echo "fftw = True" >> siteconfig.py \
+    && echo "elpa = True" >> siteconfig.py \
+    && echo "libraries = ['openblas', 'fftw3', 'scalapack-openmpi', 'elpa', 'omp5']" >> siteconfig.py \
+    && echo "library_dirs = ['/usr/lib', '/usr/local/lib']" >> siteconfig.py \
+    && echo "extra_link_args = ['/usr/local/lib/libxc.a']" >> siteconfig.py \
+    && echo "include_dirs = ['/usr/include', '/usr/local/include', '/usr/include/elpa']" >> siteconfig.py
+RUN /bin/bash -c -o pipefail "source /opt/venv/bin/activate && pip install --no-cache-dir gpaw dftd3"
+RUN mkdir /opt/gpaw-data
+RUN /bin/bash -c -o pipefail "source /opt/venv/bin/activate && yes | gpaw install-data /opt/gpaw-data" || true
+
+ARG PSIFLOW_VERSION
+RUN /bin/bash -c -o pipefail \
+    "source /opt/venv/bin/activate && pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@${PSIFLOW_VERSION}"
+RUN ln -s /opt/venv/lib/python3.10/site-packages/psiflow/reference/gpaw_.py /opt/run_gpaw.py 
+
+# Create entrypoint script
+RUN echo '#!/bin/bash' >> /opt/entry.sh && \
+    echo 'source /opt/venv/bin/activate' >> /opt/entry.sh && \
+    echo 'export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"' >> /opt/entry.sh && \
+    echo 'export GPAW_SETUP_PATH="/opt/gpaw-data/gpaw-setups-24.1.0"' >> /opt/entry.sh && \
+    echo '"$@"' >> /opt/entry.sh
+RUN chmod +x /opt/entry.sh
+
+# libxc needed at runtime
+ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
+ENTRYPOINT ["/opt/entry.sh"]
+
+
+# Default command
+CMD ["bash"]
