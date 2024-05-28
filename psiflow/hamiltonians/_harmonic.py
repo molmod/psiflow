@@ -160,7 +160,7 @@ def _compute_free_energy(
         frequencies = np.array([frequencies], dtype=float)
 
     threshold_ = threshold / second * (100 * _c)  # from invcm to ASE
-    frequencies = frequencies[frequencies > threshold_]
+    frequencies = frequencies[np.abs(frequencies) > threshold_]
 
     # _hplanck in J s
     # _k in J / K

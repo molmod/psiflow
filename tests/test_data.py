@@ -225,6 +225,12 @@ def test_dataset_slice(dataset):
             equal[i] = False
     assert not np.all(equal)
 
+    geometries = dataset[:10].geometries()
+    subset = Dataset(geometries)
+    assert subset.length().result() == 10
+    for i, geometry in enumerate(subset.geometries().result()):
+        assert geometry == dataset[i].result()
+
 
 def test_dataset_from_xyz(tmp_path, dataset):
     path_xyz = tmp_path / "data.xyz"

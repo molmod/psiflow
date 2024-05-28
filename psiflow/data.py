@@ -36,7 +36,7 @@ class Dataset:
 
     def __init__(
         self,
-        states: Optional[list[Union[AppFuture, Geometry]]],
+        states: Optional[list[Union[AppFuture, Geometry]], AppFuture],
         extxyz: Optional[psiflow._DataFuture] = None,
     ):
         if extxyz is not None:
@@ -44,8 +44,14 @@ class Dataset:
             self.extxyz = extxyz
         else:
             assert states is not None
+            if isinstance(states, AppFuture):  # Future of list
+                extra_states = states
+                states = []
+            else:
+                extra_states = None
             self.extxyz = write_frames(
                 *states,
+                extra_states=extra_states,
                 outputs=[psiflow.context().new_file("data_", ".xyz")],
             ).outputs[0]
 
@@ -205,9 +211,16 @@ class Dataset:
 
 
 @typeguard.typechecked
-def _write_frames(*states: Geometry, outputs: list = []) -> None:
+def _write_frames(
+        *states: Geometry,
+        extra_states: Optional[list[Geometry]] = None,
+        outputs: list = [],
+        ) -> None:
+    all_states = list(states)
+    if extra_states is not None:
+        all_states += extra_states
     with open(outputs[0], "w") as f:
-        for state in states:
+        for state in all_states:
             f.write(state.to_string() + "\n")
 
 
