@@ -37,16 +37,16 @@ class ExecutionDefinition:
     def __init__(
         self,
         parsl_provider: ExecutionProvider,
-        gpu: bool = False,
-        cores_per_worker: int = 1,
-        use_threadpool: bool = False,
-        cpu_affinity: str = "block",
+        gpu: bool,
+        cores_per_worker: int,
+        use_threadpool: bool,
+        worker_prepend: str,
     ) -> None:
         self.parsl_provider = parsl_provider
         self.gpu = gpu
         self.cores_per_worker = cores_per_worker
         self.use_threadpool = use_threadpool
-        self.cpu_affinity = cpu_affinity
+        self.worker_prepend = worker_prepend
         self.name = self.__class__.__name__
 
     @property
@@ -71,9 +71,7 @@ class ExecutionDefinition:
             walltime = 1e9
         return walltime
 
-    def create_executor(
-        self, path: Path, htex_address: Optional[str] = None, **kwargs
-    ) -> ParslExecutor:
+    def create_executor(self, path: Path, **kwargs) -> ParslExecutor:
         if self.use_threadpool:
             executor = ThreadPoolExecutor(
                 max_threads=self.cores_per_worker,
@@ -91,13 +89,6 @@ class ExecutionDefinition:
             if self.gpu:
                 worker_options.append("--gpus={}".format(self.max_workers))
 
-            # hacky; if the launcher is a WrappedLauncher, switch to SimpleLauncher
-            # and prepend the command to worker_executable
-            if isinstance(self.parsl_provider.launcher, WrappedLauncher):
-                prepend = self.parsl_provider.launcher.prepend
-                self.parsl_provider.launcher = SimpleLauncher()
-            else:
-                prepend = ""
             executor = WorkQueueExecutor(
                 label=self.name,
                 working_dir=str(path / self.name),
@@ -108,7 +99,7 @@ class ExecutionDefinition:
                 max_retries=0,
                 coprocess=False,
                 worker_options=" ".join(worker_options),
-                worker_executable="{} work_queue_worker".format(prepend),
+                worker_executable="{} work_queue_worker".format(self.worker_prepend),
                 scaling_assume_core_slots_per_worker=cores,
             )
         return executor
@@ -116,36 +107,45 @@ class ExecutionDefinition:
     @classmethod
     def from_config(
         cls,
-        config_dict: dict,
+        gpu: bool = False,
+        cores_per_worker: int = 1,
+        use_threadpool: bool = False,
         container: Optional[dict] = None,
+        **kwargs,
     ):
-        if "container" in config_dict:
-            container = config_dict.pop("container")  # only used once
-
         # search for any section in the config which defines the Parsl ExecutionProvider
         # if none are found, default to LocalProvider
-        provider_keys = list(filter(lambda k: "Provider" in k, config_dict.keys()))
-        if len(provider_keys) == 0:
+        # currently only checking for SLURM
+        if "slurm" in kwargs:
+            provider_cls = SlurmProvider
+            provider_kwargs = kwargs.get("slurm")  # do not allow empty dict
+        else:
             provider_cls = LocalProvider  # noqa: F405
-            provider_dict = {}
-        elif len(provider_keys) == 1:
-            provider_cls = getattr(sys.modules[__name__], provider_keys[0])
-            provider_dict = config_dict.pop(provider_keys[0])
+            provider_kwargs = kwargs.get("local", {})
 
         # if multi-node blocks are requested, make sure we're using SlurmProvider
-        if provider_dict.get("nodes_per_block", 1) > 1:
+        if provider_kwargs.get("nodes_per_block", 1) > 1:
             raise NotImplementedError
+
+        if container is not None:
+            assert not use_threadpool
+            worker_prepend = container_launch_command(gpu=gpu, **container)
         else:
-            if container is not None:
-                gpu = config_dict.get("gpu", False)
-                launch_command = container_launch_command(gpu=gpu, **container)
-                launcher = WrappedLauncher(prepend=launch_command)
-            else:
-                launcher = SimpleLauncher()
+            worker_prepend = ""
 
         # initialize provider
-        parsl_provider = provider_cls(launcher=launcher, **provider_dict)
-        return cls(parsl_provider=parsl_provider, **config_dict)
+        parsl_provider = provider_cls(
+            launcher=SimpleLauncher(),
+            **provider_kwargs,
+        )
+        return cls(
+            parsl_provider=parsl_provider,
+            gpu=gpu,
+            use_threadpool=use_threadpool,
+            worker_prepend=worker_prepend,
+            cores_per_worker=cores_per_worker,
+            **kwargs,
+        )
 
 
 @typeguard.typechecked
@@ -251,57 +251,53 @@ class ModelTraining(ExecutionDefinition):
 class ReferenceEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        name: Optional[str] = None,
-        mpi_command: Optional[str] = None,
-        cpu_affinity: str = "none",  # better default for cp2k
+        name: str,
+        launch_command: Optional[str] = None,
         max_evaluation_time: Optional[float] = None,
-        cp2k_executable: str = "cp2k.psmp",
         **kwargs,
     ) -> None:
-        super().__init__(cpu_affinity=cpu_affinity, **kwargs)
-        if max_evaluation_time is not None:
-            assert max_evaluation_time * 60 < self.max_runtime
+        super().__init__(**kwargs)
+        self.name = name  # override name
+        if max_evaluation_time is None:
+            max_evaluation_time = self.max_runtime / 60
+        assert max_evaluation_time * 60 <= self.max_runtime
         self.max_evaluation_time = max_evaluation_time
-        self.cp2k_executable = cp2k_executable
-        if mpi_command is None:  # parse
+
+        if launch_command is None:
+            launch_command = self.default_launch_command
+        self.launch_command = launch_command
+
+    @property
+    def default_launch_command(self):
+        if self.name.startswith("CP2K"):
             ranks = self.cores_per_worker  # use nprocs = ncores, nthreads = 1
             mpi_command = "mpirun -np {} ".format(ranks)
             mpi_command += "-x OMP_NUM_THREADS=1 "  # cp2k runs best with these settings
             mpi_command += "--bind-to core --map-by core"  # set explicitly
-        self.mpi_command = mpi_command
-        if name is not None:
-            self.name = name  # if not None, the name of the reference class
+            command = "cp2k.psmp -i cp2k.inp"
+            return " ".join([mpi_command, command])
+        if self.name.startswith("GPAW"):
+            ranks = self.cores_per_worker  # use nprocs = ncores, nthreads = 1
+            mpi_command = "mpirun -np {} ".format(ranks)
+            mpi_command += "-x OMP_NUM_THREADS=1 "  # cp2k runs best with these settings
+            mpi_command += "--bind-to core --map-by core"  # set explicitly
+            script = "$(python -c 'import psiflow.reference.gpaw_; print(psiflow.reference.gpaw_.__file__)')"
+            return " ".join([mpi_command, "gpaw", "python", script])
 
-    def cp2k_command(self):
+    def command(self):
+        max_time = 0.9 * (60 * self.max_evaluation_time)
         command = " ".join(
             [
-                self.mpi_command,
-                self.cp2k_executable,
-                "-i cp2k.inp",
-            ]
-        )
-        if self.max_evaluation_time is not None:
-            max_time = 60 * self.max_evaluation_time
-            command = " ".join(
-                [
-                    "timeout -s 9 {}s".format(max_time),
-                    command,
-                    "|| true",
-                ]
-            )
-        return command
-
-    def gpaw_command(self):
-        script = "$(python -c 'import psiflow.reference.gpaw_; print(psiflow.reference.gpaw_.__file__)')"
-        command_list = [self.mpi_command, "gpaw", "python", script]
-        if self.max_evaluation_time is not None:
-            max_time = 0.9 * (60 * self.max_evaluation_time)
-            command_list = [
-                "timeout -s 15 {}s".format(max_time),
-                *command_list,
+                "timeout -s 9 {}s".format(max_time),
+                self.launch_command,
                 "|| true",
             ]
-        return " ".join(command_list)
+        )
+        return command
+
+    # def gpaw_command(self):
+    #    if self.max_evaluation_time is not None:
+    #        max_time = 0.9 * (60 * self.max_evaluation_time)
 
     def wq_resources(self):
         if self.use_threadpool:
@@ -376,8 +372,11 @@ class ExecutionContext:
         internal_tasks_max_threads: int = 10,
         default_threads: int = 4,
         htex_address: Optional[str] = None,
-        container: Optional[dict] = None,
         zip_staging: Optional[bool] = None,
+        container_uri: Optional[str] = None,
+        container_engine: str = "apptainer",
+        container_addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs",
+        container_entrypoint: str = "/usr/local/bin/entry.sh",
         **kwargs,
     ) -> ExecutionContext:
         if path is None:
@@ -391,37 +390,40 @@ class ExecutionContext:
             name="parsl",
             level=getattr(logging, parsl_log_level),
         )
+        if container_uri is not None:
+            container = {
+                "uri": container_uri,
+                "engine": container_engine,
+                "addopts": container_addopts,
+                "entrypoint": container_entrypoint,
+            }
+        else:
+            container = None
 
         # create definitions
         model_evaluation = ModelEvaluation.from_config(
-            config_dict=kwargs.pop("ModelEvaluation", {}),
             container=container,
+            **kwargs.pop("ModelEvaluation", {}),
         )
         model_training = ModelTraining.from_config(
-            config_dict=kwargs.pop("ModelTraining", {}),
             container=container,
+            **kwargs.pop("ModelTraining", {}),
         )
         reference_evaluations = []  # reference evaluations might be class specific
         for key in list(kwargs.keys()):
-            if key.endswith("ReferenceEvaluation"):
-                config_dict = kwargs.pop(key)
-                config_dict["name"] = key
+            if key[:4] in ["CP2K", "GPAW"]:
+                config = kwargs.pop(key)
                 reference_evaluation = ReferenceEvaluation.from_config(
-                    config_dict=config_dict,
-                    container=container,
+                    name=key,
+                    **config,
                 )
                 reference_evaluations.append(reference_evaluation)
         if len(reference_evaluations) == 0:
-            reference_evaluation = ReferenceEvaluation.from_config(
-                config_dict={},
-                container=container,
-            )
+            reference_evaluation = ReferenceEvaluation.from_config()
             reference_evaluations.append(reference_evaluation)
         definitions = [model_evaluation, model_training, *reference_evaluations]
 
         # create main parsl executors
-        if htex_address is None:
-            htex_address = address_by_hostname()
         executors = [d.create_executor(path=path) for d in definitions]
 
         # create default executors
@@ -429,6 +431,8 @@ class ExecutionContext:
             launcher = WrappedLauncher(prepend=container_launch_command(**container))
         else:
             launcher = SimpleLauncher()
+        if htex_address is None:
+            htex_address = address_by_hostname()
         htex = HighThroughputExecutor(
             label="default_htex",
             address=htex_address,

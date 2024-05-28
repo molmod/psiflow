@@ -235,6 +235,7 @@ def evaluate_single(
 @psiflow.serializable
 class CP2K(Reference):
     properties: list[str]  # json does deserialize(serialize(tuple)) = list
+    executor: str
     cp2k_input_str: str
     cp2k_input_dict: dict
 
@@ -242,19 +243,20 @@ class CP2K(Reference):
         self,
         cp2k_input_str: str,
         properties: Union[tuple, list] = ("energy", "forces"),
+        executor: str = "CP2K",
     ):
         self.properties = list(properties)
+        self.executor = executor
         check_input(cp2k_input_str)
         self.cp2k_input_str = cp2k_input_str
         self.cp2k_input_dict = str_to_dict(cp2k_input_str)
         self._create_apps()
 
     def _create_apps(self):
-        definition = psiflow.context().definitions["ReferenceEvaluation"]
-        cp2k_command = definition.cp2k_command()
-        executor_label = definition.name
+        definition = psiflow.context().definitions[self.executor]
+        cp2k_command = definition.command()
         wq_resources = definition.wq_resources()
-        app_pre = bash_app(cp2k_singlepoint_pre, executors=[executor_label])
+        app_pre = bash_app(cp2k_singlepoint_pre, executors=[self.executor])
         app_post = python_app(cp2k_singlepoint_post, executors=["default_threads"])
         self.evaluate_single = partial(
             evaluate_single,
@@ -293,6 +295,10 @@ class CP2K(Reference):
                     "ot": {"minimizer": "CG"}
                 }
 
-            reference = CP2K(dict_to_str(cp2k_input_dict))
+            reference = CP2K(
+                dict_to_str(cp2k_input_dict),
+                properties=list(self.properties),
+                executor=self.executor,
+            )
             references.append((mult, reference))
         return references

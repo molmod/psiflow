@@ -280,7 +280,6 @@ def container_launch_command(
     launch_command += " --bind {}".format(
         Path.cwd().resolve()
     )  # access to data / internal dir
-    launch_command += " --env PARSL_CORES=${PARSL_CORES}"
     if gpu:
         if "rocm" in uri:
             launch_command += " --rocm"

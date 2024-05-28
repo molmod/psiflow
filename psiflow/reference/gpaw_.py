@@ -105,23 +105,25 @@ def evaluate_single(
 @psiflow.serializable
 class GPAW(Reference):
     properties: list[str]  # json does deserialize(serialize(tuple)) = list
+    executor: str
     parameters: dict
 
     def __init__(
         self,
         properties: Union[tuple, list] = ("energy", "forces"),
+        executor: str = "GPAW",
         **parameters,
     ):
         self.properties = list(properties)
         self.parameters = parameters
+        self.executor = executor
         self._create_apps()
 
     def _create_apps(self):
-        definition = psiflow.context().definitions["ReferenceEvaluation"]
-        gpaw_command = definition.gpaw_command()
-        executor_label = definition.name
+        definition = psiflow.context().definitions[self.executor]
+        gpaw_command = definition.command()
         wq_resources = definition.wq_resources()
-        app_pre = bash_app(gpaw_singlepoint_pre, executors=[executor_label])
+        app_pre = bash_app(gpaw_singlepoint_pre, executors=[self.executor])
         app_post = python_app(gpaw_singlepoint_post, executors=["default_threads"])
         self.evaluate_single = partial(
             evaluate_single,
@@ -140,6 +142,7 @@ class GPAW(Reference):
 if __name__ == "__main__":
     from ase import Atoms
     from ase.calculators.mixing import SumCalculator
+    from ase.parallel import world
     from dftd3.ase import DFTD3
     from gpaw import GPAW as GPAWCalculator
 
@@ -204,5 +207,6 @@ if __name__ == "__main__":
         geometry.energy = atoms.get_potential_energy()
 
     output_str = geometry.to_string()
-    print("CALCULATION SUCCESSFUL")
-    print(output_str)
+    if world.rank == 0:
+        print("CALCULATION SUCCESSFUL")
+        print(output_str)

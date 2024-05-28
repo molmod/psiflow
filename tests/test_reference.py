@@ -363,7 +363,9 @@ def test_emt_atomic_energies(context, dataset):
 def test_cp2k_atomic_energies(
     dataset, simple_cp2k_input
 ):  # use energy-only because why not
-    reference = CP2K(simple_cp2k_input, properties=("energy",))
+    reference = CP2K(
+        simple_cp2k_input, properties=("energy",), executor="CP2K_container"
+    )
     element = "H"
     energy = reference.compute_atomic_energy(element, box_size=4)
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
@@ -438,6 +440,16 @@ def test_gpaw_single(dataset, dataset_h2):
         state.per_atom.positions,
         dataset_h2[0].result().per_atom.positions,
     )
+    gpaw = GPAW(
+        mode="fd",
+        nbands=0,
+        xc="LDA",
+        h=0.1,
+        minimal_box_multiple=2,
+        executor="GPAW_container",
+    )
+    state0 = gpaw.evaluate(dataset_h2[0]).result()
+    assert np.allclose(state.energy, state0.energy)
     assert gpaw.compute_atomic_energy("Zr", box_size=9).result() == 0.0
 
     gpaw = GPAW(askdfj="asdfk")  # invalid input
