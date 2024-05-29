@@ -46,7 +46,7 @@ PSIFLOW_VERSION="ipi"
 PARSL_VERSION="benc-sander-wq-cpu-scaling"
 CCTOOLS_VERSION=7.11.0
 PLUMED_VERSION=2.9.0
-GPU_LIBRARIES=("cu118" "rocm5.6")
+GPU_LIBRARIES=("rocm5.6" "cu118")
 
 
 # build model

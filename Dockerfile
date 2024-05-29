@@ -52,10 +52,6 @@ RUN wget https://github.com/cooperative-computing-lab/cctools/archive/refs/tags/
 ENV PATH="/usr/local/plumed/bin:/usr/local/cctools/bin:$PATH"
 ENV LD_LIBRARY_PATH="/usr/local/plumed/lib:/usr/local/cctools/lib:$LD_LIBRARY_PATH"
 
-# Create entrypoint script
-RUN echo '#!/bin/bash\nsource /opt/venv/bin/activate\nexec "$@"' > /opt/entry.sh
-RUN chmod +x /opt/entry.sh
-
 ARG PSIFLOW_VERSION
 ARG PARSL_VERSION
 ARG GPU_LIBRARY
@@ -70,6 +66,8 @@ RUN /bin/bash -c -o pipefail \
      "pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@${PSIFLOW_VERSION}"
 
 # Set entrypoint
+RUN echo '#!/bin/bash\nsource /opt/venv/bin/activate\nexec "$@"' > /opt/entry.sh
+RUN chmod +x /opt/entry.sh
 ENTRYPOINT ["/opt/entry.sh"]
 
 # Default command
