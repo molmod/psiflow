@@ -63,9 +63,11 @@ RUN /bin/bash -c -o pipefail \
     "source /opt/venv/bin/activate && \
      pip install --no-cache-dir wandb plotly plumed && \
      pip install --no-cache-dir git+https://github.com/lab-cosmo/i-pi.git@feat/socket_prefix && \
-     pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@${PSIFLOW_VERSION} && \
      pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.org/whl/${GPU_LIBRARY} && \
      pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.3"
+ARG DATE
+RUN /bin/bash -c -o pipefail \
+     "pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@${PSIFLOW_VERSION}"
 
 # Set entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

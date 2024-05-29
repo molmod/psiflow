@@ -90,7 +90,7 @@ export OMP_STACKSIZE=16M\n\
 export PATH=/opt/cp2k/exe/local:\${PATH}\n\
 source /opt/cp2k/tools/toolchain/install/setup\n\
 \"\$@\"" \
->/usr/local/bin/entrypoint.sh && chmod 755 /usr/local/bin/entrypoint.sh
+>/opt/entry.sh && chmod 755 /opt/entry.sh
 
 # Create shortcut for regression test
 RUN printf "/opt/cp2k/tools/regtesting/do_regtest.py --mpiexec \"mpiexec --bind-to none\" --maxtasks 8 --workbasedir /mnt \$* local psmp" \
@@ -98,7 +98,7 @@ RUN printf "/opt/cp2k/tools/regtesting/do_regtest.py --mpiexec \"mpiexec --bind-
 
 # Define entrypoint
 WORKDIR /mnt
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/opt/entry.sh"]
 CMD ["cp2k", "--help"]
 
 # Label docker image

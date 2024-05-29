@@ -1,46 +1,38 @@
 ---
 parsl_log_level: WARNING
-container:
-  engine: 'singularity'
-  uri: 'oras://ghcr.io/molmod/psiflow:develop_python3.10_rocm5.6'
-ReferenceEvaluation:
+container_engine: 'singularity'
+container_uri: 'oras://ghcr.io/molmod/psiflow:ipi_rocm5.6'
+CP2K:
   cores_per_worker: 32
   max_evaluation_time: 20
-  mpi_command: 'mpirun -np 32 -x OMP_NUM_THREADS=1'  # avoid core binding
-  SlurmProvider:
+  launch_command: 'apptainer exec -e --no-init oras://ghcr.io/molmod/cp2k:2023.2 /opt/entry.sh mpirun -np 32 -x OMP_NUM_THREADS=1 cp2k.psmp -i cp2k.inp'
+  slurm:
     partition: "standard"
     account: "project_465001125"
     nodes_per_block: 1
     cores_per_node: 128
-    init_blocks: 0
     max_blocks: 10
     walltime: "01:00:00"
 ModelEvaluation:
   cores_per_worker: 7
   gpu: True
-  SlurmProvider:
+  slurm:
     partition: "standard-g"
     account: "project_465001125"
     nodes_per_block: 1
     cores_per_node: 56
-    init_blocks: 0
-    max_blocks: 50
     walltime: "01:00:00"
-    exclusive: true
     scheduler_options: "#SBATCH --gres=gpu:8\n"
     worker_init: "ml LUMI/23.09 && ml partition/G && ml rocm/5.6\n"
 ModelTraining:
   cores_per_worker: 7
   gpu: true
-  SlurmProvider:
+  slurm:
     partition: "small-g"
     account: "project_465001125"
     nodes_per_block: 1
     cores_per_node: 7
-    init_blocks: 0
-    max_blocks: 10
     walltime: "01:00:00"
-    exclusive: false
     scheduler_options: "#SBATCH --gres=gpu:1\n"
     worker_init: "ml LUMI/23.09 && ml partition/G && ml rocm/5.6\n"
 ...

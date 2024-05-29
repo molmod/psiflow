@@ -60,6 +60,7 @@ then
             --build-arg PSIFLOW_VERSION=$PSIFLOW_VERSION \
             --build-arg CCTOOLS_VERSION=$CCTOOLS_VERSION \
             --build-arg PLUMED_VERSION=$PLUMED_VERSION \
+            --build-arg DATE=$(date +%s) \
             -t ghcr.io/molmod/$TAG \
             -f Dockerfile . # test
         if [ "$build_sif" = "true" ];
