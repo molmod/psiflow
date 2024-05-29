@@ -136,6 +136,9 @@ def test_geometry(tmp_path):
         assert state.stdout == state_.stdout
         assert state.identifier == state.identifier
 
+    state.save(tmp_path / 'geo.xyz')
+    assert state == Geometry.load(tmp_path / 'geo.xyz')
+
 
 def test_readwrite_cycle(dataset, tmp_path):
     data = dataset[:4].geometries().result()

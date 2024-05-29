@@ -1,12 +1,15 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Union
 
 import numpy as np
 import typeguard
 from ase import Atoms
 from ase.data import atomic_masses, chemical_symbols
 from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
+
+from psiflow.utils import resolve_and_check
 
 per_atom_dtype = np.dtype(
     [
@@ -139,6 +142,11 @@ class Geometry:
             lines.append(fmt % entry)
         return "\n".join(lines)
 
+    def save(self, path_xyz: Union[Path, str]):
+        path_xyz = resolve_and_check(path_xyz)
+        with open(path_xyz, "w") as f:
+            f.write(self.to_string())
+
     @classmethod
     def from_string(cls, s: str, natoms: Optional[int] = None) -> Optional[Geometry]:
         if len(s) == 0:
@@ -183,6 +191,14 @@ class Geometry:
             order=order,
         )
         return geometry
+
+    @classmethod
+    def load(cls, path_xyz: Union[Path, str]) -> Geometry:
+        path_xyz = resolve_and_check(Path(path_xyz))
+        assert path_xyz.exists()
+        with open(path_xyz, "r") as f:
+            content = f.read()
+        return cls.from_string(content)
 
     @property
     def periodic(self):
