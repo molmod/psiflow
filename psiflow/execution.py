@@ -418,9 +418,6 @@ class ExecutionContext:
                     **config,
                 )
                 reference_evaluations.append(reference_evaluation)
-        if len(reference_evaluations) == 0:
-            reference_evaluation = ReferenceEvaluation.from_config()
-            reference_evaluations.append(reference_evaluation)
         definitions = [model_evaluation, model_training, *reference_evaluations]
 
         # create main parsl executors
@@ -494,11 +491,6 @@ class ExecutionContextLoader:
                     },
                     "ModelTraining": {
                         "gpu": True,
-                        "use_threadpool": True,
-                    },
-                    "ReferenceEvaluation": {
-                        "max_evaluation_time": 1e7,
-                        "mpi_command": "mpirun -np 1",
                         "use_threadpool": True,
                     },
                 }

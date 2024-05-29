@@ -268,7 +268,7 @@ def container_launch_command(
     engine: str = "apptainer",
     gpu: bool = False,
     addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs",
-    entrypoint: str = "/usr/local/bin/entry.sh",
+    entrypoint: str = "/opt/entry.sh",
 ) -> str:
     assert engine in ["apptainer", "singularity"]
     assert len(uri) > 0

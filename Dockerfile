@@ -53,8 +53,8 @@ ENV PATH="/usr/local/plumed/bin:/usr/local/cctools/bin:$PATH"
 ENV LD_LIBRARY_PATH="/usr/local/plumed/lib:/usr/local/cctools/lib:$LD_LIBRARY_PATH"
 
 # Create entrypoint script
-RUN echo '#!/bin/bash\nsource /opt/venv/bin/activate\nexec "$@"' > /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN echo '#!/bin/bash\nsource /opt/venv/bin/activate\nexec "$@"' > /opt/entry.sh
+RUN chmod +x /opt/entry.sh
 
 ARG PSIFLOW_VERSION
 ARG PARSL_VERSION
@@ -70,7 +70,7 @@ RUN /bin/bash -c -o pipefail \
      "pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@${PSIFLOW_VERSION}"
 
 # Set entrypoint
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/opt/entry.sh"]
 
 # Default command
 CMD ["bash"]
