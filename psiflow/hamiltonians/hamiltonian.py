@@ -4,12 +4,12 @@ import logging
 from typing import Callable, Optional
 
 import typeguard
-from parsl.app.app import join_app, python_app
+from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Dataset
+from psiflow.data import Dataset, batch_apply
 from psiflow.geometry import Geometry
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -57,47 +57,17 @@ def evaluate_function(
     _write_frames(*states, outputs=[outputs[0]])
 
 
-@join_app
-@typeguard.typechecked
-def evaluate_batched(
-    hamiltonian: Hamiltonian,
-    dataset: Dataset,
-    length: int,
-    batch_size: int,
-    outputs: list = [],
-):
-    from math import ceil
-
-    from psiflow.data import join_frames
-
-    if (batch_size is None) or (batch_size >= length):
-        evaluated = [hamiltonian.single_evaluate(dataset)]
-    else:
-        nbatches = ceil(length / batch_size)
-        evaluated = []
-        for i in range(nbatches - 1):
-            batch = dataset[i * batch_size : (i + 1) * batch_size]
-            evaluated.append(hamiltonian.single_evaluate(batch))
-        last = dataset[(nbatches - 1) * batch_size :]
-        evaluated.append(hamiltonian.single_evaluate(last))
-
-    return join_frames(  # join_app requires returning AppFuture
-        inputs=[dataset.extxyz for dataset in evaluated],
-        outputs=[outputs[0]],
-    )
-
-
 @typeguard.typechecked
 @psiflow.serializable  # otherwise MixtureHamiltonian.hamiltonians is not serialized
 class Hamiltonian:
     external: Optional[psiflow._DataFuture]
 
     def evaluate(self, dataset: Dataset, batch_size: Optional[int] = 100) -> Dataset:
-        future = evaluate_batched(
-            self,
-            dataset,
-            dataset.length(),
+        future = batch_apply(
+            self.single_evaluate,
             batch_size,
+            dataset.length(),
+            inputs=[dataset.extxyz],
             outputs=[
                 psiflow.context().new_file("data_", ".xyz")
             ],  # join_app needs outputs kwarg here!

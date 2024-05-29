@@ -1,14 +1,15 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import math
 import re
 import shutil
 from pathlib import Path
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 import typeguard
 from ase.data import atomic_numbers, chemical_symbols
-from parsl.app.app import python_app
+from parsl.app.app import join_app, python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
@@ -229,40 +230,6 @@ write_frames = python_app(_write_frames, executors=["default_threads"])
 
 
 @typeguard.typechecked
-def index_in_indices(
-    index: int,
-    slice_obj: Union[slice, set, None],
-) -> bool:
-    if slice_obj is None:
-        return True
-    elif isinstance(slice_obj, set):
-        return index in slice_obj
-    else:  # slice
-        start = slice_obj.start
-        stop = slice_obj.stop
-        step = slice_obj.step
-        if step is None:
-            step = 1
-        if start is None:
-            start = 0
-        if stop is None:
-            if step > 0:
-                stop = float("inf")
-            else:
-                stop = float("-inf")
-
-        if step > 0:
-            if index < start or index >= stop:
-                return False
-        else:
-            if index > start or index <= stop:
-                return False
-
-        # Check if index aligns with the step from start
-        return (index - start) % step == 0
-
-
-@typeguard.typechecked
 def _read_frames(
     indices: Union[None, slice, list[int], int] = None,
     inputs: list = [],
@@ -270,13 +237,19 @@ def _read_frames(
 ) -> Optional[list[Geometry]]:
     frame_index = 0
     frame_regex = re.compile(r"^\d+$")
+    length = _count_frames(inputs=inputs)
+    _all = range(length)
+    if isinstance(indices, slice):
+        indices = list(_all[indices])
+    elif isinstance(indices, int):
+        indices = [list(_all)[indices]]
 
-    if isinstance(indices, int):
-        indices = [indices]
     if isinstance(indices, list):
+        indices = [i % length for i in indices]  # for negative indices and wrapping
         indices_ = set(indices)  # for *much* faster 'i in indices'
     else:
-        indices_ = indices
+        assert indices is None
+        indices_ = None
 
     data = []
     with open(inputs[0], "r") as f:
@@ -289,15 +262,11 @@ def _read_frames(
 
                 # currently at position frame_index, check if to be read
                 _ = [f.readline() for _i in range(natoms + 1)]
-                if index_in_indices(frame_index, indices_):
+                if indices_ is None or frame_index in indices_:
                     data.append("".join([line] + _))
                 else:
                     data.append(None)
                 frame_index += 1
-
-    # convert slice to list now that total length is known
-    if isinstance(indices, slice):
-        indices = list(range(frame_index)[indices])
 
     if indices is not None:  # sort states accordingly
         data = [data[i] for i in indices]
@@ -611,14 +580,23 @@ align_axes = python_app(_align_axes, executors=["default_threads"])
 
 @typeguard.typechecked
 def _not_null(inputs: list = [], outputs: list = []) -> None:
-    data = _read_frames(inputs=[inputs[0]])
-    i = 0
-    while i < len(data):
-        if data[i] == NullState:
-            data.pop(i)
-        else:
-            i += 1
-    _write_frames(*data, outputs=[outputs[0]])
+    frame_regex = re.compile(r"^\d+$")
+
+    data = []
+    with open(inputs[0], "r") as f:
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            if frame_regex.match(line.strip()):
+                natoms = int(line.strip())
+                _ = [f.readline() for _i in range(natoms + 1)]
+                if natoms == 1:
+                    if _[-1].strip()[0] == "X":  # check if element(-1) == X
+                        continue
+                data.append("".join([line] + _))
+    with open(outputs[0], "w") as f:
+        f.write("\n".join(data))
 
 
 not_null = python_app(_not_null, executors=["default_threads"])
@@ -792,3 +770,56 @@ def _compute_mae(
 
 
 compute_mae = python_app(_compute_mae, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _batch_frames(
+    batch_size: int,
+    inputs: list = [],
+    outputs: list = [],
+) -> Optional[list[Geometry]]:
+    frame_regex = re.compile(r"^\d+$")
+
+    data = []
+    batch_index = 0
+    with open(inputs[0], "r") as f:
+        while True:
+            line = f.readline()
+            if not line:
+                break
+            if frame_regex.match(line.strip()):
+                natoms = int(line.strip())
+                _ = [f.readline() for _i in range(natoms + 1)]
+                data.append("".join([line] + _))
+                if len(data) == batch_size:
+                    with open(outputs[batch_index], "w") as g:
+                        g.write("\n".join(data))
+                    data = []
+                    batch_index += 1
+                else:  # write and clear
+                    pass
+    if len(data) > 0:
+        with open(outputs[batch_index], "w") as g:
+            g.write("\n".join(data))
+        batch_index += 1
+    assert batch_index == len(outputs)
+
+
+batch_frames = python_app(_batch_frames, executors=["default_threads"])
+
+
+@join_app
+@typeguard.typechecked
+def batch_apply(
+    func: Callable,
+    batch_size: int,
+    length: int,
+    inputs: list = [],
+    outputs: list = [],
+) -> AppFuture:
+    nbatches = math.ceil(length / batch_size)
+    batches = [psiflow.context().new_file("data_", ".xyz") for _ in range(nbatches)]
+    future = batch_frames(batch_size, inputs=[inputs[0]], outputs=batches)
+    evaluated = [func(Dataset(None, extxyz=e)) for e in future.outputs]
+    f = join_frames(inputs=[e.extxyz for e in evaluated], outputs=[outputs[0]])
+    return f
