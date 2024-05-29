@@ -54,14 +54,14 @@ def main():
         f_harmonic = harmonic.compute_free_energy(
             temperature=temperature, quantum=False
         )
-        simulated[name] = f_harmonic.result() + reduced_f[-1] / beta
+        simulated[name] = (f_harmonic.result() + reduced_f[-1]) / beta
 
         # theoretical
         harmonic = Harmonic(minimum, scaling * hessian.result())
         f_harmonic_scaled = harmonic.compute_free_energy(
             temperature=temperature, quantum=False
         )
-        theoretical[name] = f_harmonic_scaled.result()
+        theoretical[name] = f_harmonic_scaled.result() / beta
 
     ddF = theoretical["bcc"] - theoretical["fcc"]
     print("theoretical delta(delta(F)) [eV]: {}".format(ddF))

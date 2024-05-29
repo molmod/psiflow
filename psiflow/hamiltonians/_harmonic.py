@@ -172,7 +172,7 @@ def _compute_free_energy(
         constant = kB * temperature * np.log(_hplanck)
         actual = np.log(frequencies / (kB * temperature))
         F = len(frequencies) * constant + np.sum(actual)
-    F /= (kB * temperature)
+    F /= kB * temperature
     return F
 
 

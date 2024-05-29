@@ -263,6 +263,14 @@ save_metrics = python_app(_save_metrics, executors=["default_threads"])
 
 
 @typeguard.typechecked
+def _concatenate(*arrays: np.ndarray) -> np.ndarray:
+    return np.concatenate(arrays)
+
+
+concatenate = python_app(_concatenate, executors=["default_threads"])
+
+
+@typeguard.typechecked
 def container_launch_command(
     uri: str,
     engine: str = "apptainer",

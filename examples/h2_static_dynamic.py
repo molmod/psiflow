@@ -20,7 +20,7 @@ def frequency_dynamic(start, hamiltonian):
     step = 10
     output = sample(
         [walker],
-        steps=2000,
+        steps=20,
         step=step,
         max_force=10,
     )[0]

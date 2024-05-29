@@ -151,6 +151,10 @@ def setup_ensemble(weights_header: tuple[str, ...]) -> ET.Element:
         temperature = ET.Element("temperature", units="kelvin")
         temperature.text = "TEMP"
         ensemble.append(temperature)
+    else:  # set TEMP in any case to avoid i-PI from throwing weird errors
+        temperature = ET.Element("temperature", units="kelvin")
+        temperature.text = " 300 "
+        ensemble.append(temperature)
     if "PRESSURE" in weights_header:
         pressure = ET.Element("pressure", units="megapascal")
         pressure.text = "PRESSURE"
