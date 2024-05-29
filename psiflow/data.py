@@ -245,7 +245,8 @@ def _read_frames(
         indices = [list(_all)[indices]]
 
     if isinstance(indices, list):
-        indices = [i % length for i in indices]  # for negative indices and wrapping
+        if length > 0:
+            indices = [i % length for i in indices]  # for negative indices and wrapping
         indices_ = set(indices)  # for *much* faster 'i in indices'
     else:
         assert indices is None
