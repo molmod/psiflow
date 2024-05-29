@@ -107,4 +107,3 @@ LABEL author="CP2K Developers" \
       dockerfile_generator_version="0.2"
 
 # EOF
-

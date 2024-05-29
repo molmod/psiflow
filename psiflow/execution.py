@@ -376,7 +376,7 @@ class ExecutionContext:
         container_uri: Optional[str] = None,
         container_engine: str = "apptainer",
         container_addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs",
-        container_entrypoint: str = "/usr/local/bin/entry.sh",
+        container_entrypoint: str = "/opt/entry.sh",
         **kwargs,
     ) -> ExecutionContext:
         if path is None:

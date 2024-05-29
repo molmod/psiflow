@@ -296,7 +296,7 @@ def test_npt(dataset):
 
     # cell should have changed during NPT
     assert not np.allclose(
-        walker.start.cell,
+        walker.start.result().cell,
         output.state.result().cell,
     )
 

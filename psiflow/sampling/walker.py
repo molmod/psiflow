@@ -50,7 +50,6 @@ class Walker:
     temperature: Optional[float]
     pressure: Optional[float]
     nbeads: int
-    periodic: Optional[bool]
     timestep: float
     coupling: Optional[Coupling]
     metadynamics: Optional[Metadynamics]
@@ -64,19 +63,11 @@ class Walker:
         temperature: Optional[float] = 300,
         pressure: Optional[float] = None,
         nbeads: int = 1,
-        periodic: Optional[bool] = None,
         timestep: float = 0.5,
         metadynamics: Optional[Metadynamics] = None,
         order_parameter: Optional[OrderParameter] = None,
     ):
-        if type(start) is AppFuture:
-            start = start.result()  # blocking
-        if periodic is not None:
-            assert periodic == bool(start.periodic)
-        else:
-            periodic = bool(start.periodic)
         self.start = start
-        self.periodic = periodic
         if hamiltonian is None:
             hamiltonian = Zero()
         self.hamiltonian = hamiltonian
@@ -88,8 +79,6 @@ class Walker:
             self.start = order_parameter.evaluate(self.start)
 
         self.temperature = temperature
-        if pressure is not None:
-            assert self.periodic
         self.pressure = pressure
         self.nbeads = nbeads
         self.timestep = timestep
@@ -120,7 +109,6 @@ class Walker:
                 temperature=self.temperature,
                 pressure=self.pressure,
                 nbeads=self.nbeads,
-                periodic=self.periodic,
                 timestep=self.timestep,
                 metadynamics=metadynamics,
             )  # no coupling
