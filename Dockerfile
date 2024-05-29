@@ -66,7 +66,10 @@ RUN /bin/bash -c -o pipefail \
      "pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@${PSIFLOW_VERSION}"
 
 # Set entrypoint
-RUN echo '#!/bin/bash\nsource /opt/venv/bin/activate\nexec "$@"' > /opt/entry.sh
+RUN echo '#!/bin/bash' >> /opt/entry.sh && \
+    echo 'source /opt/venv/bin/activate' >> /opt/entry.sh && \
+    echo 'export PLUMED_KERNEL=/usr/local/plumed/lib/libplumedKernel.so' >> /opt/entry.sh && \
+    echo '"$@$"' >> /opt/entry.sh
 RUN chmod +x /opt/entry.sh
 ENTRYPOINT ["/opt/entry.sh"]
 
