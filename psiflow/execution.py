@@ -118,10 +118,10 @@ class ExecutionDefinition:
         # currently only checking for SLURM
         if "slurm" in kwargs:
             provider_cls = SlurmProvider
-            provider_kwargs = kwargs.get("slurm")  # do not allow empty dict
+            provider_kwargs = kwargs.pop("slurm")  # do not allow empty dict
         else:
             provider_cls = LocalProvider  # noqa: F405
-            provider_kwargs = kwargs.get("local", {})
+            provider_kwargs = kwargs.pop("local", {})
 
         # if multi-node blocks are requested, make sure we're using SlurmProvider
         if provider_kwargs.get("nodes_per_block", 1) > 1:
