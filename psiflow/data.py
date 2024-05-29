@@ -1,5 +1,6 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import re
 import shutil
 from pathlib import Path
 from typing import Optional, Union
@@ -212,10 +213,10 @@ class Dataset:
 
 @typeguard.typechecked
 def _write_frames(
-        *states: Geometry,
-        extra_states: Optional[list[Geometry]] = None,
-        outputs: list = [],
-        ) -> None:
+    *states: Geometry,
+    extra_states: Optional[list[Geometry]] = None,
+    outputs: list = [],
+) -> None:
     all_states = list(states)
     if extra_states is not None:
         all_states += extra_states
@@ -228,50 +229,85 @@ write_frames = python_app(_write_frames, executors=["default_threads"])
 
 
 @typeguard.typechecked
+def index_in_indices(
+    index: int,
+    slice_obj: Union[slice, set, None],
+) -> bool:
+    if slice_obj is None:
+        return True
+    elif isinstance(slice_obj, set):
+        return index in slice_obj
+    else:  # slice
+        start = slice_obj.start
+        stop = slice_obj.stop
+        step = slice_obj.step
+        if step is None:
+            step = 1
+        if start is None:
+            start = 0
+        if stop is None:
+            if step > 0:
+                stop = float("inf")
+            else:
+                stop = float("-inf")
+
+        if step > 0:
+            if index < start or index >= stop:
+                return False
+        else:
+            if index > start or index <= stop:
+                return False
+
+        # Check if index aligns with the step from start
+        return (index - start) % step == 0
+
+
+@typeguard.typechecked
 def _read_frames(
     indices: Union[None, slice, list[int], int] = None,
-    # safe: bool = False,
     inputs: list = [],
     outputs: list = [],
 ) -> Optional[list[Geometry]]:
-    length = _count_frames(inputs=inputs)
-    if isinstance(indices, slice):
-        indices = list(range(length)[indices])
-    elif isinstance(indices, int):
-        indices = [indices]
-    elif indices is None:
-        indices = list(range(length))
+    frame_index = 0
+    frame_regex = re.compile(r"^\d+$")
 
-    # should have converted everything to list
-    assert type(indices) is list
-    indices = [i % length for i in indices]
+    if isinstance(indices, int):
+        indices = [indices]
+    if isinstance(indices, list):
+        indices_ = set(indices)  # for *much* faster 'i in indices'
+    else:
+        indices_ = indices
 
     data = []
-    frame_count = 0
     with open(inputs[0], "r") as f:
         while True:
             line = f.readline()
             if not line:
                 break
-            natoms = int(line)
-            if (indices is None) or (frame_count in indices):
-                lines = [f.readline() for i in range(natoms + 1)]
-                data.append(Geometry.from_string("".join(lines), natoms))
-            else:
-                data.append(None)
-                for _i in range(natoms + 1):  # skip ahead
-                    f.readline()
-            frame_count += 1
-    assert frame_count == length
+            if frame_regex.match(line.strip()):
+                natoms = int(line.strip())
 
-    if indices is not None:  # sort data according to indices!
+                # currently at position frame_index, check if to be read
+                _ = [f.readline() for _i in range(natoms + 1)]
+                if index_in_indices(frame_index, indices_):
+                    data.append("".join([line] + _))
+                else:
+                    data.append(None)
+                frame_index += 1
+
+    # convert slice to list now that total length is known
+    if isinstance(indices, slice):
+        indices = list(range(frame_index)[indices])
+
+    if indices is not None:  # sort states accordingly
         data = [data[i] for i in indices]
 
-    if len(outputs) == 0:
-        return data
-    else:  # do not return data when it's written to file
-        _write_frames(*data, outputs=[outputs[0]])
-        return None
+    if len(outputs) > 0:
+        with open(outputs[0], "w") as f:
+            f.write("\n".join([d for d in data if d is not None]))
+    else:
+        geometries = [Geometry.from_string(s) for s in data if s is not None]
+        return geometries
 
 
 read_frames = python_app(_read_frames, executors=["default_threads"])
@@ -482,15 +518,13 @@ join_frames = python_app(_join_frames, executors=["default_threads"])
 @typeguard.typechecked
 def _count_frames(inputs: list = []) -> int:
     nframes = 0
+    frame_regex = re.compile(r"^\d+$")
     with open(inputs[0], "r") as f:
-        while True:
-            try:
-                natoms = int(f.readline())
-            except ValueError:
-                break
-            nframes += 1
-            for _i in range(natoms + 1):  # skip ahead
-                f.readline()
+        for line in f:
+            if frame_regex.match(line):
+                nframes += 1
+                natoms = int(line.strip())
+                _ = [f.readline() for _i in range(natoms + 1)]
     return nframes
 
 
