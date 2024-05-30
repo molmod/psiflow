@@ -27,7 +27,7 @@ from parsl.launchers import SimpleLauncher, WrappedLauncher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.utils import container_launch_command, resolve_and_check
+from psiflow.utils import SlurmLauncher, container_launch_command, resolve_and_check
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -125,7 +125,9 @@ class ExecutionDefinition:
 
         # if multi-node blocks are requested, make sure we're using SlurmProvider
         if provider_kwargs.get("nodes_per_block", 1) > 1:
-            raise NotImplementedError
+            launcher = SlurmLauncher()
+        else:
+            launcher = SimpleLauncher()
 
         if container is not None:
             assert not use_threadpool
@@ -135,7 +137,7 @@ class ExecutionDefinition:
 
         # initialize provider
         parsl_provider = provider_cls(
-            launcher=SimpleLauncher(),
+            launcher=launcher,
             **provider_kwargs,
         )
         return cls(
