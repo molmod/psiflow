@@ -491,7 +491,7 @@ def _count_frames(inputs: list = []) -> int:
     frame_regex = re.compile(r"^\d+$")
     with open(inputs[0], "r") as f:
         for line in f:
-            if frame_regex.match(line):
+            if frame_regex.match(line.strip()):
                 nframes += 1
                 natoms = int(line.strip())
                 _ = [f.readline() for _i in range(natoms + 1)]
