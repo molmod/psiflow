@@ -6,7 +6,7 @@ default_threads: 8
 CP2K:
   cores_per_worker: 32
   max_evaluation_time: 20
-  launch_command: 'apptainer exec -e --no-init oras://ghcr.io/molmod/cp2k:2023.2 /opt/entry.sh mpirun -np 32 -x OMP_NUM_THREADS=1 cp2k.psmp -i cp2k.inp'
+  launch_command: 'singularity exec -e --no-init oras://ghcr.io/molmod/cp2k:2023.2 /opt/entry.sh mpirun -np 32 -x OMP_NUM_THREADS=1 cp2k.psmp -i cp2k.inp'
   slurm:
     partition: "standard"
     account: "project_465001125"
