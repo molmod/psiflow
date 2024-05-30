@@ -10,6 +10,7 @@ import numpy as np
 import typeguard
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
+from parsl.executors import WorkQueueExecutor
 from parsl.launchers.base import Launcher
 
 
@@ -331,3 +332,8 @@ wait
             overrides=self.overrides,
         )
         return x
+
+
+class MyWorkQueueExecutor(WorkQueueExecutor):
+    def _get_launch_command(self, block_id):
+        return self.worker_command

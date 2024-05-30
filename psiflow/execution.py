@@ -20,14 +20,19 @@ from parsl.data_provider.files import File
 from parsl.executors import (
     HighThroughputExecutor,
     ThreadPoolExecutor,
-    WorkQueueExecutor,
+    # WorkQueueExecutor,
 )
 from parsl.executors.base import ParslExecutor
 from parsl.launchers import SimpleLauncher, WrappedLauncher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.utils import SlurmLauncher, container_launch_command, resolve_and_check
+from psiflow.utils import (
+    MyWorkQueueExecutor,
+    SlurmLauncher,
+    container_launch_command,
+    resolve_and_check,
+)
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -89,7 +94,7 @@ class ExecutionDefinition:
             if self.gpu:
                 worker_options.append("--gpus={}".format(self.max_workers))
 
-            executor = WorkQueueExecutor(
+            executor = MyWorkQueueExecutor(
                 label=self.name,
                 working_dir=str(path / self.name),
                 provider=self.parsl_provider,
