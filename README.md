@@ -30,9 +30,10 @@ Use the following one-liner to create a lightweight [micromamba](https://mamba.r
 ```sh
 curl -L raw.githubusercontent.com/molmod/psiflow/install.sh
 ```
+The environment can be activated by sourcing the `activate.sh` file which has been created in the current working directory.
+
 Next, create a `config.yaml` file which defines the compute resources. For SLURM-based HPC systems, psiflow can initialize your configuration automatically via the following command:
 ```sh
-source activate.sh
 python -c 'import psiflow; psiflow.detect()'
 ```
 Example configuration files for [LUMI](https://lumi-supercomputer.eu/), [MeluXina](https://luxembourg.public.lu/en/invest/innovation/meluxina-supercomputer.html), or [VSC](https://www.vscentrum.be/) can be found [here](https://github.com/molmod/psiflow/tree/main/configs).
