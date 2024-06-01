@@ -10,7 +10,7 @@
 [![DOI](https://flat.badgen.net/static/DOI/10.1038%2Fs41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
 
-**NOTE**: psiflow is receiving a major update. API is tentative, and docs are still largely TODO.
+**NOTE**: psiflow is still heavily in development. API is tentative, and docs are still largely TODO.
 
 # Scalable Molecular Simulation
 
