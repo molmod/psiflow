@@ -10,31 +10,50 @@
 [![DOI](https://flat.badgen.net/static/DOI/10.1038%2Fs41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
 
-# Interatomic potentials using online learning
+**NOTE**: psiflow is receiving a major update. API is tentative, and docs are still largely TODO.
 
-Psiflow is a **modular** and **scalable** library for developing interatomic potentials. It interfaces popular trainable interaction potentials with quantum chemistry software and is designed to support computational workflows on hundreds or thousands of nodes. Psiflow is designed as an end-to-end framework; it can orchestrate all computational components between an initial atomic structure and the final trained potential. In particular, it implements a variety of **active learning** algorithms which allow for efficient exploration of the system's phase space **without requiring ab initio molecular dynamics**.
+# Scalable Molecular Simulation
 
-Its features include:
+Psiflow is a scalable molecular simulation engine for chemistry and materials science applications.
+It supports:
+- **quantum mechanical calculations** at various levels of theory (GGA and hybrid DFT, post-HF methods such as MP2 or RPA, and even coupled cluster; using CP2K|GPAW|ORCA)
+- **trainable interaction potentials** as well as easy-to-use universal potentials, e.g. [MACE-MP0](https://arxiv.org/abs/2401.00096)
+- a wide range of **sampling algorithms**: NVE|NVT|NPT, path-integral molecular dynamics, alchemical replica exchange, metadynamics, phonon-based sampling, ...  (thanks to [i-PI](https://ipi-code.org/))
 
-- active learning algorithms with enhanced sampling using PLUMED
-- [Weights & Biases](https://wandb.ai) logging for easy monitoring and analysis
-- periodic (CP2K) and nonperiodic (PySCF, NWChem) systems
-- efficient GPU-accelerated molecular dynamics using OpenMM
-- the latest equivariant potentials such as MACE and NequIP
+Users may define arbitrarily complex workflows and execute them **automatically** on local, HPC, and/or cloud infrastructure.
+To achieve this, psiflow is built using [Parsl](https://parsl-project.org/): a parallel execution library which manages job submission and workload distribution.
+As such, psiflow can orchestrate large molecular simulation pipelines on hundreds or even thousands of nodes.
 
-Execution is massively parallel and powered by [Parsl](https://parsl-project.org/), a parallel execution library which supports a variety of execution resources including clouds (e.g. Amazon Web Services, Google Cloud), clusters (e.g. SLURM, Torque/PBS, HTCondor) and even container orchestration systems (e.g. Kubernetes).
-While psiflow exposes an intuitive and concise API for defining complex molecular simulation workflows in a single Python script, Parsl ensures that the execution is automatically offloaded to arbitrarily large amounts of compute resources.
-Visit the [documentation](https://molmod.github.io/psiflow) for more details.
+# Setup
 
----
+Use the following one-liner to create a lightweight [Python](https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html) environment with all dependencies readily available:
+```sh
+curl -L raw.githubusercontent.com/molmod/psiflow/install.sh
+```
+Next, create a `config.yaml` file which defines the compute resources. For SLURM-based HPC systems, psiflow can initialize your configuration automatically via the following command:
+```sh
+source activate.sh
+python -c 'import psiflow; psiflow.detect()'
+```
+Example configuration files for [LUMI](https://lumi-supercomputer.eu/), [MeluXina](https://luxembourg.public.lu/en/invest/innovation/meluxina-supercomputer.html), or [VSC](https://www.vscentrum.be/) can be found [here](https://github.com/molmod/psiflow/tree/main/configs).
+No additional software compilation is required since all of the heavy lifting (CP2K/ORCA/GPAW, PyTorch model training, i-PI dynamics) is executed within preconfigured [Apptainer](https://apptainer.org/)/[Singularity](https://sylabs.io/singularity/) containers which are production-ready for most HPCs.
 
-**PREVIEW**: click [here](https://wandb.ai/svandenhaute/formic_acid?workspace=user-svandenhaute) for a sneak peak into a few psiflow-generated training sets for the formic acid proton transfer!
+More detailed information regarding model setup and execution is coming soon.
 
-___
+# Examples
 
-Check out this seven-minute introduction which was recorded at [ParslFest 2023](https://parsl-project.org/parslfest/parslfest2023.html):
+- [Replica exchange molecular dynamics](https://github.com/molmod/psiflow/tree/main/examples/alanine_replica_exchange) | **alanine dipeptide**: replica exchange molecular dynamics simulation of alanine dipeptide, using the MACE-MP0 universal potential.
+  The inclusion of high-temperature replicas allows for fast conformational transitions and improves ergodicity.
+- [Geometry optimizations](https://github.com/molmod/psiflow/tree/main/examples/formic_acid_transition) | **formic acid dimer**: approximate transition state calculation for the proton exchange reaction in a formic acid dimer,
+  using simple bias potentials and a few geometry optimizations.
+- [Static and dynamic frequency analysis](https://github.com/molmod/psiflow/tree/main/examples/h2_static_dynamic) | **dihydrogen**: Hessian-based estimate of the H-H bond strength and corresponding IR absorption frequency, and a comparison with a dynamical estimate from NVE simulation and Fourier analysis.
+  
+- [Bulk modulus calculation](https://github.com/molmod/psiflow/tree/main/examples/iron_bulk_modulus) | **iron**: estimate of the bulk modulus of fcc iron using a series of NPT simulations at different pressures
+  
+- [Free energy calculations](https://github.com/molmod/psiflow/tree/main/examples/iron_harmonic_fcc_bcc) | **iron**: estimating the relative stability of fcc and bcc iron with anharmonic corrections using thermodynamic integration (see e.g. [Phys Rev B., 2018](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.97.054102))
 
-<a href="https://www.youtube.com/watch?v=mQC7VomFjYQ">
-  <img src="./docs/parslfest_thumbnail.png" alt="drawing" width="450"/>
-</a>
-
+- [DFT singlepoints](https://github.com/molmod/psiflow/tree/main/examples/water_cp2k_noise) | **water**: analysis of the numerical noise DFT energy and force evaluations using CP2K and the RPBE(D3) functional, for a collection of water molecules.
+  
+- [Path-integral molecular dynamics](https://github.com/molmod/psiflow/examples/water_path_integral_md) | **water**: demonstration of the impact of nuclear quantum effects on the variance in O-H distance in liquid water. Path-integral molecular dynamics simulations with increasing number of beads (1, 2, 4, 8, 16) approximate the proton delocalization, and lead to systematically larger variance in O-H distance.
+  
+- [Machine learning potential training](https://github.com/molmod/psiflow/examples/water_train_validate) | **water**: simple training and validation script for MACE on a small dataset of water configurations.
