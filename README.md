@@ -28,7 +28,7 @@ As such, psiflow can orchestrate large molecular simulation pipelines on hundred
 
 Use the following one-liner to create a lightweight [micromamba](https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html) Python environment with all dependencies readily available:
 ```sh
-curl -L raw.githubusercontent.com/molmod/psiflow/install.sh
+curl -L raw.githubusercontent.com/molmod/psiflow/install.sh | bash
 ```
 The environment can be activated by sourcing the `activate.sh` file which has been created in the current working directory.
 
