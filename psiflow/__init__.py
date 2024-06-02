@@ -5,6 +5,7 @@ from .serialization import (  # noqa: F401
     serializable,
     serialize,
 )
+from .config import setup_slurm  # noqa: F401
 
 load = ExecutionContextLoader.load
 context = ExecutionContextLoader.context
