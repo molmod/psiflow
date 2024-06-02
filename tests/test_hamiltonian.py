@@ -26,7 +26,7 @@ from psiflow.hamiltonians.utils import (
 from psiflow.utils import copy_app_future, copy_data_future, dump_json
 
 
-def test_get_filename_hills(tmp_path):
+def test_get_filename_hills():
     plumed_input = """
 #METAD COMMENT TO BE REMOVED
 RESTART
@@ -54,7 +54,7 @@ METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
     )
 
 
-def test_einstein(context, dataset, dataset_h2):
+def test_einstein(dataset, dataset_h2):
     state = dataset[0]
     hamiltonian = EinsteinCrystal(state, force_constant=1)
     evaluated = hamiltonian.evaluate(dataset[:10])
@@ -71,7 +71,7 @@ def test_einstein(context, dataset, dataset_h2):
     # test nonperiodic evaluation
     einstein = EinsteinCrystal(dataset_h2[3], force_constant=0.1)
     data = einstein.evaluate(dataset_h2)
-    energies, forces, stress = data.get("energy", "forces", "stress")
+    energies, _, stress = data.get("energy", "forces", "stress")
     assert np.all(energies.result() >= 0)
     assert np.any(energies.result() > 0)
     assert np.all(np.isnan(stress.result()))
@@ -193,7 +193,7 @@ def test_harmonic_force(dataset):
     assert h1 != h2
 
 
-def test_plumed_evaluate(context, dataset, tmp_path):
+def test_plumed_evaluate(dataset, tmp_path):
     geometry = dataset[0].result()
     atoms = Atoms(
         numbers=geometry.per_atom.numbers,
@@ -207,11 +207,8 @@ def test_plumed_evaluate(context, dataset, tmp_path):
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 RESTRAINT ARG=CV AT={center} KAPPA={kappa}
-""".format(
-        center=center, kappa=kappa / (kJ / mol)
-    )
+""".format(center=center, kappa=kappa / (kJ / mol))
     calculator = PlumedCalculator(plumed_input)
-    # energy, forces, stress = evaluate_plumed(atoms, plumed_input)
     calculator.calculate(atoms)
     energy = calculator.results["energy"]
     forces = calculator.results["forces"]
@@ -238,8 +235,8 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
     hills = """#! FIELDS time CV sigma_CV height biasf
 #! SET multivariate false
 #! SET kerneltype gaussian
-     1.00000     2.1     2.0     7  0
-     2.00000     2.2     2.0     7  0
+     1.00000     2.5     2.0     70  0
+     2.00000     2.6     2.0     70  0
 """
     path_hills = tmp_path / "hills"
     with open(path_hills, "w") as f:
@@ -248,17 +245,16 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
-""".format(
-        path_hills
-    )
+""".format(path_hills)
     calculator = PlumedCalculator(plumed_input, path_hills)
-    for _i in range(10):
+
+    for _ in range(30):
         calculator.calculate(atoms)
-        energy = calculator.results["energy"]
-        # energy, _, _ = evaluate_plumed(atoms, plumed_input)
+    energy = calculator.results["energy"]
+
     sigma = 2 * np.ones(2)
-    height = np.array([7, 7]) * (kJ / mol)  # unit consistency
-    center = np.array([2.1, 2.2])
+    height = np.array([70, 70]) * (kJ / mol)  # unit consistency
+    center = np.array([2.5, 2.6])
     energy_ = np.sum(height * np.exp((distance - center) ** 2 / (-2 * sigma**2)))
     assert np.allclose(
         energy,
@@ -270,16 +266,14 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
         assert f.read() == hills
 
 
-def test_plumed_hamiltonian(context, dataset, tmp_path):
+def test_plumed_hamiltonian(dataset, tmp_path):
     kappa = 1
     center = 100
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 RESTRAINT ARG=CV AT={center} KAPPA={kappa}
-""".format(
-        center=center, kappa=kappa / (kJ / mol)
-    )
+""".format(center=center, kappa=kappa / (kJ / mol))
     hamiltonian = PlumedHamiltonian(plumed_input)
     evaluated = hamiltonian.evaluate(dataset).geometries().result()
     for geometry in evaluated:
@@ -308,9 +302,7 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
-""".format(
-        data_future.filepath
-    )
+""".format(data_future.filepath)
     hamiltonian = PlumedHamiltonian(plumed_input, data_future)
     data = hamiltonian.evaluate(dataset)
     assert np.all(data.get("energy")[0].result() > 0)
@@ -322,7 +314,7 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
         assert data[i].result().energy > 0
 
 
-def test_json_dump(context):
+def test_json_dump():
     data = {
         "a": np.ones((3, 3, 3, 2)),
         "b": [1, 2, 3],
@@ -349,7 +341,7 @@ def test_json_dump(context):
     assert type(data_["c"]) is list
 
 
-def test_serialization(context, dataset, tmp_path, mace_model):
+def test_serialization(dataset, tmp_path, mace_model):
     hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
     evaluated = hamiltonian.evaluate(dataset[:3])
 
@@ -389,9 +381,7 @@ def test_serialization(context, dataset, tmp_path, mace_model):
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
-""".format(
-        data_future.filepath
-    )
+""".format(data_future.filepath)
     hamiltonian = PlumedHamiltonian(plumed_input, data_future)
     evaluated = hamiltonian.evaluate(dataset[:3])
 
@@ -466,9 +456,7 @@ def test_hamiltonian_serialize(dataset):
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 RESTRAINT ARG=CV AT={center} KAPPA={kappa}
-""".format(
-        center=center, kappa=kappa / (kJ / mol)
-    )
+""".format(center=center, kappa=kappa / (kJ / mol))
     plumed = PlumedHamiltonian(plumed_input)
     data = json.loads(psiflow.serialize(einstein).result())
     assert "EinsteinCrystal" in data

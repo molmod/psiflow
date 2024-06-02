@@ -136,8 +136,8 @@ def test_geometry(tmp_path):
         assert state.stdout == state_.stdout
         assert state.identifier == state.identifier
 
-    state.save(tmp_path / 'geo.xyz')
-    assert state == Geometry.load(tmp_path / 'geo.xyz')
+    state.save(tmp_path / "geo.xyz")
+    assert state == Geometry.load(tmp_path / "geo.xyz")
 
 
 def test_readwrite_cycle(dataset, tmp_path):
@@ -247,7 +247,7 @@ def test_dataset_from_xyz(tmp_path, dataset):
             dataset[i].result().per_atom.positions,
             atoms_list[i].get_positions(),
         )
-        assert dataset[i].result().energy == atoms_list[i].info["energy"]
+        assert dataset[i].result().energy == atoms_list[i].calc.results["energy"]
 
 
 def test_index_element_mask():
@@ -455,9 +455,8 @@ O 0 0 0
 H 1 1 1
 H -1 1 1
 """,
-        None,
     )
-    states = [copy.deepcopy(s) for i in range(5)]
+    states = [copy.deepcopy(s) for _ in range(5)]
 
     states[1].order = {}
     states[2].order = {"some": 4.2}

@@ -5,6 +5,7 @@ from typing import Any, Optional, Union
 
 import numpy as np
 import typeguard
+from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 from ase.stress import full_3x3_to_voigt_6_stress
 from ase.units import fs, kJ, mol, nm
@@ -62,10 +63,13 @@ class EinsteinCalculator(Calculator):
         self.volume = volume
         self.max_force = max_force
 
-    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+    def calculate(
+        self, atoms: Optional[Atoms] = None, properties=None, system_changes=all_changes
+    ):
         # call to base-class to set atoms attribute
         Calculator.calculate(self, atoms)
 
+        assert atoms is not None
         assert self.centers.shape[0] == len(atoms)
         forces = (-1.0) * self.force_constant * (atoms.get_positions() - self.centers)
         energy = (
@@ -133,6 +137,7 @@ class PlumedCalculator(Calculator):
 
     def calculate(self, atoms=None, properties=None, system_changes=all_changes):
         Calculator.calculate(self, atoms)
+        assert atoms is not None
         if self.initialize_plumed:
             self.plumed.cmd("setNatoms", len(atoms))
             self.plumed.cmd("init")
@@ -194,6 +199,7 @@ class HarmonicCalculator(Calculator):
     def calculate(self, atoms=None, properties=None, system_changes=all_changes):
         # call to base-class to set atoms attribute
         Calculator.calculate(self, atoms)
+        assert atoms is not None
         assert self.hessian.shape[0] == 3 * len(atoms)
 
         pos = atoms.positions.reshape(-1)
