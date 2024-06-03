@@ -1,7 +1,5 @@
 import math
 import subprocess
-import re
-import shlex
 
 
 def get_partitions():
@@ -23,57 +21,49 @@ def get_partitions():
         if partition_name:
             partition_info[partition_name] = partition_dict
 
-    # get core count per node
-    for partition in partition_info:
-        out = subprocess.run(
-            shlex.split("sinfo -p {} -o '%n %c'".format(partition)),
-            capture_output=True,
-            text=True,
-        )
-        if out.returncode != 0:
-            print("error while executing sinfo: {}".format(out.stderr))
-            continue
-        cores = None
-        for line in out.stdout.splitlines():
-            try:
-                cores = int(line.split()[1])
-                break
-            except ValueError:
-                continue
-        partition_info[partition]["cores_per_node"] = cores
+    scontrol_output = subprocess.check_output(["scontrol", "show", "node"], text=True)
+    node_info = {}
 
-    # check if GPU available
-    for partition, info in partition_info.items():
-        out = subprocess.run(
-            shlex.split("sinfo -p {} -o '%n %Gres'".format(partition)),
-            capture_output=True,
-            text=True,
-        )
-        if out.returncode != 0:
-            print("error while executing sinfo: {}".format(out.stderr))
+    nodes = scontrol_output.strip().split("\n\n")
+    for node in nodes:
+        lines = node.strip().split("\n")
+        node_dict = {}
+        for line in lines:
+            pairs = line.split()
+            for pair in pairs:
+                key_value = pair.split("=", 1)
+                if len(key_value) == 1:
+                    key = key_value[0]
+                    value = ""
+                else:
+                    assert len(key_value) == 2
+                    key = key_value[0]
+                    value = key_value[1]
+                node_dict[key] = value
+        if "Partitions" not in node_dict:
             continue
+        partition_names = node_dict.get("Partitions").split(",")
+        for partition_name in partition_names:
+            if partition_name in partition_info:
+                partition_info[partition_name]["node_dict"] = node_dict
+
+    # get core and gpu count per node
+    for partition in partition_info:
+        cores_per_socket = int(partition_info[partition]["node_dict"]["CoresPerSocket"])
+        sockets = int(partition_info[partition]["node_dict"]["Sockets"])
+        partition_info[partition]["cores_per_node"] = cores_per_socket * sockets
+
+        gres_list = partition_info[partition]["node_dict"]["CfgTRES"].split(",")
+
         gpu_count = 0
         gpu_type = "nvidia"
-        for line in out.stdout.splitlines():
-            if "gpu" in line:
-                gres = line.split()[1]
-                gres_list = gres.split(",")
-                for g in gres_list:
-                    if "gpu" in g:
-                        pattern = r"\(.*?\)"
-                        value = re.sub(pattern, "", g)
-                        value = value.replace("res", "")
-                        items = value.split(":")
-                        assert items[0] == "gpu"
-                        gpu_count = int(items[-1])
-                        if len(items) == 3:
-                            if items[1].startswith("mi"):
-                                gpu_type = "amd"
-                break
-            else:
-                pass
-        info["gpus_per_node"] = gpu_count
-        info["gpu_type"] = gpu_type
+        for gres in gres_list:
+            if "gpu" in gres:
+                gpu_count = int(gres.split("=")[1])
+                if "mi" in gres:
+                    gpu_type = "amd"
+        partition_info[partition]["gpus_per_node"] = gpu_count
+        partition_info[partition]["gpu_type"] = gpu_type
     return partition_info
 
 
@@ -100,7 +90,35 @@ def prompt(question, options=None):
     return answer
 
 
-def setup_slurm():
+def write_yaml_with_comments(filename, data, comments, indent=0):
+    def write_dict(file, data, comments, indent):
+        for key, value in data.items():
+            # Write the actual key-value pair
+            if isinstance(value, dict):
+                file.write(f"{' ' * indent}{key}:\n")
+                if key in comments and isinstance(comments[key], dict):
+                    write_dict(file, value, comments[key], indent + 2)
+                else:
+                    write_dict(file, value, {}, indent + 2)
+            else:
+                try:
+                    value = int(value)
+                except ValueError:
+                    pass
+                if type(value) is not str:
+                    file.write(f"{' ' * indent}{key}: {value}\n")
+                else:
+                    file.write(f"{' ' * indent}{key}:" + f' "{value}"\n')
+                # If the key exists in the comments dictionary, write the commented value
+                if key in comments:
+                    comment = comments[key]
+                    file.write(f"{' ' * indent}# {key}: {comment}\n")
+
+    with open(filename, "w") as file:
+        write_dict(file, data, comments, indent)
+
+
+def setup_slurm_config() -> dict:
     config = {}
     partition_info = get_partitions()
 
@@ -109,7 +127,7 @@ def setup_slurm():
         if subprocess.run(["which", engine], capture_output=True).returncode == 0:
             container_engine = engine
     if container_engine is None:
-        print("No Apptainer/Singularity container runtime is detected.")
+        print("NO APPTAINER/SINGULARITY CONTAINER RUNTIME IS DETECTED.")
         print(
             "Either contact your administrator for information on how to activate them,"
         )
@@ -118,8 +136,9 @@ def setup_slurm():
         )
         print()
     else:
-        print("detected container engine: {}".format(container_engine))
+        print("DETECTED CONTAINER ENGINE: {}".format(container_engine))
         config["container_engine"] = container_engine
+        print()
 
     config_qm = {}
     config_qm["slurm"] = {}
@@ -204,14 +223,15 @@ def setup_slurm():
         )
     else:
         cores_per_worker = ""
-    config_training["scheduler_options"] = "#SBATCH --gres=gpu:1\n"
+    config_training["cores_per_worker"] = cores_per_worker
+    config_training["slurm"]["scheduler_options"] = "#SBATCH --gres=gpu:1"
     config_training["cores_per_worker"] = cores_per_worker
     config_training["slurm"]["cores_per_node"] = cores_per_worker
     config_training["slurm"]["partition"] = partition
     config_training["gpu"] = True
 
     s = "   Which command(s) should be executed in order to load CUDA/ROCm libraries at the start of each job?"
-    s += '   (e.g. "ml env/release/2023.1 && ml CUDA/11.8")\n'
+    s += ' (e.g. "ml env/release/2023.1 && ml CUDA/11.8")\n   '
     worker_init = prompt(s)
     config_training["slurm"]["worker_init"] = worker_init
 
@@ -264,7 +284,7 @@ def setup_slurm():
         config_eval["slurm"]["cores_per_node"] = partition_info[partition][
             "cores_per_node"
         ]
-        config_eval["scheduler_options"] = "#SBATCH --gres=gpu:1\n"
+        config_eval["slurm"]["scheduler_options"] = "#SBATCH --gres=gpu:1"
         config_eval["worker_init"] = config_training["slurm"]["worker_init"]
 
     s = "   Which SLURM account should be used for these jobs? "
@@ -288,4 +308,6 @@ def setup_slurm():
     max_walltime = prompt(s, options=None)
     config_eval["slurm"]["walltime"] = max_walltime
     config["ModelEvaluation"] = config_eval
+
+    write_yaml_with_comments("config.yaml", config, {})
     return config
