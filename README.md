@@ -31,7 +31,6 @@ Use the following one-liner to create a lightweight [micromamba](https://mamba.r
 curl -L molmod.github.io/psiflow/install.sh | bash
 ```
 The environment can be activated by sourcing the `activate.sh` file which will be created in the current working directory.
-
 Next, create a `config.yaml` file which defines the compute resources. For SLURM-based HPC systems, psiflow can initialize your configuration automatically via the following command:
 ```sh
 python -c 'import psiflow; psiflow.setup_slurm()'
@@ -39,7 +38,8 @@ python -c 'import psiflow; psiflow.setup_slurm()'
 Example configuration files for [LUMI](https://lumi-supercomputer.eu/), [MeluXina](https://luxembourg.public.lu/en/invest/innovation/meluxina-supercomputer.html), or [VSC](https://www.vscentrum.be/) can be found [here](https://github.com/molmod/psiflow/tree/main/configs).
 No additional software compilation is required since all of the heavy lifting (CP2K/ORCA/GPAW, PyTorch model training, i-PI dynamics) is executed within preconfigured [Apptainer](https://apptainer.org/)/[Singularity](https://sylabs.io/singularity/) containers which are production-ready for most HPCs.
 
-More detailed information regarding model setup and execution is coming soon.
+That's it! Contrary to frameworks like pyiron or aiida, psiflow does not require any databases or annoying web servers.
+The only requirement is that you set up a Python environment and provide a `config.yaml`.
 
 # Examples
 
