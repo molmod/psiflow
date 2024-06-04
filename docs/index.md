@@ -3,79 +3,55 @@ hide:
   - toc
 ---
 
-# **psiflow** - interatomic potentials using online learning
-
-Psiflow is a modular and scalable library for developing interatomic potentials.
-It interfaces popular trainable interaction potentials with
-quantum chemistry software and is designed as an end-to-end framework;
-it can orchestrate all computational tasks between an initial atomic structure and
-the final accurate interatomic potential.
-To achieve this, psiflow implements the following high-level abstractions:
-
-- a trainable **interaction potential** (e.g. NequIP or MACE)
-- one or more **phase space sampling** algorithms (e.g. biased NPT, geometry optimization)
-- a reference **level of theory** (e.g. CP2K using PBE-D3(BJ) + TZVP)
+# **psiflow** - scalable molecular simulation
 
 
-These three components are used to implement **online learning** algorithms,
-which essentially interleave phase space sampling with
-quantum mechanical energy evaluations and model training.
-In this way, the entire (relevant part of the) phase space of the system(s)
-of interest may be explored and learned by the model without ever having to
-perform *ab initio* molecular dynamics.
+Psiflow is a scalable molecular simulation engine for chemistry and materials science applications.
+It supports:
 
-!!! success  "**See what it looks like on [Weights & Biases](https://wandb.ai/svandenhaute/formic_acid?workspace=user-svandenhaute)!**"
+- **quantum mechanical calculations** at various levels of theory (GGA and hybrid DFT, post-HF methods such as MP2 or RPA, and even coupled cluster; using CP2K|GPAW|ORCA)
 
-    The main channel through which you will analyze psiflow's output is Weights & Biases.
-    Click [here](https://wandb.ai/svandenhaute/formic_acid?workspace=user-svandenhaute)
-    to check out a few completed runs, in which we learn the energetics of the molecular
-    proton transfer reaction in a formic acid dimer!
-    For more information on the example as well as a full walkthrough on how to obtain
-    the reaction free energy based on a single input structure as starting point, check out the 
-    Jupyter [notebook](https://github.com/molmod/psiflow/blob/main/examples/notebook/tutorial.ipynb).
+- **trainable interaction potentials** as well as easy-to-use universal potentials, e.g. [MACE-MP0](https://arxiv.org/abs/2401.00096)
+- a wide range of **sampling algorithms**: NVE|NVT|NPT, path-integral molecular dynamics, alchemical replica exchange, metadynamics, phonon-based sampling, ...  (thanks to [i-PI](https://ipi-code.org/))
+
+Users may define arbitrarily complex workflows and execute them **automatically** on local, HPC, and/or cloud infrastructure.
+To achieve this, psiflow is built using [Parsl](https://parsl-project.org/): a parallel execution library which manages job submission and workload distribution.
+As such, psiflow can orchestrate large molecular simulation pipelines on hundreds or even thousands of nodes.
 
 ---
 
-<!---
-## Core functionality 
+Use the following one-liner to create a lightweight [micromamba](https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html) Python environment with all dependencies readily available:
+```sh
+curl -L molmod.github.io/psiflow/install.sh | bash
+```
+The environment can be activated by sourcing the `activate.sh` file which will be created in the current working directory.
 
-The psiflow abstractions for a reference level of theory (`BaseReference`), 
-a trainable potential (`BaseModel`), and an ensemble of phase space walkers
-(`Ensemble`, `BaseWalker`) are subclassed by specific implementations.
-They expose the main high-level functionalities that one would intuitively
-expect: A `BaseReference` can label a dataset with QM energy and forces according
-to some level of theory, after which a `BaseModel` instance can be trained to it.
-An `Ensemble` can use that `BaseModel` to explore the phase space of the systems
-of interest (e.g. using molecular dynamics) in order to generate new
-atomic configurations, which can again be labeled using `BaseReference` etc.
---->
+Next, create a `config.yaml` file which defines the compute resources. For SLURM-based HPC systems, psiflow can initialize your configuration automatically via the following command:
+```sh
+python -c 'import psiflow; psiflow.setup_slurm()'
+```
+Example configuration files for [LUMI](https://lumi-supercomputer.eu/), [MeluXina](https://luxembourg.public.lu/en/invest/innovation/meluxina-supercomputer.html), or [VSC](https://www.vscentrum.be/) can be found [here](https://github.com/molmod/psiflow/tree/main/configs).
+No additional software compilation is required since all of the heavy lifting (CP2K/ORCA/GPAW, PyTorch model training, i-PI dynamics) is executed within preconfigured [Apptainer](https://apptainer.org/)/[Singularity](https://sylabs.io/singularity/) containers which are production-ready for most HPCs.
 
-__Scalable execution__
+For a complete overview of all execution options, see the [configuration](configuration.md) page.
 
-Psiflow workflows can be executed on large HPCs and/or cloud computing infrastructure.
-The individual QM calculations, model training runs,
-and/or phase space sampling calculations are efficiently executed on
-hundreds or thousands of nodes thanks to
-[Parsl, a parallel and asynchronous execution framework](https://parsl-project.org/).
-For example, you could distribute all CP2K calculations to a local SLURM cluster,
-perform model training on a GPU from a Google Cloud instance, and forward
-the remaining phase space sampling and data processing operations to a single
-workstation in your local network.
-Naturally, Parsl tracks the dependencies between all objects and manages execution of the workflow
-in an asynchronous manner.
-<!---
-Psiflow centralizes all execution-level configuration options using an `ExecutionContext`.
-It forwards infrastructure-specific options within Parsl, such as the requested number of nodes
-per SLURM job or the specific Google Cloud instance to be use, to training,
-sampling, and QM evaluation operations to ensure they proceed as requested.
-Effectively, the `ExecutionContext` hides all details of the execution
-infrastructure and exposes simple and platform-agnostic resources which may be
-used by training, sampling, and QM evaluation apps.
-As such, we ensure that execution-side details are strictly separated from
-the definition of the computational graph itself.
-For more information, check out the psiflow [Configuration](config.md) page.
---->
+# Examples
 
+- [Replica exchange molecular dynamics](https://github.com/molmod/psiflow/tree/main/examples/alanine_replica_exchange.py) | **alanine dipeptide**: replica exchange molecular dynamics simulation of alanine dipeptide, using the MACE-MP0 universal potential.
+  The inclusion of high-temperature replicas allows for fast conformational transitions and improves ergodicity.
+- [Geometry optimizations](https://github.com/molmod/psiflow/tree/main/examples/formic_acid_transition.py) | **formic acid dimer**: approximate transition state calculation for the proton exchange reaction in a formic acid dimer,
+  using simple bias potentials and a few geometry optimizations.
+- [Static and dynamic frequency analysis](https://github.com/molmod/psiflow/tree/main/examples/h2_static_dynamic.py) | **dihydrogen**: Hessian-based estimate of the H-H bond strength and corresponding IR absorption frequency, and a comparison with a dynamical estimate from NVE simulation and Fourier analysis.
+  
+- [Bulk modulus calculation](https://github.com/molmod/psiflow/tree/main/examples/iron_bulk_modulus.py) | **iron**: estimate of the bulk modulus of fcc iron using a series of NPT simulations at different pressures
+  
+- [Solid-state phase stabilities](https://github.com/molmod/psiflow/tree/main/examples/iron_harmonic_fcc_bcc.py) | **iron**: estimating the relative stability of fcc and bcc iron with anharmonic corrections using thermodynamic integration (see e.g. [Phys Rev B., 2018](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.97.054102))
+
+- [DFT singlepoints](https://github.com/molmod/psiflow/tree/main/examples/water_cp2k_noise.py) | **water**: analysis of the numerical noise DFT energy and force evaluations using CP2K and the RPBE(D3) functional, for a collection of water molecules.
+  
+- [Path-integral molecular dynamics](https://github.com/molmod/psiflow/examples/water_path_integral_md.py) | **water**: demonstration of the impact of nuclear quantum effects on the variance in O-H distance in liquid water. Path-integral molecular dynamics simulations with increasing number of beads (1, 2, 4, 8, 16) approximate the proton delocalization, and lead to systematically larger variance in O-H distance.
+  
+- [Machine learning potential training](https://github.com/molmod/psiflow/examples/water_train_validate.py) | **water**: simple training and validation script for MACE on a small dataset of water configurations.
 
 !!! note "Citing psiflow"
 
@@ -89,8 +65,6 @@ For more information, check out the psiflow [Configuration](config.md) page.
     [npj Computational Materials](https://www.nature.com/articles/s41524-023-00969-x),
     __9__, 19 __(2023)__
 
-
----
 
 
 <!---

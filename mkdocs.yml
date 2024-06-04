@@ -7,7 +7,8 @@ theme:
     #  text: overpass
   palette:
     primary: teal
-    accent: teal
+    accent: yellow
+    scheme: slate
   logo: icon.svg
   features:
     - content.code.copy
@@ -16,16 +17,20 @@ theme:
       #- navigation.tabs
       #- navigation.tabs.sticky
     - navigation.indexes
-      #- navigation.sections
+    - navigation.sections
     - navigation.expand
     - toc.integrate
     - toc.follow
 
 nav:
-  - Introduction: index.md
-  - Learning algorithms: learning.md
-  - Installation: installation.md
-  - Execution: execution.md
+  - overview: index.md
+  - atomic geometries: data.md
+  - hamiltonians: hamiltonian.md
+  - sampling: sampling.md
+  - QM calculations: reference.md
+  - ML potentials: model.md
+  - online learning: learning.md
+  - configuration: configuration.md
 
 plugins:
   - mkdocstrings:
