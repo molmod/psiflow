@@ -238,7 +238,7 @@ def _to_wandb(
             x_axis = name
             for y in ["e_rmse", "f_rmse"]:
                 key = "delta_" + y
-                df_na = df[df[key].isna()]
+                # df_na = df[df[key].isna()]
                 df_not_na = df[df[key].notna()]
 
                 hover_names = []
@@ -259,14 +259,14 @@ def _to_wandb(
                     hover_template += s
                     hover_names.append(name)
 
-                figure_ = px.scatter(
-                    data_frame=df_na,
-                    x=x_axis,
-                    y=y,
-                    custom_data=hover_names,
-                    symbol_sequence=["circle"],
-                    color_discrete_sequence=["darkgray"],
-                )
+                # figure_ = px.scatter(
+                #    data_frame=df_na,
+                #    x=x_axis,
+                #    y=y,
+                #    custom_data=hover_names,
+                #    symbol_sequence=["circle"],
+                #    color_discrete_sequence=["darkgray"],
+                # )
                 figure = px.scatter(
                     data_frame=df_not_na,
                     x=x_axis,
@@ -276,8 +276,8 @@ def _to_wandb(
                     color_continuous_scale=colors,
                     symbol_sequence=["circle"],
                 )
-                for trace in figure_.data:
-                    figure.add_trace(trace)
+                # for trace in figure_.data:
+                #    figure.add_trace(trace)
                 figure.update_traces(
                     marker={
                         "size": 10,
