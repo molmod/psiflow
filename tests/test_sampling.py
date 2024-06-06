@@ -450,6 +450,13 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     assert state.energy is None
     assert np.allclose(CV, np.linalg.det(dataset[3].result().cell))
 
+    # test batch evaluation of order parameter
+    data = order.evaluate(dataset[:10], batch_size=5)
+    volumes = data.get("CV").result()
+    for i in range(10):
+        volume = np.linalg.det(dataset[i].result().cell)
+        assert np.allclose(volume, volumes[i])
+
 
 def test_walker_serialization(dataset, tmp_path):
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)

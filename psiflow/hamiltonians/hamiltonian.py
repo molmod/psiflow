@@ -1,11 +1,12 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import typeguard
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
+from parsl.dataflow.futures import AppFuture
 from parsl.data_provider.files import File
 
 import psiflow
@@ -22,7 +23,7 @@ def evaluate_function(
     outputs: list = [],
     parsl_resource_specification: dict = {},
     **parameters,  # dict values can be futures, so app must wait for those
-) -> None:
+) -> Optional[Geometry]:
     import numpy as np
     from ase import Atoms
 
@@ -30,8 +31,12 @@ def evaluate_function(
     from psiflow.geometry import NullState
 
     assert len(inputs) >= 1
-    assert len(outputs) == 1
-    states = _read_frames(inputs=[inputs[0]])
+    if isinstance(inputs[0], Geometry):
+        assert len(outputs) == 0
+        states = [inputs[0]]
+    else:
+        assert len(outputs) == 1
+        states = _read_frames(inputs=[inputs[0]])
     calculators, index_mapping = load_calculators(states, inputs[1], **parameters)
     for i, state in enumerate(states):
         if state == NullState:
@@ -54,7 +59,10 @@ def evaluate_function(
                 print(e)
                 stress = np.zeros((3, 3))
             state.stress = stress
-    _write_frames(*states, outputs=[outputs[0]])
+    if isinstance(inputs[0], Geometry):
+        return states[0]
+    else:
+        _write_frames(*states, outputs=[outputs[0]])
 
 
 @typeguard.typechecked
@@ -62,17 +70,30 @@ def evaluate_function(
 class Hamiltonian:
     external: Optional[psiflow._DataFuture]
 
-    def evaluate(self, dataset: Dataset, batch_size: Optional[int] = 100) -> Dataset:
-        future = batch_apply(
-            self.single_evaluate,
-            batch_size,
-            dataset.length(),
-            inputs=[dataset.extxyz],
-            outputs=[
-                psiflow.context().new_file("data_", ".xyz")
-            ],  # join_app needs outputs kwarg here!
-        )
-        return Dataset(None, future.outputs[0])
+    def evaluate(
+        self,
+        arg: Union[Dataset, Geometry, AppFuture[Geometry]],
+        batch_size: Optional[int] = 100,
+    ) -> Union[AppFuture, Dataset]:
+        if isinstance(arg, Dataset):
+            future = batch_apply(
+                [self.single_evaluate],
+                batch_size,
+                arg.length(),
+                inputs=[arg.extxyz],
+                outputs=[
+                    psiflow.context().new_file("data_", ".xyz")
+                ],  # join_app needs outputs kwarg here!
+            )
+            return Dataset(None, future.outputs[0])
+        else:
+            future = self.evaluate_app(
+                self.load_calculators,
+                inputs=[arg, self.external],
+                outputs=[],
+                **self.parameters,
+            )
+            return future
 
     # mostly for internal use
     def single_evaluate(self, dataset: Dataset) -> Dataset:

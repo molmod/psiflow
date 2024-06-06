@@ -42,13 +42,14 @@ def try_manual_plumed_linking() -> str:
 def remove_comments_printflush(plumed_input: str) -> str:
     new_input = []
     for line in list(plumed_input.split("\n")):
-        if line.strip().startswith("#"):
+        pre_comment = line.strip().split("#")[0].strip()
+        if len(pre_comment) == 0:
             continue
-        if line.strip().startswith("PRINT"):
+        if pre_comment.startswith("PRINT"):
             continue
-        if line.strip().startswith("FLUSH"):
+        if pre_comment.startswith("FLUSH"):
             continue
-        new_input.append(line)
+        new_input.append(pre_comment)
     return "\n".join(new_input)
 
 

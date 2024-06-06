@@ -187,6 +187,7 @@ def quench(walkers: list[Walker], dataset: Dataset) -> None:
     coefficients = []
     for walker in walkers:
         c = all_hamiltonians.get_coefficients(1.0 * walker.hamiltonian)
+        assert c is not None
         coefficients.append(c)
     coefficients = np.array(coefficients)
 

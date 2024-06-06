@@ -1,6 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-from typing import Union
+from functools import partial
+from typing import Union, Optional
 
 import typeguard
 from ase.units import kJ, mol
@@ -8,13 +9,14 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset
+from psiflow.data import Dataset, batch_apply
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians._plumed import PlumedHamiltonian
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 
 
-def _insert_in_state(
+@typeguard.typechecked
+def insert_in_state(
     state: Geometry,
     name: str,
 ) -> Geometry:
@@ -24,7 +26,32 @@ def _insert_in_state(
     return state
 
 
-insert_in_state = python_app(_insert_in_state, executors=["default_threads"])
+@typeguard.typechecked
+def _insert(
+    state_or_states: Union[Geometry, list[Geometry]],
+    name: str,
+) -> Union[list[Geometry], Geometry]:
+    if not isinstance(state_or_states, list):
+        return insert_in_state(state_or_states, name)
+    else:
+        for state in state_or_states:
+            insert_in_state(state, name)  # modify list in place
+        return state_or_states
+
+
+insert = python_app(_insert, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def insert_in_dataset(
+    data: Dataset,
+    name: str,
+) -> Dataset:
+    geometries = insert(
+        data.geometries(),
+        name,
+    )
+    return Dataset(geometries)
 
 
 @typeguard.typechecked
@@ -51,11 +78,29 @@ class HamiltonianOrderParameter(OrderParameter):
         super().__init__(name)
         self.hamiltonian = hamiltonian
 
-    def evaluate(self, state: Union[Geometry, AppFuture]) -> AppFuture:
-        return insert_in_state(
-            self.hamiltonian.evaluate(Dataset([state]))[0],
-            self.name,
-        )
+    def evaluate(
+        self,
+        arg: Union[Dataset, Geometry, AppFuture[Geometry]],
+        batch_size: Optional[int] = 100,
+    ) -> Union[Dataset, AppFuture]:
+        if isinstance(arg, Dataset):
+            # avoid batching the dataset twice:
+            # apply hamiltonian in batched sense and put insert afterwards
+            funcs = [
+                self.hamiltonian.single_evaluate,
+                partial(insert_in_dataset, name=self.name),
+            ]
+            future = batch_apply(
+                funcs,
+                batch_size,
+                arg.length(),
+                inputs=[arg.extxyz],
+                outputs=[psiflow.context().new_file("data_", ".xyz")],
+            )
+            return Dataset(None, future.outputs[0])
+        else:
+            state = self.hamiltonian.evaluate(arg)
+            return insert(state, self.name)
 
     def __eq__(self, other):
         if type(other) is not HamiltonianOrderParameter:

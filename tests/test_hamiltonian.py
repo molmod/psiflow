@@ -32,9 +32,9 @@ def test_get_filename_hills():
 RESTART
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
-CV0: CV
+CV0: CV #lkasdjf
 METAD ARG=CV0 SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills sdld
-METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld
+METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld #fjalsdkfj
 PRINT ARG=CV,metad.bias STRIDE=10 FILE=COLVAR
 FLUSH STRIDE=10
 """
@@ -62,6 +62,10 @@ def test_einstein(dataset, dataset_h2):
     for i in range(1, 10):
         assert evaluated[i].result().energy > 0.0
         assert not np.allclose(evaluated[i].result().stress, 0.0)
+        assert np.allclose(
+            evaluated[i].result().energy,
+            hamiltonian.evaluate(evaluated[i]).result().energy,
+        )
 
     # test evaluation with NullState in data
     data = hamiltonian.evaluate(dataset[:5] + Dataset([NullState]) + dataset[5:10])

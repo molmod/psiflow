@@ -812,7 +812,7 @@ batch_frames = python_app(_batch_frames, executors=["default_threads"])
 @join_app
 @typeguard.typechecked
 def batch_apply(
-    func: Callable,
+    funcs: list[Callable],
     batch_size: int,
     length: int,
     inputs: list = [],
@@ -821,6 +821,9 @@ def batch_apply(
     nbatches = math.ceil(length / batch_size)
     batches = [psiflow.context().new_file("data_", ".xyz") for _ in range(nbatches)]
     future = batch_frames(batch_size, inputs=[inputs[0]], outputs=batches)
-    evaluated = [func(Dataset(None, extxyz=e)) for e in future.outputs]
-    f = join_frames(inputs=[e.extxyz for e in evaluated], outputs=[outputs[0]])
+    datasets = [Dataset(None, extxyz=e) for e in future.outputs]
+    for func in funcs:
+        datasets = [func(d) for d in datasets]
+    # evaluated = [func(Dataset(None, extxyz=e)) for e in future.outputs]
+    f = join_frames(inputs=[d.extxyz for d in datasets], outputs=[outputs[0]])
     return f
