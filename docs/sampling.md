@@ -49,7 +49,7 @@ Walkers can be propagated in time by using the `sample` function.
 It accepts a list of walkers, each of which will be propagated in phase space according to its own parameters.
 Importantly, there are *no restriction* on the type of walkers in this list.
 Users can mix regular NVT walkers, with PIMD NVE walkers, and a list of N replica exchange walkers.
-Internally, psiflow will recognize which walkers are independent and parallelize the execution as much as possible
+Internally, psiflow will recognize which walkers are independent and parallelize the execution as much as possible.
 Consider the following example:
 ```py
 from psiflow.sampling import sample
@@ -62,7 +62,9 @@ outputs = sample(
 )
 print(outputs)  # list of `SimulationOutput` instances
 ```
-In this example, the sample function will return a list of `Output` instances, each of which contains the trajectory of a single walker.
+In this example, the sample function will return a list of `Output` instances, each of which contains the trajectory of a single walker,
+as obtained by performing molecular dynamics simulations in the corresponding ensemble and with the provided total number of steps.
+Note that each of these simulations is independent (there exists no coupling between them), and as such, they will be executed in parallel as much as possible.
 The outputs are ordered in the same way as the input walkers (i.e. `outputs[0]` corresponds to the output from `walkers[0]`).
 They provide access to the sampled trajectory of the simulation, the elapsed simulation time, and importantly, a number of *observable properties*
 which have been written out by i-PI. These properties can be used to compute averages of physical observables, such as the internal energy or the virial stress tensor.
@@ -105,7 +107,46 @@ assert np.allclose(
     energies[0],
     )
 ```
-## walker utilities
+## randomize and quench
+
+If molecular simulation would rigorously satisfy the ergodic hypothesis, then the starting structure of a simulation is entirely irrelevant and will not affect the sampling distribution.
+In practice, however, the ergodic hypothesis is almost always violated due to a number of reasons, and the starting structure can have a significant impact on the subsequent simulation.
+
+If the starting structure is too strongly out of equilibrium for the specific hamiltonian of the walker (i.e. the initial energy and forces are too large), the simulation will likely explode in the first few steps and it will practically never return physically relevant samples.
+Because each walker can have its own hamiltonian, a given geometry might be an entirely infeasible start for one walker, but be reasonable for another.
+Psiflow provides a simple and efficient method to *assign* reasonable starting structures to a collection of walkers based on a large set of possible candidates: the `quench` method.
+It accepts a list of `Walker` instances, and a `Dataset` of possible candidate structures.
+It will automatically evaluate the hamiltonians of the walkers over the dataset in an efficient manner, and assign the structure with the lowest energy to each walker.
+Consider the following example:
+```py
+from psiflow.data import Dataset
+
+# walkers is assumed to be a list of Walker instances, with very different hamiltonians
+initial = Dataset([w.hamiltonian.evaluate(w.start) for w in walkers])
+
+energies = initial.get('energy').result()   # some energies might be very high!
+forces   = initial.get('forces').result()   # some forces might be very large!
+```
+Using Python list comprehensions, we can efficiently create a `Dataset` in which the starting geometry of each walker is evaluated with the hamiltonian of the corresponding walker. 
+Assume that some of the walkers were initialized with atomic geometries that are extremely far from equilibrium, with very high energies and forces.
+By applying the `quench` method, psiflow reassigns walker starting geometries to the lowest energy structures as obtained from a dataset of choice:
+```py
+from psiflow.sampling import quench
+
+data = Dataset.load("my_large_dataset_of_candidates.xyz")
+quench(walkers, data)
+
+relaxed = Dataset([w.hamiltonian.evaluate(w.start) for w in walkers])
+
+energies = relaxed.get('energy').result()   # energies are now much lower
+```
+
+In an alternative setting, it might be useful to randomize the starting structure for each walkers from a given dataset (e.g. to improve sampling coverage). This can be achieved using the `randomize` method:
+```py
+from psiflow.sampling import randomize
+
+randomize(walkers, data)
+```
 
 ## PIMD simulations
 
