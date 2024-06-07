@@ -26,9 +26,9 @@ class Metadynamics:
         _plumed_input = remove_comments_printflush(plumed_input)
         assert "METAD" in _plumed_input
         if "RESTART" not in _plumed_input:
-            _plumed_input = "RESTART\n" + _plumed_input
+            _plumed_input = "\nRESTART\n" + _plumed_input
         if "FLUSH" not in _plumed_input:  # add at the end!
-            _plumed_input = _plumed_input + "FLUSH STRIDE=1\nPRINT"
+            _plumed_input = _plumed_input + "\nFLUSH STRIDE=1\nPRINT"
 
         # PLUMED + WQ cannot deal with nonexisting hills files!
         if type(external) in [str, Path]:

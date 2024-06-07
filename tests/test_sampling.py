@@ -448,6 +448,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     state = simulation_output.state.result()
     CV = state.order["CV"]
     assert state.energy is None
+    assert np.all(np.isnan(state.per_atom.forces))
     assert np.allclose(CV, np.linalg.det(dataset[3].result().cell))
 
     # test batch evaluation of order parameter
