@@ -68,7 +68,6 @@ def evaluate_function(
 @typeguard.typechecked
 @psiflow.serializable  # otherwise MixtureHamiltonian.hamiltonians is not serialized
 class Hamiltonian:
-    external: Optional[psiflow._DataFuture]
 
     def evaluate(
         self,
