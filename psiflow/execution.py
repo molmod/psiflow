@@ -123,6 +123,7 @@ class ExecutionDefinition:
         if "slurm" in kwargs:
             provider_cls = SlurmProvider
             provider_kwargs = kwargs.pop("slurm")  # do not allow empty dict
+            provider_kwargs['init_blocks'] = 0
         else:
             provider_cls = LocalProvider  # noqa: F405
             provider_kwargs = kwargs.pop("local", {})
