@@ -574,11 +574,16 @@ def sample(
     motion_defaults: Union[None, str, ET.Element] = None,
     fix_com: bool = True,
     prng_seed: int = 12345,
+    use_unique_seeds: bool = True,
     checkpoint_step: Optional[int] = None,
 ) -> list[SimulationOutput]:
     indices = partition(walkers)
     outputs = [None] * len(walkers)
-    for group in indices:
+    for i, group in enumerate(indices):
+        if not use_unique_seeds:
+            seed = prng_seed
+        else:
+            seed = prng_seed + i
         _walkers = [walkers[index] for index in group]
         _outputs = _sample(
             _walkers,
@@ -590,7 +595,7 @@ def sample(
             observables=observables,
             motion_defaults=motion_defaults,
             fix_com=fix_com,
-            prng_seed=prng_seed,
+            prng_seed=seed,
             checkpoint_step=checkpoint_step,
         )
         for i, index in enumerate(group):
