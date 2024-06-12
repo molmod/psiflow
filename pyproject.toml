@@ -21,7 +21,6 @@ dependencies = [
     ]
 
 [project.optional-dependencies]
-parsl = ['parsl==2024.02.12']
 docs = [
     "mkdocs>=1.4.2",
     "mkdocs-autorefs>=0.4.1",
