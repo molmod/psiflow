@@ -27,9 +27,9 @@ def test_mace_init(mace_config, dataset):
             assert value == _config_[key]
 
     config = copy.deepcopy(mace_config)
-    config[
-        "batch_size"
-    ] = 100000  # bigger than ntrain --> should get reduced internally
+    config["batch_size"] = (
+        100000  # bigger than ntrain --> should get reduced internally
+    )
     model = MACE(**config)
     model.seed = 1
     model.initialize(dataset[:3])
@@ -83,6 +83,7 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     # it with the manually computed value
     training = dataset[:-5]
     validation = dataset[-5:]
+    mace_config["start_swa"] = 1000
     model = MACE(**mace_config)
     model.initialize(training)
     hamiltonian0 = model.create_hamiltonian()

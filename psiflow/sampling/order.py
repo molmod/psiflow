@@ -1,7 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 from functools import partial
-from typing import Union, Optional
+from typing import Optional, Union
 
 import typeguard
 from ase.units import kJ, mol

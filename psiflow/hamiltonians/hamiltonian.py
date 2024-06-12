@@ -6,8 +6,8 @@ from typing import Callable, Optional, Union
 import typeguard
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
-from parsl.dataflow.futures import AppFuture
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset, batch_apply

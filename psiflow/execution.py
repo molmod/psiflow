@@ -17,10 +17,9 @@ import yaml
 from parsl.addresses import address_by_hostname
 from parsl.config import Config
 from parsl.data_provider.files import File
-from parsl.executors import (
+from parsl.executors import (  # WorkQueueExecutor,
     HighThroughputExecutor,
     ThreadPoolExecutor,
-    # WorkQueueExecutor,
 )
 from parsl.executors.base import ParslExecutor
 from parsl.launchers import SimpleLauncher, WrappedLauncher

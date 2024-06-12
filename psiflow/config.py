@@ -22,7 +22,6 @@ def get_partitions():
             partition_info[partition_name] = partition_dict
 
     scontrol_output = subprocess.check_output(["scontrol", "show", "node"], text=True)
-    node_info = {}
 
     nodes = scontrol_output.strip().split("\n\n")
     for node in nodes:
