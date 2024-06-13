@@ -86,7 +86,6 @@ class ExecutionDefinition:
             cores = self.max_workers * self.cores_per_worker
             worker_options = [
                 "--parent-death",
-                "--timeout={}".format(30),
                 "--wall-time={}".format(self.max_runtime),
                 "--cores={}".format(cores),
             ]
