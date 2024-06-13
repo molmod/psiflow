@@ -103,8 +103,8 @@ def _parse_walker_log(
         data.status[i] = statuses[i]
         data.temperature[i] = temperatures[i]
         data.time[i] = times[i]
-        data.e_rmse[i] = errors[i][0] * 1000  # meV / atom
-        data.f_rmse[i] = errors[i][1] * 1000  # meV / angstrom
+        data.e_rmse[i] = errors[i][0]
+        data.f_rmse[i] = errors[i][1]
         data.reset[i] = resets[i]
         if "identifier" in names:
             data.identifier[i] = identifiers[i]
