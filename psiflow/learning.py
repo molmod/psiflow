@@ -88,7 +88,7 @@ def evaluate_outputs(
         processed_states.append(assigned)
         resets.append(reset)
 
-    metrics.log_walkers(outputs, errors, eval_ref, resets)
+    metrics.log_walkers(outputs, errors, processed_states, resets)
     data = Dataset(processed_states).filter("identifier")
     return identifier, data, resets
 
