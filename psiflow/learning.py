@@ -88,7 +88,7 @@ def evaluate_outputs(
         processed_states.append(assigned)
         resets.append(reset)
 
-    metrics.log_walkers(outputs, errors, eval_ref, resets)
+    metrics.log_walkers(outputs, errors, processed_states, resets)
     data = Dataset(processed_states).filter("identifier")
     return identifier, data, resets
 
@@ -111,8 +111,8 @@ class Learning:
         reference: Reference,
         path_output: Union[str, Path],
         train_valid_split: float = 0.9,
-        error_thresholds_for_reset: Union[list, tuple] = (20, 200),
-        error_thresholds_for_discard: Union[list, tuple] = (30, 600),
+        error_thresholds_for_reset: Union[list, tuple] = (0.02, 0.2),
+        error_thresholds_for_discard: Union[list, tuple] = (0.03, 0.6),
         wandb_project: Optional[str] = None,
         wandb_group: Optional[str] = None,
         initial_data: Optional[Dataset] = None,

@@ -413,6 +413,7 @@ def _sample(
     fix_com: bool = True,
     prng_seed: int = 12345,
     checkpoint_step: Optional[int] = None,
+    verbosity: str = "medium",
 ) -> list[SimulationOutput]:
     assert len(walkers) > 0
     hamiltonians_map, weights_table, plumed_list = template(walkers)
@@ -454,7 +455,11 @@ def _sample(
         keep_trajectory,
         checkpoint_step,
     )
-    simulation = ET.Element("simulation", verbosity="high")
+    simulation = ET.Element(
+        "simulation",
+        verbosity=str(verbosity),
+        safe_stride=str(checkpoint_step),
+    )
     sockets = setup_sockets(hamiltonians_map)
     for socket in sockets:
         simulation.append(socket)
@@ -574,11 +579,17 @@ def sample(
     motion_defaults: Union[None, str, ET.Element] = None,
     fix_com: bool = True,
     prng_seed: int = 12345,
+    use_unique_seeds: bool = True,
     checkpoint_step: Optional[int] = None,
+    verbosity: str = "medium",
 ) -> list[SimulationOutput]:
     indices = partition(walkers)
     outputs = [None] * len(walkers)
-    for group in indices:
+    for i, group in enumerate(indices):
+        if not use_unique_seeds:
+            seed = prng_seed
+        else:
+            seed = prng_seed + i
         _walkers = [walkers[index] for index in group]
         _outputs = _sample(
             _walkers,
@@ -590,8 +601,9 @@ def sample(
             observables=observables,
             motion_defaults=motion_defaults,
             fix_com=fix_com,
-            prng_seed=prng_seed,
+            prng_seed=seed,
             checkpoint_step=checkpoint_step,
+            verbosity=verbosity,
         )
         for i, index in enumerate(group):
             outputs[index] = _outputs[i]

@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 PSIFLOW_VERSION="main"
-PARSL_VERSION="benc-sander-wq-cpu-scaling"
+PARSL_VERSION="benc-sander-paper"
 CCTOOLS_VERSION=7.11.0
 PLUMED_VERSION=2.9.0
 GPU_LIBRARIES=("rocm5.6" "cu118")

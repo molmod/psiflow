@@ -420,7 +420,7 @@ if __name__ == "__main__":
     else:
         try:
             cleanup(args)
-        except BaseException:
+        except BaseException:  # noqa: B036
             print("i-PI cleanup failed!")
             print("files in directory:")
             for filepath in Path.cwd().glob("*"):

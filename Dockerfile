@@ -58,9 +58,9 @@ ARG GPU_LIBRARY
 RUN /bin/bash -c -o pipefail \
     "source /opt/venv/bin/activate && \
      pip install --no-cache-dir wandb plotly plumed && \
-     pip install --no-cache-dir git+https://github.com/lab-cosmo/i-pi.git@feat/socket_prefix && \
+     pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@66eba29 && \
      pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.org/whl/${GPU_LIBRARY} && \
-     pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.3"
+     pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.5"
 ARG DATE
 RUN /bin/bash -c -o pipefail \
      "pip install --no-cache-dir git+https://github.com/molmod/psiflow.git@${PSIFLOW_VERSION}"
@@ -69,6 +69,7 @@ RUN /bin/bash -c -o pipefail \
 RUN echo '#!/bin/bash' >> /opt/entry.sh && \
     echo 'source /opt/venv/bin/activate' >> /opt/entry.sh && \
     echo 'export PLUMED_KERNEL=/usr/local/plumed/lib/libplumedKernel.so' >> /opt/entry.sh && \
+    echo 'export OMP_PROC_BIND=close' >> /opt/entry.sh && \
     echo '"$@"' >> /opt/entry.sh
 RUN chmod +x /opt/entry.sh
 ENTRYPOINT ["/opt/entry.sh"]

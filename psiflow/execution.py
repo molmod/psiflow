@@ -17,10 +17,9 @@ import yaml
 from parsl.addresses import address_by_hostname
 from parsl.config import Config
 from parsl.data_provider.files import File
-from parsl.executors import (
+from parsl.executors import (  # WorkQueueExecutor,
     HighThroughputExecutor,
     ThreadPoolExecutor,
-    # WorkQueueExecutor,
 )
 from parsl.executors.base import ParslExecutor
 from parsl.launchers import SimpleLauncher, WrappedLauncher
@@ -87,7 +86,6 @@ class ExecutionDefinition:
             cores = self.max_workers * self.cores_per_worker
             worker_options = [
                 "--parent-death",
-                "--timeout={}".format(30),
                 "--wall-time={}".format(self.max_runtime),
                 "--cores={}".format(cores),
             ]
@@ -124,6 +122,7 @@ class ExecutionDefinition:
         if "slurm" in kwargs:
             provider_cls = SlurmProvider
             provider_kwargs = kwargs.pop("slurm")  # do not allow empty dict
+            provider_kwargs["init_blocks"] = 0
         else:
             provider_cls = LocalProvider  # noqa: F405
             provider_kwargs = kwargs.pop("local", {})

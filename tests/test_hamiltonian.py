@@ -211,7 +211,9 @@ def test_plumed_evaluate(dataset, tmp_path):
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 RESTRAINT ARG=CV AT={center} KAPPA={kappa}
-""".format(center=center, kappa=kappa / (kJ / mol))
+""".format(
+        center=center, kappa=kappa / (kJ / mol)
+    )
     calculator = PlumedCalculator(plumed_input)
     calculator.calculate(atoms)
     energy = calculator.results["energy"]
@@ -249,7 +251,9 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
-""".format(path_hills)
+""".format(
+        path_hills
+    )
     calculator = PlumedCalculator(plumed_input, path_hills)
 
     for _ in range(30):
@@ -277,7 +281,9 @@ def test_plumed_hamiltonian(dataset, tmp_path):
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 RESTRAINT ARG=CV AT={center} KAPPA={kappa}
-""".format(center=center, kappa=kappa / (kJ / mol))
+""".format(
+        center=center, kappa=kappa / (kJ / mol)
+    )
     hamiltonian = PlumedHamiltonian(plumed_input)
     evaluated = hamiltonian.evaluate(dataset).geometries().result()
     for geometry in evaluated:
@@ -306,7 +312,9 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
-""".format(data_future.filepath)
+""".format(
+        data_future.filepath
+    )
     hamiltonian = PlumedHamiltonian(plumed_input, data_future)
     data = hamiltonian.evaluate(dataset)
     assert np.all(data.get("energy")[0].result() > 0)
@@ -385,7 +393,9 @@ def test_serialization(dataset, tmp_path, mace_model):
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
-""".format(data_future.filepath)
+""".format(
+        data_future.filepath
+    )
     hamiltonian = PlumedHamiltonian(plumed_input, data_future)
     evaluated = hamiltonian.evaluate(dataset[:3])
 
@@ -460,7 +470,9 @@ def test_hamiltonian_serialize(dataset):
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
 RESTRAINT ARG=CV AT={center} KAPPA={kappa}
-""".format(center=center, kappa=kappa / (kJ / mol))
+""".format(
+        center=center, kappa=kappa / (kJ / mol)
+    )
     plumed = PlumedHamiltonian(plumed_input)
     data = json.loads(psiflow.serialize(einstein).result())
     assert "EinsteinCrystal" in data
