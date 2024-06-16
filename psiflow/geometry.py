@@ -19,6 +19,20 @@ per_atom_dtype = np.dtype(
     ]
 )
 
+QUANTITIES = [
+    "positions",
+    "cell",
+    "numbers",
+    "energy",
+    "per_atom_energy",
+    "forces",
+    "stress",
+    "delta",
+    "logprob",
+    "phase",
+    "identifier",
+]
+
 
 @typeguard.typechecked
 class Geometry:
@@ -351,3 +365,49 @@ def mass_unweight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
     assert hessian.shape[0] == hessian.shape[1]
     assert len(geometry) * 3 == hessian.shape[0]
     return hessian / get_mass_matrix(geometry)
+
+
+def create_outputs(quantities: list[str], data: list[Geometry]) -> list[np.ndarray]:
+    order_names = list(set([k for g in data for k in g.order]))
+    assert all([q in QUANTITIES + order_names for q in quantities])
+    natoms = np.array([len(geometry) for geometry in data], dtype=int)
+    max_natoms = np.max(natoms)
+    nframes = len(data)
+    nprob = 0
+    max_phase = 0
+    for state in data:
+        if state.logprob is not None:
+            nprob = max(len(state.logprob), nprob)
+        if state.phase is not None:
+            max_phase = max(len(state.phase), max_phase)
+
+    arrays = []
+    for quantity in quantities:
+        if quantity in ["positions", "forces"]:
+            array = np.empty((nframes, max_natoms, 3), dtype=np.float32)
+            array[:] = np.nan
+        elif quantity in ["cell", "stress"]:
+            array = np.empty((nframes, 3, 3), dtype=np.float32)
+            array[:] = np.nan
+        elif quantity in ["numbers"]:
+            array = np.empty((nframes, max_natoms), dtype=np.uint8)
+            array[:] = 0
+        elif quantity in ["energy", "delta", "per_atom_energy"]:
+            array = np.empty((nframes,), dtype=np.float32)
+            array[:] = np.nan
+        elif quantity in ["phase"]:
+            array = np.empty((nframes,), dtype=(np.unicode_, max_phase))
+            array[:] = ""
+        elif quantity in ["logprob"]:
+            array = np.empty((nframes, nprob), dtype=np.float32)
+            array[:] = np.nan
+        elif quantity in ["identifier"]:
+            array = np.empty((nframes,), dtype=np.int32)
+            array[:] = -1
+        elif quantity in order_names:
+            array = np.empty((nframes,), dtype=np.float32)
+            array[:] = np.nan
+        else:
+            raise AssertionError("missing quantity in if/else")
+        arrays.append(array)
+    return arrays

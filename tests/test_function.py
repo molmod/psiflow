@@ -1,8 +1,7 @@
 import numpy as np
 from ase.units import kJ, mol
 
-from psiflow.functions import PlumedFunction, EinsteinCrystalFunction, \
-        extend_with_future_support
+from psiflow.functions import PlumedFunction, EinsteinCrystalFunction
 
 
 def test_einstein_crystal(dataset):
@@ -12,13 +11,80 @@ def test_einstein_crystal(dataset):
         volume=0.0,
     )
 
-    outputs = function(dataset[:10].geometries().result())
-    assert np.all(outputs['energy'] >= 0)
-    assert outputs['energy'][0] == 0
-    assert np.allclose(  # forces point to centers
-        outputs['forces'],
-        function.centers.reshape(1, -1, 3) - dataset[:10].get('positions').result(),
+    nstates = 4
+    geometries = dataset[:nstates].reset().geometries().result()
+    energy, forces = EinsteinCrystalFunction.apply(
+        geometries,
+        outputs=['energy', 'forces'],
+        **function.parameters(),
     )
+    assert np.all(energy >= 0)
+    assert energy[0] == 0
+    assert np.allclose(  # forces point to centers
+        forces,
+        function.centers.reshape(1, -1, 3) - dataset[:4].get('positions').result(),
+    )
+    assert geometries[0].energy is None
+    forces = EinsteinCrystalFunction.apply(
+        geometries,
+        insert=True,
+        outputs=['forces'],
+        **function.parameters(),
+    )[0]
+    for i, geometry in enumerate(geometries):
+        assert np.allclose(
+            geometry.per_atom.forces,
+            forces[i, :len(geometry)],
+        )
+
+    energy_, forces_, stress_ = function.compute(dataset[:4])
+    assert np.allclose(
+        energy_.result(),
+        energy,
+    )
+    assert np.allclose(
+        forces_.result(),
+        forces,
+    )
+
+    stress__, forces__ = function.compute(
+        dataset[:4].geometries(),
+        outputs=['stress', 'forces'],
+    )
+    assert np.allclose(
+        stress__.result(),
+        stress_.result(),
+    )
+    assert np.allclose(
+        forces__.result(),
+        forces_.result(),
+    )
+
+    forces = function.compute(dataset[:10], batch_size=3, outputs=['forces'])
+    forces_ = function.compute(dataset[:10].geometries(), batch_size=4, outputs=['forces'])
+    assert np.allclose(
+        forces.result(),
+        forces_.result(),
+    )
+
+    geometries = [dataset[i] for i in range(10)]
+    forces__, energy = function.compute(geometries, batch_size=12, outputs=['forces', 'energy'])
+    assert np.allclose(
+        forces__.result(),
+        forces.result(),
+    )
+
+    # test evaluate
+    data = dataset[:10].reset()
+    evaluated = data.evaluate(function, outputs=['energy'], batch_size=None)
+    evaluated_ = data.evaluate(function, outputs=['energy', 'forces'], batch_size=3)
+    for i, geometry in enumerate(evaluated.geometries().result()):
+        assert np.all(np.isnan(geometry.per_atom.forces))
+        assert np.allclose(geometry.energy, energy.result()[i])
+        assert np.allclose(
+            evaluated_[i].result().energy,
+            geometry.energy,
+        )
 
 
 def test_plumed_function(tmp_path, dataset, dataset_h2):
@@ -58,7 +124,3 @@ RESTRAINT ARG=CV AT=50 KAPPA=1
         outputs['energy'],
         energy_,
     )
-
-
-def test_future_support():
-    extend_with_future_support(EinsteinCrystalFunction)

@@ -4,32 +4,19 @@ import math
 import re
 import shutil
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 import typeguard
 from ase.data import atomic_numbers, chemical_symbols
 from parsl.app.app import join_app, python_app
+from parsl.app.python import PythonApp
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.geometry import Geometry, NullState
+from psiflow.geometry import Geometry, NullState, create_outputs, QUANTITIES
 from psiflow.utils import copy_data_future, resolve_and_check, unpack_i
-
-QUANTITIES = [
-    "positions",
-    "cell",
-    "numbers",
-    "energy",
-    "per_atom_energy",
-    "forces",
-    "stress",
-    "delta",
-    "logprob",
-    "phase",
-    "identifier",
-]
 
 
 @psiflow.serializable
@@ -202,6 +189,34 @@ class Dataset:
         self.extxyz = result.outputs[0]
         return result
 
+    def evaluate(
+        self,
+        function,
+        outputs: Optional[list[str]] = None,
+        batch_size: Optional[int] = None,
+    ) -> Dataset:
+        if batch_size is None:
+            future = function.apply_app(
+                arg=None,
+                insert=True,
+                func_outputs=outputs,
+                inputs=[self.extxyz],
+                outputs=[psiflow.context().new_file('data_', '.xyz')],
+                **function.parameters(),
+            )
+        else:
+            future = batch_apply(
+                function.apply_app,
+                self,
+                batch_size,
+                self.length(),
+                outputs=[psiflow.context().new_file('data_', '.xyz')],
+                func_outputs=outputs,
+                **function.parameters(),
+            )
+        return Dataset(None, extxyz=future.outputs[0])
+
+
     @classmethod
     def load(
         cls,
@@ -308,47 +323,10 @@ def _extract_quantities(
     else:
         assert len(inputs) == 0
     order_names = list(set([k for g in data for k in g.order]))
-    assert all([q in QUANTITIES + order_names for q in quantities])
     natoms = np.array([len(geometry) for geometry in data], dtype=int)
     max_natoms = np.max(natoms)
-    nframes = len(data)
-    nprob = 0
-    max_phase = 0
-    for state in data:
-        if state.logprob is not None:
-            nprob = max(len(state.logprob), nprob)
-        if state.phase is not None:
-            max_phase = max(len(state.phase), max_phase)
-    arrays = []
-    for quantity in quantities:
-        if quantity in ["positions", "forces"]:
-            array = np.empty((nframes, max_natoms, 3), dtype=np.float32)
-            array[:] = np.nan
-        elif quantity in ["cell", "stress"]:
-            array = np.empty((nframes, 3, 3), dtype=np.float32)
-            array[:] = np.nan
-        elif quantity in ["numbers"]:
-            array = np.empty((nframes, max_natoms), dtype=np.uint8)
-            array[:] = 0
-        elif quantity in ["energy", "delta", "per_atom_energy"]:
-            array = np.empty((nframes,), dtype=np.float32)
-            array[:] = np.nan
-        elif quantity in ["phase"]:
-            array = np.empty((nframes,), dtype=(np.unicode_, max_phase))
-            array[:] = ""
-        elif quantity in ["logprob"]:
-            array = np.empty((nframes, nprob), dtype=np.float32)
-            array[:] = np.nan
-        elif quantity in ["identifier"]:
-            array = np.empty((nframes,), dtype=np.int32)
-            array[:] = -1
-        elif quantity in order_names:
-            array = np.empty((nframes,), dtype=np.float32)
-            array[:] = np.nan
-        else:
-            raise AssertionError("missing quantity in if/else")
-        arrays.append(array)
 
+    arrays = create_outputs(quantities, data)
     for i, geometry in enumerate(data):
         mask = get_index_element_mask(
             geometry.per_atom.numbers,
@@ -580,10 +558,11 @@ align_axes = python_app(_align_axes, executors=["default_threads"])
 
 
 @typeguard.typechecked
-def _not_null(inputs: list = [], outputs: list = []) -> None:
+def _not_null(inputs: list = [], outputs: list = []) -> list[bool]:
     frame_regex = re.compile(r"^\d+$")
 
     data = []
+    mask = []
     with open(inputs[0], "r") as f:
         while True:
             line = f.readline()
@@ -594,10 +573,14 @@ def _not_null(inputs: list = [], outputs: list = []) -> None:
                 _ = [f.readline() for _i in range(natoms + 1)]
                 if natoms == 1:
                     if _[-1].strip()[0] == "X":  # check if element(-1) == X
+                        mask.append(False)
                         continue
                 data.append("".join([line] + _))
-    with open(outputs[0], "w") as f:
-        f.write("\n".join(data))
+                mask.append(True)
+    if len(outputs) > 0:
+        with open(outputs[0], "w") as f:
+            f.write("\n".join(data))
+    return mask
 
 
 not_null = python_app(_not_null, executors=["default_threads"])
@@ -812,18 +795,40 @@ batch_frames = python_app(_batch_frames, executors=["default_threads"])
 @join_app
 @typeguard.typechecked
 def batch_apply(
-    funcs: list[Callable],
+    apply_app: PythonApp,
+    arg: Union[Dataset, list[Geometry]],
     batch_size: int,
     length: int,
-    inputs: list = [],
     outputs: list = [],
+    reduce_func: Optional[PythonApp] = None,
+    **app_kwargs,
 ) -> AppFuture:
     nbatches = math.ceil(length / batch_size)
     batches = [psiflow.context().new_file("data_", ".xyz") for _ in range(nbatches)]
-    future = batch_frames(batch_size, inputs=[inputs[0]], outputs=batches)
-    datasets = [Dataset(None, extxyz=e) for e in future.outputs]
-    for func in funcs:
-        datasets = [func(d) for d in datasets]
-    # evaluated = [func(Dataset(None, extxyz=e)) for e in future.outputs]
-    f = join_frames(inputs=[d.extxyz for d in datasets], outputs=[outputs[0]])
+    future = batch_frames(batch_size, inputs=[arg.extxyz], outputs=batches)
+
+    if reduce_func is None:
+        insert = True
+        assert len(outputs) == 1
+    else:
+        insert = False
+        assert len(outputs) == 0
+
+    output_futures = []
+    for i in range(nbatches):
+        f = apply_app(
+            None,
+            inputs=[future.outputs[i]],
+            outputs=[batches[i]],  # has to be File, not DataFuture
+            insert=insert,
+            **app_kwargs,
+        )
+        output_futures.append(f)
+    output_batches = [f.outputs[0] for f in output_futures]
+
+    if reduce_func is None:
+        f = join_frames(inputs=output_batches, outputs=[outputs[0]])
+    else:
+        assert reduce_func is not None
+        f = reduce_func(*output_futures)
     return f
