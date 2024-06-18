@@ -1,7 +1,8 @@
 import numpy as np
 from ase.units import kJ, mol
 
-from psiflow.functions import PlumedFunction, EinsteinCrystalFunction
+from psiflow.function import EinsteinCrystalFunction
+from psiflow.hamiltonian import EinsteinCrystal
 
 
 def test_einstein_crystal(dataset):
@@ -15,7 +16,7 @@ def test_einstein_crystal(dataset):
     geometries = dataset[:nstates].reset().geometries().result()
     energy, forces = EinsteinCrystalFunction.apply(
         geometries,
-        outputs=['energy', 'forces'],
+        outputs=['value', 'grad_pos'],
         **function.parameters(),
     )
     assert np.all(energy >= 0)
@@ -27,15 +28,14 @@ def test_einstein_crystal(dataset):
     assert geometries[0].energy is None
     forces = EinsteinCrystalFunction.apply(
         geometries,
-        insert=True,
-        outputs=['forces'],
+        outputs=['grad_pos'],
         **function.parameters(),
     )[0]
-    for i, geometry in enumerate(geometries):
-        assert np.allclose(
-            geometry.per_atom.forces,
-            forces[i, :len(geometry)],
-        )
+    # for i, geometry in enumerate(geometries):
+    #     assert np.allclose(
+    #         geometry.per_atom.forces,
+    #         forces[i, :len(geometry)],
+    #     )
 
     energy_, forces_, stress_ = function.compute(dataset[:4])
     assert np.allclose(
@@ -49,7 +49,7 @@ def test_einstein_crystal(dataset):
 
     stress__, forces__ = function.compute(
         dataset[:4].geometries(),
-        outputs=['stress', 'forces'],
+        outputs=['grad_cell', 'grad_pos'],
     )
     assert np.allclose(
         stress__.result(),
@@ -60,24 +60,28 @@ def test_einstein_crystal(dataset):
         forces_.result(),
     )
 
-    forces = function.compute(dataset[:10], batch_size=3, outputs=['forces'])
-    forces_ = function.compute(dataset[:10].geometries(), batch_size=4, outputs=['forces'])
+    forces = function.compute(dataset[:10], batch_size=3, outputs=['grad_pos'])
+    forces_ = function.compute(dataset[:10].geometries(), batch_size=4, outputs=['grad_pos'])
     assert np.allclose(
         forces.result(),
         forces_.result(),
     )
 
     geometries = [dataset[i] for i in range(10)]
-    forces__, energy = function.compute(geometries, batch_size=12, outputs=['forces', 'energy'])
+    forces__, energy = function.compute(geometries, batch_size=12, outputs=['grad_pos', 'value'])
     assert np.allclose(
         forces__.result(),
         forces.result(),
     )
 
-    # test evaluate
+    # hamiltonians can be evaluated to insert results in geometries
+    hamiltonian = EinsteinCrystal(
+        force_constant=function.force_constant,
+        centers=function.centers,
+    )
     data = dataset[:10].reset()
-    evaluated = data.evaluate(function, outputs=['energy'], batch_size=None)
-    evaluated_ = data.evaluate(function, outputs=['energy', 'forces'], batch_size=3)
+    evaluated = data.evaluate(hamiltonian, outputs=['energy'], batch_size=None)
+    evaluated_ = data.evaluate(hamiltonian, outputs=['energy', 'forces'], batch_size=3)
     for i, geometry in enumerate(evaluated.geometries().result()):
         assert np.all(np.isnan(geometry.per_atom.forces))
         assert np.allclose(geometry.energy, energy.result()[i])

@@ -3,18 +3,59 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import xml.etree.ElementTree as ET
 from typing import Optional, Union
 
+import numpy as np
 import parsl
 import typeguard
-from ase.units import Bohr, Ha
-from parsl.app.app import bash_app
+from ase.units import J, _c, _hplanck, _k, kB, second, Bohr, Ha
+from parsl.app.app import bash_app, python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry
-from psiflow.hamiltonians.hamiltonian import Hamiltonian
+from psiflow.geometry import Geometry, mass_weight
+from psiflow.hamiltonians import Hamiltonian
 from psiflow.tools.optimize import setup_forces, setup_sockets
 from psiflow.utils import load_numpy, multiply, save_xml
+
+
+@typeguard.typechecked
+def _compute_frequencies(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
+    assert hessian.shape[0] == hessian.shape[1]
+    assert len(geometry) * 3 == hessian.shape[0]
+    return np.sqrt(np.linalg.eigvalsh(mass_weight(hessian, geometry))) / (2 * np.pi)
+
+
+compute_frequencies = python_app(_compute_frequencies, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _harmonic_free_energy(
+    frequencies: Union[float, np.ndarray],
+    temperature: float,
+    quantum: bool = False,
+    threshold: float = 1,  # in invcm
+) -> float:
+    if isinstance(frequencies, float):
+        frequencies = np.array([frequencies], dtype=float)
+
+    threshold_ = threshold / second * (100 * _c)  # from invcm to ASE
+    frequencies = frequencies[np.abs(frequencies) > threshold_]
+
+    # _hplanck in J s
+    # _k in J / K
+    if quantum:
+        arg = (-1.0) * _hplanck * frequencies * second / (_k * temperature)
+        F = kB * temperature * np.sum(np.log(1 - np.exp(arg)))
+        F += _hplanck * J * second * np.sum(frequencies) / 2
+    else:
+        constant = kB * temperature * np.log(_hplanck)
+        actual = np.log(frequencies / (kB * temperature))
+        F = len(frequencies) * constant + np.sum(actual)
+    F /= kB * temperature
+    return F
+
+
+harmonic_free_energy = python_app(_harmonic_free_energy, executors=["default_threads"])
 
 
 @typeguard.typechecked

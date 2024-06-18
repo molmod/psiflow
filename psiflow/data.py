@@ -198,8 +198,7 @@ class Dataset:
         if batch_size is None:
             future = function.apply_app(
                 arg=None,
-                insert=True,
-                func_outputs=outputs,
+                outputs_=outputs,
                 inputs=[self.extxyz],
                 outputs=[psiflow.context().new_file('data_', '.xyz')],
                 **function.parameters(),
@@ -808,10 +807,8 @@ def batch_apply(
     future = batch_frames(batch_size, inputs=[arg.extxyz], outputs=batches)
 
     if reduce_func is None:
-        insert = True
         assert len(outputs) == 1
     else:
-        insert = False
         assert len(outputs) == 0
 
     output_futures = []
@@ -820,7 +817,6 @@ def batch_apply(
             None,
             inputs=[future.outputs[i]],
             outputs=[batches[i]],  # has to be File, not DataFuture
-            insert=insert,
             **app_kwargs,
         )
         output_futures.append(f)

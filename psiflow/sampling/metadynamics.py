@@ -8,7 +8,7 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.hamiltonians._plumed import remove_comments_printflush, set_path_in_plumed
+from psiflow.tools._plumed import remove_comments_printflush, set_path_in_plumed
 from psiflow.utils import copy_app_future, copy_data_future
 
 

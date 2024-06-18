@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset, write_frames
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians.hamiltonian import Hamiltonian
+from psiflow.hamiltonians import Hamiltonian
 from psiflow.utils import save_xml
 
 

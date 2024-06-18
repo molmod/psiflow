@@ -2,8 +2,8 @@ import numpy as np
 from ase.units import _c, second
 
 from psiflow.hamiltonians import EinsteinCrystal, get_mace_mp0
-from psiflow.hamiltonians._harmonic import compute_free_energy, compute_frequencies
-from psiflow.tools import compute_harmonic, optimize, optimize_dataset
+from psiflow.tools import compute_harmonic, optimize, optimize_dataset, compute_frequencies, \
+        harmonic_free_energy
 
 
 def test_optimize(dataset):
@@ -69,9 +69,9 @@ def test_dihydrogen(dataset_h2):
 
 def test_frequency_oscillator():
     for quantum in [True, False]:
-        f0 = compute_free_energy(1.0, 300, quantum=quantum).result()
-        f1 = compute_free_energy(1.1, 300, quantum=quantum).result()
+        f0 = harmonic_free_energy(1.0, 300, quantum=quantum).result()
+        f1 = harmonic_free_energy(1.1, 300, quantum=quantum).result()
         assert f1 > f0
 
-        f2 = compute_free_energy(1.0, 400, quantum=quantum).result()
+        f2 = harmonic_free_energy(1.0, 400, quantum=quantum).result()
         assert f0 > f2

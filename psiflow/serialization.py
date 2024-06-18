@@ -56,7 +56,11 @@ def update_init(init_func):
 def serializable(cls):
     """decorator to make class serializable"""
     class_dict = dict(cls.__dict__)
+    #class_attributes = {attr for attr in dir(cls) if not callable(getattr(cls, attr)) and not attr.startswith("__")}
+    #print(cls, class_attributes)
+    #print(cls)
     for name, type_hint in get_type_hints(cls).items():
+        #print(name, type_hint)
         if get_origin(type_hint) in [Union, Optional, list, tuple]:
             args = get_args(type_hint)
             if (File in args) or (DataFuture in args):
