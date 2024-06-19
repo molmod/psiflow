@@ -11,17 +11,10 @@ from psiflow.data import Dataset
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
 from psiflow.sampling import SimulationOutput, Walker, sample
 from psiflow.sampling.walker import quench, randomize
-from psiflow.utils import multiply
+from psiflow.utils import compute_sum, multiply
 
 length = python_app(len, executors=["default_threads"])
 take_mean = python_app(np.mean, executors=["default_threads"])
-
-
-def _compute_sum(a, b):
-    return np.add(a, b)
-
-
-compute_sum = python_app(_compute_sum, executors=["default_threads"])
 
 
 @typeguard.typechecked

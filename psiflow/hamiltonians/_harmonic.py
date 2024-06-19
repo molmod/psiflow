@@ -13,7 +13,12 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry, mass_weight
 from psiflow.hamiltonians.hamiltonian import Hamiltonian, evaluate_function
-from psiflow.utils import dump_json
+from psiflow.utils import compute_sum, dump_json, multiply
+
+
+@python_app(executors=["default_threads"])
+def get_energy(geometry: Geometry):
+    return geometry.energy
 
 
 @typeguard.typechecked
@@ -61,10 +66,6 @@ class Harmonic(Hamiltonian):
         def get_positions(geometry: Geometry):
             return geometry.per_atom.positions.copy().astype(float)
 
-        @python_app(executors=["default_threads"])
-        def get_energy(geometry: Geometry):
-            return geometry.energy
-
         return dump_json(
             hamiltonian=self.__class__.__name__,
             positions=get_positions(self.reference_geometry),
@@ -83,12 +84,15 @@ class Harmonic(Hamiltonian):
             self.hessian,
             self.reference_geometry,
         )
-        return compute_free_energy(
+        f_groundstate = get_energy(self.reference_geometry)
+        f_harmonic = harmonic_free_energy(
             frequencies,
             temperature=temperature,
             quantum=quantum,
             threshold=threshold,
         )
+        beta = 1 / (kB * temperature)
+        return compute_sum(multiply(f_groundstate, beta), f_harmonic)
 
     @staticmethod
     def deserialize_calculator(
@@ -150,7 +154,7 @@ compute_frequencies = python_app(_compute_frequencies, executors=["default_threa
 
 
 @typeguard.typechecked
-def _compute_free_energy(
+def _harmonic_free_energy(
     frequencies: Union[float, np.ndarray],
     temperature: float,
     quantum: bool = False,
@@ -176,4 +180,4 @@ def _compute_free_energy(
     return F
 
 
-compute_free_energy = python_app(_compute_free_energy, executors=["default_threads"])
+harmonic_free_energy = python_app(_harmonic_free_energy, executors=["default_threads"])

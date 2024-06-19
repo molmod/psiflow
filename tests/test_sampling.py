@@ -313,7 +313,7 @@ def test_npt(dataset):
         walker.start.result().cell,
         output.state.result().cell,
     )
-    # volumea actually does change with barostat mode='nst' (?)
+    # volume actually does change with barostat mode='nst' (?)
     # assert np.allclose(
     #     np.linalg.det(walker.start.result().cell),
     #     np.linalg.det(output.state.result().cell),
