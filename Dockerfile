@@ -70,6 +70,9 @@ RUN echo '#!/bin/bash' >> /opt/entry.sh && \
     echo 'source /opt/venv/bin/activate' >> /opt/entry.sh && \
     echo 'export PLUMED_KERNEL=/usr/local/plumed/lib/libplumedKernel.so' >> /opt/entry.sh && \
     echo 'export OMP_PROC_BIND=close' >> /opt/entry.sh && \
+    echo 'export OMP_SCHEDULE=static' >> /opt/entry.sh && \
+    echo 'export KMP_AFFINITY=granularity=fine,compact,1,0' >> /opt/entry.sh && \
+    echo 'export KMP_BLOCKTIME=1' >> /opt/entry.sh && \
     echo '"$@"' >> /opt/entry.sh
 RUN chmod +x /opt/entry.sh
 ENTRYPOINT ["/opt/entry.sh"]
