@@ -171,7 +171,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         temperature=200,
         pressure=None,
         hamiltonian=einstein,
-        nbeads=4,
+        nbeads=11,
     )
     output = sample([walker], steps=10, step=5)[0]
     for state in output.trajectory.geometries().result():
@@ -289,6 +289,7 @@ def test_npt(dataset):
         einstein,
         temperature=600,
         pressure=0,
+        nbeads=2
     )
     output = sample([walker], steps=30)[0]
     assert output.status.result() == 0

@@ -387,16 +387,26 @@ def cleanup(args):
         i = 0
         while True:
             assert i <= len(states)
-            path = Path("walker-{}_output.trajectory_0.ase".format(i))
-            if path.exists() and not states[i].periodic:  # load and replace cell
-                traj = read(path, index=":", format="xyz")
-                path.unlink()
+            # try all formattings of bead index (i-PI inconsistency)
+            paths = [
+                Path("walker-{}_output.trajectory_0.ase".format(i)),
+                Path("walker-{}_output.trajectory_00.ase".format(i)),
+                Path("walker-{}_output.trajectory_000.ase".format(i)),
+                Path("walker-{}_output.trajectory_0000.ase".format(i)),
+            ]
+            path = None
+            for path in paths:
+                if path.exists():
+                    break
+            if path is None:
+                break
+            traj = read(path, index=":", format="xyz")
+            path.unlink()
+            if not states[i].periodic:  # load and replace cell
                 for atoms in traj:
                     atoms.pbc = False
                     atoms.cell = None
-                write(path, traj, format="xyz")
-            else:
-                break
+            write(paths[0], traj, format="xyz")  # always the same path
             i += 1
 
 
