@@ -8,7 +8,7 @@ from ase.units import bar, kB
 from parsl.app.app import python_app
 
 from psiflow.data import Dataset
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
+from psiflow.hamiltonians import Hamiltonian, Zero
 from psiflow.sampling import SimulationOutput, Walker, sample
 from psiflow.sampling.walker import quench, randomize
 from psiflow.utils import multiply

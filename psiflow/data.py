@@ -1,6 +1,5 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import math
 import re
 import shutil
 from pathlib import Path
@@ -9,8 +8,7 @@ from typing import Optional, Union
 import numpy as np
 import typeguard
 from ase.data import atomic_numbers, chemical_symbols
-from parsl.app.app import join_app, python_app
-from parsl.app.python import PythonApp
+from parsl.app.app import python_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
@@ -143,6 +141,15 @@ class Dataset:
             return unpack_i(result, 0)
         else:
             return tuple([unpack_i(result, i) for i in range(len(quantities))])
+
+    def set(
+        self,
+        quantity: str,
+        array: Union[np.ndarray, AppFuture],
+        atom_indices: Optional[list[int]] = None,
+        elements: Optional[list[str]] = None,
+    ):
+        pass
 
     def filter(
         self,
@@ -789,42 +796,3 @@ def _batch_frames(
 
 
 batch_frames = python_app(_batch_frames, executors=["default_threads"])
-
-
-@join_app
-@typeguard.typechecked
-def batch_apply(
-    apply_app: PythonApp,
-    arg: Union[Dataset, list[Geometry]],
-    batch_size: int,
-    length: int,
-    outputs: list = [],
-    reduce_func: Optional[PythonApp] = None,
-    **app_kwargs,
-) -> AppFuture:
-    nbatches = math.ceil(length / batch_size)
-    batches = [psiflow.context().new_file("data_", ".xyz") for _ in range(nbatches)]
-    future = batch_frames(batch_size, inputs=[arg.extxyz], outputs=batches)
-
-    if reduce_func is None:
-        assert len(outputs) == 1
-    else:
-        assert len(outputs) == 0
-
-    output_futures = []
-    for i in range(nbatches):
-        f = apply_app(
-            None,
-            inputs=[future.outputs[i]],
-            outputs=[batches[i]],  # has to be File, not DataFuture
-            **app_kwargs,
-        )
-        output_futures.append(f)
-    output_batches = [f.outputs[0] for f in output_futures]
-
-    if reduce_func is None:
-        f = join_frames(inputs=output_batches, outputs=[outputs[0]])
-    else:
-        assert reduce_func is not None
-        f = reduce_func(*output_futures)
-    return f

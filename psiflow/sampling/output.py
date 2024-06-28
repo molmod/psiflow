@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian, Zero
+from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
 from psiflow.utils import unpack_i
 
 DEFAULT_OBSERVABLES = [

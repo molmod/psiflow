@@ -13,9 +13,9 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset, check_equality
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
+from psiflow.hamiltonians import Hamiltonian, Zero
 from psiflow.sampling.metadynamics import Metadynamics
-from psiflow.sampling.order import OrderParameter
+from psiflow.order_parameters import OrderParameter
 from psiflow.utils import copy_app_future
 
 
