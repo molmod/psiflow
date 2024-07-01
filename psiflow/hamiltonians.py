@@ -46,17 +46,15 @@ class Hamiltonian:
     def compute(
         self,
         arg: Union[Dataset, AppFuture[list], list[Union[AppFuture, Geometry]]],
-        outputs: Optional[list[str]] = None,
+        outputs: Union[str, list[str], None] = None,
         batch_size: Optional[int] = None,
     ) -> Union[list[AppFuture], AppFuture]:
         if outputs is None:
-            outputs_ = ['energy', 'forces', 'stress']
-        else:
-            outputs_ = list(outputs)
+            outputs = ['energy', 'forces', 'stress']
         return compute(
             self.app,
             arg,
-            outputs_,
+            outputs,
             batch_size,
         )
 
@@ -100,23 +98,20 @@ class MixtureHamiltonian(Hamiltonian):
     def compute(
         self,
         arg: Union[Dataset, AppFuture[list], list[Union[AppFuture, Geometry]]],
-        outputs: Optional[list[str]] = None,
+        outputs: Union[str, list[str], None] = None,
         batch_size: Optional[int] = None,
     ) -> Union[list[AppFuture], AppFuture]:
         if outputs is None:
-            outputs_ = ['energy', 'forces', 'stress']
-        else:
-            outputs_ = list(outputs)
+            outputs = ['energy', 'forces', 'stress']
         futures = []
         for hamiltonian in self.hamiltonians:
             f = compute(
                 hamiltonian.app,
                 arg,
-                outputs_,
+                outputs,
                 batch_size,
             )
             if not isinstance(f, list):  # repack into list
-                assert len(outputs) == 1
                 futures.append([f])
             else:
                 futures.append(f)
@@ -125,10 +120,10 @@ class MixtureHamiltonian(Hamiltonian):
             np.array(self.coefficients),
             inputs=[_ for f in futures for _ in f],  # ensure futures get resolved
         )
-        if len(outputs_) == 1:
+        if not isinstance(outputs, list):
             return results[0]
         else:
-            return [results[i] for i in range(len(outputs_))]
+            return [results[i] for i in range(len(outputs))]
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not MixtureHamiltonian:

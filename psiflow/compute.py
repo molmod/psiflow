@@ -124,9 +124,11 @@ def _apply(
 def compute(
     apply_app: PythonApp,
     arg: Union[Dataset, AppFuture[list], list[Union[AppFuture, Geometry]]],
-    outputs_: Optional[list[str]] = None,
+    outputs_: Union[str, list[str], None] = None,
     batch_size: Optional[int] = None,
 ) -> Union[list[AppFuture], AppFuture]:
+    if outputs_ is not None and not isinstance(outputs_, list):
+        outputs_ = [outputs_]
     if batch_size is not None:
         if isinstance(arg, Dataset):
             length = arg.length()

@@ -258,15 +258,16 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         Harmonic,
         MACEHamiltonian,
         PlumedHamiltonian,
+        MixtureHamiltonian,
+        Zero,
     )
-    from psiflow.hamiltonians.hamiltonian import MixtureHamiltonian, Zero
+    from psiflow.order_parameters import OrderParameter
     from psiflow.learning import Learning
     from psiflow.metrics import Metrics
     from psiflow.models import MACE
     from psiflow.reference import CP2K, EMT
     from psiflow.sampling import (
         Metadynamics,
-        OrderParameter,
         ReplicaExchange,
         SimulationOutput,
         Walker,

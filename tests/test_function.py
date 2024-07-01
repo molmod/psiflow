@@ -1,8 +1,13 @@
+import json
+
 import numpy as np
 from ase.units import kJ, mol
+from parsl.data_provider.files import File
 
+import psiflow
 from psiflow.functions import EinsteinCrystalFunction, PlumedFunction, HarmonicFunction
-from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, Harmonic, Zero
+from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, Harmonic, \
+    Zero, MixtureHamiltonian
 
 
 def test_einstein_crystal(dataset):
@@ -78,7 +83,6 @@ CV: BIASVALUE arg=D1
         gradient * (-1.0),
     )
 
-    # use external grid as bias, check that file is read
     plumed_input = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -99,6 +103,47 @@ RESTRAINT ARG=CV AT=50 KAPPA=1
 
     assert np.allclose(energy, energy_.result())
     assert np.allclose(stress, stress_.result())
+
+    # use external grid as bias, check that file is read
+    hills = """#! FIELDS time CV sigma_CV height biasf
+#! SET multivariate false
+#! SET kerneltype gaussian
+     1.00000     2.5     2.0     70  0
+     2.00000     2.6     2.0     70  0
+"""
+    path_hills = tmp_path / "hills"
+    with open(path_hills, "w") as f:
+        f.write(hills)
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: DISTANCE ATOMS=1,2 NOPBC
+METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
+""".format(
+        path_hills
+    )
+    hamiltonian = PlumedHamiltonian(plumed_input, File(path_hills))
+
+    nstates = 10
+    positions = dataset[:nstates].get('positions').result()
+    distance = np.linalg.norm(positions[:, 0, :] - positions[:, 1, :], axis=1)
+    distance = distance.reshape(-1, 1)
+
+    energy = hamiltonian.compute(dataset[:10], ['energy']).result()
+
+    sigma = 2 * np.ones((1, 2))
+    height = np.array([70, 70]).reshape(1, -1) * (kJ / mol)  # unit consistency
+    center = np.array([2.5, 2.6]).reshape(1, -1)
+    energy_per_hill = height * np.exp((distance - center) ** 2 / (-2 * sigma**2))
+    energy_ = np.sum(energy_per_hill, axis=1)
+    assert np.allclose(
+        energy,
+        energy_,
+        atol=1e-3,
+    )
+
+    # check that hills file didn't change
+    with open(path_hills, "r") as f:
+        assert f.read() == hills
 
 
 def test_harmonic_function(dataset):
@@ -142,8 +187,8 @@ def test_hamiltonian_arithmetic(dataset):
     actually_scaled = EinsteinCrystal(dataset[0], force_constant=0.5)
     assert scaled.get_coefficient(actually_scaled) is None
 
-    energy_scaled = scaled.compute(dataset[:10], ['energy'])
-    energy_actually = actually_scaled.compute(dataset[:10], ['energy'])
+    energy_scaled = scaled.compute(dataset[:10], 'energy')
+    energy_actually = actually_scaled.compute(dataset[:10], 'energy')
     assert np.allclose(energy_scaled.result(), energy_actually.result())
 
     energy, forces, _ = hamiltonian.compute(dataset[:10])
@@ -163,3 +208,60 @@ def test_hamiltonian_arithmetic(dataset):
     assert np.allclose(energy.result(), 0.0)
     assert hamiltonian == hamiltonian + zero
     assert 2 * hamiltonian + zero == 2 * hamiltonian
+
+
+def test_subtract(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=1.0)
+    h = einstein - einstein
+    assert isinstance(h, MixtureHamiltonian)
+    assert np.allclose(h.coefficients, 0.0)
+
+
+def test_hamiltonian_serialize(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=1.0)
+
+    kappa = 1
+    center = 100
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+RESTRAINT ARG=CV AT={center} KAPPA={kappa}
+""".format(
+        center=center, kappa=kappa / (kJ / mol)
+    )
+    plumed = PlumedHamiltonian(plumed_input)
+    data = json.loads(psiflow.serialize(einstein).result())
+    assert "EinsteinCrystal" in data
+    assert "reference_geometry" in data["EinsteinCrystal"]["_geoms"]
+    einstein_ = psiflow.deserialize(json.dumps(data))
+    assert np.allclose(
+        einstein.compute(dataset[:10], "energy").result(),
+        einstein_.compute(dataset[:10], "energy").result(),
+    )
+
+    mixed = 0.1 * einstein + 0.9 * plumed
+    assert "hamiltonians" in mixed._serial
+    assert "coefficients" in mixed._attrs
+    data = json.loads(psiflow.serialize(mixed).result())
+    assert "MixtureHamiltonian" in data
+    assert "hamiltonians" in data["MixtureHamiltonian"]["_serial"]
+    mixed_ = psiflow.deserialize(json.dumps(data))
+    for i, h in enumerate(mixed.hamiltonians):
+        if isinstance(h, EinsteinCrystal):
+            assert h.force_constant == mixed_.hamiltonians[i].force_constant
+            assert (
+                h.reference_geometry.result()
+                == mixed_.hamiltonians[i].reference_geometry
+            )
+        else:
+            assert h == mixed_.hamiltonians[i]
+        assert mixed.coefficients[i] == mixed_.coefficients[i]
+    assert np.allclose(
+        mixed.compute(dataset[:10], "energy").result(),
+        mixed_.compute(dataset[:10], "energy").result(),
+    )
+
+    data = json.loads(psiflow.serialize(Zero()).result())
+    assert "Zero" in data
+    zero = psiflow.deserialize(json.dumps(data))
+    assert isinstance(zero, Zero)
