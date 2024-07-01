@@ -44,9 +44,10 @@ def _aggregate_multiple(
     narrays = len(inputs) // ncomponents
 
     results = [np.zeros(inputs[_].shape) for _ in range(narrays)]
-    for i in range(ncomponents):
-        for j in range(narrays):
-            results[j] += coefficients[i] * inputs[i * ncomponents + j]
+    for j in range(narrays):
+        for i in range(ncomponents):
+            array = inputs[i * narrays + j]
+            results[j] += coefficients[i] * array
     return results
 
 

@@ -150,7 +150,7 @@ class ZeroFunction(EnergyFunction):
     def __call__(
         self,
         geometries: list[Geometry],
-    ) -> list[np.ndarray]:
+    ) -> dict[str, np.ndarray]:
         energy, forces, stress = create_outputs(
             self.outputs,
             geometries,

@@ -155,8 +155,8 @@ def test_hamiltonian_arithmetic(dataset):
     assert mixture.get_coefficients(mixture) == (1, 1)
     assert mixture.get_coefficients(hamiltonian + actually_scaled) is None
     energy_, forces_, _ = mixture.compute(dataset[:10])
-    assert np.allclose(energy_.result(), 4 * energy.result())
-    assert np.allclose(forces_.result(), 4 * forces.result())
+    assert np.allclose(energy_.result(), 5 * energy.result())
+    assert np.allclose(forces_.result(), 5 * forces.result())
 
     zero = Zero()
     energy, forces, stress = zero.compute(dataset[:10])
