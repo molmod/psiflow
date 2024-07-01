@@ -2,9 +2,9 @@ import numpy as np
 from ase.units import kB
 
 from psiflow.data import check_equality
-from psiflow.free_energy import Integration
+from psiflow.free_energy import Integration, compute_harmonic
 from psiflow.hamiltonians import EinsteinCrystal, Harmonic
-from psiflow.tools import compute_harmonic, optimize
+from psiflow.sampling import optimize
 from psiflow.utils import multiply
 
 

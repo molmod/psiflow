@@ -34,7 +34,7 @@ class EnergyFunction(Function):
 class EinsteinCrystalFunction(EnergyFunction):
     force_constant: float
     centers: np.ndarray
-    volume: float
+    volume: float = 0.0
 
     def __call__(
         self,
@@ -161,4 +161,27 @@ class ZeroFunction(EnergyFunction):
             energy[i] = 0.0
             forces[i, :len(geometry)] = 0.0
             stress[i, :] = 0.0
+        return {'energy': energy, 'forces': forces, 'stress': stress}
+
+
+@typeguard.typechecked
+@dataclass
+class HarmonicFunction(EnergyFunction):
+    positions: np.ndarray
+    hessian: np.ndarray
+    energy: Optional[np.ndarray] = None
+
+    def __call__(self, geometries: list[Geometry]) -> dict[str, np.ndarray]:
+        energy, forces, stress = create_outputs(self.outputs, geometries)
+
+        for i, geometry in enumerate(geometries):
+            if geometry == NullState:
+                continue
+            delta = geometry.per_atom.positions.reshape(-1) - self.positions.reshape(-1)
+            grad = np.dot(self.hessian, delta)
+            energy[i] = 0.5 * np.dot(delta, grad)
+            if self.energy is not None:
+                energy[i] += self.energy
+            forces[i] = (-1.0) * grad.reshape(-1, 3)
+            stress[i] = 0.0
         return {'energy': energy, 'forces': forces, 'stress': stress}

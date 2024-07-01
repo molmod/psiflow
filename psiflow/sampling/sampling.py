@@ -19,7 +19,7 @@ from psiflow.sampling.output import (
     potential_component_names,
 )
 from psiflow.sampling.walker import Coupling, Walker, partition
-from psiflow.tools import setup_sockets
+from psiflow.sampling.optimize import setup_sockets
 from psiflow.utils import save_xml
 
 

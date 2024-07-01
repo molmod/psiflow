@@ -15,6 +15,13 @@ from parsl.launchers.base import Launcher
 
 
 @typeguard.typechecked
+def get_attribute(obj: Any, *attribute_names: str) -> Any:
+    for name in attribute_names:
+        obj = getattr(obj, name)
+    return obj
+
+
+@typeguard.typechecked
 def _boolean_or(*args: Union[bool, np.bool_]) -> bool:
     return any(args)
 

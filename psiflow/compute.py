@@ -37,19 +37,16 @@ concatenate_multiple = python_app(_concatenate_multiple, executors=['default_thr
 @typeguard.typechecked
 def _aggregate_multiple(
     coefficients: np.ndarray,
-    *args: list[np.ndarray],
+    inputs: list = [],
 ) -> list[np.ndarray]:
-    ncomponents = len(args)
-    assert ncomponents == len(coefficients)
-    narrays = len(args[0])
-    for arg in args:
-        assert isinstance(arg, list)
-    assert all([len(a) == narrays for a in args])
+    ncomponents = len(coefficients)
+    assert len(inputs) % ncomponents == 0
+    narrays = len(inputs) // ncomponents
 
-    results = [np.zeros(a.shape) for a in args[0]]
-    for i, arrays in enumerate(args):
-        for j, result in enumerate(results):
-            result += coefficients[j] * arrays[j]
+    results = [np.zeros(inputs[_].shape) for _ in range(narrays)]
+    for i in range(ncomponents):
+        for j in range(narrays):
+            results[j] += coefficients[i] * inputs[i * ncomponents + j]
     return results
 
 

@@ -1,9 +1,8 @@
 import numpy as np
 from ase.units import kJ, mol
 
-from psiflow.functions import EinsteinCrystalFunction, PlumedFunction
-from psiflow.hamiltonians import EinsteinCrystal
-# from psiflow.hamiltonians import EinsteinCrystal
+from psiflow.functions import EinsteinCrystalFunction, PlumedFunction, HarmonicFunction
+from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, Harmonic, Zero
 
 
 def test_einstein_crystal(dataset):
@@ -86,11 +85,81 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=50 KAPPA=1
 """
     function = PlumedFunction(plumed_input)
-    outputs = function(dataset.geometries().result())
+    energy, forces, stress = function(dataset.geometries().result()).values()
 
     volumes = np.linalg.det(dataset.get('cell').result())
     energy_ = (volumes - 50) ** 2 * (kJ / mol) / 2
     assert np.allclose(
-        outputs['energy'],
+        energy,
         energy_,
     )
+
+    hamiltonian = PlumedHamiltonian(plumed_input)
+    energy_, forces_, stress_ = hamiltonian.compute(dataset)
+
+    assert np.allclose(energy, energy_.result())
+    assert np.allclose(stress, stress_.result())
+
+
+def test_harmonic_function(dataset):
+    reference = dataset[0].result()
+    function = HarmonicFunction(
+        reference.per_atom.positions,
+        np.eye(3 * len(reference)),
+        reference.energy,
+    )
+    einstein = EinsteinCrystalFunction(1.0, reference.per_atom.positions)
+
+    energy, forces, _ = function(dataset[:10].geometries().result()).values()
+    energy_, forces_, _ = einstein(dataset[:10].geometries().result()).values()
+
+    assert np.allclose(energy - reference.energy, energy_)
+    assert np.allclose(forces_, forces)
+
+    harmonic = Harmonic(dataset[0], np.eye(3 * len(reference)))
+
+    energy, forces, _ = harmonic.compute(dataset[:10])
+    assert np.allclose(energy.result() - reference.energy, energy_)
+    assert np.allclose(forces.result(), forces_)
+
+
+def test_hamiltonian_arithmetic(dataset):
+    hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
+    hamiltonian_ = EinsteinCrystal(dataset[0].result(), force_constant=1.1)
+    assert not hamiltonian == hamiltonian_
+    hamiltonian_ = EinsteinCrystal(dataset[0], force_constant=1)
+    assert hamiltonian != hamiltonian_  # app future copied
+    hamiltonian_.reference_geometry = hamiltonian.reference_geometry
+    assert hamiltonian == hamiltonian_
+    hamiltonian_ = EinsteinCrystal(dataset[1], force_constant=1.0)
+    assert not hamiltonian == hamiltonian_
+    assert not hamiltonian == PlumedHamiltonian(plumed_input="")
+
+    # consider linear combination
+    scaled = 0.5 * hamiltonian
+    assert len(scaled) == 1
+    assert scaled.get_coefficient(hamiltonian) == 0.5
+    actually_scaled = EinsteinCrystal(dataset[0], force_constant=0.5)
+    assert scaled.get_coefficient(actually_scaled) is None
+
+    energy_scaled = scaled.compute(dataset[:10], ['energy'])
+    energy_actually = actually_scaled.compute(dataset[:10], ['energy'])
+    assert np.allclose(energy_scaled.result(), energy_actually.result())
+
+    energy, forces, _ = hamiltonian.compute(dataset[:10])
+    other = EinsteinCrystal(dataset[0], 4.0)
+    mixture = hamiltonian + other
+    assert len(mixture) == 2
+    assert mixture == 0.9 * other + 0.1 * other + 1.0 * hamiltonian
+    _ = mixture + other
+    assert mixture.get_coefficients(mixture) == (1, 1)
+    assert mixture.get_coefficients(hamiltonian + actually_scaled) is None
+    energy_, forces_, _ = mixture.compute(dataset[:10])
+    assert np.allclose(energy_.result(), 4 * energy.result())
+    assert np.allclose(forces_.result(), 4 * forces.result())
+
+    zero = Zero()
+    energy, forces, stress = zero.compute(dataset[:10])
+    assert np.allclose(energy.result(), 0.0)
+    assert hamiltonian == hamiltonian + zero
+    assert 2 * hamiltonian + zero == 2 * hamiltonian

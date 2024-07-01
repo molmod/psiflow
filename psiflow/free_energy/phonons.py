@@ -14,7 +14,7 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, mass_weight
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.tools.optimize import setup_forces, setup_sockets
+from psiflow.sampling.optimize import setup_forces, setup_sockets
 from psiflow.utils import load_numpy, multiply, save_xml
 
 
