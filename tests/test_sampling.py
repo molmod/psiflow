@@ -5,7 +5,7 @@ import pytest
 from ase.units import Bohr
 
 import psiflow
-from psiflow.data import check_equality
+from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
 from psiflow.models import MACE
 from psiflow.sampling.metadynamics import Metadynamics

@@ -1,7 +1,7 @@
 import numpy as np
 from ase.units import kB
 
-from psiflow.data import check_equality
+from psiflow.geometry import check_equality
 from psiflow.free_energy import Integration, compute_harmonic
 from psiflow.hamiltonians import EinsteinCrystal, Harmonic
 from psiflow.sampling import optimize

@@ -10,7 +10,8 @@ from ase.build import bulk, make_supercell
 from ase.calculators.emt import EMT
 
 import psiflow
-from psiflow.data import Dataset, Geometry
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry
 from psiflow.models import MACE, MACEConfig
 
 

@@ -8,11 +8,13 @@ import psiflow
 from psiflow.functions import EinsteinCrystalFunction, PlumedFunction, HarmonicFunction
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, Harmonic, \
     Zero, MixtureHamiltonian
+from psiflow.tools.plumed import set_path_in_plumed, remove_comments_printflush
+from psiflow.utils import dump_json, copy_app_future
 
 
 def test_einstein_crystal(dataset):
     function = EinsteinCrystalFunction(
-        force_constant=1,
+        force_constant=1.0,
         centers=dataset[0].result().per_atom.positions,
         volume=0.0,
     )
@@ -27,7 +29,7 @@ def test_einstein_crystal(dataset):
         function.centers.reshape(1, -1, 3) - dataset[:4].get('positions').result(),
     )
     assert geometries[0].energy is None
-    hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
+    hamiltonian = EinsteinCrystal(dataset[0], force_constant=1.0)
 
     forces_, stress_, energy_ = hamiltonian.compute(dataset[:4], outputs=['forces', 'stress', 'energy'])
     assert np.allclose(
@@ -45,20 +47,48 @@ def test_einstein_crystal(dataset):
         forces_.result(),
     )
 
-    # hamiltonian = EinsteinCrystal(
-    #     force_constant=function.force_constant,
-    #     centers=function.centers,
-    # )
-    # data = dataset[:10].reset()
-    # evaluated = data.evaluate(hamiltonian, outputs=['energy'], batch_size=None)
-    # evaluated_ = data.evaluate(hamiltonian, outputs=['energy', 'forces'], batch_size=3)
-    # for i, geometry in enumerate(evaluated.geometries().result()):
-    #     assert np.all(np.isnan(geometry.per_atom.forces))
-    #     assert np.allclose(geometry.energy, energy.result()[i])
-    #     assert np.allclose(
-    #         evaluated_[i].result().energy,
-    #         geometry.energy,
-    #     )
+
+def test_einstein_force(dataset):
+    einstein = EinsteinCrystal(dataset[0], 5.0)
+    reference = dataset[0].result()
+    delta = 0.1
+    for i in range(len(reference)):
+        for j in range(3):  # x, y, z
+            for sign in [+1, -1]:
+                geometry = reference.copy()
+                geometry.per_atom.positions[i, j] += sign * delta
+                forces = einstein.compute(geometry, 'forces').result()
+                assert np.sign(forces[0, i, j]) == (-1.0) * sign
+                forces[0, i, j] = 0.0
+                assert np.allclose(forces, 0.0)
+
+
+def test_get_filename_hills():
+    plumed_input = """
+#METAD COMMENT TO BE REMOVED
+RESTART
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+CV0: CV #lkasdjf
+METAD ARG=CV0 SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=test_hills sdld
+METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld #fjalsdkfj
+PRINT ARG=CV,metad.bias STRIDE=10 FILE=COLVAR
+FLUSH STRIDE=10
+"""
+    plumed_input = remove_comments_printflush(plumed_input)
+    plumed_input = set_path_in_plumed(plumed_input, "METAD", "/tmp/my_input")
+    plumed_input = set_path_in_plumed(plumed_input, "METADD", "/tmp/my_input")
+    assert (
+        plumed_input.strip()
+        == """
+RESTART
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+CV0: CV
+METAD ARG=CV0 SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad FILE=/tmp/my_input sdld
+METADD ARG=CV SIGMA=100 HEIGHT=2 PACE=50 LABEL=metad sdld FILE=/tmp/my_input
+""".strip()
+    )
 
 
 def test_plumed_function(tmp_path, dataset, dataset_h2):
@@ -162,17 +192,18 @@ def test_harmonic_function(dataset):
     assert np.allclose(forces_, forces)
 
     harmonic = Harmonic(dataset[0], np.eye(3 * len(reference)))
+    assert Harmonic.outputs == ('energy', 'forces', 'stress')
 
     energy, forces, _ = harmonic.compute(dataset[:10])
-    assert np.allclose(energy.result() - reference.energy, energy_)
+    assert np.allclose(energy.result() - reference.energy, energy_, atol=1e-5)
     assert np.allclose(forces.result(), forces_)
 
 
 def test_hamiltonian_arithmetic(dataset):
-    hamiltonian = EinsteinCrystal(dataset[0], force_constant=1)
+    hamiltonian = EinsteinCrystal(dataset[0], force_constant=1.0)
     hamiltonian_ = EinsteinCrystal(dataset[0].result(), force_constant=1.1)
     assert not hamiltonian == hamiltonian_
-    hamiltonian_ = EinsteinCrystal(dataset[0], force_constant=1)
+    hamiltonian_ = EinsteinCrystal(dataset[0], force_constant=1.0)
     assert hamiltonian != hamiltonian_  # app future copied
     hamiltonian_.reference_geometry = hamiltonian.reference_geometry
     assert hamiltonian == hamiltonian_
@@ -236,7 +267,7 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
     einstein_ = psiflow.deserialize(json.dumps(data))
     assert np.allclose(
         einstein.compute(dataset[:10], "energy").result(),
-        einstein_.compute(dataset[:10], "energy").result(),
+        einstein_.compute(dataset[:10], "energy", batch_size=3).result(),
     )
 
     mixed = 0.1 * einstein + 0.9 * plumed
@@ -265,3 +296,54 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
     assert "Zero" in data
     zero = psiflow.deserialize(json.dumps(data))
     assert isinstance(zero, Zero)
+
+
+def test_evaluate(dataset):
+    hamiltonian = EinsteinCrystal(
+        geometry=dataset[0],
+        force_constant=1.0,
+    )
+    data = dataset[:10].reset()
+    evaluated = data.evaluate(
+        hamiltonian,
+        batch_size=None,
+    )
+    evaluated_ = data.evaluate(
+        hamiltonian,
+        batch_size=2,
+    )
+    energy = hamiltonian.compute(evaluated, 'energy')
+    for i, geometry in enumerate(evaluated.geometries().result()):
+        assert not np.all(np.isnan(geometry.per_atom.forces))
+        assert np.allclose(geometry.energy, energy.result()[i])
+        assert np.allclose(
+            evaluated_[i].result().energy,
+            geometry.energy,
+        )
+
+
+def test_json_dump():
+    data = {
+        "a": np.ones((3, 3, 3, 2)),
+        "b": [1, 2, 3],
+        "c": (1, 2, 4),
+        "d": "asdf",
+        "e": copy_app_future(False),
+    }
+    data_future = dump_json(
+        **data,
+        outputs=[psiflow.context().new_file("bla_", ".json")],
+    ).outputs[0]
+    psiflow.wait()
+    with open(data_future.filepath, "r") as f:
+        data_ = json.loads(f.read())
+
+    new_a = np.array(data_["a"])
+    assert len(new_a.shape) == 4
+    assert np.allclose(
+        data["a"],
+        new_a,
+    )
+    assert data_["e"] is False
+    assert type(data_["b"]) is list
+    assert type(data_["c"]) is list

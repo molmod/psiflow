@@ -1,247 +1,29 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import re
 import shutil
-from pathlib import Path
 from typing import Optional, Union
 
 import numpy as np
 import typeguard
 from ase.data import atomic_numbers, chemical_symbols
 from parsl.app.app import python_app
-from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
-import psiflow
-from psiflow.geometry import Geometry, NullState, create_outputs, QUANTITIES
-from psiflow.utils import copy_data_future, resolve_and_check, unpack_i
-
-
-@psiflow.serializable
-class Dataset:
-    extxyz: psiflow._DataFuture
-
-    def __init__(
-        self,
-        states: Optional[list[Union[AppFuture, Geometry]], AppFuture],
-        extxyz: Optional[psiflow._DataFuture] = None,
-    ):
-        if extxyz is not None:
-            assert states is None
-            self.extxyz = extxyz
-        else:
-            assert states is not None
-            if isinstance(states, AppFuture):  # Future of list
-                extra_states = states
-                states = []
-            else:
-                extra_states = None
-            self.extxyz = write_frames(
-                *states,
-                extra_states=extra_states,
-                outputs=[psiflow.context().new_file("data_", ".xyz")],
-            ).outputs[0]
-
-    def length(self) -> AppFuture:
-        return count_frames(inputs=[self.extxyz])
-
-    def shuffle(self):
-        extxyz = shuffle(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def __getitem__(
-        self,
-        index: Union[int, slice, list[int], AppFuture],
-    ) -> Union[Dataset, AppFuture]:
-        if isinstance(index, int):
-            future = read_frames(
-                [index],
-                inputs=[self.extxyz],
-                outputs=[],  # will return Geometry as Future
-            )
-            return unpack_i(future, 0)
-        else:  # slice, list, AppFuture
-            extxyz = read_frames(
-                index,
-                inputs=[self.extxyz],
-                outputs=[psiflow.context().new_file("data_", ".xyz")],
-            ).outputs[0]
-            return Dataset(None, extxyz)
-
-    def save(self, path: Union[Path, str]) -> AppFuture:
-        path = resolve_and_check(Path(path))
-        _ = copy_data_future(
-            inputs=[self.extxyz],
-            outputs=[File(str(path))],
-        )
-
-    def geometries(self) -> AppFuture:
-        return read_frames(inputs=[self.extxyz])
-
-    def __add__(self, dataset: Dataset) -> Dataset:
-        extxyz = join_frames(
-            inputs=[self.extxyz, dataset.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def subtract_offset(self, **atomic_energies: Union[float, AppFuture]) -> Dataset:
-        assert len(atomic_energies) > 0
-        extxyz = apply_offset(
-            True,
-            **atomic_energies,
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def add_offset(self, **atomic_energies) -> Dataset:
-        assert len(atomic_energies) > 0
-        extxyz = apply_offset(
-            False,
-            **atomic_energies,
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def elements(self):
-        return get_elements(inputs=[self.extxyz])
-
-    def reset(self):
-        extxyz = reset_frames(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def clean(self):
-        extxyz = clean_frames(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def get(
-        self,
-        *quantities: str,
-        atom_indices: Optional[list[int]] = None,
-        elements: Optional[list[str]] = None,
-    ):
-        result = extract_quantities(
-            quantities,
-            atom_indices,
-            elements,
-            inputs=[self.extxyz],
-        )
-        if len(quantities) == 1:
-            return unpack_i(result, 0)
-        else:
-            return tuple([unpack_i(result, i) for i in range(len(quantities))])
-
-    def set(
-        self,
-        quantity: str,
-        array: Union[np.ndarray, AppFuture],
-        atom_indices: Optional[list[int]] = None,
-        elements: Optional[list[str]] = None,
-    ):
-        pass
-
-    def filter(
-        self,
-        quantity: str,
-    ) -> Dataset:
-        assert quantity in QUANTITIES
-        extxyz = app_filter(
-            quantity,
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def not_null(self) -> Dataset:
-        extxyz = not_null(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def align_axes(self):
-        extxyz = align_axes(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def split(self, fraction, shuffle=True):  # auto-shuffles
-        train, valid = get_train_valid_indices(
-            self.length(),
-            fraction,
-            shuffle,
-        )
-        return self.__getitem__(train), self.__getitem__(valid)
-
-    def assign_identifiers(
-        self, identifier: Union[int, AppFuture, None] = None
-    ) -> AppFuture:
-        result = assign_identifiers(
-            identifier,
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        )
-        self.extxyz = result.outputs[0]
-        return result
-
-    def evaluate(
-        self,
-        function,
-        outputs: Optional[list[str]] = None,
-        batch_size: Optional[int] = None,
-    ) -> Dataset:
-        if batch_size is None:
-            future = function.apply_app(
-                arg=None,
-                outputs_=outputs,
-                inputs=[self.extxyz],
-                outputs=[psiflow.context().new_file('data_', '.xyz')],
-                **function.parameters(),
-            )
-        else:
-            future = batch_apply(
-                function.apply_app,
-                self,
-                batch_size,
-                self.length(),
-                outputs=[psiflow.context().new_file('data_', '.xyz')],
-                func_outputs=outputs,
-                **function.parameters(),
-            )
-        return Dataset(None, extxyz=future.outputs[0])
-
-
-    @classmethod
-    def load(
-        cls,
-        path_xyz: Union[Path, str],
-    ) -> Dataset:
-        path_xyz = resolve_and_check(Path(path_xyz))
-        assert path_xyz.exists()  # needs to be locally accessible
-        return cls(None, extxyz=File(str(path_xyz)))
+from psiflow.geometry import Geometry, NullState, create_outputs, _assign_identifier
+from psiflow.utils import unpack_i
 
 
 @typeguard.typechecked
 def _write_frames(
     *states: Geometry,
-    extra_states: Optional[list[Geometry]] = None,
+    extra_states: Union[Geometry, list[Geometry], None] = None,
     outputs: list = [],
 ) -> None:
     all_states = list(states)
     if extra_states is not None:
-        all_states += extra_states
+        if isinstance(extra_states, list):
+            all_states += extra_states
+        else:  # single geometry
+            all_states.append(extra_states)
     with open(outputs[0], "w") as f:
         for state in all_states:
             f.write(state.to_string() + "\n")
@@ -302,17 +84,6 @@ def _read_frames(
 
 
 read_frames = python_app(_read_frames, executors=["default_threads"])
-
-
-@typeguard.typechecked
-def _check_equality(
-    state0: Geometry,
-    state1: Geometry,
-) -> bool:
-    return state0 == state1
-
-
-check_equality = python_app(_check_equality, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -381,6 +152,63 @@ extract_quantities = python_app(_extract_quantities, executors=["default_threads
 
 
 @typeguard.typechecked
+def _insert_quantities(
+    quantities: tuple[str, ...],
+    arrays: list[np.ndarray, ...],
+    data: Optional[list[Geometry]] = None,
+    inputs: list = [],
+    outputs: list = [],
+) -> None:
+    if data is None:
+        assert len(inputs) == 1
+        data = _read_frames(inputs=inputs)
+    else:
+        assert len(inputs) == 0
+    max_natoms = max([len(geometry) for geometry in data])
+
+    for i, geometry in enumerate(data):
+        mask = get_index_element_mask(
+            geometry.per_atom.numbers,
+            None,
+            None,
+            natoms_padded=int(max_natoms),
+        )
+        natoms = len(geometry)
+        for j, quantity in enumerate(quantities):
+            if quantity == "positions":
+                geometry.per_atom.positions[:natoms, :] = arrays[j][i, mask, :]
+            elif quantity == "forces":
+                geometry.per_atom.forces[mask[:natoms]] = arrays[j][i, mask, :]
+            elif quantity == "cell":
+                geometry.cell = arrays[j][i, :, :]
+            elif quantity == "stress":
+                geometry.stress = arrays[j][i, :, :]
+            elif quantity == "numbers":
+                geometry.numbers = arrays[j][i, :]
+            elif quantity == "energy":
+                geometry.energy = arrays[j][i]
+            elif quantity == "delta":
+                geometry.delta = arrays[j][i]
+            elif quantity == "per_atom_energy":
+                geometry.per_atom_energy = arrays[j][i]
+            elif quantity == "phase":
+                geometry.phase = arrays[j][i]
+            elif quantity == "logprob":
+                geometry.logprob = arrays[j][i, :]
+            elif quantity == "identifier":
+                geometry.identifier = arrays[j][i]
+            elif quantity in geometry.order:
+                geometry.order[quantity] = arrays[j][i]
+            else:
+                raise ValueError("unknown quantity {}".format(quantity))
+    if len(outputs) > 0:
+        _write_frames(*data, outputs=[outputs[0]])
+
+
+insert_quantities = python_app(_insert_quantities, executors=['default_threads'])
+
+
+@typeguard.typechecked
 def _check_distances(state: Geometry, threshold: float) -> Geometry:
     from ase.geometry.geometry import find_mic
 
@@ -404,22 +232,6 @@ def _check_distances(state: Geometry, threshold: float) -> Geometry:
 
 
 check_distances = python_app(_check_distances, executors=["default_htex"])
-
-
-def _assign_identifier(
-    state: Geometry,
-    identifier: int,
-    discard: bool = False,
-) -> tuple[Geometry, int]:
-    if (state == NullState) or discard:
-        return state, identifier
-    else:
-        assert state.identifier is None
-        state.identifier = identifier
-        return state, identifier + 1
-
-
-assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
 
 
 @typeguard.typechecked

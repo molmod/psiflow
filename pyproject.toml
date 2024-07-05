@@ -46,7 +46,7 @@ dev = [
 include = [
     "psiflow",
     "psiflow.models",
-    "psiflow.hamiltonians",
+    "psiflow.data",
     "psiflow.reference",
     "psiflow.sampling",
     "psiflow.tools",

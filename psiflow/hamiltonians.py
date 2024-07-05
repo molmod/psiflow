@@ -2,6 +2,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 from functools import partial
 from pathlib import Path
+from typing import Optional, Union, ClassVar
 
 import numpy as np
 import typeguard
@@ -9,21 +10,21 @@ from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.dataflow.futures import AppFuture
 from parsl.data_provider.files import File
-from typing import Optional, Union
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.data import Dataset
-from psiflow.compute import compute, _apply, aggregate_multiple
+from psiflow.data import Dataset, Computable, compute, aggregate_multiple
 from psiflow.functions import ZeroFunction, EinsteinCrystalFunction, PlumedFunction, \
-    HarmonicFunction
-from psiflow.utils import copy_app_future, get_attribute
+    HarmonicFunction, _apply
+from psiflow.utils import copy_app_future, get_attribute, dump_json
 from psiflow.tools.plumed import remove_comments_printflush
 
 
 @typeguard.typechecked
 @psiflow.serializable
-class Hamiltonian:
+class Hamiltonian(Computable):
+    outputs: ClassVar[tuple] = ('energy', 'forces', 'stress')
+    batch_size = 1000
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         raise NotImplementedError
@@ -43,20 +44,15 @@ class Hamiltonian:
 
     __rmul__ = __mul__  # handle float * Hamiltonian
 
-    def compute(
-        self,
-        arg: Union[Dataset, AppFuture[list], list[Union[AppFuture, Geometry]]],
-        outputs: Union[str, list[str], None] = None,
-        batch_size: Optional[int] = None,
-    ) -> Union[list[AppFuture], AppFuture]:
-        if outputs is None:
-            outputs = ['energy', 'forces', 'stress']
-        return compute(
-            self.app,
-            arg,
-            outputs,
-            batch_size,
-        )
+    def serialize_function(self):
+        return dump_json(
+            function=self.function_name,
+            outputs=[psiflow.context().new_file("hamiltonian_", ".json")],
+            **self.parameters(),
+        ).outputs[0]
+
+    def parameters(self) -> dict:
+        return {}
 
 
 @typeguard.typechecked
@@ -95,35 +91,26 @@ class MixtureHamiltonian(Hamiltonian):
         self.hamiltonians = hamiltonians
         self.coefficients = coefficients
 
-    def compute(
+    def compute(  # override compute for efficient batching
         self,
-        arg: Union[Dataset, AppFuture[list], list[Union[AppFuture, Geometry]]],
+        arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
         outputs: Union[str, list[str], None] = None,
         batch_size: Optional[int] = None,
     ) -> Union[list[AppFuture], AppFuture]:
         if outputs is None:
-            outputs = ['energy', 'forces', 'stress']
-        futures = []
-        for hamiltonian in self.hamiltonians:
-            f = compute(
-                hamiltonian.app,
-                arg,
-                outputs,
-                batch_size,
-            )
-            if not isinstance(f, list):  # repack into list
-                futures.append([f])
-            else:
-                futures.append(f)
-
-        results = aggregate_multiple(
-            np.array(self.coefficients),
-            inputs=[_ for f in futures for _ in f],  # ensure futures get resolved
+            outputs = list(self.__class__.outputs)
+        apply_apps = [h.app for h in self.hamiltonians]
+        reduce_func = partial(
+            aggregate_multiple,
+            coefficients=np.array(self.coefficients),
         )
-        if not isinstance(outputs, list):
-            return results[0]
-        else:
-            return [results[i] for i in range(len(outputs))]
+        return compute(
+            arg,
+            *apply_apps,
+            outputs_=outputs,
+            reduce_func=reduce_func,
+            batch_size=batch_size,
+        )
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not MixtureHamiltonian:
@@ -214,6 +201,7 @@ class MixtureHamiltonian(Hamiltonian):
 class EinsteinCrystal(Hamiltonian):
     reference_geometry: Union[Geometry, AppFuture]
     force_constant: float
+    function_name: ClassVar[str] = 'EinsteinCrystalFunction'
 
     def __init__(
         self, geometry: Union[Geometry, AppFuture[Geometry]], force_constant: float
@@ -225,23 +213,19 @@ class EinsteinCrystal(Hamiltonian):
         self._create_apps()
 
     def _create_apps(self):
-
-        @python_app(executors=['default_threads'])
-        def get_volume(g):
-            return np.linalg.det(g.cell)
-
-        @python_app(executors=['default_threads'])
-        def get_centers(g):
-            return g.per_atom.positions
-
         apply_app = python_app(_apply, executors=['default_threads'])
         self.app = partial(
             apply_app,
             function_cls=EinsteinCrystalFunction,
-            force_constant=self.force_constant,
-            centers=get_centers(self.reference_geometry),
-            volume=get_volume(self.reference_geometry),
+            **self.parameters()
         )
+
+    def parameters(self) -> dict:
+        return {
+            'force_constant': self.force_constant,
+            'centers': get_attribute(self.reference_geometry, 'per_atom', 'positions'),
+            'volume': get_attribute(self.reference_geometry, 'volume'),
+        }
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not EinsteinCrystal:
@@ -279,9 +263,18 @@ class PlumedHamiltonian(Hamiltonian):
         self.app = partial(
             apply_app,
             function_cls=PlumedFunction,
-            plumed_input=self.plumed_input,
-            external=self.external,
+            **self.parameters(),
         )
+
+    def parameters(self) -> dict:
+        if self.external is not None:  # ensure parameters depends on self.external
+            external = copy_app_future(self.external.filepath, inputs=[self.external])
+        else:
+            external = None
+        return {
+            'plumed_input': self.plumed_input,
+            'external': external
+        }
 
     def __eq__(self, other: Hamiltonian) -> bool:
         if type(other) is not type(self):
@@ -311,10 +304,17 @@ class Harmonic(Hamiltonian):
         self.app = partial(
             apply_app,
             function_cls=HarmonicFunction,
-            positions=get_attribute(self.reference_geometry, 'per_atom', 'positions'),
-            hessian=self.hessian,
-            energy=get_attribute(self.reference_geometry, 'energy'),
+            **self.parameters(),
         )
+
+    def parameters(self) -> dict:
+        positions = get_attribute(self.reference_geometry, 'per_atom', 'positions')
+        energy = get_attribute(self.reference_geometry, 'energy')
+        return {
+            'positions': positions,
+            'energy': energy,
+            'hessian': self.hessian,
+        }
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not Harmonic:

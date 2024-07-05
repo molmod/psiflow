@@ -20,7 +20,7 @@ from ipi.utils.io.inputs import io_xml
 from ipi.utils.messages import verbosity
 from ipi.utils.softexit import softexit
 
-from psiflow.data import _write_frames
+from psiflow.data.utils import _write_frames
 from psiflow.geometry import Geometry
 
 NONPERIODIC_CELL = 1000 * np.eye(3)

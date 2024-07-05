@@ -3,7 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import inspect
 import json
 from pathlib import Path
-from typing import Optional, Union, get_args, get_origin, get_type_hints
+from typing import Optional, Union, get_args, get_origin, get_type_hints, ClassVar
 
 import typeguard
 from parsl.app.app import python_app
@@ -56,11 +56,7 @@ def update_init(init_func):
 def serializable(cls):
     """decorator to make class serializable"""
     class_dict = dict(cls.__dict__)
-    #class_attributes = {attr for attr in dir(cls) if not callable(getattr(cls, attr)) and not attr.startswith("__")}
-    #print(cls, class_attributes)
-    #print(cls)
     for name, type_hint in get_type_hints(cls).items():
-        #print(name, type_hint)
         if get_origin(type_hint) in [Union, Optional, list, tuple]:
             args = get_args(type_hint)
             if (File in args) or (DataFuture in args):
@@ -75,6 +71,8 @@ def serializable(cls):
                         if issubclass(arg, Serializable):  # weird
                             kind = "serial"
         else:
+            if get_origin(type_hint) is ClassVar:
+                continue  # do nothing for classvars
             if not inspect.isclass(type_hint):
                 raise ValueError(
                     "{} is formally not a class ({})".format(type_hint, name)

@@ -1,7 +1,7 @@
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional, ClassVar, Union
+from typing import Optional, ClassVar, Union, Type
 from dataclasses import dataclass
 
 from ase.units import kJ, mol, nm, fs
@@ -76,10 +76,10 @@ class PlumedFunction(EnergyFunction):
             self.outputs,
             geometries,
         )
-        if self.external is None:
-            plumed_input = self.plumed_input
-        else:
-            plumed_input = self.plumed_input.replace("PLACEHOLDER", str(self.external))
+
+        plumed_input = self.plumed_input
+        if self.external is not None:
+            assert self.external in plumed_input
 
         def geometry_to_key(geometry: Geometry) -> tuple:
             return tuple([geometry.periodic]) + tuple(geometry.per_atom.numbers)
@@ -185,3 +185,37 @@ class HarmonicFunction(EnergyFunction):
             forces[i] = (-1.0) * grad.reshape(-1, 3)
             stress[i] = 0.0
         return {'energy': energy, 'forces': forces, 'stress': stress}
+
+
+@staticmethod
+def sort_outputs(
+    outputs_: list[str],
+    **kwargs,
+) -> list[np.ndarray]:
+    output_arrays = []
+    for name in outputs_:
+        array = kwargs.get(name, None)
+        assert array is not None
+        output_arrays.append(array)
+    return output_arrays
+
+
+def _apply(
+    arg: Union[Geometry, list[Geometry], None],
+    outputs_: tuple[str, ...],
+    inputs: list = [],
+    function_cls: Optional[Type[Function]] = None,
+    **parameters,
+) -> Optional[list[np.ndarray]]:
+    from psiflow.data.utils import _read_frames
+    assert function_cls is not None
+    if arg is None:
+        states = _read_frames(inputs=[inputs[0]])
+    elif not isinstance(arg, list):
+        states = [arg]
+    else:
+        states = arg
+    function = function_cls(**parameters)
+    output_dict = function(states)
+    output_arrays = sort_outputs(outputs_, **output_dict)
+    return output_arrays

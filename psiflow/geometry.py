@@ -8,6 +8,7 @@ import typeguard
 from ase import Atoms
 from ase.data import atomic_masses, chemical_symbols
 from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
+from parsl.app.app import python_app
 
 from psiflow.utils import resolve_and_check
 
@@ -161,6 +162,9 @@ class Geometry:
         with open(path_xyz, "w") as f:
             f.write(self.to_string())
 
+    def copy(self) -> Geometry:
+        return Geometry.from_string(self.to_string())
+
     @classmethod
     def from_string(cls, s: str, natoms: Optional[int] = None) -> Optional[Geometry]:
         if len(s) == 0:
@@ -224,6 +228,13 @@ class Geometry:
             return None
         else:
             return self.energy / len(self)
+
+    @property
+    def volume(self):
+        if not self.periodic:
+            return np.nan
+        else:
+            return np.linalg.det(self.cell)
 
     @classmethod
     def from_data(
@@ -411,3 +422,30 @@ def create_outputs(quantities: list[str], data: list[Geometry]) -> list[np.ndarr
             raise AssertionError("missing quantity in if/else")
         arrays.append(array)
     return arrays
+
+
+def _assign_identifier(
+    state: Geometry,
+    identifier: int,
+    discard: bool = False,
+) -> tuple[Geometry, int]:
+    if (state == NullState) or discard:
+        return state, identifier
+    else:
+        assert state.identifier is None
+        state.identifier = identifier
+        return state, identifier + 1
+
+
+assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _check_equality(
+    state0: Geometry,
+    state1: Geometry,
+) -> bool:
+    return state0 == state1
+
+
+check_equality = python_app(_check_equality, executors=["default_threads"])

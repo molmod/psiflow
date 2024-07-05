@@ -9,16 +9,14 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import (
-    Dataset,
+from psiflow.data import Dataset, compute_rmse
+from psiflow.data.utils import (
     _read_frames,
     _write_frames,
-    check_equality,
-    compute_rmse,
     get_index_element_mask,
     read_frames,
 )
-from psiflow.geometry import Geometry, NullState
+from psiflow.geometry import Geometry, NullState, check_equality
 
 
 def test_geometry(tmp_path):
