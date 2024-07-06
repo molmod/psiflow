@@ -83,7 +83,7 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     # it with the manually computed value
     training = dataset[:-5]
     validation = dataset[-5:]
-    mace_config["start_swa"] = 1000
+    mace_config["start_swa"] = 100
     model = MACE(**mace_config)
     model.initialize(training)
     hamiltonian0 = model.create_hamiltonian()

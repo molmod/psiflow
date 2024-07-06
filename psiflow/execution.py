@@ -372,7 +372,7 @@ class ExecutionContext:
         path: Optional[Union[str, Path]] = None,
         parsl_log_level: str = "WARNING",
         usage_tracking: bool = True,
-        retries: int = 0,
+        retries: int = 2,
         strategy: str = "simple",
         max_idletime: float = 20,
         internal_tasks_max_threads: int = 10,

@@ -318,6 +318,25 @@ def insert_data_start(input_xml, data_start):
             initialize.text = "start_INDEX.xyz"
 
 
+def anisotropic_barostat_h0(input_xml, data_start):
+    path = "system_template/template/system/motion/dynamics/barostat"
+    barostat = input_xml.find(path)
+    if barostat is not None and (barostat.attrib["mode"] == "anisotropic"):
+        h0 = ET.SubElement(barostat, "h0", shape="(3, 3)", units="angstrom")
+        cell = np.array(data_start[0].cell)
+        cell = cell.flatten(order="F")
+        h0.text = " [ {} ] ".format(" , ".join([str(a) for a in cell]))
+
+        path = "system_template/template/system/ensemble"
+        ensemble = input_xml.find(path)
+        assert ensemble is not None
+        pressure = ensemble.find("pressure")
+        if pressure is not None:
+            ensemble.remove(pressure)
+            stress = ET.SubElement(ensemble, "stress", units="megapascal")
+            stress.text = " [ PRESSURE, 0, 0, 0, PRESSURE, 0, 0, 0, PRESSURE ] "
+
+
 def start(args):
     data_start = read(args.start_xyz, index=":")
     assert len(data_start) == args.nwalkers
@@ -333,6 +352,7 @@ def start(args):
 
     insert_data_start(input_xml, data_start)
     insert_addresses(input_xml)
+    anisotropic_barostat_h0(input_xml, data_start)
     with open("input.xml", "wb") as f:
         f.write(ET.tostring(input_xml, encoding="utf-8"))
 
@@ -367,16 +387,26 @@ def cleanup(args):
         i = 0
         while True:
             assert i <= len(states)
-            path = Path("walker-{}_output.trajectory_0.ase".format(i))
-            if path.exists() and not states[i].periodic:  # load and replace cell
-                traj = read(path, index=":", format="xyz")
-                path.unlink()
+            # try all formattings of bead index (i-PI inconsistency)
+            paths = [
+                Path("walker-{}_output.trajectory_0.ase".format(i)),
+                Path("walker-{}_output.trajectory_00.ase".format(i)),
+                Path("walker-{}_output.trajectory_000.ase".format(i)),
+                Path("walker-{}_output.trajectory_0000.ase".format(i)),
+            ]
+            path = None
+            for path in paths:
+                if path.exists():
+                    break
+            if path is None:
+                break
+            traj = read(path, index=":", format="xyz")
+            path.unlink()
+            if not states[i].periodic:  # load and replace cell
                 for atoms in traj:
                     atoms.pbc = False
                     atoms.cell = None
-                write(path, traj, format="xyz")
-            else:
-                break
+            write(paths[0], traj, format="xyz")  # always the same path
             i += 1
 
 

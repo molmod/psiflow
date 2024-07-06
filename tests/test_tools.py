@@ -2,8 +2,13 @@ import numpy as np
 from ase.units import _c, second
 
 from psiflow.hamiltonians import EinsteinCrystal, get_mace_mp0
+<<<<<<< HEAD
 from psiflow.sampling import optimize, optimize_dataset
 from psiflow.free_energy.phonons import compute_harmonic, compute_frequencies, harmonic_free_energy
+=======
+from psiflow.hamiltonians._harmonic import compute_frequencies, harmonic_free_energy
+from psiflow.tools import compute_harmonic, optimize, optimize_dataset
+>>>>>>> main
 
 
 def test_optimize(dataset):

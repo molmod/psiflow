@@ -752,11 +752,16 @@ def run(rank: int, args: argparse.Namespace, world_size: int) -> None:
     }
 
     for swa_eval in swas:
-        epoch = checkpoint_handler.load_latest(
-            state=tools.CheckpointState(model, optimizer, lr_scheduler),
-            swa=swa_eval,
-            device=device,
-        )
+        try:
+            epoch = checkpoint_handler.load_latest(
+                state=tools.CheckpointState(model, optimizer, lr_scheduler),
+                swa=swa_eval,
+                device=device,
+            )
+        except BaseException as e:
+            print('failed to load checkpoint for swa:{}'.format(swa_eval))
+            print(e)
+            continue
         model.to(device)
         if args.distributed:
             distributed_model = DDP(model, device_ids=[local_rank])

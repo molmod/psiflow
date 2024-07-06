@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "ase >= 3.23.0",
     "pyyaml>=6.0",
-    "numpy>=1.22.3",
+    "numpy>=1.22.3,<2",
     "parsl @ git+https://github.com/parsl/parsl.git@benc-sander-paper",
     "prettytable",
     "psutil",

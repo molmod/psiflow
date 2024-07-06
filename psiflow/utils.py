@@ -57,12 +57,11 @@ def setup_logger(module_name):
     return module_logger
 
 
-@typeguard.typechecked
-def _sum_integers(a: int, b: int) -> int:
-    return a + b
+def _compute_sum(a, b):
+    return np.add(a, b)
 
 
-sum_integers = python_app(_sum_integers, executors=["default_threads"])
+compute_sum = python_app(_compute_sum, executors=["default_threads"])
 
 
 @typeguard.typechecked

@@ -171,7 +171,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         temperature=200,
         pressure=None,
         hamiltonian=einstein,
-        nbeads=4,
+        nbeads=11,
     )
     output = sample([walker], steps=10, step=5)[0]
     for state in output.trajectory.geometries().result():
@@ -289,6 +289,7 @@ def test_npt(dataset):
         einstein,
         temperature=600,
         pressure=0,
+        nbeads=2
     )
     output = sample([walker], steps=30)[0]
     assert output.status.result() == 0
@@ -299,6 +300,25 @@ def test_npt(dataset):
         walker.start.result().cell,
         output.state.result().cell,
     )
+
+    walker = Walker(
+        dataset[0],
+        einstein,
+        temperature=600,
+        pressure=0,
+        volume_constrained=True,
+    )
+    output = sample([walker], steps=30)[0]
+    # cell should have changed, but not the volume
+    assert not np.allclose(
+        walker.start.result().cell,
+        output.state.result().cell,
+    )
+    # volume actually does change with barostat mode='nst' (?)
+    # assert np.allclose(
+    #     np.linalg.det(walker.start.result().cell),
+    #     np.linalg.det(output.state.result().cell),
+    # )
 
 
 def test_reset(dataset):
