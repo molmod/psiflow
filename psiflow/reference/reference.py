@@ -47,7 +47,7 @@ def evaluate_multiple(
     inputs: list = [],
     outputs: list = [],
 ):
-    from psiflow.data import _read_frames, write_frames
+    from psiflow.data.utils import _read_frames, write_frames
 
     assert len(outputs) == 1
     assert len(inputs) == 1
