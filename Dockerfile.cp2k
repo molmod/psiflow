@@ -1,7 +1,7 @@
 #
 # This file was created by generate_docker_files.py
 #
-# Usage: docker build -f ./2023.2_openmpi_generic_psmp.Dockerfile -t cp2k/cp2k:2023.2_openmpi_generic_psmp .
+# Usage: docker build -f ./2024.1_mpich_generic_psmp.Dockerfile -t cp2k/cp2k:2024.1_mpich_generic_psmp .
 
 # Stage 1: build step
 FROM ubuntu:22.04 AS build
@@ -9,22 +9,22 @@ FROM ubuntu:22.04 AS build
 
 # Install packages required for the CP2K toolchain build
 RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
-    g++ gcc gfortran openssh-client python3 \
+    g++ gcc gfortran libmpich-dev mpich openssh-client python3 \
     bzip2 ca-certificates git make patch pkg-config unzip wget zlib1g-dev
 
 # Download CP2K
-RUN git clone --recursive -b support/v2023.2 https://github.com/cp2k/cp2k.git /opt/cp2k
+RUN git clone --recursive -b support/v2024.1 https://github.com/cp2k/cp2k.git /opt/cp2k
 
 # Build CP2K toolchain for target CPU generic
 WORKDIR /opt/cp2k/tools/toolchain
 RUN /bin/bash -c -o pipefail \
-    "./install_cp2k_toolchain.sh -j 8 \
+    "./install_cp2k_toolchain.sh -j 12 \
      --install-all \
      --enable-cuda=no \
      --target-cpu=generic \
      --with-cusolvermp=no \
      --with-gcc=system \
-     --with-openmpi=install \
+     --with-mpich=system \
      --with-libtorch=no"
 
 # Build CP2K for target CPU generic
@@ -32,7 +32,7 @@ WORKDIR /opt/cp2k
 RUN /bin/bash -c -o pipefail \
     "cp ./tools/toolchain/install/arch/local.psmp ./arch/; \
      source ./tools/toolchain/install/setup; \
-     make -j 8 ARCH=local VERSION=psmp"
+     make -j 12 ARCH=local VERSION=psmp"
 
 # Collect components for installation and remove symbolic links
 RUN /bin/bash -c -o pipefail \
@@ -52,7 +52,7 @@ FROM ubuntu:22.04 AS install
 
 # Install required packages
 RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
-    g++ gcc gfortran openssh-client python3 && rm -rf /var/lib/apt/lists/*
+    g++ gcc gfortran libmpich-dev mpich openssh-client python3 && rm -rf /var/lib/apt/lists/*
 
 # Install CP2K binaries
 COPY --from=build /opt/cp2k/exe/local/ /opt/cp2k/exe/local/
@@ -83,9 +83,6 @@ RUN /bin/bash -c -o pipefail \
 RUN printf "#!/bin/bash\n\
 ulimit -c 0 -s unlimited\n\
 \
-export OMPI_ALLOW_RUN_AS_ROOT=1\n\
-export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1\n\
-export OMPI_MCA_btl_vader_single_copy_mechanism=none\n\
 export OMP_STACKSIZE=16M\n\
 export PATH=/opt/cp2k/exe/local:\${PATH}\n\
 source /opt/cp2k/tools/toolchain/install/setup\n\
@@ -93,7 +90,7 @@ source /opt/cp2k/tools/toolchain/install/setup\n\
 >/opt/entry.sh && chmod 755 /opt/entry.sh
 
 # Create shortcut for regression test
-RUN printf "/opt/cp2k/tools/regtesting/do_regtest.py --mpiexec \"mpiexec --bind-to none\" --maxtasks 8 --workbasedir /mnt \$* local psmp" \
+RUN printf "/opt/cp2k/tests/do_regtest.py --maxtasks 8 --workbasedir /mnt \$* local psmp" \
 >/usr/local/bin/run_tests && chmod 755 /usr/local/bin/run_tests
 
 # Define entrypoint
@@ -103,7 +100,7 @@ CMD ["cp2k", "--help"]
 
 # Label docker image
 LABEL author="CP2K Developers" \
-      cp2k_version="2023.2" \
+      cp2k_version="2024.1" \
       dockerfile_generator_version="0.2"
 
 # EOF

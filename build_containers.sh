@@ -67,7 +67,7 @@ if [ "$psiflow" = "true" ]; then
 fi
 
 if [ "$cp2k" = "true" ]; then
-	TAG="cp2k:2023.2"
+	TAG="cp2k:2024.1"
 	docker build \
 		-t ghcr.io/molmod/$TAG \
 		-f Dockerfile.cp2k .
