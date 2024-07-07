@@ -13,13 +13,13 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
+from psiflow.sampling.optimize import setup_sockets
 from psiflow.sampling.output import (
     DEFAULT_OBSERVABLES,
     SimulationOutput,
     potential_component_names,
 )
 from psiflow.sampling.walker import Coupling, Walker, partition
-from psiflow.sampling.optimize import setup_sockets
 from psiflow.utils import save_xml
 
 

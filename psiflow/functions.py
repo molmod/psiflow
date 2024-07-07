@@ -1,16 +1,16 @@
 import os
 import tempfile
-from pathlib import Path
-from typing import Optional, ClassVar, Union, Type
 from dataclasses import dataclass
+from pathlib import Path
+from typing import ClassVar, Optional, Type, Union
 
-from ase.units import kJ, mol, nm, fs
-from ase.data import atomic_masses, chemical_symbols
-from ase import Atoms
-import typeguard
 import numpy as np
+import typeguard
+from ase import Atoms
+from ase.data import atomic_masses, chemical_symbols
+from ase.units import fs, kJ, mol, nm
 
-from psiflow.geometry import Geometry, create_outputs, NullState
+from psiflow.geometry import Geometry, NullState, create_outputs
 
 
 @typeguard.typechecked
@@ -27,7 +27,7 @@ class Function:
 
 @dataclass
 class EnergyFunction(Function):
-    outputs: ClassVar[tuple[str, ...]] = ('energy', 'forces', 'stress')
+    outputs: ClassVar[tuple[str, ...]] = ("energy", "forces", "stress")
 
 
 @typeguard.typechecked
@@ -51,8 +51,8 @@ class EinsteinCrystalFunction(EnergyFunction):
                 continue
 
             delta = geometry.per_atom.positions - self.centers
-            value[i] = self.force_constant * np.sum(delta ** 2) / 2
-            grad_pos[i, :len(geometry)] = (-1.0) * self.force_constant * delta
+            value[i] = self.force_constant * np.sum(delta**2) / 2
+            grad_pos[i, : len(geometry)] = (-1.0) * self.force_constant * delta
             if geometry.periodic and self.volume > 0.0:
                 delta = np.linalg.det(geometry.cell) - self.volume
                 _stress = self.force_constant * np.eye(3) * delta
@@ -60,7 +60,7 @@ class EinsteinCrystalFunction(EnergyFunction):
                 _stress = np.zeros((3, 3))
             grad_cell[i, :] = _stress
 
-        return {'energy': value, 'forces': grad_pos, 'stress': grad_cell}
+        return {"energy": value, "forces": grad_pos, "stress": grad_cell}
 
 
 @typeguard.typechecked
@@ -92,6 +92,7 @@ class PlumedFunction(EnergyFunction):
             key = geometry_to_key(geometry)
             if key not in plumed_instances:
                 from plumed import Plumed
+
                 tmp = tempfile.NamedTemporaryFile(
                     prefix="plumed_", mode="w+", delete=False
                 )
@@ -140,9 +141,9 @@ class PlumedFunction(EnergyFunction):
                 stress = np.zeros((3, 3))
 
             value[i] = float(energy.item())
-            grad_pos[i, :len(geometry)] = forces
+            grad_pos[i, : len(geometry)] = forces
             grad_cell[i] = stress
-        return {'energy': value, 'forces': grad_pos, 'stress': grad_cell}
+        return {"energy": value, "forces": grad_pos, "stress": grad_cell}
 
 
 @typeguard.typechecked
@@ -160,9 +161,9 @@ class ZeroFunction(EnergyFunction):
             if geometry == NullState:
                 continue
             energy[i] = 0.0
-            forces[i, :len(geometry)] = 0.0
+            forces[i, : len(geometry)] = 0.0
             stress[i, :] = 0.0
-        return {'energy': energy, 'forces': forces, 'stress': stress}
+        return {"energy": energy, "forces": forces, "stress": stress}
 
 
 @typeguard.typechecked
@@ -185,7 +186,7 @@ class HarmonicFunction(EnergyFunction):
                 energy[i] += self.energy
             forces[i] = (-1.0) * grad.reshape(-1, 3)
             stress[i] = 0.0
-        return {'energy': energy, 'forces': forces, 'stress': stress}
+        return {"energy": energy, "forces": forces, "stress": stress}
 
 
 @typeguard.typechecked
@@ -199,12 +200,13 @@ class MACEFunction(EnergyFunction):
 
     def __post_init__(self):
         import logging
+
         import torch
         from mace.tools import torch_tools, utils
 
         torch.set_num_threads(self.ncores)
-        model = torch.load(f=self.model_path, map_location='cpu')
-        if self.dtype == 'float64':
+        model = torch.load(f=self.model_path, map_location="cpu")
+        if self.dtype == "float64":
             model = model.double()
         model.to(self.device)
         model.eval()
@@ -233,8 +235,8 @@ class MACEFunction(EnergyFunction):
         return total
 
     def __call__(self, geometries: list[Geometry]) -> dict[str, np.ndarray]:
-        from mace.tools import torch_geometric
         from mace import data
+        from mace.tools import torch_geometric
 
         energy, forces, stress = create_outputs(self.outputs, geometries)
 
@@ -273,11 +275,11 @@ class MACEFunction(EnergyFunction):
             compute_stress = cell is not None
             out = self.model(batch.to_dict(), compute_stress=compute_stress)
 
-            energy[i] += out['energy'].detach().cpu().item()
-            forces[i, :len(geometry)] = out['forces'].detach().cpu().numpy()
+            energy[i] += out["energy"].detach().cpu().item()
+            forces[i, : len(geometry)] = out["forces"].detach().cpu().numpy()
             if cell is not None:
-                stress[i, :] = out['stress'].detach().cpu().numpy()
-        return {'energy': energy, 'forces': forces, 'stress': stress}
+                stress[i, :] = out["stress"].detach().cpu().numpy()
+        return {"energy": energy, "forces": forces, "stress": stress}
 
 
 @staticmethod
@@ -302,6 +304,7 @@ def _apply(
     **parameters,
 ) -> Optional[list[np.ndarray]]:
     from psiflow.data.utils import _read_frames
+
     assert function_cls is not None
     if arg is None:
         states = _read_frames(inputs=[inputs[0]])

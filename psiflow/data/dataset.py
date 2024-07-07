@@ -2,38 +2,37 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 import math
 from pathlib import Path
-from typing import Optional, Union, ClassVar, Callable
+from typing import Callable, ClassVar, Optional, Union
 
-import typeguard
 import numpy as np
+import typeguard
+from parsl.app.app import join_app, python_app
+from parsl.app.python import PythonApp
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-from parsl.app.app import python_app, join_app
-from parsl.app.python import PythonApp
 
 import psiflow
-from psiflow.geometry import Geometry, QUANTITIES
-from psiflow.utils import copy_data_future, resolve_and_check, unpack_i, \
-    combine_futures
+from psiflow.geometry import QUANTITIES, Geometry
+from psiflow.utils import combine_futures, copy_data_future, resolve_and_check, unpack_i
 
 from .utils import (
-    write_frames,
-    read_frames,
-    extract_quantities,
-    insert_quantities,
-    assign_identifiers,
-    join_frames,
-    count_frames,
-    reset_frames,
-    clean_frames,
-    apply_offset,
-    get_elements,
     align_axes,
-    not_null,
     app_filter,
-    shuffle,
+    apply_offset,
+    assign_identifiers,
     batch_frames,
+    clean_frames,
+    count_frames,
+    extract_quantities,
+    get_elements,
     get_train_valid_indices,
+    insert_quantities,
+    join_frames,
+    not_null,
+    read_frames,
+    reset_frames,
+    shuffle,
+    write_frames,
 )
 
 
@@ -184,8 +183,8 @@ class Dataset:
             quantities=computable.outputs,
             arrays=combine_futures(inputs=outputs),
             inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file('data_', '.xyz')],
-            )
+            outputs=[psiflow.context().new_file("data_", ".xyz")],
+        )
         return Dataset(None, future.outputs[0])
 
     def filter(
@@ -256,7 +255,7 @@ def _concatenate_multiple(*args: list[np.ndarray]) -> list[np.ndarray]:
     return concatenated
 
 
-concatenate_multiple = python_app(_concatenate_multiple, executors=['default_threads'])
+concatenate_multiple = python_app(_concatenate_multiple, executors=["default_threads"])
 
 
 @typeguard.typechecked
@@ -276,7 +275,7 @@ def _aggregate_multiple(
     return results
 
 
-aggregate_multiple = python_app(_aggregate_multiple, executors=['default_threads'])
+aggregate_multiple = python_app(_aggregate_multiple, executors=["default_threads"])
 
 
 @join_app
@@ -296,7 +295,7 @@ def batch_apply(
     output_futures = []
     for i in range(nbatches):
         futures = []
-        for j, app in enumerate(apply_apps):
+        for app in apply_apps:
             f = app(
                 None,
                 inputs=[future.outputs[i]],
@@ -309,7 +308,7 @@ def batch_apply(
     return future
 
 
-@python_app(executors=['default_threads'])
+@python_app(executors=["default_threads"])
 def get_length(arg):
     if isinstance(arg, list):
         return len(arg)
@@ -340,7 +339,7 @@ def compute(
             batch_size,
             length,
             outputs_=outputs_,
-            reduce_func=reduce_func
+            reduce_func=reduce_func,
         )
     else:
         futures = []

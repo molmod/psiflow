@@ -1,5 +1,5 @@
-import os
 import argparse
+import os
 from pathlib import Path
 
 from psiflow.hamiltonians import deserialize_calculator
@@ -10,7 +10,7 @@ from psiflow.hamiltonians.utils import ForceMagnitudeException
 
 
 if __name__ == "__main__":
-    print('OS environment values:')
+    print("OS environment values:")
     for key, value in os.environ.items():
         print(key, value)
     parser = argparse.ArgumentParser()
@@ -60,10 +60,11 @@ if __name__ == "__main__":
         dtype=args.dtype,
         max_force=args.max_force,
     )
-    import torch
     import psutil
-    print('torch num threads: ', torch.get_num_threads())
-    print('cpu count: ', psutil.cpu_count(logical=False))
+    import torch
+
+    print("torch num threads: ", torch.get_num_threads())
+    print("cpu count: ", psutil.cpu_count(logical=False))
 
     try:
         run_driver(

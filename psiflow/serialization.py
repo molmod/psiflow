@@ -3,7 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import inspect
 import json
 from pathlib import Path
-from typing import Optional, Union, get_args, get_origin, get_type_hints, ClassVar
+from typing import ClassVar, Optional, Union, get_args, get_origin, get_type_hints
 
 import typeguard
 from parsl.app.app import python_app
@@ -255,21 +255,16 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         EinsteinCrystal,
         Harmonic,
         MACEHamiltonian,
-        PlumedHamiltonian,
         MixtureHamiltonian,
+        PlumedHamiltonian,
         Zero,
     )
-    from psiflow.order_parameters import OrderParameter
     from psiflow.learning import Learning
     from psiflow.metrics import Metrics
     from psiflow.models import MACE
+    from psiflow.order_parameters import OrderParameter
     from psiflow.reference import CP2K, EMT
-    from psiflow.sampling import (
-        Metadynamics,
-        ReplicaExchange,
-        SimulationOutput,
-        Walker,
-    )
+    from psiflow.sampling import Metadynamics, ReplicaExchange, SimulationOutput, Walker
 
     SERIALIZABLES = {}
     if custom_cls is None:

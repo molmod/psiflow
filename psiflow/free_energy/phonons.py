@@ -6,7 +6,7 @@ from typing import Optional, Union
 import numpy as np
 import parsl
 import typeguard
-from ase.units import J, _c, _hplanck, _k, kB, second, Bohr, Ha
+from ase.units import Bohr, Ha, J, _c, _hplanck, _k, kB, second
 from parsl.app.app import bash_app, python_app
 from parsl.dataflow.futures import AppFuture
 

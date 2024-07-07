@@ -5,10 +5,19 @@ from ase.units import kJ, mol
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.functions import EinsteinCrystalFunction, PlumedFunction, \
-    HarmonicFunction, MACEFunction
-from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, Harmonic, \
-    Zero, MixtureHamiltonian
+from psiflow.functions import (
+    EinsteinCrystalFunction,
+    PlumedFunction,
+    HarmonicFunction,
+    MACEFunction,
+)
+from psiflow.hamiltonians import (
+    EinsteinCrystal,
+    PlumedHamiltonian,
+    Harmonic,
+    Zero,
+    MixtureHamiltonian,
+)
 from psiflow.tools.plumed import set_path_in_plumed, remove_comments_printflush
 from psiflow.utils import dump_json, copy_app_future
 
@@ -27,12 +36,14 @@ def test_einstein_crystal(dataset):
     assert energy[0] == 0
     assert np.allclose(  # forces point to centers
         forces,
-        function.centers.reshape(1, -1, 3) - dataset[:4].get('positions').result(),
+        function.centers.reshape(1, -1, 3) - dataset[:4].get("positions").result(),
     )
     assert geometries[0].energy is None
     hamiltonian = EinsteinCrystal(dataset[0], force_constant=1.0)
 
-    forces_, stress_, energy_ = hamiltonian.compute(dataset[:4], outputs=['forces', 'stress', 'energy'])
+    forces_, stress_, energy_ = hamiltonian.compute(
+        dataset[:4], outputs=["forces", "stress", "energy"]
+    )
     assert np.allclose(
         energy_.result(),
         energy,
@@ -42,7 +53,7 @@ def test_einstein_crystal(dataset):
         forces,
     )
 
-    forces = hamiltonian.compute(dataset[:4], outputs=['forces'], batch_size=3)
+    forces = hamiltonian.compute(dataset[:4], outputs=["forces"], batch_size=3)
     assert np.allclose(
         forces.result(),
         forces_.result(),
@@ -58,7 +69,7 @@ def test_einstein_force(dataset):
             for sign in [+1, -1]:
                 geometry = reference.copy()
                 geometry.per_atom.positions[i, j] += sign * delta
-                forces = einstein.compute(geometry, 'forces').result()
+                forces = einstein.compute(geometry, "forces").result()
                 assert np.sign(forces[0, i, j]) == (-1.0) * sign
                 forces[0, i, j] = 0.0
                 assert np.allclose(forces, 0.0)
@@ -102,15 +113,15 @@ CV: BIASVALUE arg=D1
     outputs = function(data.geometries().result())
 
     f = 1 / (kJ / mol) * 10  # eV --> kJ/mol and nm --> A
-    positions = data.get('positions').result()
+    positions = data.get("positions").result()
     manual = np.linalg.norm(positions[:, 0, :] - positions[:, 1, :], axis=1)
     assert np.allclose(
-        outputs['energy'] * f,
+        outputs["energy"] * f,
         manual,
     )
     gradient = (positions[:, 0, :] - positions[:, 1, :]) / manual.reshape(-1, 1)
     assert np.allclose(
-        outputs['forces'][:, 0, :] * f,
+        outputs["forces"][:, 0, :] * f,
         gradient * (-1.0),
     )
 
@@ -122,7 +133,7 @@ RESTRAINT ARG=CV AT=50 KAPPA=1
     function = PlumedFunction(plumed_input)
     energy, forces, stress = function(dataset.geometries().result()).values()
 
-    volumes = np.linalg.det(dataset.get('cell').result())
+    volumes = np.linalg.det(dataset.get("cell").result())
     energy_ = (volumes - 50) ** 2 * (kJ / mol) / 2
     assert np.allclose(
         energy,
@@ -155,11 +166,11 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     hamiltonian = PlumedHamiltonian(plumed_input, File(path_hills))
 
     nstates = 10
-    positions = dataset[:nstates].get('positions').result()
+    positions = dataset[:nstates].get("positions").result()
     distance = np.linalg.norm(positions[:, 0, :] - positions[:, 1, :], axis=1)
     distance = distance.reshape(-1, 1)
 
-    energy = hamiltonian.compute(dataset[:10], ['energy']).result()
+    energy = hamiltonian.compute(dataset[:10], ["energy"]).result()
 
     sigma = 2 * np.ones((1, 2))
     height = np.array([70, 70]).reshape(1, -1) * (kJ / mol)  # unit consistency
@@ -193,7 +204,7 @@ def test_harmonic_function(dataset):
     assert np.allclose(forces_, forces)
 
     harmonic = Harmonic(dataset[0], np.eye(3 * len(reference)))
-    assert Harmonic.outputs == ('energy', 'forces', 'stress')
+    assert Harmonic.outputs == ("energy", "forces", "stress")
 
     energy, forces, _ = harmonic.compute(dataset[:10])
     assert np.allclose(energy.result() - reference.energy, energy_, atol=1e-5)
@@ -219,8 +230,8 @@ def test_hamiltonian_arithmetic(dataset):
     actually_scaled = EinsteinCrystal(dataset[0], force_constant=0.5)
     assert scaled.get_coefficient(actually_scaled) is None
 
-    energy_scaled = scaled.compute(dataset[:10], 'energy')
-    energy_actually = actually_scaled.compute(dataset[:10], 'energy')
+    energy_scaled = scaled.compute(dataset[:10], "energy")
+    energy_actually = actually_scaled.compute(dataset[:10], "energy")
     assert np.allclose(energy_scaled.result(), energy_actually.result())
 
     energy, forces, _ = hamiltonian.compute(dataset[:10])
@@ -313,7 +324,7 @@ def test_evaluate(dataset):
         hamiltonian,
         batch_size=2,
     )
-    energy = hamiltonian.compute(evaluated, 'energy')
+    energy = hamiltonian.compute(evaluated, "energy")
     for i, geometry in enumerate(evaluated.geometries().result()):
         assert not np.all(np.isnan(geometry.per_atom.forces))
         assert np.allclose(geometry.energy, energy.result()[i])
@@ -355,21 +366,21 @@ def test_mace_function(dataset, mace_model):
     mace_model.model_future.result()
     function = MACEFunction(
         model_path,
-        device='cpu',
-        dtype='float32',
+        device="cpu",
+        dtype="float32",
         atomic_energies={},
     )
     output = function(dataset[:1].geometries().result())
-    energy = output['energy']
+    energy = output["energy"]
 
     function = MACEFunction(
         model_path,
-        device='cpu',
-        dtype='float32',
-        atomic_energies={'Cu': 3, 'H': 11},
+        device="cpu",
+        dtype="float32",
+        atomic_energies={"Cu": 3, "H": 11},
     )
     output = function(dataset[:1].geometries().result())
-    energy_ = output['energy']
+    energy_ = output["energy"]
     assert np.allclose(
         energy + 11 + 3 * 3,
         energy_,

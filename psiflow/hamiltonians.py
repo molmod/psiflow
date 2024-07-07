@@ -2,28 +2,34 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 from functools import partial
 from pathlib import Path
-from typing import Optional, Union, ClassVar
+from typing import ClassVar, Optional, Union
 
 import numpy as np
 import typeguard
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
-from parsl.dataflow.futures import AppFuture
 from parsl.data_provider.files import File
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
+from psiflow.data import Computable, Dataset, aggregate_multiple, compute
+from psiflow.functions import (
+    EinsteinCrystalFunction,
+    HarmonicFunction,
+    MACEFunction,
+    PlumedFunction,
+    ZeroFunction,
+    _apply,
+)
 from psiflow.geometry import Geometry
-from psiflow.data import Dataset, Computable, compute, aggregate_multiple
-from psiflow.functions import ZeroFunction, EinsteinCrystalFunction, PlumedFunction, \
-    HarmonicFunction, MACEFunction, _apply
-from psiflow.utils import copy_app_future, get_attribute, dump_json
 from psiflow.tools.plumed import remove_comments_printflush
+from psiflow.utils import copy_app_future, dump_json, get_attribute
 
 
 @typeguard.typechecked
 @psiflow.serializable
 class Hamiltonian(Computable):
-    outputs: ClassVar[tuple] = ('energy', 'forces', 'stress')
+    outputs: ClassVar[tuple] = ("energy", "forces", "stress")
     batch_size = 1000
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
@@ -60,7 +66,7 @@ class Hamiltonian(Computable):
 class Zero(Hamiltonian):
 
     def __init__(self):
-        apply_zero = python_app(_apply, executors=['default_threads'])
+        apply_zero = python_app(_apply, executors=["default_threads"])
         self.app = partial(apply_zero, function_cls=ZeroFunction)
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
@@ -201,7 +207,7 @@ class MixtureHamiltonian(Hamiltonian):
 class EinsteinCrystal(Hamiltonian):
     reference_geometry: Union[Geometry, AppFuture]
     force_constant: float
-    function_name: ClassVar[str] = 'EinsteinCrystalFunction'
+    function_name: ClassVar[str] = "EinsteinCrystalFunction"
 
     def __init__(
         self, geometry: Union[Geometry, AppFuture[Geometry]], force_constant: float
@@ -213,18 +219,16 @@ class EinsteinCrystal(Hamiltonian):
         self._create_apps()
 
     def _create_apps(self):
-        apply_app = python_app(_apply, executors=['default_threads'])
+        apply_app = python_app(_apply, executors=["default_threads"])
         self.app = partial(
-            apply_app,
-            function_cls=EinsteinCrystalFunction,
-            **self.parameters()
+            apply_app, function_cls=EinsteinCrystalFunction, **self.parameters()
         )
 
     def parameters(self) -> dict:
         return {
-            'force_constant': self.force_constant,
-            'centers': get_attribute(self.reference_geometry, 'per_atom', 'positions'),
-            'volume': get_attribute(self.reference_geometry, 'volume'),
+            "force_constant": self.force_constant,
+            "centers": get_attribute(self.reference_geometry, "per_atom", "positions"),
+            "volume": get_attribute(self.reference_geometry, "volume"),
         }
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
@@ -259,7 +263,7 @@ class PlumedHamiltonian(Hamiltonian):
         self._create_apps()
 
     def _create_apps(self):
-        apply_app = python_app(_apply, executors=['default_htex'])
+        apply_app = python_app(_apply, executors=["default_htex"])
         self.app = partial(
             apply_app,
             function_cls=PlumedFunction,
@@ -271,10 +275,7 @@ class PlumedHamiltonian(Hamiltonian):
             external = copy_app_future(self.external.filepath, inputs=[self.external])
         else:
             external = None
-        return {
-            'plumed_input': self.plumed_input,
-            'external': external
-        }
+        return {"plumed_input": self.plumed_input, "external": external}
 
     def __eq__(self, other: Hamiltonian) -> bool:
         if type(other) is not type(self):
@@ -300,7 +301,7 @@ class Harmonic(Hamiltonian):
         self._create_apps()
 
     def _create_apps(self):
-        apply_app = python_app(_apply, executors=['default_threads'])
+        apply_app = python_app(_apply, executors=["default_threads"])
         self.app = partial(
             apply_app,
             function_cls=HarmonicFunction,
@@ -308,12 +309,12 @@ class Harmonic(Hamiltonian):
         )
 
     def parameters(self) -> dict:
-        positions = get_attribute(self.reference_geometry, 'per_atom', 'positions')
-        energy = get_attribute(self.reference_geometry, 'energy')
+        positions = get_attribute(self.reference_geometry, "per_atom", "positions")
+        energy = get_attribute(self.reference_geometry, "energy")
         return {
-            'positions': positions,
-            'energy': energy,
-            'hessian': self.hessian,
+            "positions": positions,
+            "energy": energy,
+            "hessian": self.hessian,
         }
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
@@ -357,26 +358,28 @@ class MACEHamiltonian(Hamiltonian):
         self._create_apps()
 
     def _create_apps(self):
-        evaluation = psiflow.context().definitions['ModelEvaluation']
-        apply_app = python_app(_apply, executors=['ModelEvaluation'])
+        evaluation = psiflow.context().definitions["ModelEvaluation"]
+        apply_app = python_app(_apply, executors=["ModelEvaluation"])
         resources = evaluation.wq_resources(1)
 
         # execution-side parameters of function are not included in self.parameters()
-        device = 'gpu' if evaluation.gpu else 'cpu'
+        device = "gpu" if evaluation.gpu else "cpu"
         self.app = partial(
             apply_app,
             function_cls=MACEFunction,
             parsl_resource_specification=resources,
             ncores=evaluation.cores_per_worker,
             device=device,
-            dtype='float32',
+            dtype="float32",
             **self.parameters(),
         )
 
     def parameters(self) -> dict:
         return {
-            'model_path': copy_app_future(self.external.filepath, inputs=[self.external]),
-            'atomic_energies': self.atomic_energies,
+            "model_path": copy_app_future(
+                self.external.filepath, inputs=[self.external]
+            ),
+            "atomic_energies": self.atomic_energies,
         }
 
     def __eq__(self, hamiltonian) -> bool:

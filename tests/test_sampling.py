@@ -9,7 +9,7 @@ from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
 from psiflow.models import MACE
 from psiflow.sampling.metadynamics import Metadynamics
-#from psiflow.sampling.order import HamiltonianOrderParameter
+
 from psiflow.sampling.sampling import sample, template
 from psiflow.sampling.walker import (
     Walker,
@@ -284,13 +284,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
 
 def test_npt(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=1e-4)
-    walker = Walker(
-        dataset[0],
-        einstein,
-        temperature=600,
-        pressure=0,
-        nbeads=2
-    )
+    walker = Walker(dataset[0], einstein, temperature=600, pressure=0, nbeads=2)
     output = sample([walker], steps=30)[0]
     assert output.status.result() == 0
     assert output.trajectory is None
@@ -445,38 +439,6 @@ def test_rex(dataset):
     assert partition(walkers)[0][1] == 1
     assert partition(walkers)[1][0] == 2
     assert partition(walkers)[2][0] == 3
-
-
-def test_order_parameter(dataset):
-    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    plumed_str = """
-UNITS LENGTH=A ENERGY=kj/mol TIME=fs
-CV: VOLUME
-METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
-"""
-    order = HamiltonianOrderParameter.from_plumed(
-        name="CV",
-        hamiltonian=PlumedHamiltonian(plumed_input=plumed_str),
-    )
-    walker = Walker(
-        dataset[3],
-        temperature=300,
-        hamiltonian=einstein,
-        order_parameter=order,
-    )
-    simulation_output = sample([walker], steps=40)[0]
-    state = simulation_output.state.result()
-    CV = state.order["CV"]
-    assert state.energy is None
-    assert np.all(np.isnan(state.per_atom.forces))
-    assert np.allclose(CV, np.linalg.det(dataset[3].result().cell))
-
-    # test batch evaluation of order parameter
-    data = order.evaluate(dataset[:10], batch_size=5)
-    volumes = data.get("CV").result()
-    for i in range(10):
-        volume = np.linalg.det(dataset[i].result().cell)
-        assert np.allclose(volume, volumes[i])
 
 
 def test_walker_serialization(dataset, tmp_path):

@@ -8,7 +8,7 @@ from ase.data import atomic_numbers, chemical_symbols
 from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.geometry import Geometry, NullState, create_outputs, _assign_identifier
+from psiflow.geometry import Geometry, NullState, _assign_identifier, create_outputs
 from psiflow.utils import unpack_i
 
 
@@ -205,7 +205,7 @@ def _insert_quantities(
         _write_frames(*data, outputs=[outputs[0]])
 
 
-insert_quantities = python_app(_insert_quantities, executors=['default_threads'])
+insert_quantities = python_app(_insert_quantities, executors=["default_threads"])
 
 
 @typeguard.typechecked

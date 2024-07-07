@@ -14,8 +14,8 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, check_equality
 from psiflow.hamiltonians import Hamiltonian, Zero
-from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.order_parameters import OrderParameter
+from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils import copy_app_future
 
 

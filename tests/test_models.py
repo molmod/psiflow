@@ -39,7 +39,7 @@ def test_mace_init(mace_config, dataset):
     # create hamiltonian and verify addition of atomic energies
     hamiltonian = model.create_hamiltonian()
     assert hamiltonian == model.create_hamiltonian()
-    energies = hamiltonian.compute(dataset, 'energy').result()
+    energies = hamiltonian.compute(dataset, "energy").result()
 
     nstates = dataset.length().result()
     # energies = np.array([evaluated[i].result().energy for i in range(nstates)])
@@ -63,9 +63,9 @@ def test_mace_init(mace_config, dataset):
             evaluated.subtract_offset(Cu=energy_Cu, H=energy_H)[i].result().energy,
         )
 
-    energies = hamiltonian.compute(dataset, 'energy').result()
+    energies = hamiltonian.compute(dataset, "energy").result()
     second = psiflow.deserialize(psiflow.serialize(hamiltonian).result())
-    energies_ = second.compute(dataset, 'energy').result()
+    energies_ = second.compute(dataset, "energy").result()
     assert np.allclose(energies, energies_)
 
     hamiltonian = model.create_hamiltonian()

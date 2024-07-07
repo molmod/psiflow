@@ -633,8 +633,8 @@ def run(rank: int, args: argparse.Namespace, world_size: int) -> None:
                 swa=swa_eval,
                 device=device,
             )
-        except BaseException as e:
-            print('failed to load checkpoint for swa:{}'.format(swa_eval))
+        except BaseException as e:  # noqa: B036
+            print("failed to load checkpoint for swa:{}".format(swa_eval))
             print(e)
             continue
         model.to(device)
