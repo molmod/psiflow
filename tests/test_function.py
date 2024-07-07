@@ -5,7 +5,8 @@ from ase.units import kJ, mol
 from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.functions import EinsteinCrystalFunction, PlumedFunction, HarmonicFunction
+from psiflow.functions import EinsteinCrystalFunction, PlumedFunction, \
+    HarmonicFunction, MACEFunction
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, Harmonic, \
     Zero, MixtureHamiltonian
 from psiflow.tools.plumed import set_path_in_plumed, remove_comments_printflush
@@ -347,3 +348,29 @@ def test_json_dump():
     assert data_["e"] is False
     assert type(data_["b"]) is list
     assert type(data_["c"]) is list
+
+
+def test_mace_function(dataset, mace_model):
+    model_path = str(mace_model.model_future.filepath)
+    mace_model.model_future.result()
+    function = MACEFunction(
+        model_path,
+        device='cpu',
+        dtype='float32',
+        atomic_energies={},
+    )
+    output = function(dataset[:1].geometries().result())
+    energy = output['energy']
+
+    function = MACEFunction(
+        model_path,
+        device='cpu',
+        dtype='float32',
+        atomic_energies={'Cu': 3, 'H': 11},
+    )
+    output = function(dataset[:1].geometries().result())
+    energy_ = output['energy']
+    assert np.allclose(
+        energy + 11 + 3 * 3,
+        energy_,
+    )

@@ -6,6 +6,7 @@ from parsl.app.futures import DataFuture
 import psiflow
 from psiflow.data import compute_rmse
 from psiflow.models import MACE, load_model
+from psiflow.hamiltonians import MACEHamiltonian
 
 
 def test_mace_init(mace_config, dataset):
@@ -38,39 +39,35 @@ def test_mace_init(mace_config, dataset):
     # create hamiltonian and verify addition of atomic energies
     hamiltonian = model.create_hamiltonian()
     assert hamiltonian == model.create_hamiltonian()
-    evaluated = hamiltonian.evaluate(dataset)
+    energies = hamiltonian.compute(dataset, 'energy').result()
 
     nstates = dataset.length().result()
-    energies = np.array([evaluated[i].result().energy for i in range(nstates)])
+    # energies = np.array([evaluated[i].result().energy for i in range(nstates)])
     assert not np.any(np.allclose(energies, 0.0))
     energy_Cu = 3
     energy_H = 7
-    hamiltonian.atomic_energies = {
+    atomic_energies = {
         "Cu": energy_Cu,
         "H": energy_H,
     }
+    hamiltonian = MACEHamiltonian(
+        hamiltonian.external,
+        atomic_energies=atomic_energies,
+    )
     assert hamiltonian != model.create_hamiltonian()  # atomic energies
 
-    evaluated_ = hamiltonian.evaluate(dataset)
+    evaluated = dataset.evaluate(hamiltonian)
     for i in range(nstates):
         assert np.allclose(
             energies[i],
-            evaluated_.subtract_offset(Cu=energy_Cu, H=energy_H)[i].result().energy,
+            evaluated.subtract_offset(Cu=energy_Cu, H=energy_H)[i].result().energy,
         )
 
+    energies = hamiltonian.compute(dataset, 'energy').result()
     second = psiflow.deserialize(psiflow.serialize(hamiltonian).result())
-    evaluated = second.evaluate(dataset)
-    assert np.allclose(
-        evaluated.get("energy").result(),
-        evaluated_.get("energy").result(),
-    )
+    energies_ = second.compute(dataset, 'energy').result()
+    assert np.allclose(energies, energies_)
 
-    hamiltonian.atomic_energies = {"Cu": 0, "H": 0, "jasldfkjsadf": 0}
-    evaluated__ = hamiltonian.evaluate(dataset)
-    assert np.allclose(
-        energies.astype(np.float32),
-        evaluated__.get("energy").result().reshape(-1),
-    )
     hamiltonian = model.create_hamiltonian()
     model.reset()
     model.initialize(dataset[:3])

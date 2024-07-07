@@ -15,7 +15,7 @@ import psiflow
 from psiflow.geometry import Geometry
 from psiflow.data import Dataset, Computable, compute, aggregate_multiple
 from psiflow.functions import ZeroFunction, EinsteinCrystalFunction, PlumedFunction, \
-    HarmonicFunction, _apply
+    HarmonicFunction, MACEFunction, _apply
 from psiflow.utils import copy_app_future, get_attribute, dump_json
 from psiflow.tools.plumed import remove_comments_printflush
 
@@ -341,7 +341,58 @@ class Harmonic(Hamiltonian):
 @typeguard.typechecked
 @psiflow.serializable
 class MACEHamiltonian(Hamiltonian):
-    pass
+    external: psiflow._DataFuture
+    atomic_energies: dict[str, float]
+
+    def __init__(
+        self,
+        external: Union[Path, str, psiflow._DataFuture],
+        atomic_energies: dict[str, float],
+    ):
+        self.atomic_energies = atomic_energies
+        if type(external) in [str, Path]:
+            self.external = File(external)
+        else:
+            self.external = external
+        self._create_apps()
+
+    def _create_apps(self):
+        evaluation = psiflow.context().definitions['ModelEvaluation']
+        apply_app = python_app(_apply, executors=['ModelEvaluation'])
+        resources = evaluation.wq_resources(1)
+
+        # execution-side parameters of function are not included in self.parameters()
+        device = 'gpu' if evaluation.gpu else 'cpu'
+        self.app = partial(
+            apply_app,
+            function_cls=MACEFunction,
+            parsl_resource_specification=resources,
+            ncores=evaluation.cores_per_worker,
+            device=device,
+            dtype='float32',
+            **self.parameters(),
+        )
+
+    def parameters(self) -> dict:
+        return {
+            'model_path': copy_app_future(self.external.filepath, inputs=[self.external]),
+            'atomic_energies': self.atomic_energies,
+        }
+
+    def __eq__(self, hamiltonian) -> bool:
+        if type(hamiltonian) is not MACEHamiltonian:
+            return False
+        if self.external.filepath != hamiltonian.external.filepath:
+            return False
+        if len(self.atomic_energies) != len(hamiltonian.atomic_energies):
+            return False
+        for symbol, energy in self.atomic_energies:
+            if not np.allclose(
+                energy,
+                hamiltonian.atomic_energies[symbol],
+            ):
+                return False
+        return True
 
 
 def get_mace_mp0():

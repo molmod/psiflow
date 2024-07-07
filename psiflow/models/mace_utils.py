@@ -31,11 +31,9 @@ import mace
 import numpy as np
 import torch
 import torch.nn.functional
-from ase.calculators.calculator import Calculator, all_changes
-from ase.stress import full_3x3_to_voigt_6_stress
 from e3nn import o3
 from mace import data, modules, tools
-from mace.tools import torch_geometric, torch_tools, utils
+from mace.tools import torch_geometric
 from mace.tools.scripts_utils import (
     LRScheduler,
     create_error_table,
@@ -46,129 +44,6 @@ from mace.tools.scripts_utils import (
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim.swa_utils import SWALR, AveragedModel
 from torch_ema import ExponentialMovingAverage
-
-from psiflow.hamiltonians.utils import check_forces
-
-
-class MACECalculator(Calculator):
-    """MACE ASE Calculator"""
-
-    implemented_properties = ["energy", "free_energy", "forces", "stress"]
-
-    def __init__(
-        self,
-        model_path: str,
-        device: str,
-        dtype: str,
-        atomic_energies: dict[float, str],
-        energy_units_to_eV: float = 1.0,
-        length_units_to_A: float = 1.0,
-        max_force: Optional[float] = None,
-        **kwargs,
-    ):
-        Calculator.__init__(self, **kwargs)
-        self.results = {}
-
-        torch_tools.set_default_dtype(dtype)
-        self.device = torch_tools.init_device(device)
-
-        # remove unwanted streamhandler added by MACE / torch!
-        logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
-
-        self.energy_units_to_eV = energy_units_to_eV
-        self.length_units_to_A = length_units_to_A
-        self.model = torch.load(f=model_path, map_location=device)
-        if dtype == "float64":
-            self.model = self.model.double()
-        self.model.to(device)
-        self.model.eval()
-        self.r_max = float(self.model.r_max)
-        self.z_table = utils.AtomicNumberTable(
-            [int(z) for z in self.model.atomic_numbers]
-        )
-
-        # store atomic energies from psiflow in calculator
-        self.atomic_energies = atomic_energies
-        self.max_force = max_force
-
-    def get_atomic_energy(self, atoms):
-        total = 0
-        natoms = len(atoms)
-        for symbol in list(set(atoms.symbols)):
-            natoms_per_symbol = np.sum(np.array(atoms.symbols) == symbol)
-            if natoms_per_symbol == 0:
-                continue
-            total += natoms_per_symbol * self.atomic_energies[symbol]
-            natoms -= natoms_per_symbol
-        assert natoms == 0  # all atoms accounted for
-        return total
-
-    # pylint: disable=dangerous-default-value
-    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
-        """
-        Calculate properties.
-        :param atoms: ase.Atoms object
-        :param properties: [str], properties to be computed, used by ASE internally
-        :param system_changes: [str], system changes since last calculation, used by ASE internally
-        :return:
-        """
-        # call to base-class to set atoms attribute
-        Calculator.calculate(self, atoms)
-
-        # check that if atomic energies dict is non-empty, all chemical elements are present
-        symbols = list(set(atoms.symbols))
-        if len(self.atomic_energies) > 0:
-            assert np.all([s in self.atomic_energies for s in symbols])
-
-        # prepare data
-        config = data.config_from_atoms(atoms)
-        data_loader = torch_geometric.dataloader.DataLoader(
-            dataset=[
-                data.AtomicData.from_config(
-                    config, z_table=self.z_table, cutoff=self.r_max
-                )
-            ],
-            batch_size=1,
-            shuffle=False,
-            drop_last=False,
-        )
-        batch = next(iter(data_loader)).to(self.device)
-
-        # predict + extract data
-        out = self.model(batch.to_dict(), compute_stress=True)
-        energy = out["energy"].detach().cpu().item()
-        forces = out["forces"].detach().cpu().numpy()
-
-        # store results
-        E = energy * self.energy_units_to_eV
-
-        # add atomic energies if necessary
-        if len(self.atomic_energies) > 0:
-            atomic_energy = self.get_atomic_energy(atoms)
-            E += atomic_energy * self.energy_units_to_eV
-
-        if self.max_force is not None:
-            check_forces(
-                forces,
-                atoms,
-                self.max_force,
-            )
-        self.results = {
-            "energy": E,
-            "free_energy": E,
-            # force has units eng / len:
-            "forces": forces * (self.energy_units_to_eV / self.length_units_to_A),
-        }
-
-        # even though compute_stress is True, stress can be none if pbc is False
-        # not sure if correct ASE thing is to have no dict key, or dict key with value None
-        if out["stress"] is not None:
-            stress = out["stress"].detach().cpu().numpy()
-            # stress has units eng / len^3:
-            self.results["stress"] = (
-                stress * (self.energy_units_to_eV / self.length_units_to_A**3)
-            )[0]
-            self.results["stress"] = full_3x3_to_voigt_6_stress(self.results["stress"])
 
 
 class TimeoutException(Exception):

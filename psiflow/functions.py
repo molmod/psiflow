@@ -5,7 +5,8 @@ from typing import Optional, ClassVar, Union, Type
 from dataclasses import dataclass
 
 from ase.units import kJ, mol, nm, fs
-from ase.data import atomic_masses
+from ase.data import atomic_masses, chemical_symbols
+from ase import Atoms
 import typeguard
 import numpy as np
 
@@ -187,6 +188,98 @@ class HarmonicFunction(EnergyFunction):
         return {'energy': energy, 'forces': forces, 'stress': stress}
 
 
+@typeguard.typechecked
+@dataclass
+class MACEFunction(EnergyFunction):
+    model_path: str
+    ncores: int
+    device: str
+    dtype: str
+    atomic_energies: dict[str, float]
+
+    def __post_init__(self):
+        import logging
+        import torch
+        from mace.tools import torch_tools, utils
+
+        torch.set_num_threads(self.ncores)
+        model = torch.load(f=self.model_path, map_location='cpu')
+        if self.dtype == 'float64':
+            model = model.double()
+        model.to(self.device)
+        model.eval()
+        self.model = model
+        self.r_max = float(self.model.r_max)
+        self.z_table = utils.AtomicNumberTable(
+            [int(z) for z in self.model.atomic_numbers]
+        )
+
+        torch_tools.set_default_dtype(self.dtype)
+        self.device = torch_tools.init_device(self.device)
+        # remove unwanted streamhandler added by MACE / torch!
+        logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
+
+    def get_atomic_energy(self, geometry):
+        total = 0
+        natoms = len(geometry)
+        for number in list(set(geometry.per_atom.numbers)):
+            natoms_per_symbol = np.sum(geometry.per_atom.numbers == number)
+            if natoms_per_symbol == 0:
+                continue
+            symbol = chemical_symbols[number]
+            total += natoms_per_symbol * self.atomic_energies[symbol]
+            natoms -= natoms_per_symbol
+        assert natoms == 0  # all atoms accounted for
+        return total
+
+    def __call__(self, geometries: list[Geometry]) -> dict[str, np.ndarray]:
+        from mace.tools import torch_geometric
+        from mace import data
+
+        energy, forces, stress = create_outputs(self.outputs, geometries)
+
+        for i, geometry in enumerate(geometries):
+            if geometry == NullState:
+                continue
+
+            # compute offset if possible
+            if len(self.atomic_energies) > 0:
+                energy[i] = self.get_atomic_energy(geometry)
+            else:
+                energy[i] = 0.0
+
+            cell = None
+            if geometry.periodic:
+                cell = np.copy(geometry.cell)
+            atoms = Atoms(
+                positions=geometry.per_atom.positions,
+                numbers=geometry.per_atom.numbers,
+                cell=cell,
+                pbc=geometry.periodic,
+            )
+            config = data.config_from_atoms(atoms)
+            data_loader = torch_geometric.dataloader.DataLoader(
+                dataset=[
+                    data.AtomicData.from_config(
+                        config, z_table=self.z_table, cutoff=self.r_max
+                    )
+                ],
+                batch_size=1,
+                shuffle=False,
+                drop_last=False,
+            )
+            batch = next(iter(data_loader)).to(self.device)
+
+            compute_stress = cell is not None
+            out = self.model(batch.to_dict(), compute_stress=compute_stress)
+
+            energy[i] += out['energy'].detach().cpu().item()
+            forces[i, :len(geometry)] = out['forces'].detach().cpu().numpy()
+            if cell is not None:
+                stress[i, :] = out['stress'].detach().cpu().numpy()
+        return {'energy': energy, 'forces': forces, 'stress': stress}
+
+
 @staticmethod
 def sort_outputs(
     outputs_: list[str],
@@ -205,6 +298,7 @@ def _apply(
     outputs_: tuple[str, ...],
     inputs: list = [],
     function_cls: Optional[Type[Function]] = None,
+    parsl_resource_specification: dict = {},
     **parameters,
 ) -> Optional[list[np.ndarray]]:
     from psiflow.data.utils import _read_frames

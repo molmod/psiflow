@@ -114,9 +114,7 @@ def mace_model(mace_config):
     )
     geometry.energy = -1.0
     geometry.per_atom.forces[:] = np.random.uniform(size=(2, 3))
-    # atoms = FlowAtoms.from_atoms(atoms)
     model.initialize(dataset[:5] + Dataset([geometry]))
-    # psiflow.wait()
     return model
 
 
