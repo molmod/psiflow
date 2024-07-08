@@ -10,7 +10,9 @@
 [![DOI](https://flat.badgen.net/static/DOI/10.1038%2Fs41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
 
-**NOTE**: psiflow is still heavily in development. API is tentative, and docs are still largely TODO.
+**NOTE**: we are preparing v4.0.0 -- the API is approximately final but the
+documentation is still WIP. If you encounter a bug or would like to request a feature,
+feel free to [open an issue](https://github.com/molmod/psiflow/issues/new)!
 
 # Scalable Molecular Simulation
 
@@ -33,7 +35,7 @@ curl -L molmod.github.io/psiflow/install.sh | bash
 The environment can be activated by sourcing the `activate.sh` file which will be created in the current working directory.
 Next, create a `config.yaml` file which defines the compute resources. For SLURM-based HPC systems, psiflow can initialize your configuration automatically via the following command:
 ```sh
-python -c 'import psiflow; psiflow.setup_slurm()'
+python -c 'import psiflow; psiflow.setup_slurm_config()'
 ```
 Example configuration files for [LUMI](https://lumi-supercomputer.eu/), [MeluXina](https://luxembourg.public.lu/en/invest/innovation/meluxina-supercomputer.html), or [VSC](https://www.vscentrum.be/) can be found [here](https://github.com/molmod/psiflow/tree/main/configs).
 No additional software compilation is required since all of the heavy lifting (CP2K/ORCA/GPAW, PyTorch model training, i-PI dynamics) is executed within preconfigured [Apptainer](https://apptainer.org/)/[Singularity](https://sylabs.io/singularity/) containers which are production-ready for most HPCs.
