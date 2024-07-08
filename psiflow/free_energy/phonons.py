@@ -15,7 +15,8 @@ from psiflow.data import Dataset
 from psiflow.geometry import Geometry, mass_weight
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.sampling.optimize import setup_forces, setup_sockets
-from psiflow.utils import load_numpy, multiply, save_xml
+from psiflow.utils.apps import multiply
+from psiflow.utils.io import load_numpy, save_xml
 
 
 @typeguard.typechecked
@@ -175,7 +176,7 @@ def compute_harmonic(
         input_future,
         Dataset([state]).extxyz,
     ]
-    inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
+    inputs += [h.serialize_function(dtype="float64") for h in hamiltonians_map.values()]
 
     hamiltonian_names = list(hamiltonians_map.keys())
     client_args = []

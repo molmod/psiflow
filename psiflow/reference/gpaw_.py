@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry, new_nullstate
 from psiflow.reference.reference import Reference
-from psiflow.utils import copy_app_future
+from psiflow.utils.apps import copy_app_future
 
 
 @typeguard.typechecked
@@ -82,7 +82,7 @@ def evaluate_single(
     import parsl
 
     from psiflow.geometry import NullState
-    from psiflow.utils import copy_app_future
+    from psiflow.utils.apps import copy_app_future
 
     if geometry == NullState:
         return copy_app_future(NullState)

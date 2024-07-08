@@ -210,7 +210,7 @@ def evaluate_single(
     import parsl
 
     from psiflow.geometry import NullState
-    from psiflow.utils import copy_app_future
+    from psiflow.utils.apps import copy_app_future
 
     if geometry == NullState:
         return copy_app_future(NullState)

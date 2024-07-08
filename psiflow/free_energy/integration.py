@@ -9,9 +9,8 @@ from parsl.app.app import python_app
 
 from psiflow.data import Dataset
 from psiflow.hamiltonians import Hamiltonian, Zero
-from psiflow.sampling import SimulationOutput, Walker, sample
-from psiflow.sampling.walker import quench, randomize
-from psiflow.utils import compute_sum, multiply
+from psiflow.sampling import SimulationOutput, Walker, quench, randomize, sample
+from psiflow.utils.apps import compute_sum, multiply
 
 length = python_app(len, executors=["default_threads"])
 take_mean = python_app(np.mean, executors=["default_threads"])
@@ -23,7 +22,7 @@ def _integrate(x: np.ndarray, *args: float) -> np.ndarray:
 
     assert len(args) == len(x)
     y = np.array(args, dtype=float)
-    return scipy.integrate.cumtrapz(y, x=x, initial=0.0)
+    return scipy.integrate.cumulative_trapezoid(y, x=x, initial=0.0)
 
 
 integrate = python_app(_integrate, executors=["default_threads"])

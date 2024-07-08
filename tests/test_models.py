@@ -5,8 +5,8 @@ from parsl.app.futures import DataFuture
 
 import psiflow
 from psiflow.data import compute_rmse
-from psiflow.models import MACE, load_model
 from psiflow.hamiltonians import MACEHamiltonian
+from psiflow.models import MACE, load_model
 
 
 def test_mace_init(mace_config, dataset):
@@ -103,7 +103,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     model.add_atomic_energy("Cu", 4)
     model.save(tmp_path)
     model.initialize(dataset[:2])
-    e0 = model.create_hamiltonian().evaluate(dataset[[3]])[0].result().energy
+    e0 = model.create_hamiltonian().compute(dataset[3], "energy").result()
 
     psiflow.wait()
     assert (tmp_path / "MACE.yaml").exists()
@@ -116,7 +116,7 @@ def test_mace_save_load(mace_config, dataset, tmp_path):
     model_ = load_model(tmp_path)
     assert type(model_) is MACE
     assert model_.model_future is not None
-    e1 = model_.create_hamiltonian().evaluate(dataset[[3]])[0].result().energy
+    e1 = model_.create_hamiltonian().compute(dataset[3], "energy").result()
     assert np.allclose(e0, e1, atol=1e-4)  # up to single precision
 
 

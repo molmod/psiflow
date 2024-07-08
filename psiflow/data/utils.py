@@ -9,7 +9,7 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.geometry import Geometry, NullState, _assign_identifier, create_outputs
-from psiflow.utils import unpack_i
+from psiflow.utils.apps import unpack_i
 
 
 @typeguard.typechecked
@@ -167,6 +167,8 @@ def _insert_quantities(
     max_natoms = max([len(geometry) for geometry in data])
 
     for i, geometry in enumerate(data):
+        if geometry == NullState:
+            continue
         mask = get_index_element_mask(
             geometry.per_atom.numbers,
             None,

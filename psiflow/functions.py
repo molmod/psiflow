@@ -1,8 +1,9 @@
+import json
 import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Optional, Type, Union
+from typing import ClassVar, Optional, Type, Union, get_type_hints
 
 import numpy as np
 import typeguard
@@ -69,6 +70,9 @@ class PlumedFunction(EnergyFunction):
     plumed_input: str
     external: Optional[Union[str, Path]] = None
 
+    def __post_init__(self):
+        self.plumed_instances = {}
+
     def __call__(
         self,
         geometries: list[Geometry],
@@ -85,12 +89,11 @@ class PlumedFunction(EnergyFunction):
         def geometry_to_key(geometry: Geometry) -> tuple:
             return tuple([geometry.periodic]) + tuple(geometry.per_atom.numbers)
 
-        plumed_instances = {}
         for i, geometry in enumerate(geometries):
             if geometry == NullState:
                 continue
             key = geometry_to_key(geometry)
-            if key not in plumed_instances:
+            if key not in self.plumed_instances:
                 from plumed import Plumed
 
                 tmp = tempfile.NamedTemporaryFile(
@@ -115,9 +118,9 @@ class PlumedFunction(EnergyFunction):
                 for line in plumed_input.split("\n"):
                     plumed_.cmd("readInputLine", line)
                 os.remove(tmp.name)  # remove whatever plumed has created
-                plumed_instances[key] = plumed_
+                self.plumed_instances[key] = plumed_
 
-            plumed_ = plumed_instances[key]
+            plumed_ = self.plumed_instances[key]
             if geometry.periodic:
                 cell = np.copy(geometry.cell).astype(np.float64)
                 plumed_.cmd("setBox", cell)
@@ -171,9 +174,12 @@ class ZeroFunction(EnergyFunction):
 class HarmonicFunction(EnergyFunction):
     positions: np.ndarray
     hessian: np.ndarray
-    energy: Optional[np.ndarray] = None
+    energy: Optional[float] = None
 
     def __call__(self, geometries: list[Geometry]) -> dict[str, np.ndarray]:
+        self.positions = np.array(self.positions)
+        self.hessian = np.array(self.hessian)
+
         energy, forces, stress = create_outputs(self.outputs, geometries)
 
         for i, geometry in enumerate(geometries):
@@ -204,10 +210,15 @@ class MACEFunction(EnergyFunction):
         import torch
         from mace.tools import torch_tools, utils
 
+        torch_tools.set_default_dtype(self.dtype)
+        self.device = torch_tools.init_device(self.device)
+
         torch.set_num_threads(self.ncores)
         model = torch.load(f=self.model_path, map_location="cpu")
         if self.dtype == "float64":
             model = model.double()
+        else:
+            model = model.float()
         model.to(self.device)
         model.eval()
         self.model = model
@@ -216,8 +227,6 @@ class MACEFunction(EnergyFunction):
             [int(z) for z in self.model.atomic_numbers]
         )
 
-        torch_tools.set_default_dtype(self.dtype)
-        self.device = torch_tools.init_device(self.device)
         # remove unwanted streamhandler added by MACE / torch!
         logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
 
@@ -236,7 +245,9 @@ class MACEFunction(EnergyFunction):
 
     def __call__(self, geometries: list[Geometry]) -> dict[str, np.ndarray]:
         from mace import data
-        from mace.tools import torch_geometric
+        from mace.tools import torch_geometric, torch_tools
+
+        torch_tools.set_default_dtype(self.dtype)
 
         energy, forces, stress = create_outputs(self.outputs, geometries)
 
@@ -270,7 +281,7 @@ class MACEFunction(EnergyFunction):
                 shuffle=False,
                 drop_last=False,
             )
-            batch = next(iter(data_loader)).to(self.device)
+            batch = next(iter(data_loader)).to(device=self.device)
 
             compute_stress = cell is not None
             out = self.model(batch.to_dict(), compute_stress=compute_stress)
@@ -316,3 +327,25 @@ def _apply(
     output_dict = function(states)
     output_arrays = sort_outputs(outputs_, **output_dict)
     return output_arrays
+
+
+def function_from_json(path: Union[str, Path]) -> Function:
+    functions = [
+        EinsteinCrystalFunction,
+        HarmonicFunction,
+        MACEFunction,
+        PlumedFunction,
+        None,
+    ]
+    with open(path, "r") as f:
+        data = json.loads(f.read())
+    assert "function_name" in data
+    for function_cls in functions:
+        if data["function_name"] == function_cls.__name__:
+            break
+    data.pop("function_name")
+    for name, type_hint in get_type_hints(function_cls).items():
+        if type_hint is np.ndarray:
+            data[name] = np.array(data[name])
+    function = function_cls(**data)
+    return function

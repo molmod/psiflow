@@ -13,7 +13,8 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.geometry import QUANTITIES, Geometry
-from psiflow.utils import combine_futures, copy_data_future, resolve_and_check, unpack_i
+from psiflow.utils.apps import combine_futures, copy_data_future, unpack_i
+from psiflow.utils.io import resolve_and_check
 
 from .utils import (
     align_axes,
@@ -160,15 +161,6 @@ class Dataset:
             return unpack_i(result, 0)
         else:
             return tuple([unpack_i(result, i) for i in range(len(quantities))])
-
-    def set(
-        self,
-        quantity: str,
-        array: Union[np.ndarray, AppFuture],
-        atom_indices: Optional[list[int]] = None,
-        elements: Optional[list[str]] = None,
-    ):
-        pass
 
     def evaluate(
         self,

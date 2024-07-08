@@ -12,7 +12,8 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.geometry import Geometry
-from psiflow.utils import copy_data_future, resolve_and_check
+from psiflow.utils.apps import copy_data_future
+from psiflow.utils.io import resolve_and_check
 
 _DataFuture = Union[File, DataFuture]
 

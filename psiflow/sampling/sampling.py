@@ -20,7 +20,7 @@ from psiflow.sampling.output import (
     potential_component_names,
 )
 from psiflow.sampling.walker import Coupling, Walker, partition
-from psiflow.utils import save_xml
+from psiflow.utils.io import save_xml
 
 
 @typeguard.typechecked
@@ -295,7 +295,7 @@ def setup_output(
             format="ase",
             bead="0",
         )
-        trajectory.text = r" positions{angstrom} "
+        trajectory.text = r" positions "
         output.append(trajectory)
     properties = ET.Element(
         "properties",
@@ -385,7 +385,7 @@ def _execute_ipi(
         )
     if keep_trajectory:
         for i in range(nwalkers):
-            command_copy += "cp walker-{}_output.trajectory_0.ase {}; ".format(
+            command_copy += "cp walker-{}_output.trajectory_0.extxyz {}; ".format(
                 i,
                 outputs[i + nwalkers + 1].filepath,
             )
@@ -503,7 +503,7 @@ def _sample(
     hamiltonian_names = list(hamiltonians_map.keys())
 
     max_nclients = int(sum([w.nbeads for w in walkers]))
-    inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
+    inputs += [h.serialize_function() for h in hamiltonians_map.values()]
     client_args = []
     for name in hamiltonian_names:
         args = definition.get_client_args(name, max_nclients, motion="dynamics")

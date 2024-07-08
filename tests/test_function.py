@@ -7,19 +7,21 @@ from parsl.data_provider.files import File
 import psiflow
 from psiflow.functions import (
     EinsteinCrystalFunction,
-    PlumedFunction,
     HarmonicFunction,
     MACEFunction,
+    PlumedFunction,
+    function_from_json,
 )
 from psiflow.hamiltonians import (
     EinsteinCrystal,
-    PlumedHamiltonian,
     Harmonic,
-    Zero,
     MixtureHamiltonian,
+    PlumedHamiltonian,
+    Zero,
 )
-from psiflow.tools.plumed import set_path_in_plumed, remove_comments_printflush
-from psiflow.utils import dump_json, copy_app_future
+from psiflow.utils._plumed import remove_comments_printflush, set_path_in_plumed
+from psiflow.utils.apps import copy_app_future
+from psiflow.utils.io import dump_json
 
 
 def test_einstein_crystal(dataset):
@@ -368,6 +370,7 @@ def test_mace_function(dataset, mace_model):
         model_path,
         device="cpu",
         dtype="float32",
+        ncores=2,
         atomic_energies={},
     )
     output = function(dataset[:1].geometries().result())
@@ -377,6 +380,7 @@ def test_mace_function(dataset, mace_model):
         model_path,
         device="cpu",
         dtype="float32",
+        ncores=4,
         atomic_energies={"Cu": 3, "H": 11},
     )
     output = function(dataset[:1].geometries().result())
@@ -385,3 +389,31 @@ def test_mace_function(dataset, mace_model):
         energy + 11 + 3 * 3,
         energy_,
     )
+
+
+def test_function_from_json(tmp_path, dataset):
+    hills = """#! FIELDS time CV sigma_CV height biasf
+#! SET multivariate false
+#! SET kerneltype gaussian
+     1.00000     2.5     2.0     70  0
+     2.00000     2.6     2.0     70  0
+"""
+    path_hills = tmp_path / "hills"
+    with open(path_hills, "w") as f:
+        f.write(hills)
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: DISTANCE ATOMS=1,2 NOPBC
+METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
+""".format(
+        path_hills
+    )
+    hamiltonian = PlumedHamiltonian(plumed_input, File(path_hills))
+
+    future = hamiltonian.serialize_function()
+    future.result()  # ensure file exists
+    function = function_from_json(future.filepath)
+
+    energies = hamiltonian.compute(dataset, "energy").result()
+    energies_ = function(dataset.geometries().result())["energy"]
+    assert np.allclose(energies, energies_)

@@ -8,9 +8,10 @@ import psiflow
 from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
 from psiflow.models import MACE
+from psiflow.sampling import optimize, optimize_dataset
 from psiflow.sampling.metadynamics import Metadynamics
-
 from psiflow.sampling.sampling import sample, template
+from psiflow.sampling.server import parse_checkpoint
 from psiflow.sampling.walker import (
     Walker,
     partition,
@@ -18,7 +19,6 @@ from psiflow.sampling.walker import (
     randomize,
     replica_exchange,
 )
-from psiflow.tools.server import parse_checkpoint
 
 
 def test_walkers(dataset):
@@ -155,6 +155,10 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         pos0,
         pos1,
     )
+    assert np.allclose(
+        simulation_outputs[0].trajectory[-1].result().cell,
+        walker0.start.result().cell,
+    )
     e = simulation_outputs[0]["potential{electronvolt}"].result()
     assert len(e) == 11
 
@@ -164,21 +168,6 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     o = sample([walker0], steps=20, step=2, start=10, keep_trajectory=True)[0]
     assert o.trajectory.length().result() == 6
     assert len(o["potential{electronvolt}"].result()) == 6
-
-    # check PIMD output
-    walker = Walker(
-        start=dataset[2],
-        temperature=200,
-        pressure=None,
-        hamiltonian=einstein,
-        nbeads=11,
-    )
-    output = sample([walker], steps=10, step=5)[0]
-    for state in output.trajectory.geometries().result():
-        assert len(state) == len(dataset[2].result())
-    assert output.trajectory.length().result() == 3
-    assert output.temperature is not None
-    assert np.abs(output.temperature.result() - 200 < 200)
 
     # check whether metadynamics file has correct dependency
     with open(metadynamics.external.result().filepath, "r") as f:
@@ -191,18 +180,14 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         simulation_outputs[0]["potential{electronvolt}"].result(),
         simulation_outputs[1]["potential{electronvolt}"].result(),
     ]
-    evaluated = [
-        (0.9 * plumed + einstein).evaluate(simulation_outputs[0].trajectory),
-        einstein.evaluate(simulation_outputs[1].trajectory),
-    ]
     energies_ = [
-        evaluated[0].get("energy").result().reshape(-1),
-        evaluated[1].get("energy").result().reshape(-1),
+        (0.9 * plumed + einstein).compute(simulation_outputs[0].trajectory, "energy"),
+        einstein.compute(simulation_outputs[1].trajectory, "energy"),
     ]
-    assert len(energies[0]) == evaluated[0].length().result()
+    assert len(energies[0]) == len(energies_[0].result())
     assert np.allclose(
         energies[0],
-        energies_[0],
+        energies_[0].result(),
     )
     time = simulation_outputs[0]["time{picosecond}"].result()
     assert np.allclose(
@@ -226,6 +211,21 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         manual_total,
         simulation_outputs[0]["potential{electronvolt}"].result(),
     )
+
+    # check PIMD output
+    walker = Walker(
+        start=dataset[2],
+        temperature=200,
+        pressure=None,
+        hamiltonian=einstein,
+        nbeads=11,
+    )
+    output = sample([walker], steps=10, step=5)[0]
+    for state in output.trajectory.geometries().result():
+        assert len(state) == len(dataset[2].result())
+    assert output.trajectory.length().result() == 3
+    assert output.temperature is not None
+    assert np.abs(output.temperature.result() - 200 < 200)
 
     simulation_outputs = sample(
         [walker0, walker1], steps=100, step=10, observables=["ensemble_bias"]
@@ -269,7 +269,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         fix_com=True,  # otherwise temperature won't match
     )[0]
     assert np.allclose(
-        hamiltonian.evaluate(dataset)[0].result().energy,
+        hamiltonian.compute(dataset, "energy").result()[0],
         simulation_output["potential{electronvolt}"].result()[0],
         atol=1e-3,
     )
@@ -482,3 +482,25 @@ FLUSH STRIDE=1
         assert Path(mtd.external.filepath).exists
         with open(mtd.external.filepath, "r") as f:
             assert len(f.read()) > 0
+
+
+def test_optimize(dataset):
+    einstein = EinsteinCrystal(dataset[2], force_constant=10)
+    final = optimize(dataset[0], einstein, steps=1000000).result()
+
+    assert np.allclose(
+        final.per_atom.positions,
+        dataset[2].result().per_atom.positions,
+        atol=1e-4,
+    )
+    # assert np.allclose(
+    #        final.cell,
+    #        dataset[2].result().cell,
+    #        atol=1e-4,
+    #        )
+    assert np.allclose(final.energy, 0.0)  # einstein energy >= 0
+
+    # i-PI optimizer's curvature guess fails in optimum --> don't start in dataset[2]
+    optimized = optimize_dataset(dataset[3:5], einstein, steps=1000000)
+    for g in optimized.geometries().result():
+        assert np.allclose(g.energy, 0.0)

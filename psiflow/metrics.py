@@ -15,7 +15,7 @@ from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.models import Model
 from psiflow.sampling import SimulationOutput
-from psiflow.utils import combine_futures, log_message, setup_logger
+from psiflow.utils.apps import combine_futures, log_message, setup_logger
 
 logger = setup_logger(__name__)
 
@@ -50,7 +50,7 @@ def _parse_walker_log(
     resets: list[bool],
     inputs: list = [],
 ) -> np.recarray:
-    from psiflow.data import _extract_quantities
+    from psiflow.data.utils import _extract_quantities
 
     nwalkers = len(statuses)
     assert nwalkers == len(temperatures)
@@ -339,7 +339,7 @@ def _add_walker_log(
 ) -> None:
     from numpy.lib.recfunctions import stack_arrays
 
-    from psiflow.utils import _load_metrics, _save_metrics
+    from psiflow.utils.io import _load_metrics, _save_metrics
 
     walker_log = walker_log[walker_log.identifier != -1]
     walker_log = np.sort(walker_log, order="identifier")
@@ -384,8 +384,8 @@ def _update_logs(
     inputs: list = [],
     outputs: list = [],
 ):
-    from psiflow.data import _compute_rmse, _extract_quantities, _read_frames
-    from psiflow.utils import _load_metrics, _save_metrics
+    from psiflow.data.utils import _compute_rmse, _extract_quantities, _read_frames
+    from psiflow.utils.io import _load_metrics, _save_metrics
 
     data0 = _read_frames(inputs=[inputs[1]])
     data1 = _read_frames(inputs=[inputs[2]])
@@ -514,7 +514,7 @@ class Metrics:
         self.metrics = metrics
 
     def update(self, data: Dataset, hamiltonian: Hamiltonian):
-        data_ = hamiltonian.evaluate(data)
+        data_ = data.evaluate(hamiltonian)
         metrics = update_logs(
             inputs=[self.metrics, data.extxyz, data_.extxyz],
             outputs=[psiflow.context().new_file("metrics_", ".numpy")],

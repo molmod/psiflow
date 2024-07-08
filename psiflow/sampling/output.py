@@ -13,7 +13,7 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
-from psiflow.utils import unpack_i
+from psiflow.utils.apps import unpack_i
 
 DEFAULT_OBSERVABLES = [
     "time{picosecond}",

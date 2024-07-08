@@ -10,7 +10,7 @@ from ase.data import atomic_masses, chemical_symbols
 from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
 from parsl.app.app import python_app
 
-from psiflow.utils import resolve_and_check
+from psiflow.utils.io import resolve_and_check
 
 per_atom_dtype = np.dtype(
     [

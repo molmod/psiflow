@@ -11,13 +11,8 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.utils import (
-    copy_data_future,
-    log_message,
-    resolve_and_check,
-    save_yaml,
-    setup_logger,
-)
+from psiflow.utils.apps import copy_data_future, log_message, setup_logger
+from psiflow.utils.io import resolve_and_check, save_yaml
 
 logger = setup_logger(__name__)
 

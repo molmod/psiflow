@@ -14,7 +14,7 @@ from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.utils import save_xml
+from psiflow.utils.io import save_xml
 
 
 @typeguard.typechecked
@@ -204,7 +204,7 @@ def optimize(
         input_future,
         Dataset([state]).extxyz,
     ]
-    inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
+    inputs += [h.serialize_function(dtype="float64") for h in hamiltonians_map.values()]
 
     hamiltonian_names = list(hamiltonians_map.keys())
     client_args = []
@@ -233,7 +233,7 @@ def optimize(
     )
 
     trajectory = Dataset(None, result.outputs[0])
-    final = hamiltonian.evaluate(trajectory[-1:])[0]
+    final = trajectory[-1:].evaluate(hamiltonian)[0]
     if keep_trajectory:
         return final, trajectory
     else:

@@ -26,12 +26,12 @@ from parsl.launchers import SimpleLauncher, WrappedLauncher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.utils import (
+from psiflow.utils.execution import (
     MyWorkQueueExecutor,
     SlurmLauncher,
     container_launch_command,
-    resolve_and_check,
 )
+from psiflow.utils.io import resolve_and_check
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -169,7 +169,7 @@ class ModelEvaluation(ExecutionDefinition):
         self.timeout = timeout
 
     def server_command(self):
-        script = "$(python -c 'import psiflow.tools.server; print(psiflow.tools.server.__file__)')"
+        script = "$(python -c 'import psiflow.sampling.server; print(psiflow.sampling.server.__file__)')"
         command_list = ["python", "-u", script]
         if self.max_simulation_time is not None:
             max_time = 0.9 * (60 * self.max_simulation_time)
@@ -177,7 +177,7 @@ class ModelEvaluation(ExecutionDefinition):
         return " ".join(command_list)
 
     def client_command(self):
-        script = "$(python -c 'import psiflow.tools.client; print(psiflow.tools.client.__file__)')"
+        script = "$(python -c 'import psiflow.sampling.client; print(psiflow.sampling.client.__file__)')"
         command_list = ["python", "-u", script]
         return " ".join(command_list)
 
@@ -441,7 +441,8 @@ class ExecutionContext:
             address=htex_address,
             working_dir=str(path / "default_htex"),
             cores_per_worker=1,
-            max_workers=1,
+            max_workers=default_threads,
+            cpu_affinity="none",
             provider=LocalProvider(launcher=launcher),  # noqa: F405
         )
         executors.append(htex)

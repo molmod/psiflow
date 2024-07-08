@@ -9,13 +9,8 @@ from psiflow.learning import Learning, evaluate_outputs
 from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
 from psiflow.reference import EMT
 from psiflow.sampling import SimulationOutput, Walker
-from psiflow.utils import (
-    _load_metrics,
-    _save_metrics,
-    combine_futures,
-    load_metrics,
-    save_metrics,
-)
+from psiflow.utils.apps import combine_futures
+from psiflow.utils.io import _load_metrics, _save_metrics, load_metrics, save_metrics
 
 
 def test_load_save_metrics(tmp_path):
@@ -122,7 +117,7 @@ def test_metrics(dataset_h2):
     assert np.all(np.isnan(data.e_rmse[:, 1]))
 
     einstein = EinsteinCrystal(dataset_h2[3], force_constant=1)
-    labeled = einstein.evaluate(Dataset(states)).filter("identifier")
+    labeled = Dataset(states).evaluate(einstein).filter("identifier")
     einstein = EinsteinCrystal(dataset_h2[4], force_constant=1)  # different
     metrics.update(labeled, einstein)
     data_ = load_metrics(inputs=[metrics.metrics]).result()
@@ -228,7 +223,12 @@ def test_wandb():
 
 
 def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
-    learning = Learning(EMT(), tmp_path / "output")
+    learning = Learning(
+        EMT(),
+        tmp_path / "output",
+        error_thresholds_for_reset=[None, None],
+        error_thresholds_for_discard=[None, None],
+    )
     assert "reference" in learning._serial
     assert "metrics" in learning._serial
     assert learning.iteration == -1
@@ -274,8 +274,8 @@ def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
             w.state.result() == w_.state
         )  # no result call necessary after deserialize
         assert np.allclose(
-            w.hamiltonian.evaluate(Dataset([w.state])).get("energy").result(),
-            w_.hamiltonian.evaluate(Dataset([w_.state])).get("energy").result(),
+            w.hamiltonian.compute(w.state, "energy").result(),
+            w_.hamiltonian.compute(w_.state, "energy").result(),
         )
 
     mace_model, walkers = learning.active_learning(
