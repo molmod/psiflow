@@ -8,7 +8,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
-from psiflow.reference import CP2K, EMT, GPAW
+from psiflow.reference import CP2K, GPAW, evaluate
 from psiflow.reference._cp2k import dict_to_str, parse_cp2k_output, str_to_dict
 
 
@@ -172,23 +172,24 @@ def test_cp2k_parse_output():
     assert geometry.energy == -14.202993407031412 * Ha
 
 
-def test_reference_emt(context, dataset, tmp_path):
-    reference = EMT()
-    # modify dataset to include states for which EMT fails:
-    # _ = reference.evaluate(dataset).geometries().result()
-    geometries = dataset.geometries().result()
-    geometries[6].per_atom.numbers[1] = 90
-    geometries[9].per_atom.numbers[1] = 3
-    dataset_ = Dataset(geometries)
-    evaluated = reference.evaluate(dataset_)
-    assert evaluated.length().result() == len(geometries)
-
-    geometry = reference.evaluate(dataset_[5]).result()
-    assert type(geometry) is Geometry
-    assert geometry.energy is not None
-    geometry = reference.evaluate(dataset_[6]).result()
-    assert type(geometry) is Geometry
-    assert geometry == NullState
+# def test_reference_emt(context, dataset, tmp_path):
+#     reference = EMT()
+#     geometries = dataset.geometries().result()
+#     geometries[6].per_atom.numbers[1] = 90
+#     geometries[9].per_atom.numbers[1] = 3
+#     dataset_ = Dataset(geometries)
+#     evaluated = dataset_.evaluate(reference)
+#     assert evaluated.length().result() == len(geometries)
+#     energies = evaluated.get('energy').result()
+#     energies_ = reference.compute(dataset_)[0].result()
+#     assert np.allclose(energies, energies_)
+#
+#     geometry = reference.evaluate(dataset_[5]).result()
+#     assert type(geometry) is Geometry
+#     assert geometry.energy is not None
+#     geometry = reference.evaluate(dataset_[6]).result()
+#     assert type(geometry) is Geometry
+#     assert geometry == NullState
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
@@ -199,9 +200,8 @@ def test_cp2k_success(context, simple_cp2k_input):
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
         cell=5 * np.eye(3),
     )
-    dataset = Dataset([geometry])
 
-    evaluated = reference.evaluate(dataset[0])
+    evaluated = evaluate(geometry, reference)
     assert isinstance(evaluated, AppFuture)
 
     geometry = evaluated.result()
@@ -224,7 +224,7 @@ def test_cp2k_success(context, simple_cp2k_input):
     )
 
     # check whether NullState evaluates to NullState
-    state = reference.evaluate(NullState)
+    state = evaluate(NullState, reference)
     assert state.result() == NullState
 
     # check number of mpi processes
@@ -315,7 +315,7 @@ def test_cp2k_failure(context, tmp_path):
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
         cell=5 * np.eye(3),
     )
-    evaluated = reference.evaluate(geometry)
+    evaluated = evaluate(geometry, reference)
     assert isinstance(evaluated, AppFuture)
     state = evaluated.result()
     assert state == NullState
@@ -332,40 +332,38 @@ def test_cp2k_timeout(context, simple_cp2k_input):
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
         cell=20 * np.eye(3),  # box way too large
     )
-    evaluated = reference.evaluate(geometry)
-    assert isinstance(evaluated, AppFuture)
-    state = evaluated.result()
-    assert state == NullState
+    energy, forces = reference.compute(Dataset([geometry]))
+    energy, forces = energy.result(), forces.result()
+    assert np.all(np.isnan(energy))
+    print(energy.shape, forces.shape)
 
 
 def test_cp2k_energy(context, simple_cp2k_input):
-    reference = CP2K(simple_cp2k_input, properties=("energy",))
+    reference = CP2K(simple_cp2k_input, outputs=("energy",))
     geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
         cell=5 * np.eye(3),  # box way too large
     )
-    state = reference.evaluate(geometry).result()
+    state = evaluate(geometry, reference).result()
     assert state.energy is not None
     assert state.stdout is not None
     assert np.all(np.isnan(state.per_atom.forces))
 
 
-def test_emt_atomic_energies(context, dataset):
-    reference = EMT()
-    for element in ["H", "Cu"]:
-        energy = reference.compute_atomic_energy(element, box_size=5)
-        energy_ = reference.compute_atomic_energy(element, box_size=7)
-        assert energy.result() < energy_.result()
+# def test_emt_atomic_energies(context, dataset):
+#     reference = EMT()
+#     for element in ["H", "Cu"]:
+#         energy = reference.compute_atomic_energy(element, box_size=5)
+#         energy_ = reference.compute_atomic_energy(element, box_size=7)
+#         assert energy.result() < energy_.result()
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_atomic_energies(
     dataset, simple_cp2k_input
 ):  # use energy-only because why not
-    reference = CP2K(
-        simple_cp2k_input, properties=("energy",), executor="CP2K_container"
-    )
+    reference = CP2K(simple_cp2k_input, outputs=("energy",), executor="CP2K_container")
     element = "H"
     energy = reference.compute_atomic_energy(element, box_size=4)
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
@@ -373,15 +371,15 @@ def test_cp2k_atomic_energies(
 
 def test_cp2k_serialize(dataset, simple_cp2k_input):
     element = "H"
-    reference = CP2K(simple_cp2k_input, properties=("energy",))
-    assert "properties" in reference._attrs
+    reference = CP2K(simple_cp2k_input, outputs=("energy",))
+    assert "outputs" in reference._attrs
     assert "cp2k_input_dict" in reference._attrs
     assert "cp2k_input_str" in reference._attrs
     energy = reference.compute_atomic_energy(element, box_size=4)
 
     data = psiflow.serialize(reference).result()
     reference = psiflow.deserialize(data)
-    assert type(reference.properties) is list
+    assert type(reference.outputs) is list
     assert np.allclose(
         energy.result(),
         reference.compute_atomic_energy(element, box_size=4).result(),
@@ -416,13 +414,13 @@ def test_cp2k_posthf(context):
     &END SUBSYS
 &END FORCE_EVAL
 """
-    reference = CP2K(cp2k_input_str, properties=("energy",))
+    reference = CP2K(cp2k_input_str, outputs=("energy",))
     geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
         numbers=np.ones(2),
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
         cell=5 * np.eye(3),
     )
-    assert reference.evaluate(geometry).result().energy is not None
+    assert evaluate(geometry, reference).result().energy is not None
 
 
 def test_gpaw_single(dataset, dataset_h2):
@@ -433,7 +431,7 @@ def test_gpaw_single(dataset, dataset_h2):
         h=0.1,
         minimal_box_multiple=2,
     )
-    state = gpaw.evaluate(dataset_h2[0]).result()
+    state = evaluate(dataset_h2[0], gpaw).result()
     assert state.energy is not None
     assert state.energy < 0.0
     assert np.allclose(
@@ -448,9 +446,9 @@ def test_gpaw_single(dataset, dataset_h2):
         minimal_box_multiple=2,
         executor="GPAW_container",
     )
-    state0 = gpaw.evaluate(dataset_h2[0]).result()
-    assert np.allclose(state.energy, state0.energy)
+    energy = gpaw.compute(dataset_h2[:1])[0].result()
+    assert np.allclose(state.energy, energy)
     assert gpaw.compute_atomic_energy("Zr", box_size=9).result() == 0.0
 
     gpaw = GPAW(askdfj="asdfk")  # invalid input
-    assert gpaw.evaluate(dataset_h2[1]).result() == NullState
+    assert evaluate(dataset_h2[1], gpaw).result() == NullState

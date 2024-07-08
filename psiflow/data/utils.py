@@ -91,14 +91,15 @@ def _extract_quantities(
     quantities: tuple[str, ...],
     atom_indices: Optional[list[int]],
     elements: Optional[list[str]],
-    data: Optional[list[Geometry]] = None,
+    *extra_data: Geometry,
     inputs: list = [],
 ) -> tuple[np.ndarray, ...]:
-    if data is None:
+    if not len(extra_data):
         assert len(inputs) == 1
         data = _read_frames(inputs=inputs)
     else:
         assert len(inputs) == 0
+        data = list(extra_data)
     order_names = list(set([k for g in data for k in g.order]))
     natoms = np.array([len(geometry) for geometry in data], dtype=int)
     max_natoms = np.max(natoms)
