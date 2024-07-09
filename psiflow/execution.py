@@ -26,12 +26,12 @@ from parsl.launchers import SimpleLauncher, WrappedLauncher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.utils.execution import (
+from .utils.execution import (
     MyWorkQueueExecutor,
     SlurmLauncher,
     container_launch_command,
 )
-from psiflow.utils.io import resolve_and_check
+from .utils.io import resolve_and_check
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -443,7 +443,7 @@ class ExecutionContext:
             cores_per_worker=1,
             max_workers=default_threads,
             cpu_affinity="none",
-            provider=LocalProvider(launcher=launcher),  # noqa: F405
+            provider=LocalProvider(launcher=launcher, init_blocks=0),  # noqa: F405
         )
         executors.append(htex)
         threadpool = ThreadPoolExecutor(

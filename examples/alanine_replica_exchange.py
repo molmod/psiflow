@@ -2,9 +2,8 @@ import numpy as np
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians import get_mace_mp0
-from psiflow.sampling import Walker, sample
-from psiflow.sampling.walker import replica_exchange
+from psiflow.hamiltonians import MACEHamiltonian
+from psiflow.sampling import Walker, sample, replica_exchange
 
 
 def compute_dihedrals(positions):
@@ -70,7 +69,7 @@ H       12.69022125      11.76658121       0.17241519
 H       13.27142638      10.63298597      -1.06170510
 """
     )
-    mace = get_mace_mp0()
+    mace = MACEHamiltonian.mace_mp0()
 
     walkers = []
     for temperature in [150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1100]:
