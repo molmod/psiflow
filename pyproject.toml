@@ -49,7 +49,7 @@ include = [
     "psiflow.data",
     "psiflow.reference",
     "psiflow.sampling",
-    "psiflow.tools",
+    "psiflow.utils",
     "psiflow.free_energy",
     ]
 
