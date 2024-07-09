@@ -10,7 +10,7 @@ from ase.data import atomic_masses, chemical_symbols
 from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
 from parsl.app.app import python_app
 
-from psiflow.utils.io import resolve_and_check
+import psiflow
 
 per_atom_dtype = np.dtype(
     [
@@ -158,7 +158,7 @@ class Geometry:
         return "\n".join(lines)
 
     def save(self, path_xyz: Union[Path, str]):
-        path_xyz = resolve_and_check(path_xyz)
+        path_xyz = psiflow.resolve_and_check(path_xyz)
         with open(path_xyz, "w") as f:
             f.write(self.to_string())
 
@@ -212,7 +212,7 @@ class Geometry:
 
     @classmethod
     def load(cls, path_xyz: Union[Path, str]) -> Geometry:
-        path_xyz = resolve_and_check(Path(path_xyz))
+        path_xyz = psiflow.resolve_and_check(Path(path_xyz))
         assert path_xyz.exists()
         with open(path_xyz, "r") as f:
             content = f.read()

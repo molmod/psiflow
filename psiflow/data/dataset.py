@@ -14,7 +14,6 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import QUANTITIES, Geometry
 from psiflow.utils.apps import combine_futures, copy_data_future, unpack_i
-from psiflow.utils.io import resolve_and_check
 
 from .utils import (
     align_axes,
@@ -92,7 +91,7 @@ class Dataset:
             return Dataset(None, extxyz)
 
     def save(self, path: Union[Path, str]) -> AppFuture:
-        path = resolve_and_check(Path(path))
+        path = psiflow.resolve_and_check(Path(path))
         _ = copy_data_future(
             inputs=[self.extxyz],
             outputs=[File(str(path))],
@@ -229,7 +228,7 @@ class Dataset:
         cls,
         path_xyz: Union[Path, str],
     ) -> Dataset:
-        path_xyz = resolve_and_check(Path(path_xyz))
+        path_xyz = psiflow.resolve_and_check(Path(path_xyz))
         assert path_xyz.exists()  # needs to be locally accessible
         return cls(None, extxyz=File(str(path_xyz)))
 

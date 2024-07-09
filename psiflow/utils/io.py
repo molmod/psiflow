@@ -82,24 +82,6 @@ save_txt = python_app(_save_txt, executors=["default_threads"])
 
 
 @typeguard.typechecked
-def resolve_and_check(path: Path) -> Path:
-    path = path.resolve()
-    if Path.cwd() in path.parents:
-        pass
-    elif path.exists() and Path.cwd().samefile(path):
-        pass
-    else:
-        raise ValueError(
-            "requested file and/or path at location: {}"
-            "\nwhich is not in the present working directory: {}"
-            "\npsiflow can only load and/or save in its present "
-            "working directory because this is the only directory"
-            " that will get bound into the container.".format(path, Path.cwd())
-        )
-    return path
-
-
-@typeguard.typechecked
 def _load_metrics(inputs: list = []) -> np.recarray:
     return np.load(inputs[0], allow_pickle=True)
 

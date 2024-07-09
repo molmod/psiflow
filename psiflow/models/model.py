@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.utils.apps import copy_data_future, log_message, setup_logger
-from psiflow.utils.io import resolve_and_check, save_yaml
+from psiflow.utils.io import save_yaml
 
 logger = setup_logger(__name__)
 
@@ -91,7 +91,7 @@ class Model:
         self,
         path: Union[Path, str],
     ) -> None:
-        path = resolve_and_check(Path(path))
+        path = psiflow.resolve_and_check(Path(path))
         path.mkdir(exist_ok=True)
 
         name = self.__class__.__name__

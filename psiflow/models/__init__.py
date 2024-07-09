@@ -10,12 +10,11 @@ import psiflow
 from psiflow.models._mace import MACE, MACEConfig  # noqa: F401
 from psiflow.models.model import Model
 from psiflow.utils.apps import copy_data_future
-from psiflow.utils.io import resolve_and_check
 
 
 @typeguard.typechecked
 def load_model(path: Union[Path, str]) -> Model:
-    path = resolve_and_check(Path(path))
+    path = psiflow.resolve_and_check(Path(path))
     assert path.is_dir()
     classes = [
         MACE,

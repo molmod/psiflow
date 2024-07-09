@@ -11,9 +11,9 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.geometry import Geometry
 from psiflow.utils.apps import copy_data_future
-from psiflow.utils.io import resolve_and_check
 
 _DataFuture = Union[File, DataFuture]
 
@@ -168,7 +168,7 @@ def serialize(
     copy_to: Optional[Path] = None,
 ) -> AppFuture:
     if path_json is not None:
-        path_json = resolve_and_check(path_json)
+        path_json = psiflow.resolve_and_check(path_json)
     data = {
         "_attrs": dict(obj._attrs),
     }
