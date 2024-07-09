@@ -103,7 +103,7 @@ class ExecutionDefinition:
                 coprocess=False,
                 worker_options=" ".join(worker_options),
                 worker_executable="{} work_queue_worker".format(self.worker_prepend),
-                scaling_assume_core_slots_per_worker=cores,
+                scaling_cores_per_worker=cores,
             )
         return executor
 
