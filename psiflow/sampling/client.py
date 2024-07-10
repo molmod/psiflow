@@ -140,9 +140,14 @@ if __name__ == "__main__":
     assert args.address is not None
     assert args.start is not None
 
+    template = Geometry.from_atoms(read(args.start))
+    function = function_from_json(args.path_hamiltonian)
+
+    function([template] * 10)  # torch warmp-up
+
     driver = FunctionDriver(
-        template=Geometry.from_atoms(read(args.start)),
-        function=function_from_json(args.path_hamiltonian),
+        template=template,
+        function=function,
         max_force=args.max_force,
         verbose=True,
     )

@@ -2,7 +2,6 @@
 
 # List of filenames
 files=(
-	"formic_acid_transition.py"
 	"h2_static_dynamic.py"
 	"iron_bulk_modulus.py"
 	"iron_harmonic_fcc_bcc.py"
