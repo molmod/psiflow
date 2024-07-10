@@ -2,11 +2,10 @@ import numpy as np
 from ase.units import _c, second
 
 import psiflow
+from psiflow.free_energy import compute_frequencies, compute_harmonic
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians import get_mace_mp0
-from psiflow.hamiltonians._harmonic import compute_frequencies
-from psiflow.sampling import Walker, sample
-from psiflow.tools import compute_harmonic, optimize
+from psiflow.hamiltonians import MACEHamiltonian
+from psiflow.sampling import Walker, optimize, sample
 
 
 def frequency_dynamic(start, hamiltonian):
@@ -61,7 +60,7 @@ def main():
         positions=np.array([[0, 0, 0], [0.8, 0, 0]]),
         cell=None,
     )
-    mace = get_mace_mp0()
+    mace = MACEHamiltonian.mace_mp0()
 
     dynamic = frequency_dynamic(geometry, mace)
     static = frequency_static(geometry, mace)

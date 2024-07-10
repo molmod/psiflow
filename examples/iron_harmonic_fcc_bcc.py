@@ -4,10 +4,10 @@ from ase.units import kB
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.free_energy import Integration
+from psiflow.free_energy import Integration, compute_harmonic
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians import Harmonic, get_mace_mp0
-from psiflow.tools import compute_harmonic, optimize
+from psiflow.hamiltonians import Harmonic, MACEHamiltonian
+from psiflow.sampling import optimize
 
 
 def main():
@@ -23,7 +23,7 @@ def main():
     theoretical = {name: None for name in geometries}
     simulated = {name: None for name in geometries}
 
-    mace = get_mace_mp0("small")
+    mace = MACEHamiltonian.mace_mp0("small")
     scaling = 0.9
     temperature = 800
     beta = 1 / (kB * temperature)

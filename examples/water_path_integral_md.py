@@ -3,7 +3,7 @@ from ase.neighborlist import primitive_neighbor_list
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.hamiltonians import get_mace_mp0
+from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.sampling import Walker, sample
 
 
@@ -25,7 +25,7 @@ def get_OH_distances(geometries):
 
 def main():
     geometry = Dataset.load("data/h2o_32.xyz")[0]
-    mace = get_mace_mp0()
+    mace = MACEHamiltonian.mace_mp0()
 
     trajectories = []
     for i in range(6):

@@ -3,7 +3,7 @@ import numpy as np
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import MACEHamiltonian
-from psiflow.sampling import Walker, sample, replica_exchange
+from psiflow.sampling import Walker, replica_exchange, sample
 
 
 def compute_dihedrals(positions):

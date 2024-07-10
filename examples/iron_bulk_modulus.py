@@ -3,14 +3,14 @@ from ase.build import bulk, make_supercell
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians import get_mace_mp0
+from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.sampling import Walker, sample
 
 
 def main():
     iron = bulk("Fe", "bcc", a=2.8)
     geometry = Geometry.from_atoms(make_supercell(iron, 3 * np.eye(3)))
-    mace = get_mace_mp0()
+    mace = MACEHamiltonian.mace_mp0()
 
     pressures = (-10 + np.arange(5) * 5) * 1e3  # in MPa
     walkers = [Walker(geometry, mace, temperature=300, pressure=p) for p in pressures]

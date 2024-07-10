@@ -24,7 +24,7 @@ def main():
     target_e = data.get("per_atom_energy")
     target_f = data.get("forces")
 
-    data_predicted = hamiltonian.evaluate(data)
+    data_predicted = data.evaluate(hamiltonian)
     predict_e = data_predicted.get("per_atom_energy")
     predict_f = data_predicted.get("forces")
 
