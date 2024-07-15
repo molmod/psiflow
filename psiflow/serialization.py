@@ -167,6 +167,7 @@ def serialize(
     copy_to: Optional[Path] = None,
 ) -> AppFuture:
     from psiflow.utils.apps import copy_data_future
+
     if path_json is not None:
         path_json = psiflow.resolve_and_check(path_json)
     data = {

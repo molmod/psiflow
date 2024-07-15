@@ -70,9 +70,8 @@ RUN /bin/bash -c -o pipefail \
 RUN echo '#!/bin/bash' >> /opt/entry.sh && \
     echo 'source /opt/venv/bin/activate' >> /opt/entry.sh && \
     echo 'export PLUMED_KERNEL=/usr/local/plumed/lib/libplumedKernel.so' >> /opt/entry.sh && \
-    echo 'export OMP_PLACES=sockets' >> /opt/entry.sh && \
+    echo 'export OMP_PLACES=cores' >> /opt/entry.sh && \
     echo 'export OMP_PROC_BIND=false' >> /opt/entry.sh && \
-    echo 'export OMP_SCHEDULE=STATIC' >> /opt/entry.sh && \
     echo '"$@"' >> /opt/entry.sh
 RUN chmod +x /opt/entry.sh
 ENTRYPOINT ["/opt/entry.sh"]

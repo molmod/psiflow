@@ -143,7 +143,7 @@ if __name__ == "__main__":
     template = Geometry.from_atoms(read(args.start))
     function = function_from_json(args.path_hamiltonian)
 
-    function([template] * 10)  # torch warmp-up
+    function([template] * 10)  # torch warmp-up before simulation
 
     driver = FunctionDriver(
         template=template,
