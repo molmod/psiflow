@@ -1,7 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from typing import ClassVar
+from typing import ClassVar, Optional, Union
 
 import numpy as np
 import parsl
@@ -86,9 +86,22 @@ class Reference(Computable):
     outputs: tuple
     batch_size: ClassVar[int] = 1  # not really used
 
-    def compute(self, dataset: Dataset):
-        outputs = compute_dataset(dataset, dataset.length(), self)
-        return tuple([outputs[i] for i in range(len(self.outputs))])
+    def compute(self, dataset: Dataset, *outputs: Optional[Union[str, tuple]]):
+        compute_outputs = compute_dataset(dataset, dataset.length(), self)
+        if len(outputs) == 0:
+            outputs_ = tuple(self.outputs)
+        else:
+            outputs_ = outputs
+        to_return = []
+        for output in outputs_:
+            if output not in self.outputs:
+                raise ValueError("output {} not in {}".format(output, self.outputs))
+            index = outputs_.index(output)
+            to_return.append(compute_outputs[index])
+        if len(outputs_) == 1:
+            return to_return[0]
+        else:
+            return tuple(to_return)
 
     def compute_atomic_energy(self, element, box_size=None):
         energies = []

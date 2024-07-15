@@ -171,8 +171,8 @@ class Dataset:
         else:
             outputs = computable.compute(self)  # use default from computable
         future = insert_quantities(
-            quantities=computable.outputs,
-            arrays=combine_futures(inputs=outputs),
+            quantities=tuple(computable.outputs),
+            arrays=combine_futures(inputs=list(outputs)),
             inputs=[self.extxyz],
             outputs=[psiflow.context().new_file("data_", ".xyz")],
         )

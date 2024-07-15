@@ -8,7 +8,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
-from psiflow.reference import CP2K, GPAW, evaluate
+from psiflow.reference import CP2K, D3, GPAW, evaluate
 from psiflow.reference._cp2k import dict_to_str, parse_cp2k_output, str_to_dict
 
 
@@ -172,24 +172,23 @@ def test_cp2k_parse_output():
     assert geometry.energy == -14.202993407031412 * Ha
 
 
-# def test_reference_emt(context, dataset, tmp_path):
-#     reference = EMT()
-#     geometries = dataset.geometries().result()
-#     geometries[6].per_atom.numbers[1] = 90
-#     geometries[9].per_atom.numbers[1] = 3
-#     dataset_ = Dataset(geometries)
-#     evaluated = dataset_.evaluate(reference)
-#     assert evaluated.length().result() == len(geometries)
-#     energies = evaluated.get('energy').result()
-#     energies_ = reference.compute(dataset_)[0].result()
-#     assert np.allclose(energies, energies_)
-#
-#     geometry = reference.evaluate(dataset_[5]).result()
-#     assert type(geometry) is Geometry
-#     assert geometry.energy is not None
-#     geometry = reference.evaluate(dataset_[6]).result()
-#     assert type(geometry) is Geometry
-#     assert geometry == NullState
+def test_reference_d3(context, dataset, tmp_path):
+    reference = D3(method="pbe", damping="d3bj")
+    state = evaluate(dataset[-1], reference).result()
+    assert state.energy is not None
+    assert state.energy < 0.0  # dispersion is attractive
+
+    data = dataset[:3].evaluate(reference)
+    energy = reference.compute(dataset[:3], "energy")
+
+    assert np.allclose(
+        data.get("energy").result(),
+        energy.result(),
+    )
+    assert np.allclose(
+        reference.compute_atomic_energy("H").result(),
+        0.0,
+    )
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
@@ -349,14 +348,6 @@ def test_cp2k_energy(context, simple_cp2k_input):
     assert state.energy is not None
     assert state.stdout is not None
     assert np.all(np.isnan(state.per_atom.forces))
-
-
-# def test_emt_atomic_energies(context, dataset):
-#     reference = EMT()
-#     for element in ["H", "Cu"]:
-#         energy = reference.compute_atomic_energy(element, box_size=5)
-#         energy_ = reference.compute_atomic_energy(element, box_size=7)
-#         assert energy.result() < energy_.result()
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")

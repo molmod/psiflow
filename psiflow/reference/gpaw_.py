@@ -1,6 +1,6 @@
 import json
 from functools import partial
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import typeguard
@@ -29,7 +29,7 @@ def gpaw_singlepoint_pre(
     gpaw_parameters: dict,
     properties: tuple,
     gpaw_command: str,
-    parsl_resource_specification: Optional[dict] = None,
+    parsl_resource_specification: dict = {},
     stdout: str = "",
     stderr: str = "",
 ) -> str:

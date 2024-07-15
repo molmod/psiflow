@@ -286,6 +286,8 @@ class ReferenceEvaluation(ExecutionDefinition):
             mpi_command += "--bind-to core --map-by core"  # set explicitly
             script = "$(python -c 'import psiflow.reference.gpaw_; print(psiflow.reference.gpaw_.__file__)')"
             return " ".join([mpi_command, "gpaw", "python", script])
+        if self.name.startswith("ORCA"):
+            raise ValueError('provide path to ORCA executable via "launch_command"')
 
     def command(self):
         max_time = 0.9 * (60 * self.max_evaluation_time)
@@ -297,10 +299,6 @@ class ReferenceEvaluation(ExecutionDefinition):
             ]
         )
         return command
-
-    # def gpaw_command(self):
-    #    if self.max_evaluation_time is not None:
-    #        max_time = 0.9 * (60 * self.max_evaluation_time)
 
     def wq_resources(self):
         if self.use_threadpool:

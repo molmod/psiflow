@@ -265,7 +265,7 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
     from psiflow.metrics import Metrics
     from psiflow.models import MACE
     from psiflow.order_parameters import OrderParameter
-    from psiflow.reference import CP2K, EMT
+    from psiflow.reference import CP2K, D3, GPAW
     from psiflow.sampling import Metadynamics, ReplicaExchange, SimulationOutput, Walker
 
     SERIALIZABLES = {}
@@ -275,7 +275,8 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         Dataset,
         MACE,
         CP2K,
-        EMT,
+        GPAW,
+        D3,
         Zero,
         MACEHamiltonian,
         EinsteinCrystal,
