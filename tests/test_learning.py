@@ -158,7 +158,7 @@ def test_evaluate_outputs(dataset):
     identifier, data, resets = evaluate_outputs(
         outputs,
         einstein,
-        D3(),
+        D3(method="pbe", damping="d3bj"),
         identifier=identifier,
         error_thresholds_for_reset=[None, None],  # never reset
         error_thresholds_for_discard=[None, None],
@@ -173,7 +173,7 @@ def test_evaluate_outputs(dataset):
     identifier, data, resets = evaluate_outputs(
         outputs,
         einstein,
-        D3(),
+        D3(method="pbe", damping="d3bj"),
         identifier=identifier,
         error_thresholds_for_reset=[0.0, 0.0],
         error_thresholds_for_discard=[0.0, 0.0],
@@ -224,7 +224,7 @@ def test_wandb():
 
 def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
     learning = Learning(
-        D3(),
+        D3(method="pbe", damping="d3bj"),
         tmp_path / "output",
         error_thresholds_for_reset=[None, None],
         error_thresholds_for_discard=[None, None],

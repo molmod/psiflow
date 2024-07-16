@@ -47,8 +47,7 @@ def context(request, tmp_path_factory):
         psiflow_config["path"] = tmp_path_factory.mktemp("psiflow_internal")
         psiflow.load(psiflow_config)
         context = psiflow.context()
-    with context:
-        yield 0
+        yield
         parsl.dfk().cleanup()
 
 
