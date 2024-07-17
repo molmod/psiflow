@@ -386,8 +386,7 @@ def cleanup(args):
                 assert Path(target).exists()  # should exist
                 shutil.copyfile(source, target)
         i = 0
-        while True:
-            assert i <= len(states)
+        while i < len(states):
             # try all formattings of bead index (i-PI inconsistency)
             paths = [
                 Path("walker-{}_output.trajectory_0.extxyz".format(i)),
@@ -395,12 +394,12 @@ def cleanup(args):
                 Path("walker-{}_output.trajectory_000.extxyz".format(i)),
                 Path("walker-{}_output.trajectory_0000.extxyz".format(i)),
             ]
-            path = None
-            for path in paths:
-                if path.exists():
-                    break
-            if path is None:
+            exists = [p.exists() for p in paths]
+            if not sum(exists):
                 break
+            else:
+                assert sum(exists) == 1
+            path = paths[exists.index(True)]
             traj = read(path, index=":")
             path.unlink()
             print(states, [s.periodic for s in states])
@@ -453,7 +452,8 @@ if __name__ == "__main__":
     else:
         try:
             cleanup(args)
-        except BaseException:  # noqa: B036
+        except BaseException as e:  # noqa: B036
+            print(e)
             print("i-PI cleanup failed!")
             print("files in directory:")
             for filepath in Path.cwd().glob("*"):
