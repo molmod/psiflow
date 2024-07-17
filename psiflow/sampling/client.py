@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -147,7 +148,9 @@ if __name__ == "__main__":
         dtype=args.dtype,
     )
 
+    t0 = time.time()
     function([template] * 10)  # torch warmp-up before simulation
+    print('time for 10 evaluations: {}'.format(time.time() - t0))
 
     driver = FunctionDriver(
         template=template,
