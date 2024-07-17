@@ -219,7 +219,7 @@ class MACEFunction(EnergyFunction):
             model = model.double()
         else:
             model = model.float()
-        model.to(self.device)
+        model = model.to(self.device)
         model.eval()
         self.model = model
         self.r_max = float(self.model.r_max)
@@ -329,7 +329,7 @@ def _apply(
     return output_arrays
 
 
-def function_from_json(path: Union[str, Path]) -> Function:
+def function_from_json(path: Union[str, Path], **kwargs) -> Function:
     functions = [
         EinsteinCrystalFunction,
         HarmonicFunction,
@@ -347,5 +347,8 @@ def function_from_json(path: Union[str, Path]) -> Function:
     for name, type_hint in get_type_hints(function_cls).items():
         if type_hint is np.ndarray:
             data[name] = np.array(data[name])
+    for key, value in kwargs.items():
+        if key in data:
+            data[key] = value
     function = function_cls(**data)
     return function

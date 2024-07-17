@@ -141,7 +141,11 @@ if __name__ == "__main__":
     assert args.start is not None
 
     template = Geometry.from_atoms(read(args.start))
-    function = function_from_json(args.path_hamiltonian)
+    function = function_from_json(
+        args.path_hamiltonian,
+        device=args.device,
+        dtype=args.dtype,
+    )
 
     function([template] * 10)  # torch warmp-up before simulation
 
@@ -156,6 +160,8 @@ if __name__ == "__main__":
     import torch
     from ipi._driver.driver import run_driver
 
+    print("pid: {}".format(os.getpid()))
+    print("CPU affinity: {}".format(os.sched_getaffinity(os.getpid())))
     print("torch num threads: ", torch.get_num_threads())
     print("cpu count: ", psutil.cpu_count(logical=False))
 
