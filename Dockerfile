@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libgsl-dev \
     perl \
+    fftw3 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -57,8 +58,8 @@ ARG PARSL_VERSION
 ARG GPU_LIBRARY
 RUN /bin/bash -c -o pipefail \
     "source /opt/venv/bin/activate && \
-     pip install --no-cache-dir wandb plotly plumed 'numpy<2.0.0' && \
-     pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@66eba29 && \
+     pip install --no-cache-dir pyfftw colorcet wandb pandas plotly plumed 'numpy<2.0.0' && \
+     pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@v3.0.0-beta4 && \
      pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.org/whl/${GPU_LIBRARY} && \
      pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.5"
 ARG DATE

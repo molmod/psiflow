@@ -3,6 +3,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
+import parsl
 import pytest
 import yaml
 from ase import Atoms
@@ -10,7 +11,8 @@ from ase.build import bulk, make_supercell
 from ase.calculators.emt import EMT
 
 import psiflow
-from psiflow.data import Dataset, Geometry
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry
 from psiflow.models import MACE, MACEConfig
 
 
@@ -45,8 +47,8 @@ def context(request, tmp_path_factory):
         psiflow_config["path"] = tmp_path_factory.mktemp("psiflow_internal")
         psiflow.load(psiflow_config)
         context = psiflow.context()
-    with context:
-        yield 0
+        yield
+        parsl.dfk().cleanup()
 
 
 @pytest.fixture(scope="session")
@@ -113,9 +115,7 @@ def mace_model(mace_config):
     )
     geometry.energy = -1.0
     geometry.per_atom.forces[:] = np.random.uniform(size=(2, 3))
-    # atoms = FlowAtoms.from_atoms(atoms)
     model.initialize(dataset[:5] + Dataset([geometry]))
-    # psiflow.wait()
     return model
 
 

@@ -1,18 +1,16 @@
 import json
 from functools import partial
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import typeguard
-from parsl.app.app import bash_app, join_app, python_app
-from parsl.app.bash import BashApp
-from parsl.app.python import PythonApp
+from parsl.app.app import bash_app, python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.geometry import Geometry, new_nullstate
 from psiflow.reference.reference import Reference
-from psiflow.utils import copy_app_future
+from psiflow.utils.apps import copy_app_future
 
 
 @typeguard.typechecked
@@ -31,7 +29,7 @@ def gpaw_singlepoint_pre(
     gpaw_parameters: dict,
     properties: tuple,
     gpaw_command: str,
-    parsl_resource_specification: Optional[dict] = None,
+    parsl_resource_specification: dict = {},
     stdout: str = "",
     stderr: str = "",
 ) -> str:
@@ -51,70 +49,38 @@ def gpaw_singlepoint_pre(
 
 
 @typeguard.typechecked
-def gpaw_singlepoint_post(inputs: list = []) -> Geometry:
+def gpaw_singlepoint_post(
+    geometry: Geometry,
+    inputs: list = [],
+) -> Geometry:
     with open(inputs[0], "r") as f:
         lines = f.read().split("\n")
 
-    geometry = None
+    geometry = new_nullstate()
     for i, line in enumerate(lines):
         if "CALCULATION SUCCESSFUL" in line:
             natoms = int(lines[i + 1])
             geometry_str = "\n".join(lines[i + 1 : i + 3 + natoms])
             geometry = Geometry.from_string(geometry_str)
             assert geometry.energy is not None
-    if geometry is None:
-        geometry = new_nullstate()
-    geometry.stdout = inputs[0]
+            geometry.stdout = inputs[0]
     return geometry
-
-
-@join_app
-@typeguard.typechecked
-def evaluate_single(
-    geometry: Union[Geometry, AppFuture],
-    gpaw_parameters: dict,
-    properties: tuple,
-    gpaw_command: str,
-    wq_resources: dict[str, Union[float, int]],
-    app_pre: BashApp,
-    app_post: PythonApp,
-) -> AppFuture:
-    import parsl
-
-    from psiflow.geometry import NullState
-    from psiflow.utils import copy_app_future
-
-    if geometry == NullState:
-        return copy_app_future(NullState)
-    else:
-        pre = app_pre(
-            geometry,
-            gpaw_parameters,
-            properties,
-            gpaw_command=gpaw_command,
-            stdout=parsl.AUTO_LOGNAME,
-            stderr=parsl.AUTO_LOGNAME,
-            parsl_resource_specification=wq_resources,
-        )
-        return app_post(
-            inputs=[pre.stdout, pre.stderr, pre],  # wait for bash app
-        )
 
 
 @typeguard.typechecked
 @psiflow.serializable
 class GPAW(Reference):
-    properties: list[str]  # json does deserialize(serialize(tuple)) = list
+    outputs: list  # json does deserialize(serialize(tuple)) = list
     executor: str
     parameters: dict
 
     def __init__(
         self,
-        properties: Union[tuple, list] = ("energy", "forces"),
+        outputs: Union[tuple, list] = ("energy", "forces"),
         executor: str = "GPAW",
         **parameters,
     ):
-        self.properties = list(properties)
+        self.outputs = list(outputs)
         self.parameters = parameters
         self.executor = executor
         self._create_apps()
@@ -125,15 +91,14 @@ class GPAW(Reference):
         wq_resources = definition.wq_resources()
         app_pre = bash_app(gpaw_singlepoint_pre, executors=[self.executor])
         app_post = python_app(gpaw_singlepoint_post, executors=["default_threads"])
-        self.evaluate_single = partial(
-            evaluate_single,
+        self.app_pre = partial(
+            app_pre,
             gpaw_parameters=self.parameters,
-            properties=tuple(self.properties),
+            properties=tuple(self.outputs),
             gpaw_command=gpaw_command,
-            wq_resources=wq_resources,
-            app_pre=app_pre,
-            app_post=app_post,
+            parsl_resource_specification=wq_resources,
         )
+        self.app_post = app_post
 
     def compute_atomic_energy(self, element, box_size=None) -> AppFuture:
         return copy_app_future(0.0)  # GPAW computes formation energy by default

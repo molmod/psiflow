@@ -1,16 +1,21 @@
+# top level imports should be lightweight!
 import os
-import argparse
-from pathlib import Path
-
-from psiflow.hamiltonians import deserialize_calculator
-from psiflow.hamiltonians.utils import ForceMagnitudeException
-
-# from ipi._driver.driver import run_driver
-# from ipi._driver.pes.ase import ASEDriver
 
 
-if __name__ == "__main__":
-    print('OS environment values:')
+def main():
+    import argparse
+    import time
+    from pathlib import Path
+
+    import torch
+    from ase.io import read
+    from ipi._driver.driver import run_driver
+
+    from psiflow.functions import function_from_json
+    from psiflow.geometry import Geometry
+    from psiflow.sampling.utils import ForceMagnitudeException, FunctionDriver
+
+    print("OS environment values:")
     for key, value in os.environ.items():
         print(key, value)
     parser = argparse.ArgumentParser()
@@ -49,23 +54,28 @@ if __name__ == "__main__":
     assert args.address is not None
     assert args.start is not None
 
-    from ipi._driver.driver import run_driver
-    from ipi._driver.pes.ase import ASEDriver
-
-    # assert not args.start, args.start
-    driver = ASEDriver(args=args.start)
-    driver.ase_calculator = deserialize_calculator(
+    template = Geometry.from_atoms(read(args.start))
+    function = function_from_json(
         args.path_hamiltonian,
         device=args.device,
         dtype=args.dtype,
-        max_force=args.max_force,
     )
-    import torch
-    import psutil
-    print('torch num threads: ', torch.get_num_threads())
-    print('cpu count: ', psutil.cpu_count(logical=False))
+
+    driver = FunctionDriver(
+        template=template,
+        function=function,
+        max_force=args.max_force,
+        verbose=True,
+    )
+
+    print("pid: {}".format(os.getpid()))
+    print("CPU affinity: {}".format(os.sched_getaffinity(os.getpid())))
+    print("torch num threads: ", torch.get_num_threads())
 
     try:
+        t0 = time.time()
+        function([template] * 10)  # torch warmp-up before simulation
+        print('time for 10 evaluations: {}'.format(time.time() - t0))
         run_driver(
             unix=True,
             address=str(Path.cwd() / args.address),

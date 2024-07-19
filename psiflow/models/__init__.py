@@ -9,12 +9,12 @@ from parsl.data_provider.files import File
 import psiflow
 from psiflow.models._mace import MACE, MACEConfig  # noqa: F401
 from psiflow.models.model import Model
-from psiflow.utils import copy_data_future, resolve_and_check
+from psiflow.utils.apps import copy_data_future
 
 
 @typeguard.typechecked
 def load_model(path: Union[Path, str]) -> Model:
-    path = resolve_and_check(Path(path))
+    path = psiflow.resolve_and_check(Path(path))
     assert path.is_dir()
     classes = [
         MACE,

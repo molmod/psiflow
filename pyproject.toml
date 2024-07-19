@@ -13,12 +13,19 @@ dependencies = [
     "ase >= 3.23.0",
     "pyyaml>=6.0",
     "numpy>=1.22.3,<2",
-    "parsl @ git+https://github.com/parsl/parsl.git@benc-sander-paper",
+    "parsl==2024.07.08",
     "prettytable",
     "psutil",
     "cp2k-input-tools",
     "pytimeparse",
     ]
+
+
+[project.scripts]
+psiflow-client = "psiflow.sampling.client:main"
+psiflow-server = "psiflow.sampling.server:main"
+psiflow-mace-train = "psiflow.models.mace_utils:main"
+
 
 [project.optional-dependencies]
 docs = [
@@ -46,10 +53,10 @@ dev = [
 include = [
     "psiflow",
     "psiflow.models",
-    "psiflow.hamiltonians",
+    "psiflow.data",
     "psiflow.reference",
     "psiflow.sampling",
-    "psiflow.tools",
+    "psiflow.utils",
     "psiflow.free_energy",
     ]
 

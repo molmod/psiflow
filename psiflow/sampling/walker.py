@@ -11,12 +11,12 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, check_equality
-from psiflow.geometry import Geometry
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, Zero
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry, check_equality
+from psiflow.hamiltonians import Hamiltonian, Zero
+from psiflow.order_parameters import OrderParameter
 from psiflow.sampling.metadynamics import Metadynamics
-from psiflow.sampling.order import OrderParameter
-from psiflow.utils import copy_app_future
+from psiflow.utils.apps import copy_app_future
 
 
 @typeguard.typechecked
@@ -151,22 +151,16 @@ def partition(walkers: list[Walker]) -> list[list[int]]:
     return indices
 
 
-@typeguard.typechecked
+# typeguarding incompatible with * expansion
 def _get_minimum_energy_states(
     coefficients: np.ndarray,
-    inputs: list = [],
+    *energies: np.ndarray,
 ) -> list[int]:
     import numpy
 
-    from psiflow.data import _read_frames
-
     assert len(coefficients.shape) == 2
-    assert len(inputs) == coefficients.shape[1]
+    assert len(energies) == coefficients.shape[1]
 
-    energies = []
-    for i in range(len(inputs)):
-        data = _read_frames(inputs=[inputs[i]])
-        energies.append([g.energy for g in data])
     energies = numpy.array(energies)
 
     indices = []
@@ -185,7 +179,7 @@ get_minimum_energy_states = python_app(
 @typeguard.typechecked
 def quench(walkers: list[Walker], dataset: Dataset) -> None:
     all_hamiltonians = sum([w.hamiltonian for w in walkers], start=Zero())
-    evaluated = [h.evaluate(dataset) for h in all_hamiltonians.hamiltonians]
+    energies = [h.compute(dataset, "energy") for h in all_hamiltonians.hamiltonians]
 
     coefficients = []
     for walker in walkers:
@@ -196,7 +190,7 @@ def quench(walkers: list[Walker], dataset: Dataset) -> None:
 
     indices = get_minimum_energy_states(
         coefficients,
-        inputs=[data.extxyz for data in evaluated],
+        *energies,
     )
     data = dataset[indices]
     for i, walker in enumerate(walkers):

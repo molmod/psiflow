@@ -3,7 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import inspect
 import json
 from pathlib import Path
-from typing import Optional, Union, get_args, get_origin, get_type_hints
+from typing import ClassVar, Optional, Union, get_args, get_origin, get_type_hints
 
 import typeguard
 from parsl.app.app import python_app
@@ -11,8 +11,8 @@ from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
+import psiflow
 from psiflow.geometry import Geometry
-from psiflow.utils import copy_data_future, resolve_and_check
 
 _DataFuture = Union[File, DataFuture]
 
@@ -71,6 +71,8 @@ def serializable(cls):
                         if issubclass(arg, Serializable):  # weird
                             kind = "serial"
         else:
+            if get_origin(type_hint) is ClassVar:
+                continue  # do nothing for classvars
             if not inspect.isclass(type_hint):
                 raise ValueError(
                     "{} is formally not a class ({})".format(type_hint, name)
@@ -164,8 +166,10 @@ def serialize(
     path_json: Optional[Path] = None,
     copy_to: Optional[Path] = None,
 ) -> AppFuture:
+    from psiflow.utils.apps import copy_data_future
+
     if path_json is not None:
-        path_json = resolve_and_check(path_json)
+        path_json = psiflow.resolve_and_check(path_json)
     data = {
         "_attrs": dict(obj._attrs),
     }
@@ -253,20 +257,16 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         EinsteinCrystal,
         Harmonic,
         MACEHamiltonian,
+        MixtureHamiltonian,
         PlumedHamiltonian,
+        Zero,
     )
-    from psiflow.hamiltonians.hamiltonian import MixtureHamiltonian, Zero
     from psiflow.learning import Learning
     from psiflow.metrics import Metrics
     from psiflow.models import MACE
-    from psiflow.reference import CP2K, EMT
-    from psiflow.sampling import (
-        Metadynamics,
-        OrderParameter,
-        ReplicaExchange,
-        SimulationOutput,
-        Walker,
-    )
+    from psiflow.order_parameters import OrderParameter
+    from psiflow.reference import CP2K, D3, GPAW
+    from psiflow.sampling import Metadynamics, ReplicaExchange, SimulationOutput, Walker
 
     SERIALIZABLES = {}
     if custom_cls is None:
@@ -275,7 +275,8 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         Dataset,
         MACE,
         CP2K,
-        EMT,
+        GPAW,
+        D3,
         Zero,
         MACEHamiltonian,
         EinsteinCrystal,

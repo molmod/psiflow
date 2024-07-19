@@ -12,21 +12,18 @@ from ase.data import atomic_numbers
 from ase.geometry import Cell
 from ase.io import read, write
 from ase.units import Bohr, Ha, _e, _hbar
-from ipi.engine.outputs import CheckpointOutput, PropertyOutput, TrajectoryOutput
-from ipi.engine.properties import getkey
-from ipi.engine.simulation import Simulation
-from ipi.inputs.simulation import InputSimulation
-from ipi.utils.io.inputs import io_xml
-from ipi.utils.messages import verbosity
-from ipi.utils.softexit import softexit
 
-from psiflow.data import _write_frames
 from psiflow.geometry import Geometry
 
 NONPERIODIC_CELL = 1000 * np.eye(3)
 
 
 def remdsort(inputfile, prefix="SRT_"):
+    from ipi.engine.outputs import CheckpointOutput, PropertyOutput, TrajectoryOutput
+    from ipi.engine.properties import getkey
+    from ipi.inputs.simulation import InputSimulation
+    from ipi.utils.io.inputs import io_xml
+    from ipi.utils.messages import verbosity
     verbosity.level = "low"
     # opens & parses the input file
     ifile = open(inputfile, "r")
@@ -338,6 +335,8 @@ def anisotropic_barostat_h0(input_xml, data_start):
 
 
 def start(args):
+    from ipi.engine.simulation import Simulation
+    from ipi.utils.softexit import softexit
     data_start = read(args.start_xyz, index=":")
     assert len(data_start) == args.nwalkers
     for i in range(args.nwalkers):
@@ -365,6 +364,7 @@ def start(args):
 
 
 def cleanup(args):
+    from psiflow.data.utils import _write_frames
     with open("input.xml", "r") as f:
         content = f.read()
     if "vibrations" in content:
@@ -385,32 +385,33 @@ def cleanup(args):
                 assert Path(target).exists()  # should exist
                 shutil.copyfile(source, target)
         i = 0
-        while True:
-            assert i <= len(states)
+        while i < len(states):
             # try all formattings of bead index (i-PI inconsistency)
             paths = [
-                Path("walker-{}_output.trajectory_0.ase".format(i)),
-                Path("walker-{}_output.trajectory_00.ase".format(i)),
-                Path("walker-{}_output.trajectory_000.ase".format(i)),
-                Path("walker-{}_output.trajectory_0000.ase".format(i)),
+                Path("walker-{}_output.trajectory_0.extxyz".format(i)),
+                Path("walker-{}_output.trajectory_00.extxyz".format(i)),
+                Path("walker-{}_output.trajectory_000.extxyz".format(i)),
+                Path("walker-{}_output.trajectory_0000.extxyz".format(i)),
             ]
-            path = None
-            for path in paths:
-                if path.exists():
-                    break
-            if path is None:
+            exists = [p.exists() for p in paths]
+            if not sum(exists):
                 break
-            traj = read(path, index=":", format="xyz")
+            else:
+                assert sum(exists) == 1
+            path = paths[exists.index(True)]
+            traj = read(path, index=":")
             path.unlink()
-            if not states[i].periodic:  # load and replace cell
-                for atoms in traj:
+            print(states, [s.periodic for s in states])
+            for atoms in traj:
+                if not states[i].periodic:  # load and replace cell
                     atoms.pbc = False
                     atoms.cell = None
-            write(paths[0], traj, format="xyz")  # always the same path
+                atoms.info.pop("ipi_comment", None)
+            write(paths[0], traj)  # always the same path
             i += 1
 
 
-if __name__ == "__main__":
+def main():
     signal.signal(signal.SIGTERM, timeout_handler)
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -450,7 +451,8 @@ if __name__ == "__main__":
     else:
         try:
             cleanup(args)
-        except BaseException:  # noqa: B036
+        except BaseException as e:  # noqa: B036
+            print(e)
             print("i-PI cleanup failed!")
             print("files in directory:")
             for filepath in Path.cwd().glob("*"):

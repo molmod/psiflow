@@ -15,7 +15,7 @@ from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.models import Model
 from psiflow.sampling import SimulationOutput
-from psiflow.utils import combine_futures, log_message, setup_logger
+from psiflow.utils.apps import combine_futures, log_message, setup_logger
 
 logger = setup_logger(__name__)
 
@@ -50,7 +50,7 @@ def _parse_walker_log(
     resets: list[bool],
     inputs: list = [],
 ) -> np.recarray:
-    from psiflow.data import _extract_quantities
+    from psiflow.data.utils import _extract_quantities
 
     nwalkers = len(statuses)
     assert nwalkers == len(temperatures)
@@ -73,9 +73,9 @@ def _parse_walker_log(
     # check for additional columns : phase, logprob, delta, order parameters
     identifiers, phases, logprobs, deltas = _extract_quantities(
         ("identifier", "phase", "logprob", "delta"),
-        atom_indices=None,
-        elements=None,
-        data=states,
+        None,
+        None,
+        *states,
     )
     if not all([len(p) == 0 for p in phases]):
         ncharacters = max([len(p) for p in phases])
@@ -90,9 +90,9 @@ def _parse_walker_log(
         dtypes.append((name, np.float_))
     order_parameters = _extract_quantities(
         tuple(order_names),
-        atom_indices=None,
-        elements=None,
-        data=states,
+        None,
+        None,
+        *states,
     )
 
     names = [dtype[0] for dtype in dtypes]
@@ -177,7 +177,7 @@ def _to_wandb(
     import plotly.express as px
     import wandb
 
-    from psiflow.utils import _load_metrics
+    from psiflow.utils.io import _load_metrics
 
     Y_AXES = [
         "delta",
@@ -339,7 +339,7 @@ def _add_walker_log(
 ) -> None:
     from numpy.lib.recfunctions import stack_arrays
 
-    from psiflow.utils import _load_metrics, _save_metrics
+    from psiflow.utils.io import _load_metrics, _save_metrics
 
     walker_log = walker_log[walker_log.identifier != -1]
     walker_log = np.sort(walker_log, order="identifier")
@@ -384,21 +384,21 @@ def _update_logs(
     inputs: list = [],
     outputs: list = [],
 ):
-    from psiflow.data import _compute_rmse, _extract_quantities, _read_frames
-    from psiflow.utils import _load_metrics, _save_metrics
+    from psiflow.data.utils import _compute_rmse, _extract_quantities, _read_frames
+    from psiflow.utils.io import _load_metrics, _save_metrics
 
     data0 = _read_frames(inputs=[inputs[1]])
     data1 = _read_frames(inputs=[inputs[2]])
 
-    energy0 = _extract_quantities(("per_atom_energy",), None, None, data=data0)[0]
-    energy1 = _extract_quantities(("per_atom_energy",), None, None, data=data1)[0]
+    energy0 = _extract_quantities(("per_atom_energy",), None, None, *data0)[0]
+    energy1 = _extract_quantities(("per_atom_energy",), None, None, *data1)[0]
     e_rmse = _compute_rmse(energy0, energy1, reduce=False)
 
-    forces0 = _extract_quantities(("forces",), None, None, data=data0)[0]
-    forces1 = _extract_quantities(("forces",), None, None, data=data1)[0]
+    forces0 = _extract_quantities(("forces",), None, None, *data0)[0]
+    forces1 = _extract_quantities(("forces",), None, None, *data1)[0]
     f_rmse = _compute_rmse(forces0, forces1, reduce=False)
 
-    identifiers = _extract_quantities(("identifier",), None, None, data=data0)[0]
+    identifiers = _extract_quantities(("identifier",), None, None, *data0)[0]
     assert np.all(identifiers >= 0)
     indices = np.argsort(identifiers)
 
@@ -514,7 +514,7 @@ class Metrics:
         self.metrics = metrics
 
     def update(self, data: Dataset, hamiltonian: Hamiltonian):
-        data_ = hamiltonian.evaluate(data)
+        data_ = data.evaluate(hamiltonian)
         metrics = update_logs(
             inputs=[self.metrics, data.extxyz, data_.extxyz],
             outputs=[psiflow.context().new_file("metrics_", ".numpy")],

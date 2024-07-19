@@ -10,14 +10,14 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset, assign_identifier
-from psiflow.geometry import Geometry, NullState
+from psiflow.data import Dataset
+from psiflow.geometry import Geometry, NullState, assign_identifier
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.metrics import Metrics
 from psiflow.models import Model
-from psiflow.reference import Reference
+from psiflow.reference import Reference, evaluate
 from psiflow.sampling import SimulationOutput, Walker, sample
-from psiflow.utils import boolean_or, setup_logger, unpack_i
+from psiflow.utils.apps import boolean_or, setup_logger, unpack_i
 
 logger = setup_logger(__name__)
 
@@ -66,8 +66,8 @@ def evaluate_outputs(
     metrics: Metrics,
 ) -> tuple[Union[int, AppFuture], Dataset, list[AppFuture]]:
     states = [o.get_state() for o in outputs]  # take exit status into account
-    eval_ref = [reference.evaluate(s) for s in states]
-    eval_mod = hamiltonian.evaluate(Dataset(states))
+    eval_ref = [evaluate(s, reference) for s in states]
+    eval_mod = Dataset(states).evaluate(hamiltonian)
     errors = [compute_error(s, eval_mod[i]) for i, s in enumerate(eval_ref)]
     processed_states = []
     resets = []

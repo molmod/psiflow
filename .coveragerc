@@ -1,5 +1,0 @@
-[run]
-include = psiflow/*
-omit = tests/*, configs/*, examples/*
-
-[report]

@@ -8,8 +8,9 @@ import typeguard
 from ase import Atoms
 from ase.data import atomic_masses, chemical_symbols
 from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
+from parsl.app.app import python_app
 
-from psiflow.utils import resolve_and_check
+import psiflow
 
 per_atom_dtype = np.dtype(
     [
@@ -18,6 +19,20 @@ per_atom_dtype = np.dtype(
         ("forces", np.float32, (3,)),
     ]
 )
+
+QUANTITIES = [
+    "positions",
+    "cell",
+    "numbers",
+    "energy",
+    "per_atom_energy",
+    "forces",
+    "stress",
+    "delta",
+    "logprob",
+    "phase",
+    "identifier",
+]
 
 
 @typeguard.typechecked
@@ -143,9 +158,12 @@ class Geometry:
         return "\n".join(lines)
 
     def save(self, path_xyz: Union[Path, str]):
-        path_xyz = resolve_and_check(path_xyz)
+        path_xyz = psiflow.resolve_and_check(path_xyz)
         with open(path_xyz, "w") as f:
             f.write(self.to_string())
+
+    def copy(self) -> Geometry:
+        return Geometry.from_string(self.to_string())
 
     @classmethod
     def from_string(cls, s: str, natoms: Optional[int] = None) -> Optional[Geometry]:
@@ -194,7 +212,7 @@ class Geometry:
 
     @classmethod
     def load(cls, path_xyz: Union[Path, str]) -> Geometry:
-        path_xyz = resolve_and_check(Path(path_xyz))
+        path_xyz = psiflow.resolve_and_check(Path(path_xyz))
         assert path_xyz.exists()
         with open(path_xyz, "r") as f:
             content = f.read()
@@ -210,6 +228,13 @@ class Geometry:
             return None
         else:
             return self.energy / len(self)
+
+    @property
+    def volume(self):
+        if not self.periodic:
+            return np.nan
+        else:
+            return np.linalg.det(self.cell)
 
     @classmethod
     def from_data(
@@ -351,3 +376,76 @@ def mass_unweight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
     assert hessian.shape[0] == hessian.shape[1]
     assert len(geometry) * 3 == hessian.shape[0]
     return hessian / get_mass_matrix(geometry)
+
+
+def create_outputs(quantities: list[str], data: list[Geometry]) -> list[np.ndarray]:
+    order_names = list(set([k for g in data for k in g.order]))
+    assert all([q in QUANTITIES + order_names for q in quantities])
+    natoms = np.array([len(geometry) for geometry in data], dtype=int)
+    max_natoms = np.max(natoms)
+    nframes = len(data)
+    nprob = 0
+    max_phase = 0
+    for state in data:
+        if state.logprob is not None:
+            nprob = max(len(state.logprob), nprob)
+        if state.phase is not None:
+            max_phase = max(len(state.phase), max_phase)
+
+    arrays = []
+    for quantity in quantities:
+        if quantity in ["positions", "forces"]:
+            array = np.empty((nframes, max_natoms, 3), dtype=np.float32)
+            array[:] = np.nan
+        elif quantity in ["cell", "stress"]:
+            array = np.empty((nframes, 3, 3), dtype=np.float32)
+            array[:] = np.nan
+        elif quantity in ["numbers"]:
+            array = np.empty((nframes, max_natoms), dtype=np.uint8)
+            array[:] = 0
+        elif quantity in ["energy", "delta", "per_atom_energy"]:
+            array = np.empty((nframes,), dtype=np.float32)
+            array[:] = np.nan
+        elif quantity in ["phase"]:
+            array = np.empty((nframes,), dtype=(np.unicode_, max_phase))
+            array[:] = ""
+        elif quantity in ["logprob"]:
+            array = np.empty((nframes, nprob), dtype=np.float32)
+            array[:] = np.nan
+        elif quantity in ["identifier"]:
+            array = np.empty((nframes,), dtype=np.int32)
+            array[:] = -1
+        elif quantity in order_names:
+            array = np.empty((nframes,), dtype=np.float32)
+            array[:] = np.nan
+        else:
+            raise AssertionError("missing quantity in if/else")
+        arrays.append(array)
+    return arrays
+
+
+def _assign_identifier(
+    state: Geometry,
+    identifier: int,
+    discard: bool = False,
+) -> tuple[Geometry, int]:
+    if (state == NullState) or discard:
+        return state, identifier
+    else:
+        assert state.identifier is None
+        state.identifier = identifier
+        return state, identifier + 1
+
+
+assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _check_equality(
+    state0: Geometry,
+    state1: Geometry,
+) -> bool:
+    return state0 == state1
+
+
+check_equality = python_app(_check_equality, executors=["default_threads"])

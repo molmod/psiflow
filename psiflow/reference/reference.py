@@ -1,18 +1,19 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from typing import Union
+from typing import ClassVar, Optional, Union
 
 import numpy as np
+import parsl
 import typeguard
 from ase.data import atomic_numbers
 from parsl.app.app import join_app, python_app
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.data import Dataset
+from psiflow.data import Computable, Dataset
 from psiflow.geometry import Geometry, NullState
-from psiflow.utils import copy_app_future
+from psiflow.utils.apps import copy_app_future
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -41,53 +42,66 @@ def get_minimum_energy(element, configs, *energies):
 
 @join_app
 @typeguard.typechecked
-def evaluate_multiple(
+def evaluate(
+    geometry: Geometry,
     reference: Reference,
-    nstates: int,
-    inputs: list = [],
-    outputs: list = [],
-):
-    from psiflow.data import _read_frames, write_frames
+) -> AppFuture:
+    if geometry == NullState:
+        return copy_app_future(NullState)
+    else:
+        future = reference.app_pre(
+            geometry,
+            stdout=parsl.AUTO_LOGNAME,
+            stderr=parsl.AUTO_LOGNAME,
+        )
+        return reference.app_post(
+            geometry=geometry,
+            inputs=[future.stdout, future.stderr, future],
+        )
 
-    assert len(outputs) == 1
-    assert len(inputs) == 1
-    states = _read_frames(inputs=[inputs[0]])
-    evaluated = []
-    for state in states:
-        if state == NullState:
-            evaluated.append(NullState)
-        else:
-            state = reference.evaluate_single(state)
-            evaluated.append(state)
-    return write_frames(
+
+@join_app
+@typeguard.typechecked
+def compute_dataset(
+    dataset: Dataset,
+    length: int,
+    reference: Reference,
+) -> AppFuture:
+    from psiflow.data.utils import extract_quantities
+
+    geometries = dataset.geometries()  # read it once
+    evaluated = [evaluate(geometries[i], reference) for i in range(length)]
+    future = extract_quantities(
+        tuple(reference.outputs),
+        None,
+        None,
         *evaluated,
-        outputs=[outputs[0]],
     )
+    return future
 
 
 @typeguard.typechecked
 @psiflow.serializable
-class Reference:
-    properties: list[str]
+class Reference(Computable):
+    outputs: tuple
+    batch_size: ClassVar[int] = 1  # not really used
 
-    def evaluate(
-        self,
-        arg: Union[Dataset, Geometry, AppFuture[Geometry]],
-    ) -> Union[Dataset, AppFuture]:
-        if isinstance(arg, Dataset):
-            data = evaluate_multiple(
-                self,
-                arg.length(),
-                inputs=[arg.extxyz],
-                outputs=[psiflow.context().new_file("data_", ".xyz")],
-            )
-            # to ensure the correct dependencies, it is important that
-            # the output future corresponds to the actual write_dataset app.
-            # otherwise, FileNotFoundErrors will occur when using HTEX.
-            retval = Dataset(None, extxyz=data.outputs[0])
-        else:  # Geometry, AppFuture of Geometry
-            retval = self.evaluate_single(arg)
-        return retval
+    def compute(self, dataset: Dataset, *outputs: Optional[Union[str, tuple]]):
+        compute_outputs = compute_dataset(dataset, dataset.length(), self)
+        if len(outputs) == 0:
+            outputs_ = tuple(self.outputs)
+        else:
+            outputs_ = outputs
+        to_return = []
+        for output in outputs_:
+            if output not in self.outputs:
+                raise ValueError("output {} not in {}".format(output, self.outputs))
+            index = outputs_.index(output)
+            to_return.append(compute_outputs[index])
+        if len(outputs_) == 1:
+            return to_return[0]
+        else:
+            return tuple(to_return)
 
     def compute_atomic_energy(self, element, box_size=None):
         energies = []
@@ -106,7 +120,7 @@ class Reference:
                 cell=np.zeros((3, 3)),
             )
         for _, reference in references:
-            energies.append(extract_energy(reference.evaluate(state)))
+            energies.append(extract_energy(evaluate(state, reference)))
         return get_minimum_energy(element, configs, *energies)
 
     def get_single_atom_references(self, element):

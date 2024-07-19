@@ -20,18 +20,15 @@ from parsl.data_provider.files import File
 from parsl.executors import (  # WorkQueueExecutor,
     HighThroughputExecutor,
     ThreadPoolExecutor,
+    WorkQueueExecutor,
 )
 from parsl.executors.base import ParslExecutor
 from parsl.launchers import SimpleLauncher, WrappedLauncher
+from parsl.launchers.base import Launcher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.utils import (
-    MyWorkQueueExecutor,
-    SlurmLauncher,
-    container_launch_command,
-    resolve_and_check,
-)
+import psiflow
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -103,7 +100,7 @@ class ExecutionDefinition:
                 coprocess=False,
                 worker_options=" ".join(worker_options),
                 worker_executable="{} work_queue_worker".format(self.worker_prepend),
-                scaling_assume_core_slots_per_worker=cores,
+                scaling_cores_per_worker=cores,
             )
         return executor
 
@@ -160,6 +157,7 @@ class ModelEvaluation(ExecutionDefinition):
         self,
         max_simulation_time: Optional[float] = None,
         timeout: float = (10 / 60),  # 5 seconds
+        env_vars: Optional[dict] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -168,17 +166,26 @@ class ModelEvaluation(ExecutionDefinition):
         self.max_simulation_time = max_simulation_time
         self.timeout = timeout
 
+        default_env_vars = {
+            'OMP_NUM_THREADS': str(self.cores_per_worker),
+            'KMP_AFFINITY': 'granularity=fine,compact,1,0',
+            'OMP_PROC_BIND': 'false',
+            'PYTHONUNBUFFERED': 'TRUE',
+        }
+        if env_vars is None:
+            self.env_vars = dict(default_env_vars)
+        else:
+            self.env_vars.update(default_env_vars)
+
     def server_command(self):
-        script = "$(python -c 'import psiflow.tools.server; print(psiflow.tools.server.__file__)')"
-        command_list = ["python", "-u", script]
+        command_list = ["psiflow-server"]
         if self.max_simulation_time is not None:
             max_time = 0.9 * (60 * self.max_simulation_time)
             command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
         return " ".join(command_list)
 
     def client_command(self):
-        script = "$(python -c 'import psiflow.tools.client; print(psiflow.tools.client.__file__)')"
-        command_list = ["python", "-u", script]
+        command_list = ["psiflow-client"]
         return " ".join(command_list)
 
     def get_client_args(
@@ -224,6 +231,7 @@ class ModelTraining(ExecutionDefinition):
         self,
         gpu=True,
         max_training_time: Optional[float] = None,
+        env_vars: Optional[dict] = None,
         **kwargs,
     ) -> None:
         super().__init__(gpu=gpu, **kwargs)
@@ -231,9 +239,20 @@ class ModelTraining(ExecutionDefinition):
             assert max_training_time * 60 < self.max_runtime
         self.max_training_time = max_training_time
 
+        default_env_vars = {
+            'OMP_NUM_THREADS': str(self.cores_per_worker),
+            'KMP_AFFINITY': 'granularity=fine,compact,1,0',
+            'OMP_PROC_BIND': 'false',
+            'PYTHONUNBUFFERED': 'TRUE',
+        }
+        if env_vars is None:
+            self.env_vars = dict(default_env_vars)
+        else:
+            self.env_vars.update(default_env_vars)
+
     def train_command(self, initialize: bool = False):
-        script = "$(python -c 'import psiflow.models.mace_utils; print(psiflow.models.mace_utils.__file__)')"
-        command_list = ["python", script]
+        # script = "$(python -c 'import psiflow.models.mace_utils; print(psiflow.models.mace_utils.__file__)')"
+        command_list = ["psiflow-mace-train"]
         if (self.max_training_time is not None) and not initialize:
             max_time = 0.9 * (60 * self.max_training_time)
             command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
@@ -289,6 +308,8 @@ class ReferenceEvaluation(ExecutionDefinition):
             mpi_command += "--bind-to core --map-by core"  # set explicitly
             script = "$(python -c 'import psiflow.reference.gpaw_; print(psiflow.reference.gpaw_.__file__)')"
             return " ".join([mpi_command, "gpaw", "python", script])
+        if self.name.startswith("ORCA"):
+            raise ValueError('provide path to ORCA executable via "launch_command"')
 
     def command(self):
         max_time = 0.9 * (60 * self.max_evaluation_time)
@@ -300,10 +321,6 @@ class ReferenceEvaluation(ExecutionDefinition):
             ]
         )
         return command
-
-    # def gpaw_command(self):
-    #    if self.max_evaluation_time is not None:
-    #        max_time = 0.9 * (60 * self.max_evaluation_time)
 
     def wq_resources(self):
         if self.use_threadpool:
@@ -387,7 +404,7 @@ class ExecutionContext:
     ) -> ExecutionContext:
         if path is None:
             path = Path.cwd().resolve() / "psiflow_internal"
-        resolve_and_check(path)
+        psiflow.resolve_and_check(path)
         if path.exists():
             shutil.rmtree(path)
         path.mkdir(parents=True, exist_ok=True)
@@ -441,8 +458,9 @@ class ExecutionContext:
             address=htex_address,
             working_dir=str(path / "default_htex"),
             cores_per_worker=1,
-            max_workers=1,
-            provider=LocalProvider(launcher=launcher),  # noqa: F405
+            max_workers=default_threads,
+            cpu_affinity="none",
+            provider=LocalProvider(launcher=launcher, init_blocks=0),  # noqa: F405
         )
         executors.append(htex)
         threadpool = ThreadPoolExecutor(
@@ -506,7 +524,7 @@ class ExecutionContextLoader:
                 psiflow_config["path"] = path
             else:
                 assert len(sys.argv) == 2
-                path_config = resolve_and_check(Path(sys.argv[1]))
+                path_config = psiflow.resolve_and_check(Path(sys.argv[1]))
                 assert path_config.exists()
                 assert path_config.suffix in [".yaml", ".yml"], (
                     "the execution configuration needs to be specified"
@@ -526,3 +544,70 @@ class ExecutionContextLoader:
     @classmethod
     def wait(cls):
         parsl.wait_for_current_tasks()
+
+
+@typeguard.typechecked
+def container_launch_command(
+    uri: str,
+    engine: str = "apptainer",
+    gpu: bool = False,
+    addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs",
+    entrypoint: str = "/opt/entry.sh",
+) -> str:
+    assert engine in ["apptainer", "singularity"]
+    assert len(uri) > 0
+
+    launch_command = ""
+    launch_command += engine
+    launch_command += " exec "
+    launch_command += addopts
+    launch_command += " --bind {}".format(
+        Path.cwd().resolve()
+    )  # access to data / internal dir
+    if gpu:
+        if "rocm" in uri:
+            launch_command += " --rocm"
+        else:  # default
+            launch_command += " --nv"
+    launch_command += " {} {} ".format(uri, entrypoint)
+    return launch_command
+
+
+class SlurmLauncher(Launcher):
+    def __init__(self, debug: bool = True, overrides: str = ""):
+        super().__init__(debug=debug)
+        self.overrides = overrides
+
+    def __call__(self, command: str, tasks_per_node: int, nodes_per_block: int) -> str:
+        x = """set -e
+
+NODELIST=$(scontrol show hostnames)
+NODE_ARRAY=($NODELIST)
+NODE_COUNT=${{#NODE_ARRAY[@]}}
+EXPECTED_NODE_COUNT={nodes_per_block}
+
+# Check if the length of NODELIST matches the expected number of nodes
+if [ $NODE_COUNT -ne $EXPECTED_NODE_COUNT ]; then
+  echo "Error: Expected $EXPECTED_NODE_COUNT nodes, but got $NODE_COUNT nodes."
+  exit 1
+fi
+
+for NODE in $NODELIST; do
+  srun --nodes=1 --ntasks=1 --exact -l {overrides} --nodelist=$NODE {command} &
+  if [ $? -ne 0 ]; then
+    echo "Command failed on node $NODE"
+  fi
+done
+
+wait
+""".format(
+            nodes_per_block=nodes_per_block,
+            command=command,
+            overrides=self.overrides,
+        )
+        return x
+
+
+class MyWorkQueueExecutor(WorkQueueExecutor):
+    def _get_launch_command(self, block_id):
+        return self.worker_command

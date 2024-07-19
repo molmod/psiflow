@@ -12,10 +12,7 @@ from ase.data import atomic_numbers
 from ase.units import Bohr, Ha
 from cp2k_input_tools.generator import CP2KInputGenerator
 from cp2k_input_tools.parser import CP2KInputParserSimplified
-from parsl.app.app import bash_app, join_app, python_app
-from parsl.app.bash import BashApp
-from parsl.app.python import PythonApp
-from parsl.dataflow.futures import AppFuture
+from parsl.app.app import bash_app, python_app
 
 import psiflow
 from psiflow.geometry import Geometry, NullState
@@ -141,9 +138,9 @@ def parse_cp2k_output(
 # typeguarding for some reason incompatible with WQ
 def cp2k_singlepoint_pre(
     geometry: Geometry,
-    cp2k_input_dict: dict,
-    properties: tuple,
-    cp2k_command: str,
+    cp2k_input_dict: dict = {},
+    properties: tuple = (),
+    cp2k_command: str = "",
     stdout: str = "",
     stderr: str = "",
     parsl_resource_specification: Optional[dict] = None,
@@ -176,7 +173,7 @@ def cp2k_singlepoint_pre(
 @typeguard.typechecked
 def cp2k_singlepoint_post(
     geometry: Geometry,
-    properties: tuple,
+    properties: tuple = (),
     inputs: list = [],
 ) -> Geometry:
     from psiflow.geometry import NullState, new_nullstate
@@ -196,45 +193,10 @@ def cp2k_singlepoint_post(
     return geometry
 
 
-@join_app
-@typeguard.typechecked
-def evaluate_single(
-    geometry: Union[Geometry, AppFuture],
-    cp2k_input_dict: dict,
-    properties: tuple,
-    cp2k_command: str,
-    wq_resources: dict[str, Union[float, int]],
-    app_pre: BashApp,
-    app_post: PythonApp,
-) -> AppFuture:
-    import parsl
-
-    from psiflow.geometry import NullState
-    from psiflow.utils import copy_app_future
-
-    if geometry == NullState:
-        return copy_app_future(NullState)
-    else:
-        pre = app_pre(
-            geometry,
-            cp2k_input_dict,
-            properties,
-            cp2k_command=cp2k_command,
-            stdout=parsl.AUTO_LOGNAME,
-            stderr=parsl.AUTO_LOGNAME,
-            parsl_resource_specification=wq_resources,
-        )
-        return app_post(
-            geometry=geometry,
-            properties=properties,
-            inputs=[pre.stdout, pre.stderr, pre],  # wait for bash app
-        )
-
-
 @typeguard.typechecked
 @psiflow.serializable
 class CP2K(Reference):
-    properties: list[str]  # json does deserialize(serialize(tuple)) = list
+    outputs: list
     executor: str
     cp2k_input_str: str
     cp2k_input_dict: dict
@@ -242,14 +204,14 @@ class CP2K(Reference):
     def __init__(
         self,
         cp2k_input_str: str,
-        properties: Union[tuple, list] = ("energy", "forces"),
         executor: str = "CP2K",
+        outputs: Union[tuple, list] = ("energy", "forces"),
     ):
-        self.properties = list(properties)
         self.executor = executor
         check_input(cp2k_input_str)
         self.cp2k_input_str = cp2k_input_str
         self.cp2k_input_dict = str_to_dict(cp2k_input_str)
+        self.outputs = list(outputs)
         self._create_apps()
 
     def _create_apps(self):
@@ -258,14 +220,17 @@ class CP2K(Reference):
         wq_resources = definition.wq_resources()
         app_pre = bash_app(cp2k_singlepoint_pre, executors=[self.executor])
         app_post = python_app(cp2k_singlepoint_post, executors=["default_threads"])
-        self.evaluate_single = partial(
-            evaluate_single,
+
+        self.app_pre = partial(
+            app_pre,
             cp2k_input_dict=self.cp2k_input_dict,
-            properties=tuple(self.properties),
+            properties=tuple(self.outputs),
             cp2k_command=cp2k_command,
-            wq_resources=wq_resources,
-            app_pre=app_pre,
-            app_post=app_post,
+            parsl_resource_specification=wq_resources,
+        )
+        self.app_post = partial(
+            app_post,
+            properties=tuple(self.outputs),
         )
 
     def get_single_atom_references(self, element):
@@ -297,7 +262,7 @@ class CP2K(Reference):
 
             reference = CP2K(
                 dict_to_str(cp2k_input_dict),
-                properties=list(self.properties),
+                outputs=self.outputs,
                 executor=self.executor,
             )
             references.append((mult, reference))

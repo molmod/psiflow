@@ -12,15 +12,15 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.hamiltonians.hamiltonian import Hamiltonian, MixtureHamiltonian, Zero
+from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
+from psiflow.sampling.optimize import setup_sockets
 from psiflow.sampling.output import (
     DEFAULT_OBSERVABLES,
     SimulationOutput,
     potential_component_names,
 )
 from psiflow.sampling.walker import Coupling, Walker, partition
-from psiflow.tools import setup_sockets
-from psiflow.utils import save_xml
+from psiflow.utils.io import save_xml
 
 
 @typeguard.typechecked
@@ -295,7 +295,7 @@ def setup_output(
             format="ase",
             bead="0",
         )
-        trajectory.text = r" positions{angstrom} "
+        trajectory.text = r" positions "
         output.append(trajectory)
     properties = ET.Element(
         "properties",
@@ -345,6 +345,7 @@ def _execute_ipi(
     command_server: str,
     command_client: str,
     *plumed_list: str,
+    env_vars: dict = {},
     stdout: str = "",
     stderr: str = "",
     inputs: list = [],
@@ -356,6 +357,8 @@ def _execute_ipi(
     write_command = " "
     for i, plumed_str in enumerate(plumed_list):
         write_command += 'echo "{}" > metad_input{}.txt; '.format(plumed_str, i)
+    for key, value in env_vars.items():
+        write_command += ' export {}={}; '.format(key, value)
     command_start = command_server + " --nwalkers={}".format(nwalkers)
     command_start += " --input_xml={}".format(inputs[0].filepath)
     command_start += " --start_xyz={}".format(inputs[1].filepath)
@@ -385,7 +388,7 @@ def _execute_ipi(
         )
     if keep_trajectory:
         for i in range(nwalkers):
-            command_copy += "cp walker-{}_output.trajectory_0.ase {}; ".format(
+            command_copy += "cp walker-{}_output.trajectory_0.extxyz {}; ".format(
                 i,
                 outputs[i + nwalkers + 1].filepath,
             )
@@ -503,7 +506,7 @@ def _sample(
     hamiltonian_names = list(hamiltonians_map.keys())
 
     max_nclients = int(sum([w.nbeads for w in walkers]))
-    inputs += [h.serialize_calculator() for h in hamiltonians_map.values()]
+    inputs += [h.serialize_function() for h in hamiltonians_map.values()]
     client_args = []
     for name in hamiltonian_names:
         args = definition.get_client_args(name, max_nclients, motion="dynamics")
@@ -540,6 +543,7 @@ def _sample(
         command_server,
         command_client,
         *plumed_list,
+        env_vars=definition.env_vars,
         stdout=parsl.AUTO_LOGNAME,
         stderr=parsl.AUTO_LOGNAME,
         inputs=inputs,
