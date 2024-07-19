@@ -412,7 +412,7 @@ def cleanup(args):
             i += 1
 
 
-if __name__ == "__main__":
+def main():
     signal.signal(signal.SIGTERM, timeout_handler)
     parser = argparse.ArgumentParser()
     parser.add_argument(

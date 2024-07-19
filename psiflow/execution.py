@@ -157,6 +157,7 @@ class ModelEvaluation(ExecutionDefinition):
         self,
         max_simulation_time: Optional[float] = None,
         timeout: float = (10 / 60),  # 5 seconds
+        env_vars: Optional[dict] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -165,17 +166,26 @@ class ModelEvaluation(ExecutionDefinition):
         self.max_simulation_time = max_simulation_time
         self.timeout = timeout
 
+        default_env_vars = {
+            'OMP_NUM_THREADS': str(self.cores_per_worker),
+            'KMP_AFFINITY': 'granularity=fine,compact,1,0',
+            'OMP_PROC_BIND': 'false',
+            'PYTHONUNBUFFERED': 'TRUE',
+        }
+        if env_vars is None:
+            self.env_vars = dict(default_env_vars)
+        else:
+            self.env_vars.update(default_env_vars)
+
     def server_command(self):
-        script = "$(python -c 'import psiflow.sampling.server; print(psiflow.sampling.server.__file__)')"
-        command_list = ["python", "-u", script]
+        command_list = ["psiflow-server"]
         if self.max_simulation_time is not None:
             max_time = 0.9 * (60 * self.max_simulation_time)
             command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
         return " ".join(command_list)
 
     def client_command(self):
-        script = "$(python -c 'import psiflow.sampling.client; print(psiflow.sampling.client.__file__)')"
-        command_list = ["python", "-u", script]
+        command_list = ["psiflow-client"]
         return " ".join(command_list)
 
     def get_client_args(

@@ -20,6 +20,12 @@ dependencies = [
     "pytimeparse",
     ]
 
+
+[project.scripts]
+psiflow-client = "psiflow.sampling.client:main"
+psiflow-server = "psiflow.sampling.server:main"
+
+
 [project.optional-dependencies]
 docs = [
     "mkdocs>=1.4.2",

@@ -345,6 +345,7 @@ def _execute_ipi(
     command_server: str,
     command_client: str,
     *plumed_list: str,
+    env_vars: dict = {},
     stdout: str = "",
     stderr: str = "",
     inputs: list = [],
@@ -356,6 +357,8 @@ def _execute_ipi(
     write_command = " "
     for i, plumed_str in enumerate(plumed_list):
         write_command += 'echo "{}" > metad_input{}.txt; '.format(plumed_str, i)
+    for key, value in env_vars.items():
+        write_command += ' export {}={}; '.format(key, value)
     command_start = command_server + " --nwalkers={}".format(nwalkers)
     command_start += " --input_xml={}".format(inputs[0].filepath)
     command_start += " --start_xyz={}".format(inputs[1].filepath)
@@ -540,6 +543,7 @@ def _sample(
         command_server,
         command_client,
         *plumed_list,
+        env_vars=definition.env_vars,
         stdout=parsl.AUTO_LOGNAME,
         stderr=parsl.AUTO_LOGNAME,
         inputs=inputs,
