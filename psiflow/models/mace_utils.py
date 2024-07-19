@@ -17,33 +17,7 @@ The following changes were made:
     - simplified Calculator which incorporates additional atomic energy offsets
 
 """
-
 import argparse
-import ast
-import json
-import logging
-import os
-import signal
-from pathlib import Path
-from typing import Optional
-
-import mace
-import numpy as np
-import torch
-import torch.nn.functional
-from e3nn import o3
-from mace import data, modules, tools
-from mace.tools import torch_geometric
-from mace.tools.scripts_utils import (
-    LRScheduler,
-    create_error_table,
-    get_atomic_energies,
-    get_config_type_weights,
-    get_dataset_from_xyz,
-)
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.optim.swa_utils import SWALR, AveragedModel
-from torch_ema import ExponentialMovingAverage
 
 
 class TimeoutException(Exception):
@@ -55,6 +29,30 @@ def timeout_handler(signum, frame):
 
 
 def run(rank: int, args: argparse.Namespace, world_size: int) -> None:
+    import ast
+    import json
+    import logging
+    import os
+    from pathlib import Path
+    from typing import Optional
+
+    import mace
+    import numpy as np
+    import torch
+    import torch.nn.functional
+    from e3nn import o3
+    from mace import data, modules, tools
+    from mace.tools import torch_geometric
+    from mace.tools.scripts_utils import (
+        LRScheduler,
+        create_error_table,
+        get_atomic_energies,
+        get_config_type_weights,
+        get_dataset_from_xyz,
+    )
+    from torch.nn.parallel import DistributedDataParallel as DDP
+    from torch.optim.swa_utils import SWALR, AveragedModel
+    from torch_ema import ExponentialMovingAverage
 
     # extend MACE arg parser with ability to pass initialized model; set tmpdirs
     args.log_dir = os.path.join(os.getcwd(), "log")
@@ -677,7 +675,11 @@ def run(rank: int, args: argparse.Namespace, world_size: int) -> None:
         torch.distributed.destroy_process_group()
 
 
-if __name__ == "__main__":
+def main():
+    import torch
+    from mace import tools
+    import signal
+
     signal.signal(signal.SIGTERM, timeout_handler)
     # main()
     parser = tools.build_default_arg_parser()

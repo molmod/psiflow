@@ -3,17 +3,17 @@ import os
 
 
 def main():
-    import time
     import argparse
+    import time
     from pathlib import Path
-    from ase.io import read
 
     import torch
+    from ase.io import read
     from ipi._driver.driver import run_driver
 
     from psiflow.functions import function_from_json
     from psiflow.geometry import Geometry
-    from psiflow.sampling.utils import FunctionDriver, ForceMagnitudeException
+    from psiflow.sampling.utils import ForceMagnitudeException, FunctionDriver
 
     print("OS environment values:")
     for key, value in os.environ.items():

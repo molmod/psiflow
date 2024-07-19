@@ -86,13 +86,13 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     hamiltonian0 = model.create_hamiltonian()
     rmse0 = compute_rmse(
         validation.get("per_atom_energy"),
-        hamiltonian0.evaluate(validation).get("per_atom_energy"),
+        validation.evaluate(hamiltonian0).get("per_atom_energy"),
     )
     model.train(training, validation)
     hamiltonian1 = model.create_hamiltonian()
     rmse1 = compute_rmse(
         validation.get("per_atom_energy"),
-        hamiltonian1.evaluate(validation).get("per_atom_energy"),
+        validation.evaluate(hamiltonian1).get("per_atom_energy"),
     )
     assert rmse0.result() > rmse1.result()
 

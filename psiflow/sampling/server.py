@@ -12,22 +12,18 @@ from ase.data import atomic_numbers
 from ase.geometry import Cell
 from ase.io import read, write
 from ase.units import Bohr, Ha, _e, _hbar
-from ipi.engine.outputs import CheckpointOutput, PropertyOutput, TrajectoryOutput
-from ipi.engine.properties import getkey
-from ipi.engine.simulation import Simulation
-from ipi.inputs.simulation import InputSimulation
-from ipi.utils.io.inputs import io_xml
-from ipi.utils.messages import verbosity
-from ipi.utils.softexit import softexit
 
-# do not use psiflow apps; parsl config is not loaded in this process!
-from psiflow.data.utils import _write_frames
 from psiflow.geometry import Geometry
 
 NONPERIODIC_CELL = 1000 * np.eye(3)
 
 
 def remdsort(inputfile, prefix="SRT_"):
+    from ipi.engine.outputs import CheckpointOutput, PropertyOutput, TrajectoryOutput
+    from ipi.engine.properties import getkey
+    from ipi.inputs.simulation import InputSimulation
+    from ipi.utils.io.inputs import io_xml
+    from ipi.utils.messages import verbosity
     verbosity.level = "low"
     # opens & parses the input file
     ifile = open(inputfile, "r")
@@ -339,6 +335,8 @@ def anisotropic_barostat_h0(input_xml, data_start):
 
 
 def start(args):
+    from ipi.engine.simulation import Simulation
+    from ipi.utils.softexit import softexit
     data_start = read(args.start_xyz, index=":")
     assert len(data_start) == args.nwalkers
     for i in range(args.nwalkers):
@@ -366,6 +364,7 @@ def start(args):
 
 
 def cleanup(args):
+    from psiflow.data.utils import _write_frames
     with open("input.xml", "r") as f:
         content = f.read()
     if "vibrations" in content:

@@ -166,6 +166,7 @@ def train(
     command_train: str,
     stdout: str = "",
     stderr: str = "",
+    env_vars: dict = {},
     inputs: list[File] = [],
     outputs: list[File] = [],
     parsl_resource_specification: Optional[dict] = None,
@@ -181,9 +182,13 @@ def train(
 
     command_tmp = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
     command_cd = "cd $mytmpdir;"
+    command_env = ""
+    for key, value in env_vars.items():
+        command_env += ' export {}={}; '.format(key, value)
     command_list = [
         command_tmp,
         command_cd,
+        command_env,
         command_train,
         config_str,
         ";",
@@ -230,6 +235,7 @@ class MACE(Model):
         self._train = partial(
             app_train,
             command_train=command_train,
+            env_vars=training.env_vars,
             parsl_resource_specification=resources_train,
         )
 

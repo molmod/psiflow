@@ -231,6 +231,7 @@ class ModelTraining(ExecutionDefinition):
         self,
         gpu=True,
         max_training_time: Optional[float] = None,
+        env_vars: Optional[dict] = None,
         **kwargs,
     ) -> None:
         super().__init__(gpu=gpu, **kwargs)
@@ -238,9 +239,20 @@ class ModelTraining(ExecutionDefinition):
             assert max_training_time * 60 < self.max_runtime
         self.max_training_time = max_training_time
 
+        default_env_vars = {
+            'OMP_NUM_THREADS': str(self.cores_per_worker),
+            'KMP_AFFINITY': 'granularity=fine,compact,1,0',
+            'OMP_PROC_BIND': 'false',
+            'PYTHONUNBUFFERED': 'TRUE',
+        }
+        if env_vars is None:
+            self.env_vars = dict(default_env_vars)
+        else:
+            self.env_vars.update(default_env_vars)
+
     def train_command(self, initialize: bool = False):
-        script = "$(python -c 'import psiflow.models.mace_utils; print(psiflow.models.mace_utils.__file__)')"
-        command_list = ["python", script]
+        # script = "$(python -c 'import psiflow.models.mace_utils; print(psiflow.models.mace_utils.__file__)')"
+        command_list = ["psiflow-mace-train"]
         if (self.max_training_time is not None) and not initialize:
             max_time = 0.9 * (60 * self.max_training_time)
             command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
