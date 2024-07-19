@@ -218,6 +218,8 @@ class MACEFunction(EnergyFunction):
         from mace.tools import torch_tools, utils
 
         torch_tools.set_default_dtype(self.dtype)
+        if self.device == 'gpu':  # when it's not a specific GPU, use any
+            self.device = 'cuda'
         self.device = torch_tools.init_device(self.device)
 
         torch.set_num_threads(self.ncores)
