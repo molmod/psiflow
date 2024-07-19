@@ -39,7 +39,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-PSIFLOW_VERSION="function"
+PSIFLOW_VERSION="main"
 PARSL_VERSION="2024.07.08"
 CCTOOLS_VERSION=7.11.1
 PLUMED_VERSION=2.9.0

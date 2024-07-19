@@ -208,8 +208,10 @@ class MACEFunction(EnergyFunction):
     def __post_init__(self):
         import logging
         import os
+
+        # import environment variables before any nontrivial imports
         if self.env_vars is not None:
-            for key, value in self.env_vars:
+            for key, value in self.env_vars.items():
                 os.environ[key] = value
 
         import torch
