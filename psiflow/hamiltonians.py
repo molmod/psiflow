@@ -388,6 +388,7 @@ class MACEHamiltonian(Hamiltonian):
             "ncores": evaluation.cores_per_worker,
             "dtype": "float32",
             "device": "gpu" if evaluation.gpu else "cpu",
+            "env_vars": evaluation.env_vars,
         }
 
     def __eq__(self, hamiltonian) -> bool:

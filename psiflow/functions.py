@@ -203,9 +203,14 @@ class MACEFunction(EnergyFunction):
     device: str
     dtype: str
     atomic_energies: dict[str, float]
+    env_vars: Optional[dict[str, str]] = None
 
     def __post_init__(self):
         import logging
+        import os
+        if self.env_vars is not None:
+            for key, value in self.env_vars:
+                os.environ[key] = value
 
         import torch
         from mace.tools import torch_tools, utils
