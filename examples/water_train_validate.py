@@ -14,6 +14,8 @@ def main():
         correlation=3,
         max_L=1,
         num_channels=16,
+        max_num_epochs=20,
+        swa=False,
     )
 
     train, valid = data.split(0.9, shuffle=True)

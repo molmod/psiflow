@@ -77,7 +77,7 @@ def run(rank: int, args: argparse.Namespace, world_size: int) -> None:
 
     # Setup
     tools.set_seeds(args.seed)
-    tools.setup_logger(level=args.log_level, tag=tag, directory=args.log_dir)
+    tools.setup_logger(level=args.log_level, tag=tag, directory=args.log_dir, rank=rank)
     try:
         logging.info(f"MACE version: {mace.__version__}")
     except AttributeError:
