@@ -139,8 +139,12 @@ class Geometry:
         values_dict = {}
         for key in keys:
             value = getattr(self, key)
-            if value is not None:
-                values_dict[key] = value
+            if value is None:
+                continue
+            if value is np.ndarray:
+                if np.all(np.isnan(value)):
+                    continue
+            values_dict[key] = value
         for key, value in self.order.items():
             values_dict["order_" + key] = value
         comment += key_val_dict_to_str(values_dict)
