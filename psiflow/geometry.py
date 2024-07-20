@@ -141,7 +141,7 @@ class Geometry:
             value = getattr(self, key)
             if value is None:
                 continue
-            if value is np.ndarray:
+            if type(value) is np.ndarray:
                 if np.all(np.isnan(value)):
                     continue
             values_dict[key] = value

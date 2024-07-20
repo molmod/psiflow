@@ -11,7 +11,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.data.utils import write_frames
+from psiflow.data.utils import write_frames, read_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.utils.io import save_xml
@@ -99,7 +99,9 @@ def setup_output(keep_trajectory: bool) -> ET.Element:
             stride="1",
             format="ase",
             filename="trajectory",
+            bead="0",
         )
+        trajectory.text = r" positions "
         output.append(trajectory)
     return output
 
@@ -119,6 +121,9 @@ def _execute_ipi(
 ) -> str:
     tmp_command = "tmpdir=$(mktemp -d);"
     cd_command = "cd $tmpdir;"
+    env_command = " "
+    for name, value in env_vars.items():
+        env_command += "export {}={}; ".format(name, value)
     command_start = command_server + " --nwalkers=1"
     command_start += " --input_xml={}".format(inputs[0].filepath)
     command_start += " --start_xyz={}".format(inputs[1].filepath)
@@ -146,6 +151,7 @@ def _execute_ipi(
     command_list = [
         tmp_command,
         cd_command,
+        env_command,
         command_start,
         "sleep 3s;",
         command_clients,
@@ -234,9 +240,9 @@ def optimize(
         parsl_resource_specification=resources,
     )
 
-    trajectory = Dataset(None, result.outputs[0])
-    final = trajectory[-1:].evaluate(hamiltonian)[0]
+    final = Dataset(None, result.outputs[0]).evaluate(hamiltonian)[-1]
     if keep_trajectory:
+        trajectory = Dataset(None, result.outputs[1])
         return final, trajectory
     else:
         return final
