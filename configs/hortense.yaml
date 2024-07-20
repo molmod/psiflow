@@ -1,4 +1,7 @@
 ---
+parsl_log_level: WARNING
+container_engine: 'apptainer'
+container_uri: 'oras://ghcr.io/molmod/psiflow:main_cu118'
 default_threads: 8
 ModelEvaluation:
   cores_per_worker: 12
