@@ -238,6 +238,12 @@ class ModelTraining(ExecutionDefinition):
         if max_training_time is not None:
             assert max_training_time * 60 < self.max_runtime
         self.max_training_time = max_training_time
+        if self.max_workers > 1:
+            message = ('the max_simulation_time keyword does not work '
+                       'in combination with multi-gpu training. Adjust '
+                       'the maximum number of epochs to control the '
+                       'duration of training')
+            assert self.max_training_time is None, message
 
         default_env_vars = {
             'OMP_NUM_THREADS': str(self.cores_per_worker),
@@ -267,6 +273,7 @@ class ModelTraining(ExecutionDefinition):
             resource_specification["gpus"] = nworkers  # one per GPU
         else:
             nworkers = 1
+
         resource_specification["gpus"] = nworkers  # one per GPU
         resource_specification["cores"] = self.cores_available
         resource_specification["disk"] = 1000 * nworkers  # some random nontrivial amount?
