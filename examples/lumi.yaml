@@ -28,6 +28,7 @@ ModelEvaluation:
 ModelTraining:
   cores_per_worker: 7
   gpu: true
+  max_training_time: 5
   slurm:
     partition: "standard-g"
     account: "project_465001125"
