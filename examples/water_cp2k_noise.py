@@ -5,7 +5,7 @@ import numpy as np
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry
-from psiflow.reference import CP2K
+from psiflow.reference import CP2K, evaluate
 
 
 def main():
@@ -42,7 +42,7 @@ H         5.1679  -49.3538   -0.4625
     for i in range(50):
         g = copy.deepcopy(geometry)
         g.per_atom.positions += i * delta_x
-        states.append(cp2k.evaluate(g))
+        states.append(evaluate(g, cp2k))
     data = Dataset(states)
     energy = data.get("per_atom_energy").result()
     forces = data.get("forces").result()

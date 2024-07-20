@@ -4,7 +4,7 @@ from ase.units import kB
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.free_energy import Integration, compute_harmonic
+from psiflow.free_energy import Integration, compute_harmonic, harmonic_free_energy
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Harmonic, MACEHamiltonian
 from psiflow.sampling import optimize
@@ -39,8 +39,7 @@ def main():
         integration = Integration(
             harmonic,
             temperatures=[temperature],
-            delta_hamiltonian=(scaling - 1)
-            * harmonic,  # makes sampling distribution slightly broader
+            delta_hamiltonian=(scaling - 1) * harmonic,
             delta_coefficients=np.linspace(0, 1, num=4, endpoint=True),
         )
         walkers = integration.create_walkers(  # noqa: F841
@@ -51,15 +50,18 @@ def main():
         integration.compute_gradients()
 
         reduced_f = integration.along_delta(temperature=temperature).result()
-        f_harmonic = harmonic.compute_free_energy(
-            temperature=temperature, quantum=False
+        f_harmonic = harmonic_free_energy(
+            hessian,
+            temperature=temperature,
+            quantum=False,
         )
         simulated[name] = (f_harmonic.result() + reduced_f[-1]) / beta
 
         # theoretical
-        harmonic = Harmonic(minimum, scaling * hessian.result())
-        f_harmonic_scaled = harmonic.compute_free_energy(
-            temperature=temperature, quantum=False
+        f_harmonic_scaled = harmonic_free_energy(
+            scaling * hessian.result(),
+            temperature=temperature,
+            quantum=False,
         )
         theoretical[name] = f_harmonic_scaled.result() / beta
 
