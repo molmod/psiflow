@@ -27,7 +27,7 @@ do
 #!/bin/bash
 #
 #SBATCH -p small
-#SBATCH --account=project_465000847
+#SBATCH --account=project_465001125
 #SBATCH --time=01:00:00
 #SBATCH --nodes=1
 #SBATCH --job-name=$name

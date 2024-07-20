@@ -262,13 +262,17 @@ class ModelTraining(ExecutionDefinition):
         if self.use_threadpool:
             return {}
         resource_specification = {}
-        resource_specification["cores"] = self.cores_per_worker
-        resource_specification["disk"] = 1000  # some random nontrivial amount?
-        memory = 2000 * self.cores_per_worker  # similarly rather random
+        if self.gpu:
+            nworkers = int(self.cores_available / self.cores_per_worker)
+            resource_specification["gpus"] = nworkers  # one per GPU
+        else:
+            nworkers = 1
+        resource_specification["gpus"] = nworkers  # one per GPU
+        resource_specification["cores"] = self.cores_available
+        resource_specification["disk"] = 1000 * nworkers  # some random nontrivial amount?
+        memory = 1000 * self.cores_available  # similarly rather random
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_training_time
-        if self.gpu:
-            resource_specification["gpus"] = 1
         return resource_specification
 
 
