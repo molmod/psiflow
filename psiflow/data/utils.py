@@ -25,8 +25,8 @@ def _write_frames(
         else:  # single geometry
             all_states.append(extra_states)
     with open(outputs[0], "w") as f:
-        for state in all_states:
-            f.write(state.to_string() + "\n")
+        for state in all_states:  # avoid double newline by using strip!
+            f.write(state.to_string().strip() + '\n')
 
 
 write_frames = python_app(_write_frames, executors=["default_threads"])
@@ -77,7 +77,8 @@ def _read_frames(
 
     if len(outputs) > 0:
         with open(outputs[0], "w") as f:
-            f.write("\n".join([d for d in data if d is not None]))
+            f.write("\n".join([d.strip() for d in data if d is not None]))
+            f.write("\n")
     else:
         geometries = [Geometry.from_string(s) for s in data if s is not None]
         return geometries
