@@ -36,7 +36,7 @@ CP2K:
     account: "2024_079"
     nodes_per_block: 1
     cores_per_node: 64
-    max_blocks: 50
+    max_blocks: 2
     walltime: "06:00:00"
     scheduler_options: "#SBATCH --clusters=dodrio\n"
 ...
