@@ -11,7 +11,7 @@ files=(
     "alanine_replica_exchange.py"
 )
 
-curl -O https://raw.githubusercontent.com/molmod/psiflow/ipi/configs/lumi.yaml
+curl -O https://raw.githubusercontent.com/molmod/psiflow/main/configs/lumi.yaml
 
 run_dir=$(pwd)/run_examples
 mkdir $run_dir && cp lumi.yaml $run_dir && cd $run_dir
@@ -37,10 +37,10 @@ do
 #SBATCH -o output.txt
 
 
-curl -LJO https://github.com/molmod/psiflow/archive/ipi.zip
-unzip -j psiflow-ipi.zip "psiflow-ipi/examples/data/*" -d data
+curl -LJO https://github.com/molmod/psiflow/archive/main.zip
+unzip -j psiflow-main.zip "psiflow-main/examples/data/*" -d data
 
-curl -O https://raw.githubusercontent.com/molmod/psiflow/ipi/examples/$filename
+curl -O https://raw.githubusercontent.com/molmod/psiflow/main/examples/$filename
 python $filename lumi.yaml
 EOF
 
