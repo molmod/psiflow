@@ -33,7 +33,7 @@ CP2K:
   launch_command: 'apptainer exec -e --no-init oras://ghcr.io/molmod/cp2k:2023.2 /opt/entry.sh mpirun -np 32 --bind-to core --map-by core -x OMP_NUM_THREADS=1 cp2k.psmp -i cp2k.inp'
   slurm:
     partition: "cpu_rome"
-    account: "starting_2024_079"
+    account: "2024_079"
     nodes_per_block: 1
     cores_per_node: 64
     max_blocks: 50
