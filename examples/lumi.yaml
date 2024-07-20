@@ -1,5 +1,5 @@
 ---
-parsl_log_level: WARNING
+parsl_log_level: DEBUG
 container_engine: 'singularity'
 container_uri: 'oras://ghcr.io/molmod/psiflow:main_rocm5.6'
 default_threads: 8
