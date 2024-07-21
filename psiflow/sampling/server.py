@@ -1,7 +1,7 @@
 import argparse
+import os
 import ast
 import glob
-import shutil
 import signal
 import xml.etree.ElementTree as ET
 from copy import deepcopy
@@ -132,8 +132,14 @@ def remdsort(inputfile, prefix="SRT_"):
                                     }
                                 )
                             else:
-                                filename = filename + "_" + padb + "." + o.format
-                                ofilename = ofilename + "_" + padb + "." + o.format
+                                # FIX
+                                if o.format == 'ase':
+                                    extension = 'extxyz'
+                                else:
+                                    extension = o.format
+                                filename = filename + "_" + padb + "." + extension
+                                ofilename = ofilename + "_" + padb + "." + extension
+                                print(filename, ofilename)
                                 ntraj.append(
                                     {
                                         "filename": filename,
@@ -380,10 +386,13 @@ def cleanup(args):
         if "remd" in content:
             remdsort("input.xml")
             for filepath in glob.glob("SRT_*"):
+                # does not use shutil because it is not instantaneous
                 source = filepath
                 target = filepath.replace("SRT_", "")
-                assert Path(target).exists()  # should exist
-                shutil.copyfile(source, target)
+                os.remove(target)
+                assert not Path(target).exists()
+                os.rename(source, target)
+                assert Path(target).exists()
         i = 0
         while i < len(states):
             # try all formattings of bead index (i-PI inconsistency)
@@ -449,19 +458,19 @@ def main():
     if not args.cleanup:
         start(args)
     else:
-        try:
-            cleanup(args)
-        except BaseException as e:  # noqa: B036
-            print(e)
-            print("i-PI cleanup failed!")
-            print("files in directory:")
-            for filepath in Path.cwd().glob("*"):
-                print(filepath)
-            print("")
+        #try:
+        cleanup(args)
+        #except BaseException as e:  # noqa: B036
+        #    print(e)
+        #    print("i-PI cleanup failed!")
+        #    print("files in directory:")
+        #    for filepath in Path.cwd().glob("*"):
+        #        print(filepath)
+        #    print("")
 
-            names = [p.name for p in Path.cwd().glob("*")]
-            if "output.checkpoint" in names:
-                with open("output.checkpoint", "r") as f:
-                    print(f.read())
-            else:
-                print("no output.checkpoint found")
+        #    names = [p.name for p in Path.cwd().glob("*")]
+        #    if "output.checkpoint" in names:
+        #        with open("output.checkpoint", "r") as f:
+        #            print(f.read())
+        #    else:
+        #        print("no output.checkpoint found")

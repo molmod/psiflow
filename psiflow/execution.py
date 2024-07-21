@@ -42,6 +42,7 @@ class ExecutionDefinition:
         cores_per_worker: int,
         use_threadpool: bool,
         worker_prepend: str,
+        max_workers: Optional[int] = None,
     ) -> None:
         self.parsl_provider = parsl_provider
         self.gpu = gpu
@@ -49,6 +50,7 @@ class ExecutionDefinition:
         self.use_threadpool = use_threadpool
         self.worker_prepend = worker_prepend
         self.name = self.__class__.__name__
+        self._max_workers = max_workers
 
     @property
     def cores_available(self):
@@ -62,7 +64,10 @@ class ExecutionDefinition:
 
     @property
     def max_workers(self):
-        return max(1, math.floor(self.cores_available / self.cores_per_worker))
+        if self._max_workers is not None:
+            return self._max_workers
+        else:
+            return max(1, math.floor(self.cores_available / self.cores_per_worker))
 
     @property
     def max_runtime(self):
@@ -239,7 +244,7 @@ class ModelTraining(ExecutionDefinition):
             assert max_training_time * 60 < self.max_runtime
         self.max_training_time = max_training_time
         if self.max_workers > 1:
-            message = ('the max_simulation_time keyword does not work '
+            message = ('the max_training_time keyword does not work '
                        'in combination with multi-gpu training. Adjust '
                        'the maximum number of epochs to control the '
                        'duration of training')

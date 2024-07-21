@@ -425,7 +425,8 @@ def test_rex(dataset):
     assert len(partition(walkers)) == 1
     assert len(partition(walkers)[0]) == 2
 
-    _ = sample(walkers, steps=50, step=10)
+    outputs = sample(walkers, steps=50, step=10)
+    assert outputs[0].trajectory.length().result() == 6
 
     swaps = np.loadtxt(walkers[0].coupling.swapfile.result().filepath)
     assert len(swaps) > 0  # at least some successful swaps
