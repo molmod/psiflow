@@ -12,6 +12,7 @@ psiflow=false
 gpaw=false
 cp2k=false
 build_sif=false
+#mpi=mpich
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
