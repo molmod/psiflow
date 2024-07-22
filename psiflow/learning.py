@@ -113,8 +113,8 @@ class Learning:
         train_valid_split: float = 0.9,
         error_thresholds_for_reset: Union[list, tuple] = (0.02, 0.2),
         error_thresholds_for_discard: Union[list, tuple] = (0.03, 0.6),
-        wandb_project: Optional[str] = None,
         wandb_group: Optional[str] = None,
+        wandb_project: Optional[str] = None,
         initial_data: Optional[Dataset] = None,
     ):
         self.reference = reference
@@ -124,8 +124,8 @@ class Learning:
         self.error_thresholds_for_reset = list(error_thresholds_for_reset)
         self.error_thresholds_for_discard = list(error_thresholds_for_discard)
         self.metrics = Metrics(
-            wandb_project,
             wandb_group,
+            wandb_project,
         )
 
         if initial_data is None:
