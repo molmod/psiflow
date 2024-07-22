@@ -139,6 +139,12 @@ def test_metrics(dataset_h2):
     )
     data = load_metrics(inputs=[metrics.metrics]).result()
     assert np.allclose(data.identifier, double_identifier)
+    # walker indices 3 and 7 should not end up in data
+    walker_indices = np.concatenate((np.array([0, 1, 2, 4, 5, 6, 8, 9]),) * 2)
+    assert np.allclose(
+        data.walker_index,
+        walker_indices,
+    )
 
 
 def test_evaluate_outputs(dataset):
@@ -266,6 +272,8 @@ def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
         metrics.walker_index,
         np.array([0, 1], dtype=np.int_),
     )
+    assert not np.any(np.isnan(metrics.e_rmse[:, 1]))  # should have been updated
+    assert not np.any(np.isnan(metrics.f_rmse[:, 1]))
 
     assert learning.skip("0_active_learning")
     model_, walkers_ = learning.load("0_active_learning")

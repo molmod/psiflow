@@ -341,9 +341,14 @@ def _add_walker_log(
 
     from psiflow.utils.io import _load_metrics, _save_metrics
 
+    # only add 'successful' states in metrics
+    # everything else was already logged (and printed to stdout) using parse_walker_log
     walker_log = walker_log[walker_log.identifier != -1]
     walker_log = np.sort(walker_log, order="identifier")
 
+    # currently assumes that walkers don't fundamentally change!
+    # i.e. that reconstruct_dtypes(walker_log.dtype) yields the same
+    # set of dtypes
     if os.path.isfile(inputs[0]) and os.path.getsize(inputs[0]) > 0:
         metrics = _load_metrics(inputs=[inputs[0]])
         dtype = metrics.dtype
@@ -362,16 +367,16 @@ def _add_walker_log(
         metrics = np.recarray(len(walker_log), dtype=dtype)
         start = 0
 
-    for walker_index in range(len(walker_log)):
-        i = walker_index + start
+    for i in range(len(walker_log)):
+        metrics_i = start + i
         for name in metrics.dtype.names:
             if name in ["e_rmse", "f_rmse"]:
-                getattr(metrics, name)[i, 0] = getattr(walker_log, name)[walker_index]
-                getattr(metrics, name)[i, 1] = np.nan
+                getattr(metrics, name)[metrics_i, 0] = getattr(walker_log, name)[i]
+                getattr(metrics, name)[metrics_i, 1] = np.nan
             elif name == "walker_index":
-                getattr(metrics, name)[i] = walker_index
+                getattr(metrics, name)[metrics_i] = walker_log.walker_index[i]
             else:
-                getattr(metrics, name)[i] = getattr(walker_log, name)[walker_index]
+                getattr(metrics, name)[metrics_i] = getattr(walker_log, name)[i]
 
     _save_metrics(metrics, outputs=[outputs[0]])
 
@@ -477,6 +482,8 @@ class Metrics:
                 os.environ["WANDB_API_KEY"],
                 psiflow.context().path,
             ).result()
+        else:
+            self.wandb_id = None
 
         if metrics is None:
             metrics = psiflow.context().new_file("metrics_", ".numpy")
@@ -520,10 +527,13 @@ class Metrics:
             outputs=[psiflow.context().new_file("metrics_", ".numpy")],
         ).outputs[0]
         self.metrics = metrics
+        if self.wandb_id is not None:
+            self.to_wandb()
 
     def to_wandb(self):
         if self.wandb_group is None and self.wandb_project is None:
             raise ValueError("initialize Metrics with wandb group and project names")
+        assert self.wandb_id is not None
         return to_wandb(
             self.wandb_id,
             self.wandb_project,

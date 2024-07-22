@@ -250,6 +250,9 @@ class Learning:
             model.initialize(train)
             model.train(train, valid)
 
+            # log final errors of entire dataset
+            self.metrics.update(self.data, model.create_hamiltonian())
+
             # restore original walker hamiltonians and apply conditional reset
             for w, h in zip(walkers, backup):
                 w.hamiltonian = h
@@ -293,6 +296,9 @@ class Learning:
             model.reset()
             model.initialize(train)
             model.train(train, valid)
+
+            # log final errors of entire dataset
+            self.metrics.update(self.data, model.create_hamiltonian())
 
             # restore original walker hamiltonians and apply conditional reset
             for i, (w, h) in enumerate(zip(walkers, backup)):
