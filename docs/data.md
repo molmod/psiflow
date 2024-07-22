@@ -1,11 +1,12 @@
 ## representing a single atomic structure
 
-A key component of any molecular simulation engine is the ability to represent a collection of atoms in 3D space, 
-also referred to as an atomic geometry.
-It refers to a list of atoms, whereby each atom is characterized by its position in space, its chemical identity, and, if available, a force which acts on the atom.
-In addition, atomic geometries can also contain metadata such as information on their periodicity (unit cell vectors), the potential energy, a stress tensor, or the value of a particular order parameter.
+A key component of any molecular simulation engine is the ability to represent an ordered collection of atoms in 3D space.
+In psiflow, this is achieved using the `Geometry` class, which is essentially a lite
+version of ASE's `Atoms` object.
+A `Geometry` instance describes a set of atoms, each of which is characterized by its position in space, its chemical identity, and, if available, a force which acts on the atom.
+In addition, atomic geometries can also contain metadata such as information on periodicity in 3D space (unit cell vectors), the potential energy, a stress tensor, or the value of a particular order parameter.
 
-In psiflow, atomic geometries are represented using the `Geometry` class. It is essentially a concise equivalent to ASE's `Atoms` class. They can be created from an XYZ string, from an existing ASE atoms instance, or directly with raw arrays of positions, atomic numbers, and optionally the periodicity.
+Atomic geometries can be created from an XYZ string, from an existing ASE atoms instance, or directly from raw arrays of positions, atomic numbers, and (optionally) unit cell vectors.
 ```py
 import ase
 import numpy as np
@@ -46,11 +47,14 @@ geometry = Geometry.from_data(
 
 ```
 
-All features in psiflow are fully compatible with either nonperiodic (molecular) or 3D periodic systems with arbitrary unit cells (i.e. general triclinic). However, for efficiency reasons, i-PI (along with OpenMM, GROMACS, and a bunch of other packages) typically require that atomic geometries are represented in their *canonical* orientation.
-In the canonical orientation, the cell vectors are aligned with the X, Y, and Z axes as much as possible.
+All features in psiflow are fully compatible with either nonperiodic (molecular) or 3D periodic systems with arbitrary unit cells (i.e. general triclinic).
+For periodic systems in particular, it is common to require that atomic geometries are represented in their *canonical* orientation.
+In this (unique) orientation, cell vectors are aligned with the X, Y, and Z axes as much as possible, with the convention that the X-axis is aligned with the first cell vector, the Y-axis is oriented such that the second cell vector lies in the XY-plane.
 In addition, box vectors are added and subtracted in order to make the cell as orthorhombic as possible.
-Note that the relative orientation of atoms with respect to each other as well as the volume of the unit cell remain exactly the same, so this transformation does not affect the physical behavior of the system in any way.
-Since psiflow relies on i-PI for sampling, we adhere to the same convention.
+When the cell vectors are represented as the rows of a 3-by-3 matrix, then the canonical orientation ensures
+that this matrix is _lower-triangular_.
+Note that this transformation changes nothing about the physical behavior of the system
+whatsoever; interatomic distances or unit cell volume remain exactly the same.
 
 ```py
 geometry = Geometry.from_data(
@@ -61,7 +65,11 @@ geometry = Geometry.from_data(
 geometry.canonical_orientation()  # first and second vector are subtracted from the third
 print(geometry.cell)              # the cell vectors are mostly aligned with the axes
 ```
-Check out the API reference for a full overview of its functionality.
+The canonical orientation is convenient for a number of reasons, but the main reason is
+computational efficiency: application of the minimum image convention and/or neighbor list
+construction becomes *much* more elegant. For this reason, a number of molecular
+simulation engines (i-PI, GROMACS, OpenMM, to name a few) require that the starting
+configuration of the system is given in its canonical orientation.
 
 
 ## representing multiple structures

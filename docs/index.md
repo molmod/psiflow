@@ -28,7 +28,7 @@ The environment can be activated by sourcing the `activate.sh` file which will b
 
 Next, create a `config.yaml` file which defines the compute resources. For SLURM-based HPC systems, psiflow can initialize your configuration automatically via the following command:
 ```sh
-python -c 'import psiflow; psiflow.setup_slurm()'
+python -c 'import psiflow; psiflow.setup_slurm_config()'
 ```
 Example configuration files for [LUMI](https://lumi-supercomputer.eu/), [MeluXina](https://luxembourg.public.lu/en/invest/innovation/meluxina-supercomputer.html), or [VSC](https://www.vscentrum.be/) can be found [here](https://github.com/molmod/psiflow/tree/main/configs).
 No additional software compilation is required since all of the heavy lifting (CP2K/ORCA/GPAW, PyTorch model training, i-PI dynamics) is executed within preconfigured [Apptainer](https://apptainer.org/)/[Singularity](https://sylabs.io/singularity/) containers which are production-ready for most HPCs.
@@ -108,7 +108,7 @@ Check out the [Configuration](execution.md) section for more details.
 In what follows, we assume that a suitable `context` has been initialized.
 --->
 
-
+<!---
 ```
 
 ## Trainable potentials
@@ -588,3 +588,4 @@ basis = 'cc-pvtz'
 spin = 0
 reference = PySCFReference(routine, basis, spin)
 ```
+--->
