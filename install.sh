@@ -5,7 +5,7 @@ export MAMBA_ROOT_PREFIX=$(pwd) # optional, defaults to ~/micromamba
 
 eval "$(./bin/micromamba shell hook -s posix)"
 micromamba activate
-micromamba create -n _psiflow_env -y python=3.10 pip ndcctools=7.11.0 -c conda-forge
+micromamba create -n _psiflow_env -y python=3.10 pip ndcctools=7.11.1 -c conda-forge
 micromamba activate _psiflow_env
 pip install git+https://github.com/molmod/psiflow
 
