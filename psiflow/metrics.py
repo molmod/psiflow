@@ -140,9 +140,8 @@ def fix_plotly_layout(figure):
         tickformat=".1f",
     )
     text = """
-<b>circle marker</b>: walker OK <br>
-<b>diamond marker</b>:  walker reset <br>
-symbols are colored based on average temperature
+individual circles represent a single snapshot in the training/validation set <br>
+circles are colored based on the error difference between the current and previous model
 """
     figure.add_annotation(
         text=text,
@@ -166,9 +165,11 @@ def _to_wandb(
     wandb_id: str,
     wandb_project: str,
     inputs: list = [],
-):
+) -> None:
     import os
     import tempfile
+    import numpy as np
+    from pathlib import Path
 
     import colorcet as cc
     import matplotlib.colors as mcolors
@@ -177,6 +178,7 @@ def _to_wandb(
     import plotly.express as px
     import wandb
 
+    from psiflow.metrics import fix_plotly_layout
     from psiflow.utils.io import _load_metrics
 
     Y_AXES = [
@@ -259,14 +261,6 @@ def _to_wandb(
                     hover_template += s
                     hover_names.append(name)
 
-                # figure_ = px.scatter(
-                #    data_frame=df_na,
-                #    x=x_axis,
-                #    y=y,
-                #    custom_data=hover_names,
-                #    symbol_sequence=["circle"],
-                #    color_discrete_sequence=["darkgray"],
-                # )
                 figure = px.scatter(
                     data_frame=df_not_na,
                     x=x_axis,
@@ -276,8 +270,6 @@ def _to_wandb(
                     color_continuous_scale=colors,
                     symbol_sequence=["circle"],
                 )
-                # for trace in figure_.data:
-                #    figure.add_trace(trace)
                 figure.update_traces(
                     marker={
                         "size": 10,
@@ -302,6 +294,7 @@ def _to_wandb(
         wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume="allow")
         wandb.log(figures)
         wandb.finish()
+    return None
 
 
 to_wandb = python_app(_to_wandb, executors=["default_htex"])
