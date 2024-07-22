@@ -164,9 +164,13 @@ circles are colored based on the error difference between the current and previo
 def _to_wandb(
     wandb_id: str,
     wandb_project: str,
+    wandb_api_key: str,
     inputs: list = [],
 ) -> None:
     import os
+
+    os.environ["WANDB_API_KEY"] = wandb_api_key
+    os.environ["WANDB_SILENT"] = "True"
     import tempfile
     import numpy as np
     from pathlib import Path
@@ -289,7 +293,6 @@ def _to_wandb(
                     figure.update_layout(yaxis_title="<b>forces RMSE [meV/atom]</b>")
                 figure.update_layout(xaxis_title="<b>" + x_axis + "</b>")
                 figures[title] = figure
-        os.environ["WANDB_SILENT"] = "True"
         path_wandb = Path(tempfile.mkdtemp())
         wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume="allow")
         wandb.log(figures)
@@ -530,5 +533,6 @@ class Metrics:
         return to_wandb(
             self.wandb_id,
             self.wandb_project,
+            os.environ['WANDB_API_KEY'],
             inputs=[self.metrics],
         )
