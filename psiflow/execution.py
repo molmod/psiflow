@@ -107,7 +107,7 @@ class ExecutionDefinition:
                 shared_fs=True,
                 autocategory=False,
                 port=0,
-                max_retries=0,
+                max_retries=1,
                 coprocess=False,
                 worker_options=" ".join(worker_options),
                 worker_executable="{} work_queue_worker".format(self.worker_prepend),
