@@ -293,10 +293,10 @@ def _to_wandb(
                     figure.update_layout(yaxis_title="<b>forces RMSE [meV/atom]</b>")
                 figure.update_layout(xaxis_title="<b>" + x_axis + "</b>")
                 figures[title] = figure
-        path_wandb = Path(tempfile.mkdtemp())
-        wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume="allow")
-        wandb.log(figures)
-        wandb.finish()
+    path_wandb = Path(tempfile.mkdtemp())
+    wandb.init(id=wandb_id, dir=path_wandb, project=wandb_project, resume="allow")
+    wandb.log(figures)
+    wandb.finish()
     return None
 
 
