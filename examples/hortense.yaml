@@ -30,7 +30,7 @@ ModelTraining:
 CP2K:
   cores_per_worker: 64
   max_evaluation_time: 30
-  launch_command: 'apptainer exec -e --no-init oras://ghcr.io/molmod/cp2k:2024.1 /opt/entry.sh mpirun -np 32 -bind-to core cp2k.psmp -i cp2k.inp'
+  launch_command: 'apptainer exec --memory 50000000000 -e --no-init oras://ghcr.io/molmod/cp2k:2024.1 /opt/entry.sh mpirun -np 32 -bind-to core cp2k.psmp -i cp2k.inp'
   slurm:
     partition: "cpu_rome"
     account: "2024_079"
