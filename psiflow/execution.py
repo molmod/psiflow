@@ -352,7 +352,7 @@ class ReferenceEvaluation(ExecutionDefinition):
             launch_command = "timeout -s 9 {}s {}".format(max_time, launch_command)
         if self.memory_limit is not None:
             # based on https://stackoverflow.com/a/42865957/2002471
-            units = {"B": 1, "KB": 2**10, "MB": 2**20, "GB": 2**30, "TB": 2**40}
+            units = {"KB": 1, "MB": 2**10, "GB": 2**20, "TB": 2**30}
 
             def parse_size(size):
                 size = size.upper()
