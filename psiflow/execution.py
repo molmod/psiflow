@@ -186,9 +186,10 @@ class ModelEvaluation(ExecutionDefinition):
             'PYTHONUNBUFFERED': 'TRUE',
         }
         if env_vars is None:
-            self.env_vars = dict(default_env_vars)
+            env_vars = dict(default_env_vars)
         else:
-            self.env_vars.update(default_env_vars)
+            env_vars.update(default_env_vars)
+        self.env_vars = env_vars
 
     def server_command(self):
         command_list = ["psiflow-server"]
@@ -265,9 +266,10 @@ class ModelTraining(ExecutionDefinition):
             'PYTHONUNBUFFERED': 'TRUE',
         }
         if env_vars is None:
-            self.env_vars = dict(default_env_vars)
+            env_vars = dict(default_env_vars)
         else:
-            self.env_vars.update(default_env_vars)
+            env_vars.update(default_env_vars)
+        self.env_vars = env_vars
 
     def train_command(self, initialize: bool = False):
         # script = "$(python -c 'import psiflow.models.mace_utils; print(psiflow.models.mace_utils.__file__)')"
