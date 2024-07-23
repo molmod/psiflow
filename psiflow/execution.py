@@ -1,5 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import re
+
 import logging
 import math
 import shutil
@@ -301,18 +303,22 @@ class ReferenceEvaluation(ExecutionDefinition):
         name: str,
         launch_command: Optional[str] = None,
         max_evaluation_time: Optional[float] = None,
+        memory_limit: Optional[str] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.name = name  # override name
+
+        if launch_command is None:
+            launch_command = self.default_launch_command
+        self.launch_command = launch_command
+
         if max_evaluation_time is None:
             max_evaluation_time = self.max_runtime / 60
         assert max_evaluation_time * 60 <= self.max_runtime
         self.max_evaluation_time = max_evaluation_time
 
-        if launch_command is None:
-            launch_command = self.default_launch_command
-        self.launch_command = launch_command
+        self.memory_limit = memory_limit
 
     @property
     def default_launch_command(self):
@@ -334,14 +340,32 @@ class ReferenceEvaluation(ExecutionDefinition):
             raise ValueError('provide path to ORCA executable via "launch_command"')
 
     def command(self):
-        max_time = 0.9 * (60 * self.max_evaluation_time)
-        command = " ".join(
-            [
-                "timeout -s 9 {}s".format(max_time),
-                self.launch_command,
-                "|| true",
-            ]
-        )
+        extra_commands = []
+
+        launch_command = self.launch_command
+        if self.name.startswith("CP2K"):
+            launch_command += " -i cp2k.inp"  # add input file
+        elif self.name.startswith("GPAW"):
+            launch_command += " input.json"
+        if self.max_evaluation_time is not None:
+            max_time = 0.9 * (60 * self.max_evaluation_time)
+            launch_command = "timeout -s 9 {}s {}".format(max_time, launch_command)
+        if self.memory_limit is not None:
+            # based on https://stackoverflow.com/a/42865957/2002471
+            units = {"B": 1, "KB": 2**10, "MB": 2**20, "GB": 2**30, "TB": 2**40}
+
+            def parse_size(size):
+                size = size.upper()
+                if not re.match(r' ', size):
+                    size = re.sub(r'([KMGT]?B)', r' \1', size)
+                number, unit = [string.strip() for string in size.split()]
+                return int(float(number) * units[unit])
+
+            actual = parse_size(self.memory_limit)
+            extra_commands.append("ulimit -v {}".format(actual))
+
+        body = "; ".join(extra_commands + [launch_command, "exit 0"]) + "; "
+        command = " { " + body + " } "
         return command
 
     def wq_resources(self):

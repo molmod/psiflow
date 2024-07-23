@@ -16,7 +16,7 @@ dependencies = [
     "parsl @ git+https://github.com/parsl/parsl.git@benc-status-refactor",
     "prettytable",
     "psutil",
-    "cp2k-input-tools",
+    "cp2k-input-tools @ git+https://github.com/cp2k/cp2k-input-tools",  # need 2024.1
     "pytimeparse",
     ]
 

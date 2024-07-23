@@ -260,7 +260,8 @@ class CP2K(Reference):
                     "ot": {"minimizer": "CG"}
                 }
             # necessary for oxygen calculation, at least in 2024.1
-            cp2k_input_dict['force_eval']['dft']['scf']['ignore_convergence_failure'] = True
+            key = 'ignore_convergence_failure'
+            cp2k_input_dict['force_eval']['dft']['scf'][key] = "TRUE"
 
             reference = CP2K(
                 dict_to_str(cp2k_input_dict),
