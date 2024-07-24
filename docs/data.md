@@ -72,34 +72,40 @@ simulation engines (i-PI, GROMACS, OpenMM, to name a few) require that the start
 configuration of the system is given in its canonical orientation.
 
 
-To understand what is meant by 'generating data in the future', consider the following
+## representing an atomic structure **from the future**
+Consider the following
 example: imagine that we have a trajectory of atomic geometries, and we wish to
-minimize each of their potential energies and inspect the final optimized geometry for
-each state in the trajectory. In pseudo-code, this would look something like this:
+minimize each of their potential energies and inspect the result (for example to find the
+global minimum).
+In pseudo-code, this would look something like this:
 
-```
-for state in trajectory:
-    final = geometry_optimization(state)
-    detect_minimum(final)
+!!! note "pseudocode"
+    ```py
+    minima = []  # list which tracks result of optimization for each snapshot in the trajectory 
+    for state in trajectory:
+        local_minimum = geometry_optimization(state)
+        minima.append(local_minimum) 
+    global_minimum(*minima)
+    ```
 
-```
 In "normal", _synchronous_ execution, when entering the first iteration of the loop, Python would
 start executing the first geometry optimization right away and *wait* for it complete, before
 moving on to the next iteration. This makes little sense, since we know in advance
-that each of the optimizations is in fact independent. As such, the loop can in fact be completed
-much quicker if we would simply execute each optimization in parallel (as opposed to
-serial).
+that each of the optimizations is independent. As such, the loop can in fact be completed
+much quicker if we would simply execute each optimization in parallel.
+This is referred to as _asynchronous_ execution because the execution of any optimization
+will now be performed independent from another.
 The intended way to achieve this in Python is by using the built-in
 [_concurrent_](https://docs.python.org/3/library/concurrent.futures.html) library,
 and it provides the foundation of psiflow's efficiency and scalability.
 Aside from _asynchronous_ execution, we also want _remote_ execution.
 Geometry optimizations, molecular dynamics simulations, ML training, quantum chemistry
-calculations, ... are rarely ever performed on a local laptop.
-Instead, they should ideally be forwarded towards e.g. a SLURM/PBS(Pro) scheduler or an
+calculations, ... are rarely ever performed on a local workstation.
+Instead, they should ideally be forwarded to e.g. a SLURM/PBS(Pro)/SGE scheduler or an
 AWS/GCP instance.
 To achieve this, psiflow is built with
 [Parsl](https://github.com/parsl/parsl): a DoE-funded Python package which
-extends the native _concurrent_ library with
+extends the native `python.concurrent` library with
 the ability to offload execution towards remote compute resources.
 
 Parsl (and `python.concurrent`) is founded on two concepts: apps and futures. In their simplest
@@ -126,6 +132,8 @@ print(sum_future.result())      # now compute the actual result; this will print
 ```
 The return value of Parsl apps is not the actual result (in this case, an integer), but
 an AppFuture that will store the result of the function evaluation after it has completed.
+By explicitly calling `.result()` on the future, we block the main code execution
+until the sum is actually computed, and literally ask for the result.
 For more information, check out the [Parsl documentation](https://parsl.readthedocs.io/en/stable/).
 
 In our geometry optimization example from before, we would implement the function
@@ -135,17 +143,20 @@ Importantly, when organized in this way, Python will go through the loop almost
 instantaneously, observe that we want to perform a number of `geometry_optimization`
 calculations, and offload those calculations separately, independently, and immediately to whatever compute resource
 it has available. As such, all optimizations will effectively run in parallel:
-```
-for state in trajectory:
-    final_future = geometry_optimization_app(state)  # completes instantaneously!
-    detect_minimum_app(final_future)                 # completes instantaneously!
-    type(final_future)                               # AppFuture
 
-# all geometry optimizations are running
+!!! note "pseudocode"
+    ```py
+    minima = []  # list which tracks **futures** of the optimizations
+    for state in trajectory:
+        local_minimum = geometry_optimization(state)  # not an actual geometry, but a *future*
+        minima.append(local_minimum) 
 
-print(final_future.result())    # print the obtained `Geometry` from the last loop
+    global_minimum = find_lowest(*minima)  # not an actual geometry, but a *future*
 
-```
+    # all optimizations are running at this point in the code.
+    
+    global_minimum.result()  # will wait until all optimizations are actually completed
+    ```
 
 
 ## representing multiple structures
@@ -206,5 +217,5 @@ print(energies.result().shape)                # energies is an AppFuture, so we 
 
 forces = train.get('forces')                  # get the forces of all geometries in the training set
 print(forces.result().shape)                  # forces is an AppFuture, so we need to call .result()
-# (n, 3)
+# (n, natoms, 3)
 ```

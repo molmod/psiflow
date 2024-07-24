@@ -9,10 +9,10 @@ hide:
 Psiflow is a scalable molecular simulation engine for chemistry and materials science applications.
 It supports:
 
-- **quantum mechanical calculations** at various levels of theory (GGA and hybrid DFT, post-HF methods such as MP2 or RPA, and even coupled cluster; using CP2K|GPAW|ORCA)
+- **quantum mechanical calculations** at various levels of theory (GGA and hybrid DFT, post-HF methods such as MP2 or RPA, and even coupled cluster; using CP2K | GPAW | ORCA)
 
 - **trainable interaction potentials** as well as easy-to-use universal potentials, e.g. [MACE-MP0](https://arxiv.org/abs/2401.00096)
-- a wide range of **sampling algorithms**: NVE|NVT|NPT, path-integral molecular dynamics, alchemical replica exchange, metadynamics, phonon-based sampling, ...  (thanks to [i-PI](https://ipi-code.org/))
+- a wide range of **sampling algorithms**: NVE | NVT | NPT, path-integral molecular dynamics, alchemical replica exchange, metadynamics, phonon-based sampling, ...  (thanks to [i-PI](https://ipi-code.org/))
 
 Users may define arbitrarily complex workflows and execute them **automatically** on local, HPC, and/or cloud infrastructure.
 To achieve this, psiflow is built using [Parsl](https://parsl-project.org/): a parallel execution library which manages job submission and workload distribution.
