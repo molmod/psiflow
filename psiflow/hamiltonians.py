@@ -422,7 +422,7 @@ class MACEHamiltonian(Hamiltonian):
 
     @classmethod
     def mace_cc(cls) -> MACEHamiltonian:
-        url = "https://github.com/ACEsuit/mace/raw/main/mace/calculators/foundations_models/ani500k_large_CC.model"
+        url = "https://github.com/molmod/psiflow/raw/main/examples/data/ani500k_cc_cpu.model"
         parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
         urllib.request.urlretrieve(
             url,
