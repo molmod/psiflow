@@ -7,7 +7,6 @@ def main():
     import time
     from pathlib import Path
 
-    import torch
     from ase.io import read
     from ipi._driver.driver import run_driver
 
@@ -54,6 +53,10 @@ def main():
     assert args.address is not None
     assert args.start is not None
 
+    print("pid: {}".format(os.getpid()))
+    affinity = os.sched_getaffinity(os.getpid())
+    print("CPU affinity before function init: {}".format(affinity))
+
     template = Geometry.from_atoms(read(args.start))
     function = function_from_json(
         args.path_hamiltonian,
@@ -68,9 +71,8 @@ def main():
         verbose=True,
     )
 
-    print("pid: {}".format(os.getpid()))
-    print("CPU affinity: {}".format(os.sched_getaffinity(os.getpid())))
-    print("torch num threads: ", torch.get_num_threads())
+    affinity = os.sched_getaffinity(os.getpid())
+    print("CPU affinity after function init: {}".format(affinity))
 
     try:
         t0 = time.time()

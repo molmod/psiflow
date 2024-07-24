@@ -533,6 +533,8 @@ def _sample(
     command_server = definition.server_command()
     command_client = definition.client_command()
     resources = definition.wq_resources(max_nclients)
+    print('ENV VARS')
+    print(definition.env_vars)
     result = execute_ipi(
         len(walkers),
         hamiltonian_names,
@@ -543,7 +545,7 @@ def _sample(
         command_server,
         command_client,
         *plumed_list,
-        env_vars=definition.env_vars,
+        env_vars=dict(definition.env_vars),
         stdout=parsl.AUTO_LOGNAME,
         stderr=parsl.AUTO_LOGNAME,
         inputs=inputs,

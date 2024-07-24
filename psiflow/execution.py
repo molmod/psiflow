@@ -170,7 +170,7 @@ class ModelEvaluation(ExecutionDefinition):
         self,
         max_simulation_time: Optional[float] = None,
         timeout: float = (10 / 60),  # 5 seconds
-        env_vars: Optional[dict] = None,
+        env_vars: Optional[dict[str, str]] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -186,9 +186,10 @@ class ModelEvaluation(ExecutionDefinition):
             'PYTHONUNBUFFERED': 'TRUE',
         }
         if env_vars is None:
-            env_vars = dict(default_env_vars)
+            env_vars = default_env_vars
         else:
-            env_vars.update(default_env_vars)
+            default_env_vars.update(env_vars)
+            env_vars = default_env_vars
         self.env_vars = env_vars
 
     def server_command(self):
@@ -245,7 +246,7 @@ class ModelTraining(ExecutionDefinition):
         self,
         gpu=True,
         max_training_time: Optional[float] = None,
-        env_vars: Optional[dict] = None,
+        env_vars: Optional[dict[str, str]] = None,
         **kwargs,
     ) -> None:
         super().__init__(gpu=gpu, **kwargs)
@@ -266,9 +267,10 @@ class ModelTraining(ExecutionDefinition):
             'PYTHONUNBUFFERED': 'TRUE',
         }
         if env_vars is None:
-            env_vars = dict(default_env_vars)
+            env_vars = default_env_vars
         else:
-            env_vars.update(default_env_vars)
+            default_env_vars.update(env_vars)
+            env_vars = default_env_vars
         self.env_vars = env_vars
 
     def train_command(self, initialize: bool = False):
