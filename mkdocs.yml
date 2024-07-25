@@ -8,7 +8,7 @@ theme:
   palette:
     primary: teal
     accent: yellow
-    scheme: slate
+    scheme: default
   logo: icon.svg
   features:
     - content.code.copy
@@ -21,7 +21,6 @@ theme:
     - navigation.expand
     - toc.integrate
     - toc.follow
-
 nav:
   - overview: index.md
   - atomic geometries: data.md
@@ -36,7 +35,6 @@ plugins:
   - mkdocstrings:
       python:
         docstring_style: google
-    
 repo_url: https://github.com/molmod/psiflow
 markdown_extensions:
   - tables
