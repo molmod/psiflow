@@ -59,8 +59,20 @@ assert energy.result().shape == (N,)                # one energy per snapshot
 assert forces.result().shape == (N, max_natoms, 3)  # forces for each snapshot, with padded natoms
 assert stress.result().shape == (N, 3, 3)           # stress; filled with NaNs if not applicable
 ```
-An particularly important hamiltonian is MACE, one of the most ubiquitous ML potentials.
-These are readily available in psiflow:
+Aside from a dataset or a geometry, `compute` takes the following keyword arguments:
+
+- **outputs**: (type `str` or `list[str]`]): determines which properties to compute and
+  return. Accepts both a single property name (`'energy'`, `'forces'`, or `'stress'`) or a list
+  of properties (e.g. `['energy', 'forces', 'stress']`.
+- **batch_size**: (type `int`): splits the calculation into batches of this size. For
+  expensive models and/or large datasets, it makes sense to pick a smaller batch size such
+  that the calculation is parallelized over a large number of resources. For a very simple
+  calculation (e.g. the einstein crystal), it is faster to pick a larger batch size in
+  order to reduce overhead due to batching. Its default value is 100.
+
+A particularly important hamiltonian is MACE, one of the most ubiquitous ML potentials.
+The MACE community has developed a few foundation models (MACE-MP) which are readily applicable to
+virtually any molecule or material:
 
 ```py
 from psiflow.hamiltonians import MACEHamiltonian

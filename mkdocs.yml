@@ -27,9 +27,9 @@ nav:
   - hamiltonians: hamiltonian.md
   - sampling: sampling.md
   - QM calculations: reference.md
-  - ML potentials: model.md
+  - ML potentials: models.md
   - online learning: learning.md
-  - configuration: configuration.md
+  - setup & configuration: configuration.md
 
 plugins:
   - mkdocstrings:

@@ -343,8 +343,7 @@ print(content)
 ## geometry optimizations
 
 Aside from molecular dynamics, it is often very useful to use gradient-based optimization
-on the potential energy surface to 'descend' into (most likely) a local energy
-minimum.
+on the potential energy surface to 'descend' into a (most likely local) energy minimum.
 While this could theoretically be considered as a kind of zero-kelvin walker, geometry
 optimization is implemented in a separate module, and does not require any walkers.
 Instead, psiflow exposes a single `optimize` function which requires the following
@@ -359,3 +358,48 @@ arguments:
 - **etol** (type `float`): convergence tolerance on the energy (eV)
 - **ptol** (type `float`): convergence tolerance on the positions (angstrom)
 - **ftol** (type `float`): convergence tolerance on the forces (eV/angstrom)
+
+The function returns a Future which represents the minimum-energy geometry:
+```py
+from psiflow.sampling import optimize
+
+
+minimum_geometry = optimize(
+    geometry,       # starting structure
+    mace,           # use MACE PES; will use float64 precision
+    ftol=1e-4,      # sufficiently tight!
+)                   # returns a future
+
+energy = mace.compute(geometry, 'energy')
+minimum_energy = mace.compute(minimum_geometry, 'energy')
+
+```
+The optimization itself is implemented using i-PI.
+Currently, the energy is minimized with respect to particle positions only;
+support for full cell optimizations will be supported in a future release.
+
+A common scenario is to find the global minimum of the potential energy by performing
+multiple optimizations with different starting configurations (which can be obtained using
+e.g. high temperature MD).
+While this is technically straightforward to implement via a custom
+[`python_app`](https://parsl.readthedocs.io/en/stable/userguide/apps.html),
+psiflow provides a convenient helper function for precisely this purpose:
+`optimize_dataset`.
+It accepts the same arguments as `optimize` except that the starting geometry should
+become a `Dataset` of geometries that represent the starting configuration for the
+optimizations. Correspondingly, it returns `Dataset` of minimized geometries:
+```py
+from psiflow.sampling import optimize_dataset
+
+
+optimized = optimize_dataset(
+    dataset,        # dataset with starting configurations
+    mace,
+    ftol=1e-4,
+)
+
+energies = optimized.get('energy').result()
+index = np.argmin(energies)
+global_minimum = optimized[index]
+
+```
