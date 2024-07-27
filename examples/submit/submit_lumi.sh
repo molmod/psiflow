@@ -8,10 +8,12 @@ files=(
 	"water_cp2k_noise.py"
     "water_path_integral_md.py"
     "water_train_validate.py"
+    "water_online_learning.py"
+    "proton_jump_plumed.py"
     "alanine_replica_exchange.py"
 )
 
-curl -O https://raw.githubusercontent.com/molmod/psiflow/main/examples/lumi.yaml
+curl -O https://raw.githubusercontent.com/molmod/psiflow/main/examples/submit/lumi.yaml
 
 run_dir=$(pwd)/run_examples
 mkdir $run_dir && cp lumi.yaml $run_dir && cd $run_dir
