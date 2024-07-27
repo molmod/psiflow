@@ -34,20 +34,21 @@ def main():
 
     # generate initial structures using metadynamics
     plumed_str = PLUMED_INPUT
-    plumed_str += 'METAD ARG=CV PACE=5 SIGMA=0.25 HEIGHT=5\n'
+    plumed_str += 'METAD ARG=CV PACE=10 SIGMA=0.1 HEIGHT=5\n'
     metadynamics = Metadynamics(plumed_str)
 
     # create 40 identical walkers
-    walkers = Walker(
-        aldehyd,
+    walker = Walker(
+        alcohol,
         hamiltonian=mace,
         temperature=300,
         metadynamics=metadynamics,
-    ).multiply(4)
+    )
 
     # do MTD and create large dataset from all trajectories
-    outputs = sample(walkers, steps=2000, step=20, start=1000)
+    outputs = sample([walker], steps=8000, step=50)
     data_mtd = sum([o.trajectory for o in outputs], start=Dataset([]))
+    data_mtd.save('mtd.xyz')
 
     # initialize walkers for umbrella sampling
     walkers = []
