@@ -1,0 +1,894 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../hamiltonian/">
+      
+      
+        <link rel="next" href="../reference/">
+      
+      
+      <link rel="icon" href="../icon.svg">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.27">
+    
+    
+      
+        <title>sampling - psiflow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6543a935.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="yellow">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-walker-class" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="psiflow" class="md-header__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            psiflow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              sampling
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/molmod/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="psiflow" class="md-nav__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    psiflow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/molmod/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    atomic geometries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hamiltonian/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    hamiltonians
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    sampling
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    sampling
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-walker-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      the Walker class
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generating-trajectories" class="md-nav__link">
+    <span class="md-ellipsis">
+      generating trajectories
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#randomize-and-quench" class="md-nav__link">
+    <span class="md-ellipsis">
+      randomize and quench
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      advanced options
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="advanced options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pimd-simulations" class="md-nav__link">
+    <span class="md-ellipsis">
+      PIMD simulations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replica-exchange" class="md-nav__link">
+    <span class="md-ellipsis">
+      replica exchange
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metadynamics" class="md-nav__link">
+    <span class="md-ellipsis">
+      metadynamics
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geometry-optimizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      geometry optimizations
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    QM calculations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    ML potentials
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../learning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    online learning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    setup & configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+  <h1>sampling</h1>
+
+<p>In the Born-Oppenheimer philosophy, we explore the phase space of a molecule or a material and generate samples using molecular dynamics simulations.
+Those samples are then used to evaluate time averages of some property of interest in order to predict physical observables.
+In psiflow, such simulations are executed within <a href="https://ipi-code.org/">i-PI</a>, a versatile and efficient code which supports an impressive number of <a href="https://ipi-code.org/i-pi/features.html">features</a>.
+We mention the most important ones below</p>
+<ul>
+<li><strong>molecular dynamics in various ensembles</strong>: most notably NVE, NVT, and fully anisotropic NPT. There exist a variety of thermostat and barostat options, the default being Langevin. Together with the ability to combine arbitrary hamiltonians, this includes biased molecular dynamics simulations using e.g. harmonic restraints (umbrella sampling).</li>
+<li><strong>path-integral molecular dynamics</strong> (PIMD): allows for the simulation of the quantum behavior of light atomic nuclei. This is important for many systems involving hydrogen atoms at relatively low temperatures (&lt;=room temperature). Importantly these simulations can also be performed in any of the aforementioned ensembles. </li>
+<li><strong>geometry optimizations</strong>: i-PI can be used to optimize the geometry of a molecule or a material using a variety of optimization algorithms.</li>
+<li><strong>replica exchange</strong> (parallel tempering): dramatically improves the sampling efficiency and ergodicity whenever nontrivial free energy barriers are present in the phase space of the system. In this approach, one considers replicas of the system at various temperatures and/or pressures, or optionally even with different hamiltonians.</li>
+<li><strong>multiple walker metadynamics</strong>: simple but powerful method to overcome free energy barriers when a suitable collective variable is known for the system of interest.</li>
+</ul>
+<h2 id="the-walker-class">the <code>Walker</code> class</h2>
+<p>Psiflow is essentially a convenient wrapper around most of i-PI's features.
+The key object which enables the execution of these simulations is the <code>Walker</code> class.
+A single walker describes a single replica of the system which evolves through phase space.
+It is initialized with a <code>Geometry</code> instance which describes the start of the simulation.
+Optional arguments include a hamiltonian for the walker (which is used to evaluate forces
+during simulations), the temperature and pressure, or a timestep.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">Walker</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">psiflow.geometry</span> <span class="kn">import</span> <span class="n">Geometry</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span> <span class="nn">psiflow.hamiltonians</span> <span class="kn">import</span> <span class="n">get_mace_mp0</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">start</span> <span class="o">=</span> <span class="n">Geometry</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;start.xyz&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">Walker</span><span class="p">(</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">start</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">hamiltonian</span><span class="o">=</span><span class="n">get_mace_mp0</span><span class="p">(),</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mf">300.0</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">pressure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># NVT simulation</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>   <span class="c1"># in femtoseconds, the default value</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span>
+</code></pre></div>
+In the vast majority of cases, it is necessary to run multiple simulations at slightly different conditions.
+For example, let us create ten of these walkers which are identical except for the temperature:</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">walkers</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">walker</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">walkers</span><span class="p">):</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">w</span><span class="o">.</span><span class="n">temperature</span> <span class="o">=</span> <span class="mi">300</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="mi">10</span>
+</code></pre></div>
+When propagated, each of these walkers will generate trajectories in phase space which correspond to their own temperature.
+In the case of temperature, such trajectories can be used to e.g. evaluate variation of the mean energy with respect to temperature
+(and therefore, the heat capacity of the system).</p>
+<h2 id="generating-trajectories">generating trajectories</h2>
+<p>Walkers can be propagated in time by using the <code>sample</code> function.
+It accepts a list of walkers, each of which will be propagated in phase space according to its own parameters.
+Importantly, there are <em>no restrictions</em> on the type of walkers in this list.
+Users can mix regular NVE walkers, with path-integral NPT walkers, and a list of N replica exchange walkers.
+Internally, psiflow will recognize which walkers are independent and parallelize the execution as much as possible.
+Consider the following example:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">sample</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">sample</span><span class="p">(</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">walkers</span><span class="p">,</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">steps</span><span class="o">=</span><span class="mf">1e6</span><span class="p">,</span>  <span class="c1"># total number of timesteps to run the simulation for; this translates to 500 ps in this case</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">step</span><span class="o">=</span><span class="mf">1e3</span><span class="p">,</span>   <span class="c1"># sample every 1000 timesteps</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">start</span><span class="o">=</span><span class="mf">1e5</span><span class="p">,</span>  <span class="c1"># start sampling after 50 ps</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>  <span class="c1"># list of `SimulationOutput` instances</span>
+</code></pre></div>
+In this example, the sample function will return a list of <code>Output</code> instances, each of which contains the trajectory of a single walker,
+as obtained by performing molecular dynamics simulations in the corresponding ensemble and with the provided total number of steps.
+Note that each of these simulations is independent (there exists no coupling between them), and as such, they will be executed in parallel as much as possible.
+The outputs are ordered in the same way as the input walkers (i.e. <code>outputs[0]</code> corresponds to the output from <code>walkers[0]</code>).
+They provide access to the sampled trajectory of the simulation, the elapsed simulation time, and importantly, a number of <em>observable properties</em>
+which have been written out by i-PI. These properties can be used to compute averages of physical observables, such as the internal energy or the virial stress tensor.
+A full list of available properties is given in the <a href="https://ipi-code.org/i-pi/output-tags.html">i-PI documentation</a>
+(note that psiflow adheres to the same naming convention as adopted in i-PI).
+The following options are kept track of by default:</p>
+<ul>
+<li><code>energy</code>: the total energy of the system. The actual name of this quantity is <code>potential{electronvolt}</code></li>
+<li><code>temperature</code>: the instantaneous temperature of the system. The actual name of this quantity is <code>temperature{kelvin}</code></li>
+<li><code>time</code>: the elapsed simulation time. The actual name of this quantity is <code>time{picosecond}</code></li>
+<li><code>volume</code>: the volume of the simulation cell (only for periodic systems). The actual name of this quantity is <code>volume{angstrom3}</code></li>
+</ul>
+<p>Similarly to the evaluation of a <code>Hamiltonian</code> or the querying of a snapshot in a <code>Dataset</code>, simulation outputs are returned as futures.
+For example, say we wanted to compute the average energy for each of the simulations:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">energy_futures</span> <span class="o">=</span> <span class="p">[</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;potential</span><span class="si">{electronvolt}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">outputs</span><span class="p">]</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">energies</span> <span class="o">=</span> <span class="p">[</span><span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span> <span class="k">for</span> <span class="n">future</span> <span class="ow">in</span> <span class="n">energy_futures</span><span class="p">]</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">mean_energy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">energy</span><span class="p">)</span> <span class="k">for</span> <span class="n">energy</span> <span class="ow">in</span> <span class="n">energies</span><span class="p">])</span>
+</code></pre></div>
+This example extracts the futures which contain the potential energies of all simulations, waits for them to complete (via <code>result()</code>), and then computes the mean energy for each simulation. In a very similar fashion, we can compute the bulk modules of bcc iron simply by constructing walkers at various pressures and extracting the corresponding <code>volume{angstrom3}</code> observable -- see <a href="https://github.com/molmod/psiflow/tree/main/examples/iron_bulk_modulus.py">here</a>.</p>
+<p>In many cases, it is useful to save the trajectory of a simulation to disk.
+Trajectories are essentially just a series of snapshots, and as such, psiflow represents them as <code>Dataset</code> instances.
+Each of the outputs has an attribute <code>trajectory</code> which is a <code>Dataset</code> instance.
+Let us save the trajectory of the first simulation to disk:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">trajectory</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;300K.xyz&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>As a sanity check, let us recompute the potential energies which were stored at each snapshot during the simulation using the <code>compute</code> functionality of our MACE hamiltonian:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">mace</span>   <span class="o">=</span> <span class="n">walkers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">hamiltonian</span>                               <span class="c1"># the hamiltonian used in the simulations</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">future</span> <span class="o">=</span> <span class="n">mace</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">trajectory</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">)</span>        <span class="c1"># future of the recomputed energies as an array</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">manual_energies_0</span> <span class="o">=</span> <span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                           <span class="c1"># get the actual numpy array</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">manual_energies_0</span><span class="p">,</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">energies</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="p">)</span>
+</code></pre></div>
+Trajectories are only saved by default if a <code>step</code> argument is provided, which determines
+the saving frequency for both the output properties (such as energy or temperature) as
+well as for the trajectory.
+In some cases, one wishes to save output properties without actually saving the
+trajectory because it would end up consuming too much disk space.
+For this use case, it is possible to pass <code>keep_trajectory=False</code> as an additional
+argument to the sample function.
+A full list of possible arguments is given below:</p>
+<ul>
+<li><strong>walkers</strong> (type <code>list[Walker]</code>): the walkers which should be propagated. Internally,
+  they are partitioned into groups such that e.g. replica-exchange-coupled walkers are
+  propagated at the same time (and on the same node) in order to allow for communication
+  between them.</li>
+<li><strong>steps</strong> (type <code>int</code>): the total number of steps to perform in each of the simulations.</li>
+<li><strong>step</strong> (type <code>int</code>): saving frequency of both output properties as well as the
+  trajectory.</li>
+<li><strong>start</strong> (type <code>int</code>): properties and snapshots will not be saved before <code>start</code> steps
+  have passed -- used for equilibration.</li>
+<li><strong>keep_trajectory</strong> (type <code>bool</code>): determines whether or not to save the trajectory.</li>
+<li><strong>max_force</strong> (type <code>float</code>, in eV/A): determines the maximum value of any of the forces
+  in the walker before a simulation is interrupted. Large forces are typically a result of
+  an unphysical region in phase space and/or a badly-trained ML potential.</li>
+<li><strong>observables</strong> (type <code>list[str]</code>): physical properties which are to be tracked and
+  saved during the simulation. An exhaustive list of all options is given in the
+  <a href="https://ipi-code.org/i-pi/output-tags.html">i-PI documentation</a>. Four quantities are
+  saved by default: energy, temperature, time, and unit cell volume.</li>
+<li><strong>fix_com</strong> (type <code>bool</code>): whether or not to fix the center of mass. Usually a good idea
+  -- default is <code>True</code>.</li>
+<li><strong>prng_seed</strong> (type <code>int</code>): default RNG seed for i-PI, in order to be able to reproduce</li>
+<li><strong>use_unique_seeds</strong> (type <code>bool</code>): use a unique seed for each of the walkers, starting
+  at the given <code>prng_seed</code> for walker 0, <code>prng_seed + 1</code> for walker 1, etc.</li>
+<li><strong>checkpoint_step</strong> (type <code>int</code>): how frequently to save checkpoints. Checkpoints are
+  used at the end of a simulation in order to update the <code>state</code> attribute of the walker.
+  If the simulation is (gracefully) terminated because of e.g. a walltime limit on the
+  SLURM node, then the state of the walker will be determined by the last saved
+  checkpoint.</li>
+<li><strong>verbosity</strong> (type <code>str</code>): verbosity of the i-PI output files; <code>low</code>, <code>medium</code>, or
+  <code>high</code>.</li>
+<li>motion_defaults (type <code>ET.Element</code>): <em>TODO</em>: additional thermostat and barostat options</li>
+</ul>
+<h2 id="randomize-and-quench">randomize and quench</h2>
+<p>If molecular simulation would rigorously satisfy the ergodic hypothesis, then the starting structure of a simulation is entirely irrelevant and will not affect the sampling distribution.
+In practice, however, the ergodic hypothesis is almost always violated due to a number of reasons, and the starting structure can have a significant impact on the subsequent simulation.</p>
+<p>If the starting structure is too strongly out of equilibrium for the specific hamiltonian of the walker (i.e. the initial energy and forces are too large), the simulation will likely explode in the first few steps and it will practically never return physically relevant samples.
+Because each walker can have its own hamiltonian, a given geometry might be an entirely infeasible start for one walker, but be reasonable for another.
+Psiflow provides a simple and efficient method to <em>assign</em> reasonable starting structures to a collection of walkers based on a large set of possible candidates: the <code>quench</code> method.
+It accepts a list of <code>Walker</code> instances, and a <code>Dataset</code> of possible candidate structures.
+It will automatically evaluate the hamiltonians of the walkers over the dataset in an efficient manner, and assign the structure with the lowest energy to each walker.
+By applying the <code>quench</code> method, psiflow reassigns walker starting geometries to the lowest energy structures as obtained from a dataset of choice:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">quench</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># assume &#39;walkers&#39; is a list of `Walker` instances with badly initialized geometries</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">data</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;my_large_dataset_of_candidates.xyz&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">quench</span><span class="p">(</span><span class="n">walkers</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">relaxed</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">([</span><span class="n">w</span><span class="o">.</span><span class="n">hamiltonian</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">start</span><span class="p">)</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">walkers</span><span class="p">])</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">energies</span> <span class="o">=</span> <span class="n">relaxed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;energy&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>   <span class="c1"># energies are now much lower</span>
+</code></pre></div></p>
+<p>In an alternative setting, it might be useful to randomize the starting structure for each walkers from a given dataset (e.g. to improve sampling coverage). This can be achieved using the <code>randomize</code> method:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">randomize</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">randomize</span><span class="p">(</span><span class="n">walkers</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+Randomizing walker initializations is particularly useful during active learning and in
+case different walkers are sampling different ensembles (e.g. different temperatures,
+pressures, bias potentials).</p>
+<h2 id="advanced-options">advanced options</h2>
+<p>The real power of i-PI lies in its extensive support for advanced sampling algorithms.
+This section discusses the most important ones which are currently supported within psiflow.</p>
+<h3 id="pimd-simulations">PIMD simulations</h3>
+<p>The Born-Oppenheimer approximation breaks down for light nuclei (most notably hydrogen),
+and by adapting traditional molecular dynamics algorithms, it is possible to account
+for the quantum mechanical (wave-like) nature of protons during simulations.
+These techniques are referred to as path-integral methods and represent the core business
+of i-PI.
+In practice, it comes down to running N replicas of the same simulation in parallel, in
+which consecutive replicas are coupled by harmonic spring forces. As such, the cost of
+these simulations is N times higher than a classical simulation of the same system, and in
+many cases also the time step needs to be chosen smaller (e.g. 0.25 fs instead of 0.5 fs).</p>
+<p>Performing PIMD simulations in psiflow is pretty much identical to 'normal' simulations;
+walkers can be given an <code>nbeads</code> attribute which determines the number of replicas. Its
+default value is 1, meaning purely classical MD.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">pimd_walker</span> <span class="o">=</span> <span class="n">Walker</span><span class="p">(</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">geometry</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">hamiltonian</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">pressure</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>       <span class="c1"># PIMD is compatible with NVE, NVT, and even NPT</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">nbeads</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>          <span class="c1"># run 32 replicas in parallel</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">timestep</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span>       <span class="c1"># in fs</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="p">)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">classical_walker</span> <span class="o">=</span> <span class="n">Walker</span><span class="p">(</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    <span class="n">geometry</span><span class="p">,</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    <span class="n">hamiltonian</span><span class="p">,</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    <span class="n">temperature</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    <span class="n">pressure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    <span class="n">nbeads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>           <span class="c1"># the default value</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>    <span class="n">timestep</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>         <span class="c1"># in fs</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="p">)</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="c1"># simulate two walkers:</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="c1"># the first will propagate 32 individual replicas, the second only one</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">sample</span><span class="p">(</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>    <span class="p">[</span><span class="n">pimd_walker</span><span class="p">,</span> <span class="n">classical_walker</span><span class="p">],</span>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>    <span class="n">steps</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="p">)</span>
+</code></pre></div>
+Because each of the beads is equivalent, only one of the beads is used to save an output
+trajectory. Similarly, the <code>start</code> and <code>state</code> attributes which track the current and
+start position of the walker only keep track of one replica.</p>
+<h3 id="replica-exchange">replica exchange</h3>
+<p>Replica exchange (otherwise called parallel tempering) is a technique used to improve the
+ergodicity of sampling algorithms.
+It consists of simulating multiple replicas of the same system in parallel but at
+different thermodynamic conditions.
+This implies different temperatures, different pressures, or even different hamiltonians.
+During the simulation, Monte Carlo trial moves are attempted which try to swap atomic geometries
+between to replicas. If trial moves are rejected according to the specific acceptance
+criterion, it can be shown that replica exchange does not alter the theoretical sampling
+distribution of each of the replicas. The only thing it does is make the sampling less
+dependent on the initial starting configuration.</p>
+<p>Replica exchange can be enabled between walkers of the same ensemble (all NVE, all NVT, or
+all NPT) simply by calling the <code>replica_exchange</code> function. The i-PI implementation
+which psiflow uses requests two additional parameters; see the
+<a href="https://ipi-code.org/i-pi/input-tags.html#remd">documentation</a> and the
+<a href="https://onlinelibrary.wiley.com/doi/10.1002/jcc.24025">associated paper</a> for more details.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">replica_exchange</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">walkers</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">for</span> <span class="n">temperature</span><span class="p">,</span> <span class="n">pressure</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">([</span><span class="mi">300</span><span class="p">,</span> <span class="mi">350</span><span class="p">,</span> <span class="mi">400</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">10</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">]):</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">walker</span> <span class="o">=</span> <span class="n">Walker</span><span class="p">(</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>        <span class="n">start</span><span class="o">=</span><span class="n">geometry</span><span class="p">,</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>        <span class="n">hamiltonian</span><span class="o">=</span><span class="n">hamiltonian</span><span class="p">,</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>        <span class="n">temperature</span><span class="o">=</span><span class="n">temperature</span><span class="p">,</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>        <span class="n">pressure</span><span class="o">=</span><span class="n">pressure</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>    <span class="p">)</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>    <span class="n">walkers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">walker</span><span class="p">)</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="c1"># add replica exchange to walkers; modifies them in-place</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="n">replica_exchange</span><span class="p">(</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>    <span class="n">walkers</span><span class="p">,</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>    <span class="n">trial_frequency</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>        <span class="c1"># trial frequency, see i-PI docs</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>    <span class="n">rescale_kinetic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>       <span class="c1"># usually a good idea, see i-PI docs</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="p">)</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="n">output</span> <span class="o">=</span> <span class="n">sample</span><span class="p">(</span><span class="n">walkers</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">coupled simulations run single-node</p>
+<p>PIMD and replica exchange simulations involve N parallel replicas of the same system
+which are <em>dependent</em> on each other for their time propagation. As such, they are
+scheduled by psiflow in a way that guarantees that they run simultaneously and that
+they can communicate with each other without too much hassle. At the moment, this
+implies that all replicas need to be executed on a single node. If you have powerful
+nodes with four or eight GPUs and relatively lightweight MACE models, this is usually not a problem.
+For more large-scale applications, some manual hacking will be necessary. Open an
+issue on Github if you need help on this.</p>
+</div>
+<h3 id="metadynamics">metadynamics</h3>
+<p>Metadynamics (and its variants) are an extremely common form of enhanced sampling and
+phase space exploration, and i-PI has native support for these using PLUMED.
+Similarly to how time-independent bias contributions are created simply based on their
+input string, psiflow implements metadynamics using a <code>Metadynamics</code> object which is
+constructed based on a plumed input file.</p>
+<p>For the proton jump example in vinyl alcohol, an equivalent metadynamics input would look
+like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">Metadynamics</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">plumed_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;UNITS LENGTH=A ENERGY=kj/mol</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="s2">d_C: DISTANCE ATOMS=3,5</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="s2">d_O: DISTANCE ATOMS=1,5</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="s2">CV: COMBINE ARG=d_C,d_O COEFFICIENTS=1,-1 PERIODIC=NO</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">METAD ARG=CV PACE=10 SIGMA=0.1 HEIGHT=5</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="n">metadynamics</span> <span class="o">=</span> <span class="n">Metadynamics</span><span class="p">(</span><span class="n">plumed_str</span><span class="p">)</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">Walker</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">hamiltonian</span><span class="p">,</span> <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">metadynamics</span><span class="o">=</span><span class="n">metadynamics</span><span class="p">)</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="n">outputs</span> <span class="o">=</span> <span class="n">sample</span><span class="p">([</span><span class="n">walker</span><span class="p">],</span> <span class="n">steps</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>
+<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="c1"># added hills during simulation are tracked as a parsl DataFuture</span>
+<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="n">hills_file</span> <span class="o">=</span> <span class="n">metadynamics</span><span class="o">.</span><span class="n">external</span>  <span class="c1"># 10,000 / 10 hills</span>
+</code></pre></div>
+<p>The corresponding hills file which keeps track of the trajectory of the simulation in CV
+space (as well as a list of the Gaussian hills) is stored in the <code>metadynamics.external</code>
+attribute. Since this is, like any observable or trajectory, the outcome of a simulation,
+psiflow uses futures to represent it. In this case, the hills file is therefore a future
+-- a <code>DataFuture</code> to be precise. It can be read and analyzed much like a regular hills
+file, except that we need to make sure to call <code>.result()</code> in order to wait until the
+simulation has completed.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">metadynamics</span><span class="o">.</span><span class="n">external</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>  <span class="c1"># call result() to wait until simulation has finished</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># read it</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">metadynamics</span><span class="o">.</span><span class="n">external</span><span class="o">.</span><span class="n">filepath</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">content</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="nb">print</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="geometry-optimizations">geometry optimizations</h2>
+<p>Aside from molecular dynamics, it is often very useful to use gradient-based optimization
+on the potential energy surface to 'descend' into a (most likely local) energy minimum.
+While this could theoretically be considered as a kind of zero-kelvin walker, geometry
+optimization is implemented in a separate module, and does not require any walkers.
+Instead, psiflow exposes a single <code>optimize</code> function which requires the following
+arguments:</p>
+<ul>
+<li><strong>state</strong> (type <code>Geometry</code>): the initial state of the system.</li>
+<li><strong>hamiltonian</strong> (type <code>Hamiltonian</code>): the hamiltonian defines the PES to be optimized</li>
+<li><strong>steps</strong> (type <code>int</code>): the maximum number of optimization steps.</li>
+<li><strong>keep_trajectory</strong> (type <code>bool</code>): whether to keep the optimization trajectory</li>
+<li><strong>mode</strong> (type <code>str</code>): optimization algorithm, see <a href="https://ipi-code.org/i-pi/input-tags.html#optimizer">i-PI
+  documentation</a> for details.</li>
+<li><strong>etol</strong> (type <code>float</code>): convergence tolerance on the energy (eV)</li>
+<li><strong>ptol</strong> (type <code>float</code>): convergence tolerance on the positions (angstrom)</li>
+<li><strong>ftol</strong> (type <code>float</code>): convergence tolerance on the forces (eV/angstrom)</li>
+</ul>
+<p>The function returns a Future which represents the minimum-energy geometry:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">optimize</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">minimum_geometry</span> <span class="o">=</span> <span class="n">optimize</span><span class="p">(</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    <span class="n">geometry</span><span class="p">,</span>       <span class="c1"># starting structure</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>    <span class="n">mace</span><span class="p">,</span>           <span class="c1"># use MACE PES; will use float64 precision</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>    <span class="n">ftol</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span>      <span class="c1"># sufficiently tight!</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="p">)</span>                   <span class="c1"># returns a future</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="n">energy</span> <span class="o">=</span> <span class="n">mace</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">)</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="n">minimum_energy</span> <span class="o">=</span> <span class="n">mace</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">minimum_geometry</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">)</span>
+</code></pre></div>
+The optimization itself is implemented using i-PI.
+Currently, the energy is minimized with respect to particle positions only;
+support for full cell optimizations will be supported in a future release.</p>
+<p>A common scenario is to find the global minimum of the potential energy by performing
+multiple optimizations with different starting configurations (which can be obtained using
+e.g. high temperature MD).
+While this is technically straightforward to implement via a custom
+<a href="https://parsl.readthedocs.io/en/stable/userguide/apps.html"><code>python_app</code></a>,
+psiflow provides a convenient helper function for precisely this purpose:
+<code>optimize_dataset</code>.
+It accepts the same arguments as <code>optimize</code> except that the starting geometry should
+become a <code>Dataset</code> of geometries that represent the starting configuration for the
+optimizations. Correspondingly, it returns <code>Dataset</code> of minimized geometries:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">optimize_dataset</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="n">optimized</span> <span class="o">=</span> <span class="n">optimize_dataset</span><span class="p">(</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>    <span class="n">dataset</span><span class="p">,</span>        <span class="c1"># dataset with starting configurations</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    <span class="n">mace</span><span class="p">,</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>    <span class="n">ftol</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="p">)</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="n">energies</span> <span class="o">=</span> <span class="n">optimized</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;energy&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="n">index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">energies</span><span class="p">)</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="n">global_minimum</span> <span class="o">=</span> <span class="n">optimized</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+</code></pre></div></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["content.code.copy", "navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.sections", "navigation.expand", "toc.integrate", "toc.follow"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

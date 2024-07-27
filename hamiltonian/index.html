@@ -1,0 +1,569 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../data/">
+      
+      
+        <link rel="next" href="../sampling/">
+      
+      
+      <link rel="icon" href="../icon.svg">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.27">
+    
+    
+      
+        <title>hamiltonians - psiflow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6543a935.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="yellow">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="psiflow" class="md-header__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            psiflow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              hamiltonians
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/molmod/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="psiflow" class="md-nav__button md-logo" aria-label="psiflow" data-md-component="logo">
+      
+  <img src="../icon.svg" alt="logo">
+
+    </a>
+    psiflow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/molmod/psiflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    atomic geometries
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    hamiltonians
+  </span>
+  
+
+      </a>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sampling/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    sampling
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    QM calculations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    ML potentials
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../learning/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    online learning
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    setup & configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+  <h1>hamiltonians</h1>
+
+<p>In Born-Oppenheimer-based molecular simulation, atomic nuclei are treated as classical
+particles that are subject to <em>effective</em> interactions -- these are the result of the quantum
+mechanical behavior of the electrons. These interactions determine the interatomic forces
+which are used in a dynamic simulation to propagate the atomic positions from one timestep
+to the next.
+Traditionally, dynamic simulations required an explicit evaluation of these effective
+forces in terms of a quantum mechanical calculation (e.g. DFT(B)).
+Recently, it became clear that it is much more efficient to perform such simulations
+using a machine-learned representation of the interaction energy, i.e. an ML potential. 
+The development and application of ML potentials throughout large simulation workflows is in
+fact one of the core applications of psiflow.</p>
+<p>The <code>Hamiltonian</code> class is used to represent any type of interaction potential.
+Examples are pre-trained, 'universal' models (e.g. <a href="https://arxiv.org/abs/2401.00096">MACE-MP0</a>),
+ML potentials trained within psiflow (see <a href="model.md">ML potentials</a>), or a quadratic
+(hessian-based) approximation to a local energy minimum, to name a few.
+In addition, various sampling schemes employ bias potentials which are superimposed on the
+QM-based Born-Oppenheimer surface in order to drive the system
+along specific reaction coordinates (e.g. metadynamics, umbrella sampling).
+Such bias potentials are also instances of a <code>Hamiltonian</code>.</p>
+<p>By far the simplest hamiltonian is the Einstein crystal, which binds atoms to a certain
+reference position using harmonic springs with a single, fixed force constant.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">psiflow.geometry</span> <span class="kn">import</span> <span class="n">Geometry</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">psiflow.hamiltonians</span> <span class="kn">import</span> <span class="n">EinsteinCrystal</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># isolated H2 molecule</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">geometry</span> <span class="o">=</span> <span class="n">Geometry</span><span class="o">.</span><span class="n">from_string</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="s1">    2</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="s1">    H 0.0 0.0 0.0</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="s1">    H 0.0 0.0 0.8</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="s1">&#39;&#39;&#39;</span><span class="p">)</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">einstein</span> <span class="o">=</span> <span class="n">EinsteinCrystal</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="n">force_constant</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>  <span class="c1"># in eV/A**2</span>
+</code></pre></div>
+As mentioned earlier, the key feature of hamiltonians is that they represent an interaction energy between atoms,
+i.e. they output an energy (and its gradients) when given a geometry as input.
+Because hamiltonians might require specialized resources for their evaluation (e.g. an ML
+potential which gets executed on a GPU), evaluation of a hamiltonian does not necessarily
+happen instantly (e.g. if a GPU node is not immediately available). Similar to how
+<code>Dataset</code> instances return futures of a <code>Geometry</code> when a particular index is queried,
+hamiltonians return a future when asked to evaluate the energy/forces/stress of a
+particular <code>Geometry</code>:</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">energy</span> <span class="o">=</span> <span class="n">einstein</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">)</span>       <span class="c1"># AppFuture of an energy (np.ndarray with shape (1,))</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">energy</span><span class="o">.</span><span class="n">result</span><span class="p">())</span>                              <span class="c1"># wait for the result to complete, and print it (in eV)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">data</span> <span class="o">=</span> <span class="n">Dataset</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;snapshots.xyz&#39;</span><span class="p">)</span>                <span class="c1"># N snapshots</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">energy</span><span class="p">,</span> <span class="n">forces</span><span class="p">,</span> <span class="n">stress</span> <span class="o">=</span> <span class="n">einstein</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>     <span class="c1"># returns energy and gradients for each snapshot in data</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="k">assert</span> <span class="n">energy</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">N</span><span class="p">,)</span>                <span class="c1"># one energy per snapshot</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="k">assert</span> <span class="n">forces</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">max_natoms</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>  <span class="c1"># forces for each snapshot, with padded natoms</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="k">assert</span> <span class="n">stress</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>           <span class="c1"># stress; filled with NaNs if not applicable</span>
+</code></pre></div>
+Aside from a dataset or a geometry, <code>compute</code> takes the following keyword arguments:</p>
+<ul>
+<li><strong>outputs</strong>: (type <code>str</code> or <code>list[str]</code>]): determines which properties to compute and
+  return. Accepts both a single property name (<code>'energy'</code>, <code>'forces'</code>, or <code>'stress'</code>) or a list
+  of properties (e.g. <code>['energy', 'forces', 'stress']</code>.</li>
+<li><strong>batch_size</strong>: (type <code>int</code>): splits the calculation into batches of this size. For
+  expensive models and/or large datasets, it makes sense to pick a smaller batch size such
+  that the calculation is parallelized over a large number of resources. For a very simple
+  calculation (e.g. the einstein crystal), it is faster to pick a larger batch size in
+  order to reduce overhead due to batching. Its default value is 100.</li>
+</ul>
+<p>A particularly important hamiltonian is MACE, one of the most ubiquitous ML potentials.
+The MACE community has developed a few foundation models (MACE-MP) which are readily applicable to
+virtually any molecule or material:</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span> <span class="nn">psiflow.hamiltonians</span> <span class="kn">import</span> <span class="n">MACEHamiltonian</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">mace</span> <span class="o">=</span> <span class="n">MACEHamiltonian</span><span class="o">.</span><span class="n">mace_mp0</span><span class="p">()</span>                   <span class="c1"># downloads MACE-MP0 from github</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">forces</span> <span class="o">=</span> <span class="n">mace</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">geometry</span><span class="p">,</span> <span class="s1">&#39;forces&#39;</span><span class="p">)</span>           <span class="c1"># evaluates the MACE potential on the geometry</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">forces</span> <span class="o">=</span> <span class="n">forces</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                            <span class="c1"># wait for evaluation to complete and get actual value</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">forces</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">forces</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mi">0</span>     <span class="c1"># forces in H2 always point opposite of each other</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">forces</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">)</span>     <span class="c1"># forces are conservative --&gt; sum to [0, 0, 0]</span>
+</code></pre></div>
+A unique feature of psiflow <code>Hamiltonian</code> instances is the ability to create a new
+hamiltonian from a linear combination of two or more existing hamiltonians.
+This is relevant for many types of free energy calculations and/or enhanced sampling
+techniques, including umbrella sampling, Hamiltonian replica exchange, or thermodynamic
+integration.
+Let us consider the particular example of <a href="https://wires.onlinelibrary.wiley.com/doi/10.1002/wcms.66">umbrella
+sampling</a>.
+As activated event, we consider the decay of vinyl alcohol to acetaldehyde,
+which consists of a proton jump from the oxygen to the opposite carbon:</p>
+<figure>
+  <img alt="Image title" src="../hamiltonians_umbrella.svg" width="500" />
+  <figcaption>Transformation of vinyl alcohol into acetaldehyde by means of a proton jump.
+      A reaction coordinate is constructed based on the distance of hydrogen with respect to
+      oxygen and with respect to carbon. </figcaption>
+</figure>
+<p>The harmonic restraint is implemented and evaluated via <a href="https://www.plumed.org/">PLUMED</a>.
+In psiflow, this can be done by passing a plumed input string which describes the bias
+potential into a <code>PlumedHamiltonian</code>.</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span> <span class="nn">psiflow.hamiltonians</span> <span class="kn">import</span> <span class="n">PlumedHamiltonian</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">plumed_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;UNITS LENGTH=A ENERGY=kj/mol</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="s2">d_C: DISTANCE ATOMS=3,5</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="s2">d_O: DISTANCE ATOMS=1,5</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="s2">CV: COMBINE ARG=d_C,d_O COEFFICIENTS=1,-1 PERIODIC=NO</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="s2">RESTRAINT ARG=CV KAPPA=1500 AT=0.0</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="s2">&quot;&quot;&quot;</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedHamiltonian</span><span class="p">(</span><span class="n">plumed_str</span><span class="p">)</span>
+</code></pre></div>
+To add this contribution to our MACE potential, we simply sum both hamiltonians:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">potential</span> <span class="o">=</span> <span class="n">mace</span> <span class="o">+</span> <span class="n">bias</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># double check</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">alcohol</span> <span class="o">=</span> <span class="n">Geometry</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">&#39;vinyl_alcohol.xyz&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">total_energy</span> <span class="o">=</span> <span class="n">potential</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">alcohol</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">mace_energy</span>  <span class="o">=</span> <span class="n">mace</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">alcohol</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">bias_energy</span>  <span class="o">=</span> <span class="n">bias</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">alcohol</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">total_energy</span><span class="o">.</span><span class="n">result</span><span class="p">(),</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">mace_energy</span><span class="o">.</span><span class="n">result</span><span class="p">()</span> <span class="o">+</span> <span class="n">bias_energy</span><span class="o">.</span><span class="n">result</span><span class="p">(),</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="p">)</span>
+</code></pre></div>
+<p>Aside from bias potentials, the combination of multiple hamiltonians is also employed in
+e.g. the calculation of anharmonic free energy corrections.
+In that case, we consider a "base" potential energy surface which is described by a
+general quadratic function (i.e. a 3Nx3N hessian matrix and a minimum-energy geometry)
+and a small perturbation which describes the difference between the quadratic
+function and the fully anharmonic potential.
+The following code snippet demonstrates the construction of mixtures of the two energy
+surfaces:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># hessian computed via geometry optimization and finite differences</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># see sampling section</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nb">type</span><span class="p">(</span><span class="n">hessian</span><span class="p">)</span>  <span class="c1"># np.ndarray</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">hessian</span><span class="o">.</span><span class="n">shape</span>  <span class="c1"># (3n, 3n)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="nb">type</span><span class="p">(</span><span class="n">minimum</span><span class="p">)</span>  <span class="c1"># Geometry</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="nb">len</span><span class="p">(</span><span class="n">minimum</span><span class="p">)</span>   <span class="c1"># n</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">harmonic</span> <span class="o">=</span> <span class="n">Harmonic</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">hessian</span><span class="p">)</span>   <span class="c1"># create quadratic hessian; x.T @ H @ x / 2</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">delta</span> <span class="o">=</span> <span class="n">mace</span> <span class="o">-</span> <span class="n">harmonic</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">hamiltonanians</span> <span class="o">=</span> <span class="p">[]</span>     <span class="c1"># linear intepolation between quadratic and MACE PES, in 10 steps</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="k">for</span> <span class="n">scale</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">):</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="n">hamiltonians</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hessian</span> <span class="o">+</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">delta</span><span class="p">)</span>
+</code></pre></div></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["content.code.copy", "navigation.instant", "navigation.tracking", "navigation.indexes", "navigation.sections", "navigation.expand", "toc.integrate", "toc.follow"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.ad660dcc.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
