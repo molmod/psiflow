@@ -19,7 +19,13 @@ Users may define arbitrarily complex workflows and execute them **automatically*
 To achieve this, psiflow is built using [Parsl](https://parsl-project.org/): a parallel execution library which manages job submission and workload distribution.
 As such, psiflow can orchestrate large molecular simulation pipelines on hundreds or even thousands of nodes.
 
+<figure markdown="span">
+  ![Image title](overview.png){ width="500" }
+</figure>
+
 ---
+
+# Setup
 
 Use the following one-liner to create a lightweight [micromamba](https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html) Python environment with all dependencies readily available:
 ```sh
@@ -47,6 +53,12 @@ For a complete overview of all execution options, see the [configuration](config
 - [Bulk modulus calculation](https://github.com/molmod/psiflow/tree/main/examples/iron_bulk_modulus.py) | **iron**: estimate of the bulk modulus of fcc iron using a series of NPT simulations at different pressures
   
 - [Solid-state phase stabilities](https://github.com/molmod/psiflow/tree/main/examples/iron_harmonic_fcc_bcc.py) | **iron**: estimating the relative stability of fcc and bcc iron with anharmonic corrections using thermodynamic integration (see e.g. [Phys Rev B., 2018](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.97.054102))
+
+- [ML potentials from scratch](https://github.com/molmod/psiflow/tree/main/examples/online_learning_pimd.py) | **water**: develop an ML potential for water based on a single geometry as input, using a combination of passive and active learning.
+
+- [Replica exchange umbrella sampling](https://github.com/molmod/psiflow/tree/main/examples/proton_jump_plumed.py) |
+  **vinyl alcohol**: explore a reactive transition path with metadynamics, and use the
+  resulting data to perform umbrella sampling with replica exchange between umbrellas.
 
 - [DFT singlepoints](https://github.com/molmod/psiflow/tree/main/examples/water_cp2k_noise.py) | **water**: analysis of the numerical noise DFT energy and force evaluations using CP2K and the RPBE(D3) functional, for a collection of water molecules.
   

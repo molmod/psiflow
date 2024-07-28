@@ -167,8 +167,6 @@ SLURM jobscripts, send them to the scheduler, and once the resources are allocat
 start the calculation. For example, assume that the GPU partition on this cluster is
 named `infinite_a100`, and it has 12 cores per GPU. Consider the following config
 ```yaml
-container_runtime: apptainer   # or singularity; check HPC docs to see which one is available
-container_uri: oras://ghcr.io/molmod/psiflow:main_cu118  # built from github main branch
 ModelTraining:
   cores_per_worker: 12
   gpu: true
@@ -215,7 +213,7 @@ There exist a few additional keywords for `ModelTraining` which might be useful:
     necessary to tune the process/thread affinity a little bit. For example:
     ```yaml
     env_vars:
-      OMP_PROC_BIND: spread
+      OMP_PROC_BIND: "spread"
     ```
 
 ### 2. molecular dynamics

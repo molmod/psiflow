@@ -47,6 +47,9 @@ rmse = compute_rmse(forces_pred, forces_target)  # this is a Future!
 print('forces RMSE: {} eV/A'.format(rmse.result()))
 
 ```
+Note that `model.save()` will save both a `.yaml` file with all hyperparameters as well as the actual `.pth` model which is needed to reconstruct the corresponding PyTorch module (possibly outside of psiflow if needed).
+As such, it expects a directory as argument (which may either already exist or will be
+created).
 
 In many cases, it is generally recommended to provide these models with some estimate of the absolute energy of an isolated
 atom for the specific level of theory and basis set considered (and this for each element).
