@@ -44,7 +44,7 @@ No additional software compilation is required since all of the heavy lifting (C
 That's it! Contrary to frameworks like pyiron or aiida, psiflow does not require any databases or annoying web servers.
 The only requirement is that you set up a Python environment and provide a `config.yaml`.
 
-# [Examples](https://github.com/molmod/psiflow/tree/main/examples)
+[**EXAMPLES**](https://github.com/molmod/psiflow/tree/main/examples)
 
 <img src="https://github.com/molmod/psiflow/blob/main/docs/api_example.png" width="1000" class="center">
 
