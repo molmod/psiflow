@@ -184,7 +184,7 @@ def train(
     command_cd = "cd $mytmpdir;"
     command_env = ""
     for key, value in env_vars.items():
-        command_env += ' export {}={}; '.format(key, value)
+        command_env += " export {}={}; ".format(key, value)
     command_list = [
         command_tmp,
         command_cd,

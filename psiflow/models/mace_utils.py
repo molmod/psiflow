@@ -676,9 +676,10 @@ def run(rank: int, args: argparse.Namespace, world_size: int) -> None:
 
 
 def main():
+    import signal
+
     import torch
     from mace import tools
-    import signal
 
     signal.signal(signal.SIGTERM, timeout_handler)
     # main()

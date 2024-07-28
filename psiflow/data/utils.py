@@ -26,7 +26,7 @@ def _write_frames(
             all_states.append(extra_states)
     with open(outputs[0], "w") as f:
         for state in all_states:  # avoid double newline by using strip!
-            f.write(state.to_string().strip() + '\n')
+            f.write(state.to_string().strip() + "\n")
 
 
 write_frames = python_app(_write_frames, executors=["default_threads"])
@@ -605,8 +605,9 @@ def _batch_frames(
                 else:  # write and clear
                     pass
     if len(data) > 0:
-        with open(outputs[batch_index], "w") as g:
-            g.write("\n".join(data))
+        with open(outputs[batch_index], "w") as f:
+            f.write("\n".join([d.strip() for d in data if d is not None]))
+            f.write("\n")
         batch_index += 1
     assert batch_index == len(outputs)
 

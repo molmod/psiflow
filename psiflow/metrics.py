@@ -172,7 +172,6 @@ def _to_wandb(
     os.environ["WANDB_API_KEY"] = wandb_api_key
     os.environ["WANDB_SILENT"] = "True"
     import tempfile
-    import numpy as np
     from pathlib import Path
 
     import colorcet as cc
@@ -533,6 +532,6 @@ class Metrics:
         return to_wandb(
             self.wandb_id,
             self.wandb_project,
-            os.environ['WANDB_API_KEY'],
+            os.environ["WANDB_API_KEY"],
             inputs=[self.metrics],
         )

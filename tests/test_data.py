@@ -181,7 +181,7 @@ H      -0.764765500000000     -0.536376480000000     -1.844856190000000
 
     geometry = Geometry.from_data(np.ones(2), np.zeros((2, 3)), cell=None)
     geometry.stress = np.array([np.nan] * 9).reshape(3, 3)
-    assert 'nan' not in geometry.to_string()
+    assert "nan" not in geometry.to_string()
 
 
 def test_dataset_empty(tmp_path):

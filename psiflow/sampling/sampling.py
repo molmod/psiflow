@@ -358,7 +358,7 @@ def _execute_ipi(
     for i, plumed_str in enumerate(plumed_list):
         write_command += 'echo "{}" > metad_input{}.txt; '.format(plumed_str, i)
     for key, value in env_vars.items():
-        write_command += ' export {}={}; '.format(key, value)
+        write_command += " export {}={}; ".format(key, value)
     command_start = command_server + " --nwalkers={}".format(nwalkers)
     command_start += " --input_xml={}".format(inputs[0].filepath)
     command_start += " --start_xyz={}".format(inputs[1].filepath)
@@ -533,7 +533,7 @@ def _sample(
     command_server = definition.server_command()
     command_client = definition.client_command()
     resources = definition.wq_resources(max_nclients)
-    print('ENV VARS')
+    print("ENV VARS")
     print(definition.env_vars)
     result = execute_ipi(
         len(walkers),

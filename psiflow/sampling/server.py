@@ -1,7 +1,7 @@
 import argparse
-import os
 import ast
 import glob
+import os
 import signal
 import xml.etree.ElementTree as ET
 from copy import deepcopy
@@ -24,6 +24,7 @@ def remdsort(inputfile, prefix="SRT_"):
     from ipi.inputs.simulation import InputSimulation
     from ipi.utils.io.inputs import io_xml
     from ipi.utils.messages import verbosity
+
     verbosity.level = "low"
     # opens & parses the input file
     ifile = open(inputfile, "r")
@@ -133,8 +134,8 @@ def remdsort(inputfile, prefix="SRT_"):
                                 )
                             else:
                                 # FIX
-                                if o.format == 'ase':
-                                    extension = 'extxyz'
+                                if o.format == "ase":
+                                    extension = "extxyz"
                                 else:
                                     extension = o.format
                                 filename = filename + "_" + padb + "." + extension
@@ -343,6 +344,7 @@ def anisotropic_barostat_h0(input_xml, data_start):
 def start(args):
     from ipi.engine.simulation import Simulation
     from ipi.utils.softexit import softexit
+
     data_start = read(args.start_xyz, index=":")
     assert len(data_start) == args.nwalkers
     for i in range(args.nwalkers):
@@ -371,6 +373,7 @@ def start(args):
 
 def cleanup(args):
     from psiflow.data.utils import _write_frames
+
     with open("input.xml", "r") as f:
         content = f.read()
     if "vibrations" in content:
@@ -458,9 +461,9 @@ def main():
     if not args.cleanup:
         start(args)
     else:
-        #try:
+        # try:
         cleanup(args)
-        #except BaseException as e:  # noqa: B036
+        # except BaseException as e:  # noqa: B036
         #    print(e)
         #    print("i-PI cleanup failed!")
         #    print("files in directory:")

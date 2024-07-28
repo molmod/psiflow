@@ -1,9 +1,8 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import re
-
 import logging
 import math
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -97,7 +96,7 @@ class ExecutionDefinition:
                 worker_options.append("--gpus={}".format(self.max_workers))
 
             # ensure proper scale in
-            if getattr(self.parsl_provider, 'nodes_per_block', 1) > 1:
+            if getattr(self.parsl_provider, "nodes_per_block", 1) > 1:
                 worker_options.append("--idle-timeout={}".format(20))
             else:
                 worker_options.append("--idle-timeout={}".format(int(1e6)))
@@ -180,10 +179,10 @@ class ModelEvaluation(ExecutionDefinition):
         self.timeout = timeout
 
         default_env_vars = {
-            'OMP_NUM_THREADS': str(self.cores_per_worker),
-            'KMP_AFFINITY': 'granularity=fine,compact,1,0',
-            'OMP_PROC_BIND': 'false',
-            'PYTHONUNBUFFERED': 'TRUE',
+            "OMP_NUM_THREADS": str(self.cores_per_worker),
+            "KMP_AFFINITY": "granularity=fine,compact,1,0",
+            "OMP_PROC_BIND": "false",
+            "PYTHONUNBUFFERED": "TRUE",
         }
         if env_vars is None:
             env_vars = default_env_vars
@@ -254,17 +253,19 @@ class ModelTraining(ExecutionDefinition):
             assert max_training_time * 60 < self.max_runtime
         self.max_training_time = max_training_time
         if self.max_workers > 1:
-            message = ('the max_training_time keyword does not work '
-                       'in combination with multi-gpu training. Adjust '
-                       'the maximum number of epochs to control the '
-                       'duration of training')
+            message = (
+                "the max_training_time keyword does not work "
+                "in combination with multi-gpu training. Adjust "
+                "the maximum number of epochs to control the "
+                "duration of training"
+            )
             assert self.max_training_time is None, message
 
         default_env_vars = {
-            'OMP_NUM_THREADS': str(self.cores_per_worker),
-            'KMP_AFFINITY': 'granularity=fine,compact,1,0',
-            'OMP_PROC_BIND': 'false',
-            'PYTHONUNBUFFERED': 'TRUE',
+            "OMP_NUM_THREADS": str(self.cores_per_worker),
+            "KMP_AFFINITY": "granularity=fine,compact,1,0",
+            "OMP_PROC_BIND": "false",
+            "PYTHONUNBUFFERED": "TRUE",
         }
         if env_vars is None:
             env_vars = default_env_vars
@@ -293,7 +294,9 @@ class ModelTraining(ExecutionDefinition):
 
         resource_specification["gpus"] = nworkers  # one per GPU
         resource_specification["cores"] = self.cores_available
-        resource_specification["disk"] = 1000 * nworkers  # some random nontrivial amount?
+        resource_specification["disk"] = (
+            1000 * nworkers
+        )  # some random nontrivial amount?
         memory = 1000 * self.cores_available  # similarly rather random
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_training_time
@@ -360,8 +363,8 @@ class ReferenceEvaluation(ExecutionDefinition):
 
             def parse_size(size):
                 size = size.upper()
-                if not re.match(r' ', size):
-                    size = re.sub(r'([KMGT]?B)', r' \1', size)
+                if not re.match(r" ", size):
+                    size = re.sub(r"([KMGT]?B)", r" \1", size)
                 number, unit = [string.strip() for string in size.split()]
                 return int(float(number) * units[unit])
 
