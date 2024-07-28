@@ -10,7 +10,6 @@
 [![DOI](https://flat.badgen.net/static/DOI/10.1038%2Fs41524-023-00969-x)](https://www.nature.com/articles/s41524-023-00969-x)
 
 
-
 # Scalable Molecular Simulation
 
 Psiflow is a scalable molecular simulation engine for chemistry and materials science applications.
@@ -22,6 +21,11 @@ It supports:
 Users may define arbitrarily complex workflows and execute them **automatically** on local, HPC, and/or cloud infrastructure.
 To achieve this, psiflow is built using [Parsl](https://parsl-project.org/): a parallel execution library which manages job submission and workload distribution.
 As such, psiflow can orchestrate large molecular simulation pipelines on hundreds or even thousands of nodes.
+
+
+<p align="center">
+<img src="https://github.com/molmod/psiflow/blob/main/docs/overview.png" width="500" class="center">
+</p>
 
 # Setup
 
@@ -41,6 +45,9 @@ That's it! Contrary to frameworks like pyiron or aiida, psiflow does not require
 The only requirement is that you set up a Python environment and provide a `config.yaml`.
 
 # Examples
+
+<img src="https://github.com/molmod/psiflow/blob/main/docs/api_example.png" width="1000" class="center">
+
 
 - [Replica exchange molecular dynamics](https://github.com/molmod/psiflow/tree/main/examples/alanine_replica_exchange.py) | **alanine dipeptide**: replica exchange molecular dynamics simulation of alanine dipeptide, using the MACE-MP0 universal potential.
   The inclusion of high-temperature replicas allows for fast conformational transitions and improves ergodicity.
