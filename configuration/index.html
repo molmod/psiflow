@@ -9,7 +9,7 @@
       
       
       
-        <link rel="prev" href="../learning/">
+        <link rel="prev" href="../free_energy/">
       
       
       
@@ -323,6 +323,26 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../free_energy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    free energy calculations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -613,19 +633,17 @@ Internally, Parsl will use that information to construct the appropriate
 SLURM jobscripts, send them to the scheduler, and once the resources are allocated,
 start the calculation. For example, assume that the GPU partition on this cluster is
 named <code>infinite_a100</code>, and it has 12 cores per GPU. Consider the following config
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">container_runtime</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apptainer</span><span class="w">   </span><span class="c1"># or singularity; check HPC docs to see which one is available</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nt">container_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oras://ghcr.io/molmod/psiflow:main_cu118</span><span class="w">  </span><span class="c1"># built from github main branch</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nt">ModelTraining</span><span class="p">:</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">cores_per_worker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="nt">slurm</span><span class="p">:</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;infinite_a100&quot;</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;112358&quot;</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="nt">nodes_per_block</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">    </span><span class="nt">cores_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">    </span><span class="nt">max_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">    </span><span class="nt">walltime</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;12:00:00&quot;</span>
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">    </span><span class="nt">scheduler_options</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;#SBATCH</span><span class="nv"> </span><span class="s">--gpus=2&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">ModelTraining</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">cores_per_worker</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">gpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">slurm</span><span class="p">:</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;infinite_a100&quot;</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;112358&quot;</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="nt">nodes_per_block</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="nt">cores_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="nt">max_blocks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">    </span><span class="nt">walltime</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;12:00:00&quot;</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">    </span><span class="nt">scheduler_options</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;#SBATCH</span><span class="nv"> </span><span class="s">--gpus=2&quot;</span>
 </code></pre></div>
 The top-level keyword <code>ModelTraining</code> indicates that we're defining the execution of
 <code>model.train()</code>. It has a number of special keywords:</p>
@@ -659,7 +677,7 @@ the queue time is long.</p>
     achieve optimal training performance. For example, on some clusters, it is
     necessary to tune the process/thread affinity a little bit. For example:
     <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">env_vars</span><span class="p">:</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">OMP_PROC_BIND</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">spread</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">OMP_PROC_BIND</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;spread&quot;</span>
 </code></pre></div></li>
 </ul>
 <h3 id="2-molecular-dynamics">2. molecular dynamics</h3>

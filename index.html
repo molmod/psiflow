@@ -338,6 +338,26 @@
   
   
     <li class="md-nav__item">
+      <a href="free_energy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    free energy calculations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="configuration/" class="md-nav__link">
         
   
@@ -385,42 +405,61 @@ It supports:</p>
 <p>Users may define arbitrarily complex workflows and execute them <strong>automatically</strong> on local, HPC, and/or cloud infrastructure.
 To achieve this, psiflow is built using <a href="https://parsl-project.org/">Parsl</a>: a parallel execution library which manages job submission and workload distribution.
 As such, psiflow can orchestrate large molecular simulation pipelines on hundreds or even thousands of nodes.</p>
+<figure>
+  <img alt="Image title" src="overview.png" width="500" />
+</figure>
 <hr />
-<p>Use the following one-liner to create a lightweight <a href="https://mamba.readthedocs.io/en/latest/user_guide/micromamba.html">micromamba</a> Python environment with all dependencies readily available:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-L<span class="w"> </span>molmod.github.io/psiflow/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash
-</code></pre></div>
-The environment can be activated by sourcing the <code>activate.sh</code> file which will be created in the current working directory.</p>
-<p>Next, create a <code>config.yaml</code> file which defines the compute resources. For SLURM-based HPC systems, psiflow can initialize your configuration automatically via the following command:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;import psiflow; psiflow.setup_slurm_config()&#39;</span>
-</code></pre></div>
-Example configuration files for <a href="https://lumi-supercomputer.eu/">LUMI</a>, <a href="https://luxembourg.public.lu/en/invest/innovation/meluxina-supercomputer.html">MeluXina</a>, or <a href="https://www.vscentrum.be/">VSC</a> can be found <a href="https://github.com/molmod/psiflow/tree/main/configs">here</a>.
-No additional software compilation is required since all of the heavy lifting (CP2K/ORCA/GPAW, PyTorch model training, i-PI dynamics) is executed within preconfigured <a href="https://apptainer.org/">Apptainer</a>/<a href="https://sylabs.io/singularity/">Singularity</a> containers which are production-ready for most HPCs.</p>
-<p>For a complete overview of all execution options, see the <a href="configuration/">configuration</a> page.</p>
-<h1 id="examples">Examples</h1>
-<ul>
-<li><a href="https://github.com/molmod/psiflow/tree/main/examples/alanine_replica_exchange.py">Replica exchange molecular dynamics</a> | <strong>alanine dipeptide</strong>: replica exchange molecular dynamics simulation of alanine dipeptide, using the MACE-MP0 universal potential.
-  The inclusion of high-temperature replicas allows for fast conformational transitions and improves ergodicity.</li>
-<li><a href="https://github.com/molmod/psiflow/tree/main/examples/formic_acid_transition.py">Geometry optimizations</a> | <strong>formic acid dimer</strong>: approximate transition state calculation for the proton exchange reaction in a formic acid dimer,
-  using simple bias potentials and a few geometry optimizations.</li>
-<li>
-<p><a href="https://github.com/molmod/psiflow/tree/main/examples/h2_static_dynamic.py">Static and dynamic frequency analysis</a> | <strong>dihydrogen</strong>: Hessian-based estimate of the H-H bond strength and corresponding IR absorption frequency, and a comparison with a dynamical estimate from NVE simulation and Fourier analysis.</p>
-</li>
-<li>
-<p><a href="https://github.com/molmod/psiflow/tree/main/examples/iron_bulk_modulus.py">Bulk modulus calculation</a> | <strong>iron</strong>: estimate of the bulk modulus of fcc iron using a series of NPT simulations at different pressures</p>
-</li>
-<li>
-<p><a href="https://github.com/molmod/psiflow/tree/main/examples/iron_harmonic_fcc_bcc.py">Solid-state phase stabilities</a> | <strong>iron</strong>: estimating the relative stability of fcc and bcc iron with anharmonic corrections using thermodynamic integration (see e.g. <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.97.054102">Phys Rev B., 2018</a>)</p>
-</li>
-<li>
-<p><a href="https://github.com/molmod/psiflow/tree/main/examples/water_cp2k_noise.py">DFT singlepoints</a> | <strong>water</strong>: analysis of the numerical noise DFT energy and force evaluations using CP2K and the RPBE(D3) functional, for a collection of water molecules.</p>
-</li>
-<li>
-<p><a href="https://github.com/molmod/psiflow/examples/water_path_integral_md.py">Path-integral molecular dynamics</a> | <strong>water</strong>: demonstration of the impact of nuclear quantum effects on the variance in O-H distance in liquid water. Path-integral molecular dynamics simulations with increasing number of beads (1, 2, 4, 8, 16) approximate the proton delocalization, and lead to systematically larger variance in O-H distance.</p>
-</li>
-<li>
-<p><a href="https://github.com/molmod/psiflow/examples/water_train_validate.py">Machine learning potential training</a> | <strong>water</strong>: simple training and validation script for MACE on a small dataset of water configurations.</p>
-</li>
-</ul>
+<h1 id="faq">FAQ</h1>
+<p><strong>Where do I start?</strong></p>
+<p>Take a brief look at the <a href="https://github.com/molmod/psiflow/examples/">examples</a> or walk
+through the
+<a href="https://molmod.github.io/psiflow/data">documentation</a> to get an idea for psiflow's
+capabilities. Next, head over to the <a href="https://molmod.github.io/psiflow/configuration/">setup &amp; configuration</a> section of the docs to get started!</p>
+<p><strong>Is psiflow a workflow manager?</strong></p>
+<p>Absolutely not! Psiflow is a Python library which allows you to perform complex molecular simulations and scale them towards large numbers of compute nodes automatically.
+It does not have 'fixed' workflow recipes, it does not require you to set up 'databases'
+or 'server daemons'. The only thing it does is expose a concise and powerful API to
+perform arbitrarily complex calculations in a highly efficiently manner.</p>
+<p><strong>Is it compatible with my cluster?</strong></p>
+<p>Most likely yes. Check which resource scheduling system your cluster uses (probably either
+SLURM/PBSPro/SGE). If you're not sure, ask your system administrators or open an issue</p>
+<p><strong>Can I use VASP with it?</strong></p>
+<p>You cannot automate VASP calculations with it, but in 99% of cases there is either no need
+to use VASP, or it's very easy to quickly perform the VASP part manually, outside of psiflow,
+and do everything else (data generation, ML potential training, sampling) with psiflow.
+Open an issue if you're not sure how to do this.</p>
+<p><strong>I would like to have feature X</strong></p>
+<p>Psiflow is continuously in development; if you're missing a feature feel free to open an
+issue or pull request!</p>
+<p><strong>I have a bug. Where is my error message and how do I solve it?</strong></p>
+<p>Psiflow covers essentially all major aspects of computational molecular simulation (most
+notably including the executation and parallelization), so there's bound to be some bug
+once in a while. Debugging can be challenging, and we recommend to follow the following steps in
+order:</p>
+<ol>
+<li>Check the stderr/stdout of the main Python process (i.e. the <code>python main.py
+   config.yaml</code> one). See if there are any clues. If it has contents which you don't
+   understand, open an issue. If there's seemingly nothing there, go to step 2.</li>
+<li>Check Parsl's log file. This can be found in the current working directory, under
+   <code>psiflow_internal/parsl.log</code>. If it's a long file, search for any errors using <code>Error</code>
+   or <code>ERROR</code>. If you find anything suspicious but do not know how to solve it,
+   open an issue.</li>
+<li>Check the output files of individual ML training, QM singlepoints, or i-PI molecular
+   dynamics runs. These can be found under <code>psiflow_internal/000/task_logs/*</code>.
+   Again, if you find an error but do not exactly know why it happens or how to solve it,
+   feel free to open an issue. Most likely, it will be useful to other people as well</li>
+<li>Check the actual 'jobscripts' that were generated and which were submitted to the
+   cluster. Quite often, there can be a spelling mistake in e.g. the compute project you
+   are using, or you are requesting a resource on a partition that is not available.
+   These jobscripts (and there output and error) can be found under
+   <code>psiflow_internal/000/submit_scripts/</code>.</li>
+</ol>
+<p><strong>Where do these container images come from?</strong></p>
+<p>They were generated using Docker based on the recipes in this repository, and were then
+converted to <code>.sif</code> format using <code>apptainer</code></p>
+<p><strong>Can I run psiflow locally for small runs or debug purposes?</strong></p>
+<p>Of course! If you do not provide a <code>config.yaml</code>, psiflow will just use your local
+workstation for its execution. See e.g. <a href="https://github.com/molmod/psiflow/blob/main/configs/threadpool.yaml">this</a> or <a href="https://github.com/molmod/psiflow/blob/main/configs/wq.yaml">this</a> config used for testing.</p>
 <div class="admonition note">
 <p class="admonition-title">Citing psiflow</p>
 <p>Psiflow is developed at the
@@ -432,501 +471,6 @@ Incremental Learning Approach,
 <a href="https://www.nature.com/articles/s41524-023-00969-x">npj Computational Materials</a>,
 <strong>9</strong>, 19 <strong>(2023)</strong></p>
 </div>
-<!---
-- __atomic data__: the `Dataset` class represents a list of atomic configurations.
-Datasets may be labeled with energy, forces, and virial stress values obtained
-based on e.g. a singlepoint QM evaluation or a trained model. Each individual
-item in the list is essentially an ASE `Atoms` instance with a few additional attributes
-used to store output and error logs of the QM evaluation on that
-configuration.
-- __trainable potentials__: the `BaseModel` class defines the interface for
-trainable interaction potentials such as NequIP, Allegro, or MACE. They support
-initializing and training a model based on training and validation sets,
-evaluation of the model on a given test dataset, and model inference 
-during molecular simulations.
-- __molecular simulation__: the `BaseWalker` class defines an abstract interface
-for anything that takes an initial atomic configuration as input and generates new
-atomic configurations as output. This includes classical molecular dynamics 
-at different external conditions (NVT, NPT), but also geometry optimizations and
-even simple random perturbations/random walks.
-- __bias potentials and enhanced sampling__ the `PlumedBias` class exposes
-the popular PLUMED library during phase space sampling.
-This allows the user to introduce bias potentials
-(e.g. harmonic restraints or metadynamics) into the system
-in order to increase the sampling efficiency of the walkers.
-- __level of theory__: the `BaseReference` class is used to define the _target_
-QM reference which the model should reproduce after training. Its main functionality
-is to perform massively parallel singlepoint evaluation of a dataset of 
-atomic structures using a specific level of theory and quantum chemistry package.
---->
-
-<!---
-As mentioned above, psiflow uses Parsl to orchestrate execution on arbitrarily
-large amounts of computing resources (e.g. hundreds of SLURM nodes).
-The configuration of these resources (cluster and partition names, environments to set up) and the execution-specific options
-of individual building blocks (the number of cores to reserve for each singlepoint QM evaluation,
-the floating point precision of PyTorch, the minimum walltime to reserve for training a model)
-are all centralized in an `ExecutionContext`; it ensures
-that the calculations that need to be performed by the building blocks
-are correctly forwarded to the computational resources that the user has provided.
-Check out the [Configuration](execution.md) section for more details.
-In what follows, we assume that a suitable `context` has been initialized.
---->
-
-<!---
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>## Trainable potentials
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>Once we know how datasets are represented, we can start defining models.
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>Psiflow defines an abstract `BaseModel` interface which each
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>particular machine learning potential should subclass.
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>In addition, psiflow provides configuration dataclasses for each model with
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>reasonable defaults.
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>- __NequIP__    : implemented by `NequIPModel` and `NequIPConfig`
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>- __Allegro__   : implemented by `AllegroModel` and `AllegroConfig`
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>- __MACE__      : implemented by `MACEModel` and `MACEConfig`
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>The `BaseModel` interface ensures that each model implements the following methods
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>- `initialize`: compute energy shifts and scalings as well as the average number
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>of neighbors (and any other network normalization metrics) using a given training dataset,
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>and initialize model weights.
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>- `train`: train the parameters of a model using two separate datasets, one for
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>actual training and one for validation. The current model parameters are used as
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>starting parameters for the training
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>- `evaluate`: compute the energy, force, and stress predictions on a given test dataset
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>The following example illustrates how `Dataset` and `BaseModel` instances can be
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>used to train models and evaluate errors.
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>```py
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>from psiflow.data import Dataset
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>from psiflow.models import NequIPModel, NequIPConfig
-<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a>
-<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>
-<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a># setup
-<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a>data_train = Dataset.load(&#39;train.xyz&#39;) # load training and validation data
-<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a>data_valid = Dataset.load(&#39;valid.xyz&#39;)
-<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a>
-<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>config = NequIPConfig()
-<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a>config.num_features = 16        # modify NequIP parameters to whatever
-<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a>model = NequIPModel(config)     # create model instance
-<a id="__codelineno-2-36" name="__codelineno-2-36" href="#__codelineno-2-36"></a>
-<a id="__codelineno-2-37" name="__codelineno-2-37" href="#__codelineno-2-37"></a># initialize, train, deploy
-<a id="__codelineno-2-38" name="__codelineno-2-38" href="#__codelineno-2-38"></a>model.initialize(data_train)            # this will calculate the scale/shifts, and average number of neighbors
-<a id="__codelineno-2-39" name="__codelineno-2-39" href="#__codelineno-2-39"></a>model.train(data_train, data_valid)     # train using supplied datasets
-<a id="__codelineno-2-40" name="__codelineno-2-40" href="#__codelineno-2-40"></a>
-<a id="__codelineno-2-41" name="__codelineno-2-41" href="#__codelineno-2-41"></a>model.save(&#39;./&#39;)        # saves initialized config and model to current working directory!
-<a id="__codelineno-2-42" name="__codelineno-2-42" href="#__codelineno-2-42"></a>
-<a id="__codelineno-2-43" name="__codelineno-2-43" href="#__codelineno-2-43"></a># evaluate test error
-<a id="__codelineno-2-44" name="__codelineno-2-44" href="#__codelineno-2-44"></a>data_test       = Dataset.load(&#39;test.xyz&#39;)      # test data; contains QM reference energy/forces/stress
-<a id="__codelineno-2-45" name="__codelineno-2-45" href="#__codelineno-2-45"></a>data_test_model = model.evaluate(data_test)     # same test data, but with predicted energy/forces/stress
-<a id="__codelineno-2-46" name="__codelineno-2-46" href="#__codelineno-2-46"></a>
-<a id="__codelineno-2-47" name="__codelineno-2-47" href="#__codelineno-2-47"></a>errors = Dataset.get_errors(        # static method of Dataset to compute the error between two datasets
-<a id="__codelineno-2-48" name="__codelineno-2-48" href="#__codelineno-2-48"></a>        data_test,                  
-<a id="__codelineno-2-49" name="__codelineno-2-49" href="#__codelineno-2-49"></a>        data_test_model,                  
-<a id="__codelineno-2-50" name="__codelineno-2-50" href="#__codelineno-2-50"></a>        properties=[&#39;forces&#39;],      # only compute the force error
-<a id="__codelineno-2-51" name="__codelineno-2-51" href="#__codelineno-2-51"></a>        elements=[&#39;C&#39;, &#39;O&#39;],        # only include carbon or oxygen atoms
-<a id="__codelineno-2-52" name="__codelineno-2-52" href="#__codelineno-2-52"></a>        metric=&#39;rmse&#39;,              # use RMSE instead of MAE or MAX
-<a id="__codelineno-2-53" name="__codelineno-2-53" href="#__codelineno-2-53"></a>        ).result()                  # errors is an AppFuture, use .result() to get the actual values as ndarray
-</code></pre></div>
-Note that depending on how the psiflow execution is configured,
-it is perfectly possible
-that the `model.train()` command will end up being executed using a GPU on a SLURM cluster,
-whereas model deployment and evaluation of the test error gets
-executed on your local computer.
-See the psiflow [Configuration](execution.md) page for more information.
-
-In many cases, it is generally recommended to provide these models with some estimate of the absolute energy of an isolated
-atom for the specific level of theory and basis set considered (and this for each element).
-Instead of having the model learn the *absolute* total energy of the system, we first subtract these atomic energies in order
-to train the model on the *formation* energy of the system instead, as this generally improves the generalization performance
-of the model towards unseen stoichiometries.
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">model</span><span class="o">.</span><span class="n">add_atomic_energy</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mf">13.7</span><span class="p">)</span>     <span class="c1"># add atomic energy of isolated hydrogen atom</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">some_training_data</span><span class="p">)</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">model</span><span class="o">.</span><span class="n">add_atomic_energy</span><span class="p">(</span><span class="s1">&#39;O&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">400</span><span class="p">)</span>      <span class="c1"># will raise an exception; model needs to be reinitialized first</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">model</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>                           <span class="c1"># removes current model, but keeps raw config</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">model</span><span class="o">.</span><span class="n">add_atomic_energy</span><span class="p">(</span><span class="s1">&#39;O&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">400</span><span class="p">)</span>      <span class="c1"># OK!</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">model</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">some_training_data</span><span class="p">)</span>    <span class="c1"># offsets total energy with given atomic energy values per atom</span>
-</code></pre></div>
-Whenever atomic energies are available, `BaseModel` instances will automatically offset the potential energy in a (labeled)
-`Dataset` by the sum of the energies of the isolated atoms; the underlying PyTorch network is then initialized/trained
-on the formation energy of the system instead.
-In order to avoid artificially high energy discrepancies between models trained on the formation energy on one hand,
-and reference potential energies as obtained from any `BaseReference`,
-the `evaluate` method will first perform the converse operation, i.e. add the energies of the isolated atoms
-to the model's prediction of the formation energy.
-
-
-## Molecular simulation
-Having trained a model, it is possible to explore the phase space
-of a physical system in order to generate new geometries. 
-Psiflow defines a `BaseWalker` interface that should be used to implement specific
-phase space exploration algorithms.
-Each walker implements a `propagate` method which performs the phase space sampling
-using a `BaseModel` instance and returns the final state in which it 'arrived'.
-Each walker has a `counter` attribute which defines the number of steps that have
-elapsed between its initial structure and said returned state.
-
-Let's illustrate this using an important example: molecular dynamics with the `DynamicWalker`.
-Temperature and pressure control are implemented
-by means of stochastic Langevin dynamics
-because it typically dampens the correlations
-as compared to deterministic time propagation methods based on extended Lagrangians (e.g. Nose-Hoover).
-Propagation of a walker will return a metadata
-[`namedtuple`](https://docs.python.org/3/library/collections.html#collections.namedtuple)
-which has multiple fields, some of which are specific to the type of the walker.
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">DynamicWalker</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="p">(</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>      <span class="c1"># initialize walker to first configuration in dataset</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>       <span class="c1"># Verlet timestep</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>         <span class="c1"># number of timesteps to perform</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="n">step</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>           <span class="c1"># frequency with which states are sampled</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="n">start</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>            <span class="c1"># timestep at which sampling is started</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>    <span class="c1"># temperature, in kelvin</span>
-<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>        <span class="n">pressure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>      <span class="c1"># pressure, in MPa. If None, then simulation is NVT</span>
-<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>             <span class="c1"># numpy random seed with which initial Boltzmann velocities are set</span>
-<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="p">)</span>
-<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>
-<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="c1"># run short MD simulation using some model</span>
-<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="n">metadata</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>
-</code></pre></div>
-
-The following fields are always present in the `metadata` object:
-
-- `metadata.state`: `AppFuture` of an `Atoms` object which represents the final state
-- `metadata.counter`: `AppFuture` of an `int` representing the total number of steps
-that the walker has taken since its initialization (or most recent reset).
-- `metadata.reset`: `AppFuture` of a `bool` which indicates whether the walker was reset
-during or after propagation (e.g. because the temperature diverged too far from its target value).
-
-The dynamic walker in particular has a few additional fields which might be useful:
-
-- `metadata.temperature`: `AppFuture` of a `float` representing the average temperature
-during the simulation
-- `metadata.stdout`: filepath of the output log of the molecular dynamics run
-- `metadata.time`: `AppFuture` of a `float` which represents the total
-elapsed time during propagation.
-
-When doing active learning, we're usually only interested in the final state of each of the walkers
-and whether the average temperature remained within reasonable bounds.
-In that case, the returned `metadata` object contains all the necessary information about
-the propagation.
-However, the actual trajectory that the walker has followed can be optionally returned as
-a `Dataset`:
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">metadata</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">assert</span> <span class="n">trajectory</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1000</span> <span class="o">/</span> <span class="mi">100</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># includes initial and final state</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>                                     <span class="c1"># metadata contains final state</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        <span class="n">metadata</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_positions</span><span class="p">(),</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="n">trajectory</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_positions</span><span class="p">(),</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="p">)</span>
-</code></pre></div>
-
-!!! note "Parsl 102: Futures are necessary"
-    This example should also illustrate why exactly we would represent data using
-    Futures in the first place.
-    Suppose that the `walker.propagate` call is configured to run on a SLURM job
-    that has a walltime of only ten minutes.
-    At the time of submission, all psiflow knows is that, _at some point in the future_,
-    it will receive a chunk of data that represents the trajectory of the simulation.
-    It cannot yet know how many states are precisely going to be present in that
-    dataset; for that we would have to actually __wait__ for the result.
-    This waiting is precisely what is enforced when using `.result()` on a Future.
-    For example, if we would like to find out how many states were actually generated,
-    we'd use the `dataset.length()` function that returns a Future of the length
-    of the dataset:
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">length</span> <span class="o">=</span> <span class="n">trajectory</span><span class="o">.</span><span class="n">length</span><span class="p">()</span>    <span class="c1"># will execute before the trajectory is actually generated</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">length</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>                 <span class="c1"># enforces Python to wait until the MD calculation has finished, and then compute the actual length</span>
-</code></pre></div>
-    See [this page](https://parsl.readthedocs.io/en/stable/userguide/futures.html) in the Parsl documentation
-    for more information on asynchronous execution.
-
-Successful phase space exploration is typically only possible with models that
-are at least vaguely aware of what the low- and high-energy configurations of
-the system look like.
-If simulation temperatures are too high, simulation times are too long, or
-the model is simply lacking knowledge on certain important low-energy regions
-in phase space, then the simulation might explode. In practice, this means
-that atoms are going to experience enormous forces, fly away, and incentivize
-others to do the same.
-In an online learning context, there is no point in further propagating walkers
-after such unphysical events have occurred because the sampled states
-are either impossible to evaluate with the given reference (e.g. due to SCF
-convergence issues) or do not contain any relevant information on the atomic
-interactions.
-While there exist a bunch of techniques in literature in order to check for such divergences,
-psiflow takes a pragmatic approach and puts a ceiling value on the allowed temperature
-using the `max_excess_temperature` keyword argument.
-If, at the end of a simulation, the instantaneous temperature deviates from the nominal 
-heat bath temperature by more than $T_{\text{excess}}$, the simulation is considered unsafe,
-and the walker is reset.
-Statistical mechanics provides an exact expression for the distribution of the instantaneous
-temperature of the system as a function of the number of atoms *N* and the temperature
-of the heat bath *T* (hit `ctrl+R` if the math does not show up correctly):
-$$
-3N\frac{T_i}{T} \sim \chi^2(3N)
-$$
-in which the [chi-squared](https://en.wikipedia.org/wiki/Chi-squared_distribution) distribution
-arises because the temperature (i.e. kinetic energy) is essentially equal to the sum of
-the squares of *3N* normally distributed velocity components.
-Its standard deviation is given by:
-$$
-\sigma_T = \frac{T}{\sqrt{3N}}
-$$
-This means that for very small systems and/or very high temperatures, the system's instantaneous
-temperature is expected to deviate quite a bit from its average value.
-In those cases, it's important to set the allowed excess temperature sufficiently high (e.g. 300 K)
-in order to avoid resetting walkers unnecessarily.
-
-In practical scenarios, phase space exploration is often performed in a massively
-parallel manner, i.e. with multiple walkers.
-The `multiply()` class method provides a convenient way of initializing a `list` of
-`BaseWalker` instances which differ only in the initial starting
-configuration and their random number seed.
-Let us try and generate 10 walkers which are initialized with different
-snapshots from the trajectory obtained before:
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">walkers</span> <span class="o">=</span> <span class="n">DynamicWalker</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>        <span class="mi">10</span><span class="p">,</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>        <span class="n">data_start</span><span class="o">=</span><span class="n">trajectory</span><span class="p">,</span>              <span class="c1"># walker i initialized to trajectory[i];</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>        <span class="n">temperature</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="n">steps</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>        <span class="p">)</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">walker</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">walkers</span><span class="p">):</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="k">assert</span> <span class="n">walker</span><span class="o">.</span><span class="n">seed</span> <span class="o">==</span> <span class="n">i</span>                 <span class="c1"># unique seed for each walker</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">states</span> <span class="o">=</span> <span class="p">[]</span>                                 <span class="c1"># keep track of &#39;Future&#39; states</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="k">for</span> <span class="n">walker</span> <span class="ow">in</span> <span class="n">walkers</span><span class="p">:</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>    <span class="n">metadata</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>   <span class="c1"># proceeds in parallel!</span>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>    <span class="n">states</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">metadata</span><span class="o">.</span><span class="n">state</span><span class="p">)</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="n">data</span> <span class="o">=</span> <span class="n">Dataset</span><span class="p">(</span><span class="n">states</span><span class="p">)</span>                      <span class="c1"># put them in a Dataset</span>
-</code></pre></div>
-If the requested number of walkers is larger than the number of states in the trajectory,
-states are assigned to walkers based on their index __modulo__ the length of the trajectory.
-
-Besides the dynamic walker, we also implemented an `OptimizationWalker` which
-wraps around ASE's
-[preconditioned L-BFGS implementation](https://wiki.fysik.dtu.dk/ase/ase/optimize.html#preconditioned-optimizers)
-; this is an efficient optimization algorithm which typically requires less steps than either conventional L-BFGS
-or first-order methods such as conjugate gradient (CG).
-Geometry optimizations in psiflow will generally
-not be able to reduce the residual forces in the system below about 0.01 eV/A
-because of the relatively limited precision (`float32`) of model evaluation.
-Previous versions did in fact support `float64`, but since the ability to
-perform precise geometry optimizations is largely irrelevant in the context of
-active learning, we decided to remove this for simplicity.
-Similarly, psiflow does not offer much flexibility in terms of integration algorithms because this is typically
-not very important when generating atomic geometries for online learning.
-The important thing is that the system has enough flexibility to explore the relevant parts of the phase space
-(i.e. allowing energy and or unit cell parameters to change); how exactly this is achieved is less relevant.
-For precise control of downstream inference tasks with trained models, we encourage users to employ
-the PyTorch models as saved by `model.save(...)` in standalone scripts outside of psiflow.
-
-### Bias potentials and enhanced sampling
-In the vast majority of molecular dynamics simulations of realistic systems,
-it is beneficial to modify the equilibrium Boltzmann distribution with bias potentials
-or advanced sampling schemes as to increase the sampling efficiency and reduce
-redundancy within the trajectory.
-In psiflow, this is achieved by interfacing the dynamic walkers
-with the [PLUMED](https://plumed.org) library, which provides the user with various choices of enhanced sampling
-techniques.
-This allows users to apply bias potentials along specific collective variables or evaluate the bias energy
-across a dataset of atomic configurations.
-
-!!! note "Variable names in PLUMED input files"
-    For convenience, psiflow assumes that all collective variables in the PLUMED file have a name
-    that starts with `CV`; `CV1`, `CV_1`, `CV_first`, or `CV` are all valid names while `cv1`, `colvar1` are not.
-
-In the following example, we define the PLUMED input as a multi-line string in
-Python. We consider the particular case of applying a metadynamics bias to
-a collective variable - in this case the unit cell volume.
-Because metadynamics represents a time-dependent bias,
-it relies on an additional _hills_ file which keeps track of the location of
-Gaussian hills that were installed in the system at various steps throughout
-the simulation. Psiflow automatically takes care of such external files, and
-their file path in the input string is essentially irrelevant.
-To apply this bias in a simulation, we employ the `BiasedDynamicWalker`; it is
-almost identical to the `DynamicWalker` except that it accepts an additional
-(mandatory) `bias` keyword argument during initialization:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span> <span class="nn">psiflow.sampling</span> <span class="kn">import</span> <span class="n">BiasedDynamicWalker</span><span class="p">,</span> <span class="n">PlumedBias</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="s2">CV: VOLUME</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="s2">METAD ARG=CV SIGMA=100 HEIGHT=2 PACE=10 LABEL=metad FILE=dummy</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">)</span>        <span class="c1"># a new hills file is generated</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="n">walker</span>   <span class="o">=</span> <span class="n">BiasedDynamicWalker</span><span class="p">(</span><span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bias</span><span class="o">=</span><span class="n">bias</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>  <span class="c1"># initialize dynamic walker with bias</span>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="n">metadata</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>                                      <span class="c1"># performs biased MD</span>
-</code></pre></div>
-Note that the bias instance will retain the hills that were generated during walker
-propagation.
-Often, we want to investigate what the final bias energy looks like as a
-function of the collective variable.
-To facilitate this, psiflow provides the ability to evaluate `PlumedBias` objects
-on `Dataset` instances using the `bias.evaluate()` method.
-The returned object is a Parsl `Future` that represents an `ndarray` of shape `(nstates, ncolvars + 1)`.
-The first column represents the value of the collective variable for each state,
-and the second column contains the bias energy.
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">values</span> <span class="o">=</span> <span class="n">bias</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data_train</span><span class="p">)</span>       <span class="c1"># compute the collective variable &#39;CV&#39; and bias energy</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">data_train</span><span class="o">.</span><span class="n">length</span><span class="p">()</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>  <span class="c1"># each snapshot is evaluated separately</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">assert</span> <span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>                             <span class="c1"># CV and bias per snapshot, in PLUMED units!</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">result</span><span class="p">()[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>                 <span class="c1"># bias energy from added hills</span>
-</code></pre></div>
-As another example, let's consider the same collective variable but now with
-a harmonic bias potential applied to it.
-Because sampling with and manipulation of harmonic bias potentials is ubiquitous
-in free energy calculations, psiflow provides specific functionalities for this
-particular case.
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="s2">CV: VOLUME</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="s2">RESTRAINT ARG=CV AT=150 KAPPA=1 LABEL=restraint</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="n">walker</span> <span class="o">=</span> <span class="n">BiasedDynamicWalker</span><span class="p">(</span><span class="n">data_train</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bias</span><span class="o">=</span><span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">))</span>  <span class="c1"># walker with harmonic bias</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">state</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="n">state</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># change bias center and width</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">walker</span><span class="o">.</span><span class="n">bias</span><span class="o">.</span><span class="n">adjust_restraint</span><span class="p">(</span><span class="n">variable</span><span class="o">=</span><span class="s1">&#39;CV&#39;</span><span class="p">,</span> <span class="n">kappa</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="n">state_</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="n">state</span>
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="c1"># if the system had enough time to equilibrate with the bias, then the following should hold</span>
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="k">assert</span> <span class="n">state</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">state_</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">get_volume</span><span class="p">()</span>
-</code></pre></div>
-Finally, psiflow also explicitly supports the use of bias potentials as defined numerically
-on a grid of CV values:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="kn">from</span> <span class="nn">psiflow.sampling.bias</span> <span class="kn">import</span> <span class="n">generate_external_grid</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">bias_function</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.01</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mi">150</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>    <span class="c1"># Gaussian hill at CV=150</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">grid_values</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">300</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span>                    <span class="c1"># CV values for numerical grid</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="n">grid</span> <span class="o">=</span> <span class="n">generate_external_grid</span><span class="p">(</span>      <span class="c1"># generate contents of PLUMED grid file</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>        <span class="n">bias_function</span><span class="p">,</span>
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>        <span class="n">grid_values</span><span class="p">,</span>                
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>        <span class="s1">&#39;CV&#39;</span><span class="p">,</span>                       <span class="c1"># use ARG=CV in the EXTERNAL action</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>        <span class="n">periodic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>             <span class="c1"># periodicity of CV</span>
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>        <span class="p">)</span>
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="n">plumed_input</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="s2">UNITS LENGTH=A ENERGY=kj/mol TIME=fs</span>
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="s2">CV: VOLUME</span>
-<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="s2">EXTERNAL ARG=CV FILE=dummy</span>
-<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="n">bias</span> <span class="o">=</span> <span class="n">PlumedBias</span><span class="p">(</span><span class="n">plumed_input</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;EXTERNAL&#39;</span><span class="p">:</span> <span class="n">grid</span><span class="p">})</span>   <span class="c1"># pass grid file as external dependency</span>
-</code></pre></div>
-Note that metadynamics hills files cannot be shared between walkers 
-(as is the case in multiple walker metadynamics) as this would
-violate their strict independence.
-
-!!! note 
-    PLUMED interfacing is not supported for the `OptimizationWalker` because
-    (i) it is rarely ever useful to add a bias during optimization, and (ii)
-    the optimization is performed in ASE, and
-    ASE's PLUMED interface is shaky at best.
-
-
-## Level of theory
-Atomic configurations should be labeled with the correct QM energy,
-force, and (optionally) virial stress before they can be used during model training.
-The `BaseReference` class implements the singlepoint evaluations using specific
-QM software packages and levels of theory.
-Its main functionality is provided by its
-`evaluate` method, which accepts both a `Dataset` as well as a (future of a)
-single `FlowAtoms` instance, and performs the single-point calculations.
-Depending on which argument it receives, it returns either a future or a `Dataset`
-which contain the QM energy, forces, and/or stress. 
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">_</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">walker</span><span class="o">.</span><span class="n">propagate</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">keep_trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>    <span class="c1"># trajectory of states</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">reference</span> <span class="o">=</span> <span class="o">...</span>                           <span class="c1"># initialize some Reference instance, e.g. CP2KReference (see below)</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">labeled</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">trajectory</span><span class="p">)</span>  <span class="c1"># massively parallel evaluation (returns new Dataset with results)   </span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="p">,</span> <span class="n">Dataset</span><span class="p">)</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">])</span> <span class="c1"># cp2k potential energy!</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="n">labeled</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">trajectory</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>     <span class="c1"># evaluates single state (returns a FlowAtoms future)</span>
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="p">,</span> <span class="n">AppFuture</span><span class="p">)</span>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">(),</span> <span class="n">FlowAtoms</span><span class="p">)</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">])</span>          <span class="c1"># will print the same energy</span>
-</code></pre></div>
-The output and error logs that were generated during the actual evaluation
-are automatically stored in case they need to checked for errors or unexpected
-behavior.
-Their location in the file system is kept track of using additional attributes
-provided by the `FlowAtoms` class (which is not present in ASE's `Atoms` instance):
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">assert</span> <span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_status</span>    <span class="c1"># True, because state is successfully evaluated</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_stdout</span><span class="p">)</span>    <span class="c1"># e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stdout</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">labeled</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="o">.</span><span class="n">reference_stderr</span><span class="p">)</span>    <span class="c1"># e.g. ./psiflow_internal/000/task_logs/0000/cp2k_evaluate.stderr</span>
-</code></pre></div>
-Reference instances provide a convenient interface of computing the absolute energy of an isolated atom:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">energy_H</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">compute_atomic_energy</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="n">box_size</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">energy_H</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>   <span class="c1"># about -13.7 eV</span>
-</code></pre></div>
-
-### CP2K
-The `CP2KReference` expects a traditional CP2K
-[input file](https://github.com/molmod/psiflow/blob/main/examples/data/cp2k_input.txt)
-(again represented as a multi-line string in Python, just like the PLUMED input);
-it should only contain the `FORCE_EVAL` section, and any `TOPOLOGY` or `CELL` information
-will be automatically removed since this information may change from structure to structure
-and is automatically taken care of by psiflow internally.
-Do not use absolute filepaths to refer to basis set or pseudopotential input files.
-Instead, you can simply use the corresponding filenames as they appear within the
-[CP2K data directory](https://github.com/cp2k/cp2k/tree/master/data).
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">CP2KReference</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="n">cp2k_input</span> <span class="o">=</span> <span class="k">with</span> <span class="n">file</span><span class="p">(</span><span class="s1">&#39;cp2k_input.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="n">reference</span>  <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="p">)</span>
-</code></pre></div>
-
-Sometimes, you may wish to perform energy-only evaluations. For example, in some implementations
-of post-HF methods such as MP2 or RPA, evaluation of the forces can become much more expensive
-and is generally not efficient.
-In those cases, it is possible to perform energy-only evaluations of atomic structures, provided
-that you have expressed to psiflow that it should not try to parse any forces from the output file.
-This is done by providing a `properties` argument during initialization of the `Reference` instance.
-
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">reference_Eonly</span> <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;energy&#39;</span><span class="p">,))</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">reference_Ef</span>    <span class="o">=</span> <span class="n">CP2KReference</span><span class="p">(</span><span class="n">cp2k_input</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;energy&#39;</span><span class="p">,</span> <span class="s1">&#39;forces&#39;</span><span class="p">))</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="n">state</span> <span class="o">=</span> <span class="n">reference_Eonly</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>     <span class="c1"># only contains the potential energy; not the forces</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="n">state</span> <span class="o">=</span> <span class="n">reference_Ef</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">atoms</span><span class="p">)</span>        <span class="c1"># contains both energy and forces (default behavior)</span>
-</code></pre></div>
-
-### PySCF
-The `PySCFReference` expects a string representation of the Python code that should be executed.
-You may assume that this piece of code will be executed in a larger Python script in which the correct
-PySCF `molecule` object has been initialized. The script should define the `energy` and `forces` Python
-variables (respectively `float` and `numpy.ndarray`) which should contain the energy and negative gradient
-in atomic units.
-
-See below for an example:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">from</span> <span class="nn">psiflow.reference</span> <span class="kn">import</span> <span class="n">PySCFReference</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="n">routine</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="s2">from pyscf import dft</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="s2">mf = dft.RKS(molecule)</span>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="s2">mf.xc = &#39;pbe,pbe&#39;</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>
-<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="s2">energy = mf.kernel()</span>
-<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="s2">forces = -mf.nuc_grad_method().kernel()</span>
-<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="s2">&quot;&quot;&quot;</span>
-<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="n">basis</span> <span class="o">=</span> <span class="s1">&#39;cc-pvtz&#39;</span>
-<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="n">spin</span> <span class="o">=</span> <span class="mi">0</span>
-<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a><span class="n">reference</span> <span class="o">=</span> <span class="n">PySCFReference</span><span class="p">(</span><span class="n">routine</span><span class="p">,</span> <span class="n">basis</span><span class="p">,</span> <span class="n">spin</span><span class="p">)</span>
-</code></pre></div>
---->
 
 
 

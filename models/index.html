@@ -331,6 +331,26 @@
   
   
     <li class="md-nav__item">
+      <a href="../free_energy/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    free energy calculations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../configuration/" class="md-nav__link">
         
   
@@ -409,7 +429,10 @@ starting parameters for the training</li>
 <a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
 <a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="n">rmse</span> <span class="o">=</span> <span class="n">compute_rmse</span><span class="p">(</span><span class="n">forces_pred</span><span class="p">,</span> <span class="n">forces_target</span><span class="p">)</span>  <span class="c1"># this is a Future!</span>
 <a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="nb">print</span><span class="p">(</span><span class="s1">&#39;forces RMSE: </span><span class="si">{}</span><span class="s1"> eV/A&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">rmse</span><span class="o">.</span><span class="n">result</span><span class="p">()))</span>
-</code></pre></div></p>
+</code></pre></div>
+Note that <code>model.save()</code> will save both a <code>.yaml</code> file with all hyperparameters as well as the actual <code>.pth</code> model which is needed to reconstruct the corresponding PyTorch module (possibly outside of psiflow if needed).
+As such, it expects a directory as argument (which may either already exist or will be
+created).</p>
 <p>In many cases, it is generally recommended to provide these models with some estimate of the absolute energy of an isolated
 atom for the specific level of theory and basis set considered (and this for each element).
 Instead of having the model learn the <em>absolute</em> total energy of the system, we first subtract these atomic energies in order
