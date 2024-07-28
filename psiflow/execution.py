@@ -247,13 +247,16 @@ class ModelTraining(ExecutionDefinition):
         gpu=True,
         max_training_time: Optional[float] = None,
         env_vars: Optional[dict[str, str]] = None,
+        multigpu: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(gpu=gpu, **kwargs)
+        assert self.gpu
         if max_training_time is not None:
             assert max_training_time * 60 < self.max_runtime
         self.max_training_time = max_training_time
-        if self.max_workers > 1:
+        self.multigpu = multigpu
+        if self.multigpu:
             message = (
                 "the max_training_time keyword does not work "
                 "in combination with multi-gpu training. Adjust "
@@ -266,7 +269,7 @@ class ModelTraining(ExecutionDefinition):
             "OMP_NUM_THREADS": str(self.cores_per_worker),
             "KMP_AFFINITY": "granularity=fine,compact,1,0",
             "KMP_BLOCKTIME": "1",
-            "OMP_PROC_BIND": "spread",
+            "OMP_PROC_BIND": "spread",  # different from Model Eval
             "PYTHONUNBUFFERED": "TRUE",
         }
         if env_vars is None:
@@ -288,9 +291,9 @@ class ModelTraining(ExecutionDefinition):
         if self.use_threadpool:
             return {}
         resource_specification = {}
-        if self.gpu:
+
+        if self.multigpu:
             nworkers = int(self.cores_available / self.cores_per_worker)
-            resource_specification["gpus"] = nworkers  # one per GPU
         else:
             nworkers = 1
 
