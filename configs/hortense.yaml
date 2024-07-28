@@ -7,8 +7,6 @@ ModelEvaluation:
   cores_per_worker: 12
   gpu: True
   max_simulation_time: 20
-  env_vars:
-    KMP_BLOCKTIME: "1"
   slurm:
     partition: "gpu_rome_a100"
     account: "2023_070"
@@ -21,8 +19,6 @@ ModelTraining:
   cores_per_worker: 12
   gpu: true
   max_training_time: 40
-  env_vars:
-    OMP_PROC_BIND: "spread"
   slurm:
     partition: "gpu_rome_a100"
     account: "2023_070"

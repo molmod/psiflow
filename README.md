@@ -93,8 +93,8 @@ order:
    config.yaml` one). See if there are any clues. If it has contents which you don't
    understand, open an issue. If there's seemingly nothing there, go to step 2.
 2. Check Parsl's log file. This can be found in the current working directory, under
-   `psiflow_internal/parsl.log`. If it's a long file, search for any errors using `error`,
-   `Error`, `ERROR`, ... If you find anything suspicious but do not know how to solve it,
+   `psiflow_internal/parsl.log`. If it's a long file, search for any errors using `Error`
+   or `ERROR`. If you find anything suspicious but do not know how to solve it,
    open an issue.
 3. Check the output files of individual ML training, QM singlepoints, or i-PI molecular
    dynamics runs. These can be found under `psiflow_internal/000/task_logs/*`.

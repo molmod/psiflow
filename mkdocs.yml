@@ -29,6 +29,7 @@ nav:
   - QM calculations: reference.md
   - ML potentials: models.md
   - online learning: learning.md
+  - free energy calculations: free_energy.md
   - setup & configuration: configuration.md
 
 plugins:

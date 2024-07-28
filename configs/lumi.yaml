@@ -29,8 +29,7 @@ ModelEvaluation:
 ModelTraining:
   cores_per_worker: 7
   gpu: true
-  env_vars:
-    OMP_PROC_BIND: "spread"
+  multigpu: true
   slurm:
     partition: "standard-g"
     account: "project_465001125"
