@@ -97,9 +97,9 @@ class ExecutionDefinition:
 
             # ensure proper scale in
             if getattr(self.parsl_provider, "nodes_per_block", 1) > 1:
-                worker_options.append("--idle-timeout={}".format(20))
-            else:
                 worker_options.append("--idle-timeout={}".format(int(1e6)))
+            else:
+                worker_options.append("--idle-timeout={}".format(20))
 
             executor = MyWorkQueueExecutor(
                 label=self.name,
