@@ -181,6 +181,7 @@ class ModelEvaluation(ExecutionDefinition):
         default_env_vars = {
             "OMP_NUM_THREADS": str(self.cores_per_worker),
             "KMP_AFFINITY": "granularity=fine,compact,1,0",
+            "KMP_BLOCKTIME": "1",
             "OMP_PROC_BIND": "false",
             "PYTHONUNBUFFERED": "TRUE",
         }
@@ -264,7 +265,8 @@ class ModelTraining(ExecutionDefinition):
         default_env_vars = {
             "OMP_NUM_THREADS": str(self.cores_per_worker),
             "KMP_AFFINITY": "granularity=fine,compact,1,0",
-            "OMP_PROC_BIND": "false",
+            "KMP_BLOCKTIME": "1",
+            "OMP_PROC_BIND": "spread",
             "PYTHONUNBUFFERED": "TRUE",
         }
         if env_vars is None:
