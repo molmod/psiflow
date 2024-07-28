@@ -21,13 +21,13 @@ during simulations), the temperature and pressure, or a timestep.
 ```py
 from psiflow.sampling import Walker
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians import get_mace_mp0
+from psiflow.hamiltonians import MACEHamiltonian
 
 
 start = Geometry.load("start.xyz")
 walker = Walker(
     start,
-    hamiltonian=get_mace_mp0(),
+    hamiltonian=MACEHamiltonian.mace_mp0(),
     temperature=300.0,
     pressure=None,  # NVT simulation
     timestep=0.5,   # in femtoseconds, the default value
