@@ -8,8 +8,14 @@
   
 - [Solid-state phase stabilities](https://github.com/molmod/psiflow/tree/main/examples/iron_harmonic_fcc_bcc.py) | **iron**: estimating the relative stability of fcc and bcc iron with anharmonic corrections using thermodynamic integration (see e.g. [Phys Rev B., 2018](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.97.054102))
 
+- [ML potentials from scratch](https://github.com/molmod/psiflow/tree/main/examples/online_learning_pimd.py) | **water**: develop an ML potential for water based on a single geometry as input, using a combination of passive and active learning.
+
+- [Replica exchange umbrella sampling](https://github.com/molmod/psiflow/tree/main/examples/proton_jump_plumed.py) |
+  **vinyl alcohol**: explore a reactive transition path with metadynamics, and use the
+  resulting data to perform umbrella sampling with replica exchange between umbrellas.
+
 - [DFT singlepoints](https://github.com/molmod/psiflow/tree/main/examples/water_cp2k_noise.py) | **water**: analysis of the numerical noise DFT energy and force evaluations using CP2K and the RPBE(D3) functional, for a collection of water molecules.
   
 - [Path-integral molecular dynamics](https://github.com/molmod/psiflow/examples/water_path_integral_md.py) | **water**: demonstration of the impact of nuclear quantum effects on the variance in O-H distance in liquid water. Path-integral molecular dynamics simulations with increasing number of beads (1, 2, 4, 8, 16) approximate the proton delocalization, and lead to systematically larger variance in O-H distance.
   
-- [Machine learning potential training](https://github.com/molmod/psiflow/examples/water_train_validate.py) | **water**: simple training and validation script for MACE on a small dataset of water configurations.
+- [ML potential training](https://github.com/molmod/psiflow/examples/water_train_validate.py) | **water**: simple training and validation script for MACE on a small dataset of water configurations.
