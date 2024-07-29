@@ -533,8 +533,6 @@ def _sample(
     command_server = definition.server_command()
     command_client = definition.client_command()
     resources = definition.wq_resources(max_nclients)
-    print("ENV VARS")
-    print(definition.env_vars)
     result = execute_ipi(
         len(walkers),
         hamiltonian_names,
