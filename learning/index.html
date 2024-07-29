@@ -71,6 +71,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#passive-learning" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -310,6 +315,17 @@
       
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    online learning
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -319,6 +335,50 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#passive-learning" class="md-nav__link">
+    <span class="md-ellipsis">
+      passive learning
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#active-learning" class="md-nav__link">
+    <span class="md-ellipsis">
+      active learning
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#restarting-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      restarting a run
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -424,6 +484,77 @@ Learning objects are instantiated using the following arguments:</p>
   only sensible if the labeling agrees with the given Reference instance. (Same level of
   theory, same basis set, grid settings, ... ).</li>
 </ul>
+<figure>
+  <img alt="Image title" src="../wandb.png" width="900" />
+  <figcaption> Illustration of what the Weights &amp; biases logging looks like.
+  The graph on top simply shows the force RMSE on each data point versus a unique
+    'identifier' per data point. The bottom plot shows the same data points, but now
+    grouped according to which walker generated them. In this case, walkers were sorted
+    according to temperature (lower walker index were lower temperature), and this is seen
+    in the fact that walkers with a higher index generated data with on average higher errors,
+  as they explored more out-of-equilibrium configurations.</figcaption>
+</figure>
+<p>The core business of a <code>Learning</code> instance is the following sequence of operations:</p>
+<ol>
+<li>use walkers in a <code>sample()</code> call to generate atomic geometries</li>
+<li>evaluate those atomic geometries with the provided reference to obtain QM energy and
+   forces</li>
+<li>include those geometries to the training data, or discard them if they exceed
+   <code>error_thresholds_for_discard</code>. Reset walkers if they exceed
+   <code>error_thresholds_for_reset</code>.</li>
+<li>Train the model using the new data.</li>
+<li>Compute metrics for the trained model across the new dataset and optionally log them to
+   W&amp;B.</li>
+</ol>
+<p>Currently, there are two variants of this implemented: passive and active learning.</p>
+<h2 id="passive-learning">passive learning</h2>
+<p>During passive learning, walkers are propagated using an external and 'fixed' Hamiltonian
+which is not trained at any point (e.g. a pre-trained universal potential or a
+hessian-based Hamiltonian).</p>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">model</span><span class="p">,</span> <span class="n">walkers</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">passive_learning</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">walkers</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">hamiltonian</span><span class="o">=</span><span class="n">MACEHamiltonian</span><span class="o">.</span><span class="n">mace_mp0</span><span class="p">(),</span>     <span class="c1"># fixed hamiltonian</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">steps</span><span class="o">=</span><span class="mi">20000</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">step</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">**</span><span class="n">optional_sampling_kwargs</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+</code></pre></div>
+Walkers are propagated for a total of 20,000 steps, and samples are drawn every 2,000
+steps which are QM evaluated by the reference and added to the training data.
+If the walkers contain bias contributions, their total hamiltonian is simply the sum of
+the existing bias contributions and the hamiltonian given to the <code>passive_learning()</code>
+call.
+Additional keyword arguments to this function are passed directly into the sample function (e.g. for
+specifying the log level or the center-of-mass behavior). </p>
+<p>The returned model is the one trained on all data generated in the <code>passive_learning()</code> call as well as all data which was already present in the learning instance (for example if it had been initialized with <code>initial_data</code>, see above).
+The returned walkers are identical to the ones passed into the method, but this is done to
+emphasize that internally, they do change due to calling <code>passive_learning</code> (because they
+are either propagated or reset, or their metadynamics bias has changed because there are
+more hills present than before).</p>
+<h2 id="active-learning">active learning</h2>
+<p>During active learning, walkers are propagated with a Hamiltonian generated using the
+current model. They are propagated for a given number of steps after which their final
+state is passed into the reference for correct labeling.
+Different from passive learning, active learning <em>does not allow for subsampling of the
+trajectories of the walkers</em>. The idea behind this is that if you wish to propagate the
+walker for 10 ps, and sample a structure every 1 ps to let each walker generate 10 states,
+it is likely much better to instead increase the number of walkers (to cover more regions
+in phase space) and propagate them in steps of 1 ps. Active learning is ideally suited for
+massively parallel workflows (maximal number of walkers, with minimal sampling time per
+walker) and we encourage users to exploit this.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">model</span><span class="p">,</span> <span class="n">walkers</span> <span class="o">=</span> <span class="n">learning</span><span class="o">.</span><span class="n">active_learning</span><span class="p">(</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">model</span><span class="p">,</span>                      <span class="c1"># used to generate hamiltonian</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">walkers</span><span class="p">,</span>      
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">steps</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span>                 <span class="c1"># no more &#39;step&#39; argument!</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="o">**</span><span class="n">optional_sampling_kwargs</span><span class="p">,</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">)</span>
+</code></pre></div>
+<h2 id="restarting-a-run">restarting a run</h2>
+<p><code>Learning</code> has first-class support for restarted runs -- simply resubmit your calculation!
+It will detect whether or not the corresponding output folder has already fully logged the
+each of the iterations, and if so, load the final state of the model, the walkers, and the
+learning instance without actually doing any calculations.</p>
 
 
 
