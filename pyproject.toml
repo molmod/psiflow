@@ -13,7 +13,7 @@ dependencies = [
     "ase >= 3.23.0",
     "pyyaml>=6.0",
     "numpy>=1.22.3,<2",
-    "parsl @ git+https://github.com/parsl/parsl.git@bugfix-default-scale-in",
+    "parsl @ git+https://github.com/parsl/parsl.git@21362b5",
     "prettytable",
     "psutil",
     "cp2k-input-tools @ git+https://github.com/cp2k/cp2k-input-tools",  # need 2024.1
