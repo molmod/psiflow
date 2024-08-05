@@ -506,8 +506,8 @@ Nvidia GPUs, we would write:
 </code></pre></div>
 We use <code>psiflow:main_cu118</code> to get the image which was built from the latest <code>main</code> branch
 of the psiflow repository, for CUDA 11.8.
-Similarly, for AMD GPUs and, for example, psiflow v4.0.0-rc0, we would use
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow:4.0.0-rc0_rocm5.6<span class="w"> </span>ls
+Similarly, for AMD GPUs and, for example, psiflow v4.0.0-rc1, we would use
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>oras://ghcr.io/molmod/psiflow:4.0.0-rc1_rocm5.6<span class="w"> </span>ls
 </code></pre></div>
 See the <a href="https://apptainer.org/docs/user/latest/">Apptainer</a>/<a href="https://docs.sylabs.io/guides/4.1/user-guide/">SingularityCE</a> documentation for more information.</p>
 <h2 id="python-environment">Python environment</h2>
@@ -533,7 +533,7 @@ with a recent version of <code>pip</code> and <a href="https://github.com/cooper
 </code></pre></div>
   Next, activate the environment and install psiflow from its repository:
   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>micromamba activate psiflow_env
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pip install git+https://github.com/molmod/psiflow.git@v4.0.0-rc0
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pip install git+https://github.com/molmod/psiflow.git@v4.0.0-rc1
 </code></pre></div>
 <em>Everything else</em> -- i-PI, CP2K, GPAW, Weights &amp; Biases, PLUMED, ... -- is handled by
 the container images and hence need not be installed manually.</p>
