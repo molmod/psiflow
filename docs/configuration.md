@@ -22,9 +22,9 @@ apptainer exec oras://ghcr/io/molmod/psiflow:main_cu118 ls
 ```
 We use `psiflow:main_cu118` to get the image which was built from the latest `main` branch
 of the psiflow repository, for CUDA 11.8.
-Similarly, for AMD GPUs and, for example, psiflow v4.0.0-rc0, we would use
+Similarly, for AMD GPUs and, for example, psiflow v4.0.0-rc1, we would use
 ```bash
-apptainer exec oras://ghcr.io/molmod/psiflow:4.0.0-rc0_rocm5.6 ls
+apptainer exec oras://ghcr.io/molmod/psiflow:4.0.0-rc1_rocm5.6 ls
 ```
 See the [Apptainer](https://apptainer.org/docs/user/latest/)/[SingularityCE](https://docs.sylabs.io/guides/4.1/user-guide/) documentation for more information.
 
@@ -53,7 +53,7 @@ with a recent version of `pip` and [`ndcctools`](https://github.com/cooperative-
   Next, activate the environment and install psiflow from its repository:
   ```
   micromamba activate psiflow_env
-  pip install git+https://github.com/molmod/psiflow.git@v4.0.0-rc0
+  pip install git+https://github.com/molmod/psiflow.git@v4.0.0-rc1
   ```
 _Everything else_ -- i-PI, CP2K, GPAW, Weights & Biases, PLUMED, ... -- is handled by
 the container images and hence need not be installed manually.
