@@ -18,6 +18,21 @@ def _write_frames(
     extra_states: Union[Geometry, list[Geometry], None] = None,
     outputs: list = [],
 ) -> None:
+    """
+    Write Geometry instances to a file.
+
+    Args:
+        *states: Variable number of Geometry instances to write.
+        extra_states: Additional Geometry instance(s) to write.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     all_states = list(states)
     if extra_states is not None:
         if isinstance(extra_states, list):
@@ -38,6 +53,24 @@ def _read_frames(
     inputs: list = [],
     outputs: list = [],
 ) -> Optional[list[Geometry]]:
+    """
+    Read Geometry instances from a file.
+
+    Args:
+        indices: Indices of frames to read. Can be None (read all), a slice, a list of integers, or a single integer.
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing the geometry data.
+        outputs: List of Parsl futures. If provided, the first element should be
+                 a DataFuture representing the output file path where the selected
+                 geometries will be written.
+
+    Returns:
+        Optional[list[Geometry]]: List of read Geometry instances if no output
+                                  is specified, otherwise None.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     frame_index = 0
     frame_regex = re.compile(r"^\d+$")
     length = _count_frames(inputs=inputs)
@@ -95,6 +128,23 @@ def _extract_quantities(
     *extra_data: Geometry,
     inputs: list = [],
 ) -> tuple[np.ndarray, ...]:
+    """
+    Extract specified quantities from Geometry instances.
+
+    Args:
+        quantities: Tuple of quantity names to extract.
+        atom_indices: List of atom indices to consider.
+        elements: List of element symbols to consider.
+        *extra_data: Additional Geometry instances.
+        inputs: List of Parsl futures. If provided, the first element should be a DataFuture
+                representing the input file path containing geometry data.
+
+    Returns:
+        tuple[np.ndarray, ...]: Tuple of arrays containing extracted quantities.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     if not len(extra_data):
         assert len(inputs) == 1
         data = _read_frames(inputs=inputs)
@@ -161,6 +211,24 @@ def _insert_quantities(
     inputs: list = [],
     outputs: list = [],
 ) -> None:
+    """
+    Insert quantities into Geometry instances.
+
+    Args:
+        quantities: Tuple of quantity names to insert.
+        arrays: List of arrays containing the quantities to insert.
+        data: List of Geometry instances to update.
+        inputs: List of Parsl futures. If provided, the first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. If provided, the first element should be a DataFuture
+                 representing the output file path where updated geometries will be written.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     if data is None:
         assert len(inputs) == 1
         data = _read_frames(inputs=inputs)
@@ -214,6 +282,19 @@ insert_quantities = python_app(_insert_quantities, executors=["default_threads"]
 
 @typeguard.typechecked
 def _check_distances(state: Geometry, threshold: float) -> Geometry:
+    """
+    Check if all interatomic distances in a Geometry are above a threshold.
+
+    Args:
+        state: Geometry instance to check.
+        threshold: Minimum allowed interatomic distance.
+
+    Returns:
+        Geometry: The input Geometry if all distances are above the threshold, otherwise NullState.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_htex executor.
+    """
     from ase.geometry.geometry import find_mic
 
     if state == NullState:
@@ -244,6 +325,22 @@ def _assign_identifiers(
     inputs: list = [],
     outputs: list = [],
 ) -> int:
+    """
+    Assign identifiers to Geometry instances in a file.
+
+    Args:
+        identifier: Starting identifier value.
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where updated geometries will be written.
+
+    Returns:
+        int: Next available identifier.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     data = _read_frames(slice(None), inputs=[inputs[0]])
     states = []
     if identifier is None:  # do not assign but look for max
@@ -274,6 +371,21 @@ def _join_frames(
     inputs: list = [],
     outputs: list = [],
 ):
+    """
+    Join multiple frame files into a single file.
+
+    Args:
+        inputs: List of Parsl futures. Each element should be a DataFuture
+                representing an input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where joined frames will be written.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     assert len(outputs) == 1
 
     with open(outputs[0], "wb") as destination:
@@ -287,6 +399,19 @@ join_frames = python_app(_join_frames, executors=["default_threads"])
 
 @typeguard.typechecked
 def _count_frames(inputs: list = []) -> int:
+    """
+    Count the number of frames in a file.
+
+    Args:
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+
+    Returns:
+        int: Number of frames in the file.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     nframes = 0
     frame_regex = re.compile(r"^\d+$")
     with open(inputs[0], "r") as f:
@@ -303,6 +428,21 @@ count_frames = python_app(_count_frames, executors=["default_threads"])
 
 @typeguard.typechecked
 def _reset_frames(inputs: list = [], outputs: list = []) -> None:
+    """
+    Reset all frames in a file.
+
+    Args:
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where reset frames will be written.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     data = _read_frames(inputs=[inputs[0]])
     for geometry in data:
         geometry.reset()
@@ -314,6 +454,21 @@ reset_frames = python_app(_reset_frames, executors=["default_threads"])
 
 @typeguard.typechecked
 def _clean_frames(inputs: list = [], outputs: list = []) -> None:
+    """
+    Clean all frames in a file.
+
+    Args:
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where cleaned frames will be written.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     data = _read_frames(inputs=[inputs[0]])
     for geometry in data:
         geometry.clean()
@@ -330,6 +485,23 @@ def _apply_offset(
     outputs: list = [],
     **atomic_energies: float,
 ) -> None:
+    """
+    Apply an energy offset to all frames in a file.
+
+    Args:
+        subtract: Whether to subtract or add the offset.
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where updated frames will be written.
+        **atomic_energies: Atomic energies for each element.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     assert len(inputs) == 1
     assert len(outputs) == 1
     data = _read_frames(inputs=[inputs[0]])
@@ -361,6 +533,19 @@ apply_offset = python_app(_apply_offset, executors=["default_threads"])
 
 @typeguard.typechecked
 def _get_elements(inputs: list = []) -> set[str]:
+    """
+    Get the set of elements present in all frames of a file.
+
+    Args:
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+
+    Returns:
+        set[str]: Set of element symbols.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     data = _read_frames(inputs=[inputs[0]])
     return set([chemical_symbols[n] for g in data for n in g.per_atom.numbers])
 
@@ -370,6 +555,21 @@ get_elements = python_app(_get_elements, executors=["default_threads"])
 
 @typeguard.typechecked
 def _align_axes(inputs: list = [], outputs: list = []) -> None:
+    """
+    Align axes for all frames in a file.
+
+    Args:
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where aligned frames will be written.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     data = _read_frames(inputs=[inputs[0]])
     for geometry in data:
         geometry.align_axes()
@@ -381,6 +581,21 @@ align_axes = python_app(_align_axes, executors=["default_threads"])
 
 @typeguard.typechecked
 def _not_null(inputs: list = [], outputs: list = []) -> list[bool]:
+    """
+    Check which frames in a file are not null states.
+
+    Args:
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. If provided, the first element should be a DataFuture
+                 representing the output file path where non-null frames will be written.
+
+    Returns:
+        list[bool]: List of boolean values indicating non-null states.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     frame_regex = re.compile(r"^\d+$")
 
     data = []
@@ -414,6 +629,22 @@ def _app_filter(
     inputs: list = [],
     outputs: list = [],
 ) -> None:
+    """
+    Filter frames based on a specified quantity.
+
+    Args:
+        quantity: The quantity to filter on.
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where filtered frames will be written.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     data = _read_frames(inputs=[inputs[0]])
     i = 0
     while i < len(data):
@@ -451,6 +682,21 @@ def _shuffle(
     inputs: list = [],
     outputs: list = [],
 ) -> None:
+    """
+    Shuffle the order of frames in a file.
+
+    Args:
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where shuffled frames will be written.
+
+    Returns:
+        None
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     data = _read_frames(inputs=[inputs[0]])
     indices = np.arange(len(data))
     np.random.shuffle(indices)
@@ -468,6 +714,20 @@ def _train_valid_indices(
     train_valid_split: float,
     shuffle: bool,
 ) -> tuple[list[int], list[int]]:
+    """
+    Generate indices for train and validation splits.
+
+    Args:
+        effective_nstates: Total number of states.
+        train_valid_split: Fraction of states to use for training.
+        shuffle: Whether to shuffle the indices.
+
+    Returns:
+        tuple[list[int], list[int]]: Lists of indices for training and validation sets.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     ntrain = int(np.floor(effective_nstates * train_valid_split))
     nvalid = effective_nstates - ntrain
     assert ntrain > 0
@@ -489,6 +749,17 @@ def get_train_valid_indices(
     train_valid_split: float,
     shuffle: bool,
 ) -> tuple[AppFuture, AppFuture]:
+    """
+    Get futures for train and validation indices.
+
+    Args:
+        effective_nstates: Future representing the total number of states.
+        train_valid_split: Fraction of states to use for training.
+        shuffle: Whether to shuffle the indices.
+
+    Returns:
+        tuple[AppFuture, AppFuture]: Futures for training and validation indices.
+    """
     future = train_valid_indices(effective_nstates, train_valid_split, shuffle)
     return unpack_i(future, 0), unpack_i(future, 1)
 
@@ -500,6 +771,18 @@ def get_index_element_mask(
     elements: Optional[list[str]],
     natoms_padded: Optional[int] = None,
 ) -> np.ndarray:
+    """
+    Generate a mask for atom indices and elements.
+
+    Args:
+        numbers: Array of atomic numbers.
+        atom_indices: List of atom indices to include.
+        elements: List of element symbols to include.
+        natoms_padded: Total number of atoms including padding.
+
+    Returns:
+        np.ndarray: Boolean mask array.
+    """
     mask = np.array([True] * len(numbers))
 
     if elements is not None:
@@ -528,6 +811,20 @@ def _compute_rmse(
     array1: np.ndarray,
     reduce: bool = True,
 ) -> Union[float, np.ndarray]:
+    """
+    Compute the Root Mean Square Error (RMSE) between two arrays.
+
+    Args:
+        array0: First array.
+        array1: Second array.
+        reduce: Whether to reduce the result to a single value.
+
+    Returns:
+        Union[float, np.ndarray]: RMSE value(s).
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     assert array0.shape == array1.shape
     assert np.all(np.isnan(array0) == np.isnan(array1))
 
@@ -561,6 +858,20 @@ def _compute_mae(
     array1,
     reduce: bool = True,
 ) -> Union[float, np.ndarray]:
+    """
+    Compute the Mean Absolute Error (MAE) between two arrays.
+
+    Args:
+        array0: First array.
+        array1: Second array.
+        reduce: Whether to reduce the result to a single value.
+
+    Returns:
+        Union[float, np.ndarray]: MAE value(s).
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     assert array0.shape == array1.shape
     mask0 = np.logical_not(np.isnan(array0))
     mask1 = np.logical_not(np.isnan(array1))
@@ -584,6 +895,22 @@ def _batch_frames(
     inputs: list = [],
     outputs: list = [],
 ) -> Optional[list[Geometry]]:
+    """
+    Split frames into batches.
+
+    Args:
+        batch_size: Number of frames per batch.
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. Each element should be a DataFuture
+                 representing an output file path for each batch.
+
+    Returns:
+        Optional[list[Geometry]]: List of Geometry instances if no outputs are specified.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
     frame_regex = re.compile(r"^\d+$")
 
     data = []
