@@ -15,7 +15,6 @@ import psutil
 import pytimeparse
 import typeguard
 import yaml
-from parsl.addresses import address_by_hostname
 from parsl.config import Config
 from parsl.data_provider.files import File
 from parsl.executors import (  # WorkQueueExecutor,
@@ -452,7 +451,7 @@ class ExecutionContext:
         max_idletime: float = 20,
         internal_tasks_max_threads: int = 10,
         default_threads: int = 4,
-        htex_address: Optional[str] = None,
+        htex_address: str = '127.0.0.1',
         zip_staging: Optional[bool] = None,
         container_uri: Optional[str] = None,
         container_engine: str = "apptainer",
@@ -509,8 +508,6 @@ class ExecutionContext:
             launcher = WrappedLauncher(prepend=container_launch_command(**container))
         else:
             launcher = SimpleLauncher()
-        if htex_address is None:
-            htex_address = address_by_hostname()
         htex = HighThroughputExecutor(
             label="default_htex",
             address=htex_address,
