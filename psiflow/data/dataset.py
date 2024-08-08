@@ -287,6 +287,8 @@ class Dataset:
             outputs = computable.compute(self, batch_size=batch_size)
         else:
             outputs = computable.compute(self)  # use default from computable
+        if not isinstance(outputs, list):  # compute unpacks for only one property
+            outputs = [outputs]
         future = insert_quantities(
             quantities=tuple(computable.outputs),
             arrays=combine_futures(inputs=list(outputs)),
