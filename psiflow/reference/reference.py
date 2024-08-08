@@ -13,7 +13,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Computable, Dataset
 from psiflow.geometry import Geometry, NullState
-from psiflow.utils.apps import copy_app_future
+from psiflow.utils.apps import copy_app_future, unpack_i
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -55,7 +55,7 @@ def evaluate(
             stderr=parsl.AUTO_LOGNAME,
         )
         return reference.app_post(
-            geometry=geometry,
+            geometry=geometry.copy(),
             inputs=[future.stdout, future.stderr, future],
         )
 
@@ -70,7 +70,7 @@ def compute_dataset(
     from psiflow.data.utils import extract_quantities
 
     geometries = dataset.geometries()  # read it once
-    evaluated = [evaluate(geometries[i], reference) for i in range(length)]
+    evaluated = [evaluate(unpack_i(geometries, i), reference) for i in range(length)]
     future = extract_quantities(
         tuple(reference.outputs),
         None,
