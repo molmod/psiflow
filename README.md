@@ -54,7 +54,7 @@ The only requirement is that you set up a Python environment and provide a `conf
 
 **Where do I start?**
 
-Take a brief look at the [examples](https://github.com/molmod/psiflow/examples/) or the
+Take a brief look at the [examples](https://github.com/molmod/psiflow/tree/main/examples) or the
 [documentation](https://molmod.github.io/psiflow) to get an idea for psiflow's
 capabilities. Next, head over to the [setup & configuration](https://molmod.github.io/psiflow/configuration/) section of the docs to get started!
 
