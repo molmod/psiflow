@@ -16,6 +16,6 @@
 
 - [DFT singlepoints](https://github.com/molmod/psiflow/tree/main/examples/water_cp2k_noise.py) | **water**: analysis of the numerical noise DFT energy and force evaluations using CP2K and the RPBE(D3) functional, for a collection of water molecules.
   
-- [Path-integral molecular dynamics](https://github.com/molmod/psiflow/examples/water_path_integral_md.py) | **water**: demonstration of the impact of nuclear quantum effects on the variance in O-H distance in liquid water. Path-integral molecular dynamics simulations with increasing number of beads (1, 2, 4, 8, 16) approximate the proton delocalization, and lead to systematically larger variance in O-H distance.
+- [Path-integral molecular dynamics](https://github.com/molmod/psiflow/tree/main/examples/water_path_integral_md.py) | **water**: demonstration of the impact of nuclear quantum effects on the variance in O-H distance in liquid water. Path-integral molecular dynamics simulations with increasing number of beads (1, 2, 4, 8, 16) approximate the proton delocalization, and lead to systematically larger variance in O-H distance.
   
-- [ML potential training](https://github.com/molmod/psiflow/examples/water_train_validate.py) | **water**: simple training and validation script for MACE on a small dataset of water configurations.
+- [ML potential training](https://github.com/molmod/psiflow/tree/main/examples/water_train_validate.py) | **water**: simple training and validation script for MACE on a small dataset of water configurations.
