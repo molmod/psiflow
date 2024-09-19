@@ -42,7 +42,7 @@ python -c 'import psiflow; psiflow.setup_slurm_config()'
 Example configuration files for [LUMI](https://lumi-supercomputer.eu/), [MeluXina](https://luxembourg.public.lu/en/invest/innovation/meluxina-supercomputer.html), or [VSC](https://www.vscentrum.be/) can be found [here](https://github.com/molmod/psiflow/tree/main/configs).
 No additional software compilation is required since all of the heavy lifting (CP2K/ORCA/GPAW, PyTorch model training, i-PI dynamics) is executed within preconfigured [Apptainer](https://apptainer.org/)/[Singularity](https://sylabs.io/singularity/) containers which are production-ready for most HPCs.
 
-That's it! Contrary to frameworks like pyiron or aiida, psiflow does not require any databases or annoying web servers.
+That's it! Contrary to frameworks like pyiron or aiida, psiflow does not require any databases or web servers.
 The only requirement is that you set up a Python environment and provide a `config.yaml`.
 
 [**EXAMPLES**](https://github.com/molmod/psiflow/tree/main/examples)
@@ -72,7 +72,7 @@ SLURM/PBSPro/SGE). If you're not sure, ask your system administrators or open an
 
 **Can I use VASP with it?**
 
-You cannot automate VASP calculations with it, but in 99% of cases there is either no need
+You cannot automate VASP calculations with it, but in 83% of cases there is either no need
 to use VASP, or it's very easy to quickly perform the VASP part manually, outside of psiflow,
 and do everything else (data generation, ML potential training, sampling) with psiflow.
 Open an issue if you're not sure how to do this.
