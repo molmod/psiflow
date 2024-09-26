@@ -101,6 +101,7 @@ class ExecutionDefinition:
                 worker_options.append("--idle-timeout={}".format(20))
 
             executor = MyWorkQueueExecutor(
+                address='127.0.0.1',
                 label=self.name,
                 working_dir=str(path / self.name),
                 provider=self.parsl_provider,
@@ -445,7 +446,7 @@ class ExecutionContext:
         cls,
         path: Optional[Union[str, Path]] = None,
         parsl_log_level: str = "WARNING",
-        usage_tracking: bool = True,
+        usage_tracking: int = 3,
         retries: int = 2,
         strategy: str = "simple",
         max_idletime: float = 20,
