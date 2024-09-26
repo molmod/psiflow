@@ -122,7 +122,7 @@ class PlumedFunction(EnergyFunction):
 
             plumed_ = self.plumed_instances[key]
             if geometry.periodic:
-                cell = np.copy(geometry.cell).astype(np.float64)
+                cell = np.copy(geometry.cell).astype(np.float64).copy()
                 plumed_.cmd("setBox", cell)
 
             # set positions
