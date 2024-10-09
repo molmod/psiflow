@@ -398,7 +398,7 @@ class MACEHamiltonian(Hamiltonian):
             return False
         if len(self.atomic_energies) != len(hamiltonian.atomic_energies):
             return False
-        for symbol, energy in self.atomic_energies:
+        for symbol, energy in self.atomic_energies.items():
             if not np.allclose(
                 energy,
                 hamiltonian.atomic_energies[symbol],
