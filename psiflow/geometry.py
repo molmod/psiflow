@@ -233,7 +233,7 @@ class Geometry:
         Args:
             path_xyz (Union[Path, str]): Path to save the XYZ file.
         """
-        path_xyz = psiflow.resolve_and_check(path_xyz)
+        path_xyz = psiflow.resolve_and_check(Path(path_xyz))
         with open(path_xyz, "w") as f:
             f.write(self.to_string())
 

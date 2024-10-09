@@ -135,6 +135,7 @@ def test_geometry(tmp_path):
         assert state.identifier == state.identifier
 
     state.save(tmp_path / "geo.xyz")
+    state.save(str(tmp_path / "geo.xyz"))
     assert state == Geometry.load(tmp_path / "geo.xyz")
 
 
