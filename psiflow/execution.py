@@ -101,7 +101,6 @@ class ExecutionDefinition:
                 worker_options.append("--idle-timeout={}".format(20))
 
             executor = MyWorkQueueExecutor(
-                address='127.0.0.1',
                 label=self.name,
                 working_dir=str(path / self.name),
                 provider=self.parsl_provider,
