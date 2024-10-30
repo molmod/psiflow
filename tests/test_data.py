@@ -150,20 +150,24 @@ def test_readwrite_cycle(dataset, tmp_path):
     assert "test" in states[2].order
 
     s = """3
-energy=3.0 phase=c7eq
-C 0 1 2
-O 1 2 3
-F 4 5 6
+energy=3.0 phase=c7eq Properties=species:S:1:pos:R:3:momenta:R:3:forces:R:3
+C 0 1 2 3 4 5 6 7 8
+O 1 2 3 4 5 6 7 8 9
+F 2 3 4 5 6 7 8 9 10
 """
     geometry = Geometry.from_string(s, natoms=None)
     assert len(geometry) == 3
     assert geometry.energy == 3.0
     assert geometry.phase == "c7eq"
     assert not geometry.periodic
-    assert np.all(np.isnan(geometry.per_atom.forces))
+    assert np.all(np.logical_not(np.isnan(geometry.per_atom.forces)))
     assert np.allclose(
         geometry.per_atom.numbers,
         np.array([6, 8, 9]),
+    )
+    assert np.allclose(
+        geometry.per_atom.forces,
+        np.array([[6,7,8], [7,8,9], [8,9,10]]),
     )
     s = """7
 

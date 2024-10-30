@@ -273,14 +273,27 @@ class Geometry:
         comment_dict = key_val_str_to_dict_regex(comment)
 
         # read and format per_atom data
+        column_indices = {}
+        if 'Properties' in comment_dict:
+            properties = comment_dict['Properties'].split(':')
+            count = 0
+            for i in range(len(properties) // 3):
+                name = properties[3 * i]
+                ncolumns = int(properties[3 * i + 2])
+                column_indices[name] = count
+                count += ncolumns
+            assert 'pos' in column_indices  # positions need to be there
+
         per_atom = np.recarray(natoms, dtype=per_atom_dtype)
         per_atom.forces[:] = np.nan
+        POS_INDEX = column_indices.get('pos', 1)
+        FORCES_INDEX = column_indices.get('forces', None)
         for i in range(natoms):
             values = lines[i + 1].split()
             per_atom.numbers[i] = chemical_symbols.index(values[0])
-            per_atom.positions[i, :] = [float(_) for _ in values[1:4]]
-            if len(values) > 4:
-                per_atom.forces[i, :] = [float(_) for _ in values[4:7]]
+            per_atom.positions[i, :] = [float(_) for _ in values[POS_INDEX:POS_INDEX + 3]]
+            if FORCES_INDEX is not None:
+                per_atom.forces[i, :] = [float(_) for _ in values[FORCES_INDEX:FORCES_INDEX + 3]]
 
         order = {}
         for key, value in comment_dict.items():
