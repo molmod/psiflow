@@ -25,7 +25,7 @@ from parsl.executors import (  # WorkQueueExecutor,
 from parsl.executors.base import ParslExecutor
 from parsl.launchers import SimpleLauncher, WrappedLauncher
 from parsl.launchers.base import Launcher
-from parsl.providers import LocalProvider, SlurmProvider
+from parsl.providers import LocalProvider, SlurmProvider, PBSProProvider
 from parsl.providers.base import ExecutionProvider
 
 import psiflow
@@ -131,12 +131,17 @@ class ExecutionDefinition:
             provider_cls = SlurmProvider
             provider_kwargs = kwargs.pop("slurm")  # do not allow empty dict
             provider_kwargs["init_blocks"] = 0
+        elif "pbs" in kwargs:
+            provider_cls = PBSProProvider
+            provider_kwargs = kwargs.pop("pbs")
+            provider_kwargs["init_blocks"] = 0
         else:
             provider_cls = LocalProvider  # noqa: F405
             provider_kwargs = kwargs.pop("local", {})
 
         # if multi-node blocks are requested, make sure we're using SlurmProvider
         if provider_kwargs.get("nodes_per_block", 1) > 1:
+            assert 'slurm' in kwargs, "can only use multi-node blocks with a SlurmProvider"
             launcher = SlurmLauncher()
         else:
             launcher = SimpleLauncher()
