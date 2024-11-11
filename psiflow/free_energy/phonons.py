@@ -51,7 +51,7 @@ def _harmonic_free_energy(
     else:
         constant = kB * temperature * np.log(_hplanck)
         actual = np.log(frequencies / (kB * temperature))
-        F = len(frequencies) * constant + np.sum(actual)
+        F = len(frequencies) * constant + kB * temperature * np.sum(actual)
     F /= kB * temperature
     return F
 
