@@ -58,6 +58,8 @@ class ExecutionDefinition:
             cores_available = psutil.cpu_count(logical=False)
         elif type(self.parsl_provider) is SlurmProvider:
             cores_available = self.parsl_provider.cores_per_node
+        elif type(self.parsl_provider) is PBSProProvider:
+            cores_available = self.parsl_provider.cpus_per_node
         else:
             cores_available = float("inf")
         return cores_available
@@ -72,6 +74,8 @@ class ExecutionDefinition:
     @property
     def max_runtime(self):
         if type(self.parsl_provider) is SlurmProvider:
+            walltime = pytimeparse.parse(self.parsl_provider.walltime)
+        elif type(self.parsl_provider) is PBSProProvider:
             walltime = pytimeparse.parse(self.parsl_provider.walltime)
         else:
             walltime = 1e9
