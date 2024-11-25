@@ -66,6 +66,12 @@ def set_global_section(cp2k_input_dict: dict, properties: tuple):
     if "global" not in cp2k_input_dict:
         cp2k_input_dict["global"] = {}
     global_dict = cp2k_input_dict["global"]
+
+    # override low/silent print levels
+    level = global_dict.pop('print_level', 'MEDIUM')
+    if level in ['SILENT', 'LOW']:
+        global_dict['print_level'] = 'MEDIUM'
+
     if properties == ("energy",):
         global_dict["run_type"] = "ENERGY"
     elif properties == ("energy", "forces"):

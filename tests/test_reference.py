@@ -15,6 +15,9 @@ from psiflow.reference._cp2k import dict_to_str, parse_cp2k_output, str_to_dict
 @pytest.fixture
 def simple_cp2k_input():
     return """
+&GLOBAL
+    PRINT_LEVEL LOW
+&END GLOBAL
 &FORCE_EVAL
    METHOD Quickstep
    &PRINT
