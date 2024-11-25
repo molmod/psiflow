@@ -101,7 +101,7 @@ class Reference(Computable):
         if len(outputs_) == 1:
             return to_return[0]
         else:
-            return tuple(to_return)
+            return to_return
 
     def compute_atomic_energy(self, element, box_size=None):
         energies = []
