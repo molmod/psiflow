@@ -1,5 +1,5 @@
 ---
-parsl_log_level: DEBUG
+parsl_log_level: WARNING
 retries: 0
 ModelEvaluation:
   gpu: false

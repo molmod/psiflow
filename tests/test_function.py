@@ -1,8 +1,8 @@
 import json
 
 import numpy as np
-from ase.units import kJ, mol
-from parsl.data_provider.files import File
+from ase.units import kJ, mol # type: ignore
+from parsl.data_provider.files import File # type: ignore
 
 import psiflow
 from psiflow.functions import (

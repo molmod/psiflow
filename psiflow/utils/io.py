@@ -109,7 +109,7 @@ def _dump_json(
 
     def convert_to_list(array):
         if not type(array) is np.ndarray:
-            if type(array) is np.float32:
+            if type(array) is np.floating:
                 return float(array)
             return array
         as_list = []
@@ -121,7 +121,7 @@ def _dump_json(
         value = kwargs[name]
         if type(value) is np.ndarray:
             value = convert_to_list(value)
-        elif type(value) is np.float32:
+        elif type(value) is np.floating:
             value = float(value)
         kwargs[name] = value
     with open(outputs[0], "w") as f:
