@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)  # logging per module
 
 @typeguard.typechecked
 def _extract_energy(state: Geometry):
-    if state == NullState:
+    if state.energy is None:
         return 1e10
     else:
         return state.energy
@@ -40,6 +40,24 @@ def get_minimum_energy(element, configs, *energies):
     return copy_app_future(energy)
 
 
+@typeguard.typechecked
+def _nan_if_unsuccessful(
+    geometry: Geometry,
+    result: Geometry,
+) -> Geometry:
+    if result == NullState:
+        geometry.energy = None
+        geometry.per_atom.forces[:] = np.nan
+        geometry.per_atom.stress = None
+        geometry.stdout = result.stdout
+        return geometry
+    else:
+        return result
+
+
+nan_if_unsuccessful = python_app(_nan_if_unsuccessful, executors=['default_threads'])
+
+
 @join_app
 @typeguard.typechecked
 def evaluate(
@@ -54,10 +72,11 @@ def evaluate(
             stdout=parsl.AUTO_LOGNAME,
             stderr=parsl.AUTO_LOGNAME,
         )
-        return reference.app_post(
+        result = reference.app_post(
             geometry=geometry.copy(),
             inputs=[future.stdout, future.stderr, future],
         )
+        return nan_if_unsuccessful(geometry, result)
 
 
 @join_app

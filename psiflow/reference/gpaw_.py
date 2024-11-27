@@ -56,7 +56,7 @@ def gpaw_singlepoint_post(
     with open(inputs[0], "r") as f:
         lines = f.read().split("\n")
 
-    geometry = new_nullstate()
+    geometry = new_nullstate()  # GPAW parsing doesn't require initial geometry
     for i, line in enumerate(lines):
         if "CALCULATION SUCCESSFUL" in line:
             natoms = int(lines[i + 1])

@@ -320,7 +320,8 @@ def test_cp2k_failure(context, tmp_path):
     evaluated = evaluate(geometry, reference)
     assert isinstance(evaluated, AppFuture)
     state = evaluated.result()
-    assert state == NullState
+    assert state.energy is None
+    assert np.all(np.isnan(state.per_atom.forces))
     with open(state.stdout, "r") as f:
         log = f.read()
     assert "ABORT" in log  # verify error is captured
@@ -445,4 +446,4 @@ def test_gpaw_single(dataset, dataset_h2):
     assert gpaw.compute_atomic_energy("Zr", box_size=9).result() == 0.0
 
     gpaw = GPAW(askdfj="asdfk")  # invalid input
-    assert evaluate(dataset_h2[1], gpaw).result() == NullState
+    assert evaluate(dataset_h2[1], gpaw).result().energy is None

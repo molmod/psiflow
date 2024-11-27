@@ -117,7 +117,6 @@ def parse_cp2k_output(
             energy = float(line.split()[-1]) * Ha
     if energy is None:
         return NullState
-    # atoms.reference_status = True
     geometry.energy = energy
     geometry.per_atom.forces[:] = np.nan
 
@@ -136,7 +135,6 @@ def parse_cp2k_output(
             forces[j, :] = np.array([float(f) for f in line.split()[3:6]])
         forces *= Ha / Bohr
         geometry.per_atom.forces[:] = forces
-    # atoms.info.pop("stress", None)  # remove if present for some reason
     geometry.stress = None
     return geometry
 
@@ -184,9 +182,6 @@ def cp2k_singlepoint_post(
 ) -> Geometry:
     from psiflow.geometry import NullState, new_nullstate
     from psiflow.reference._cp2k import parse_cp2k_output
-
-    if geometry == NullState:
-        return NullState.copy()  # copy?
 
     with open(inputs[0], "r") as f:
         cp2k_output_str = f.read()
