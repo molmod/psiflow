@@ -209,7 +209,7 @@ class MACE(Model):
         config.save_cpu = True  # assert model is saved to CPU after training
         config.device = "cpu"
         if not config.swa:
-            config.start_swa = int(1e10)  # otherwise he fails to read
+            config.start_swa = config.max_num_epochs  # otherwise he fails to read
         self._config = asdict(config)
 
         self.model_future = None
