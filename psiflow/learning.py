@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState, assign_identifier
-from psiflow.hamiltonians import Hamiltonian
+from psiflow.hamiltonians import Hamiltonian, Zero
 from psiflow.metrics import Metrics
 from psiflow.models import Model
 from psiflow.reference import Reference, evaluate
@@ -134,6 +134,7 @@ class Learning:
         else:
             self.data = initial_data
             self.identifier = initial_data.assign_identifiers()
+            self.metrics.update(self.data, Zero())
 
         self.iteration = -1
 
