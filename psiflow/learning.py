@@ -17,7 +17,7 @@ from psiflow.metrics import Metrics
 from psiflow.models import Model
 from psiflow.reference import Reference, evaluate
 from psiflow.sampling import SimulationOutput, Walker, sample
-from psiflow.utils.apps import boolean_or, setup_logger, unpack_i
+from psiflow.utils.apps import boolean_or, setup_logger, unpack_i, isnan
 
 logger = setup_logger(__name__)
 
@@ -80,7 +80,11 @@ def evaluate_outputs(
             errors[i],
             np.array(error_thresholds_for_reset, dtype=float),
         )
-        reset = boolean_or(error_discard, error_reset)
+        reset = boolean_or(
+            error_discard,
+            error_reset,
+            isnan(errors[i]),
+        )
 
         _ = assign_identifier(state, identifier, error_discard)
         assigned = unpack_i(_, 0)

@@ -158,8 +158,6 @@ def test_evaluate_outputs(dataset):
     outputs[3].state = new_nullstate()
     outputs[7].status = 2  # should be null state
 
-    # resets for 3 and 7 happen in sample() method, not in evaluate_outputs!
-
     identifier = 3
     identifier, data, resets = evaluate_outputs(
         outputs,
@@ -185,11 +183,7 @@ def test_evaluate_outputs(dataset):
         error_thresholds_for_discard=[0.0, 0.0],
         metrics=Metrics(),
     )
-    for i in range(10):
-        if i not in [3, 7]:
-            assert resets[i].result()  # already reset
-        else:
-            assert not resets[i].result()
+    assert all([r.result() for r in resets])
 
 
 def test_wandb():

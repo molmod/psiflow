@@ -134,3 +134,11 @@ def _concatenate(*arrays: np.ndarray) -> np.ndarray:
 
 
 concatenate = python_app(_concatenate, executors=["default_threads"])
+
+
+@typeguard.typechecked
+def _isnan(a: Union[float, np.ndarray]) -> bool:
+    return bool(np.any(np.isnan(a)))
+
+
+isnan = python_app(_isnan, executors=['default_threads'])
