@@ -5,6 +5,7 @@ from ase.units import kJ, mol # type: ignore
 from parsl.data_provider.files import File # type: ignore
 
 import psiflow
+from psiflow.data import Dataset
 from psiflow.functions import (
     EinsteinCrystalFunction,
     HarmonicFunction,
@@ -253,6 +254,12 @@ def test_hamiltonian_arithmetic(dataset):
     assert np.allclose(energy.result(), 0.0)
     assert hamiltonian == hamiltonian + zero
     assert 2 * hamiltonian + zero == 2 * hamiltonian
+
+    geometries = [dataset[i].result() for i in [0, -1]]
+    natoms = [len(geometry) for geometry in geometries]
+    forces = zero.compute(geometries, 'forces', batch_size=1).result()
+    assert np.all(forces[0, :natoms[0]] == 0.0)
+    assert np.all(forces[-1, :natoms[1]] == 0.0)
 
 
 def test_subtract(dataset):

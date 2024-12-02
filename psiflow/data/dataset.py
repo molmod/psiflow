@@ -415,6 +415,22 @@ def _concatenate_multiple(*args: list[np.ndarray]) -> list[np.ndarray]:
     Note:
         This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
+    def pad_arrays(
+        arrays: list[np.ndarray],
+        pad_dimension: int = 1,
+    ) -> list[np.ndarray]:
+        ndims = np.array([len(a.shape) for a in arrays])
+        assert np.all(ndims == ndims[0])
+        assert np.all(pad_dimension < ndims)
+
+        pad_size = max([a.shape[pad_dimension] for a in arrays])
+        for i in range(len(arrays)):
+            shape = list(arrays[i].shape)
+            shape[pad_dimension] = pad_size - shape[pad_dimension]
+            padding = np.zeros(tuple(shape)) + np.nan
+            arrays[i] = np.concatenate((arrays[i], padding), axis=pad_dimension)
+        return arrays
+
     narrays = len(args[0])
     for arg in args:
         assert isinstance(arg, list)
@@ -422,7 +438,10 @@ def _concatenate_multiple(*args: list[np.ndarray]) -> list[np.ndarray]:
 
     concatenated = []
     for i in range(narrays):
-        concatenated.append(np.concatenate([arg[i] for arg in args]))
+        arrays = [arg[i] for arg in args]
+        if len(arrays[0].shape) > 1:
+            pad_arrays(arrays)
+        concatenated.append(np.concatenate(tuple(arrays)))
     return concatenated
 
 
