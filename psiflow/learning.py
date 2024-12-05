@@ -86,7 +86,7 @@ def evaluate_outputs(
             isnan(errors[i]),
         )
 
-        _ = assign_identifier(state, identifier, error_discard)
+        _ = assign_identifier(state, identifier, reset)
         assigned = unpack_i(_, 0)
         identifier = unpack_i(_, 1)
         processed_states.append(assigned)
