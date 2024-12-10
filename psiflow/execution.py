@@ -457,6 +457,7 @@ class ExecutionContext:
         container_engine: str = "apptainer",
         container_addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs",
         container_entrypoint: str = "/opt/entry.sh",
+        symlink_prefix: str = "psiflow",
         **kwargs,
     ) -> ExecutionContext:
         if path is None:
@@ -548,7 +549,22 @@ class ExecutionContext:
             internal_tasks_max_threads=internal_tasks_max_threads,
             # std_autopath=std_autopath,
         )
-        return ExecutionContext(config, definitions, path / "context_dir")
+        context = ExecutionContext(config, definitions, path / "context_dir")
+
+        # TODO: how would you consistently delete old/invalid symlinks from previous runs?
+        if symlink_prefix:
+            src, dest = Path.cwd() / f'{symlink_prefix}_log', path / 'parsl.log'
+            if not src.is_symlink():
+                src.symlink_to(dest)
+            src, dest = Path.cwd() / f'{symlink_prefix}_submit_scripts', path / '000' / 'submit_scripts'
+            if not src.is_symlink():
+                src.symlink_to(dest, target_is_directory=True)
+            src, dest = Path.cwd() / f'{symlink_prefix}_task_logs', path / '000' / 'task_logs'
+            dest.mkdir()        # normally only created when the first task launches
+            if not src.is_symlink():
+                src.symlink_to(dest, target_is_directory=True)
+
+        return context
 
 
 class ExecutionContextLoader:
@@ -573,6 +589,8 @@ class ExecutionContextLoader:
                         "use_threadpool": True,
                     },
                 }
+                # TODO: what does this do?
+                #  ExecutionContext.from_config also handles this logic (but differently)
                 path = Path.cwd() / ".psiflow_internal"
                 if path.exists():
                     shutil.rmtree(path)
