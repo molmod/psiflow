@@ -462,6 +462,7 @@ class ExecutionContext:
     ) -> ExecutionContext:
         if path is None:
             path = Path.cwd().resolve() / "psiflow_internal"
+        # TODO: this throws when path is a str..
         psiflow.resolve_and_check(path)
         if path.exists():
             shutil.rmtree(path)
@@ -554,15 +555,11 @@ class ExecutionContext:
         # TODO: how would you consistently delete old/invalid symlinks from previous runs?
         if symlink_prefix:
             src, dest = Path.cwd() / f'{symlink_prefix}_log', path / 'parsl.log'
-            if not src.is_symlink():
-                src.symlink_to(dest)
+            _create_symlink(src, dest)
             src, dest = Path.cwd() / f'{symlink_prefix}_submit_scripts', path / '000' / 'submit_scripts'
-            if not src.is_symlink():
-                src.symlink_to(dest, target_is_directory=True)
+            _create_symlink(src, dest, is_dir=True)
             src, dest = Path.cwd() / f'{symlink_prefix}_task_logs', path / '000' / 'task_logs'
-            dest.mkdir()        # normally only created when the first task launches
-            if not src.is_symlink():
-                src.symlink_to(dest, target_is_directory=True)
+            _create_symlink(src, dest, is_dir=True)
 
         return context
 
@@ -684,3 +681,16 @@ wait
 class MyWorkQueueExecutor(WorkQueueExecutor):
     def _get_launch_command(self, block_id):
         return self.worker_command
+
+
+def _create_symlink(src: Path, dest: Path, is_dir: bool = False) -> None:
+    """Create or replace symbolic link"""
+    if src.is_symlink():
+        src.unlink()
+    if is_dir:
+        dest.mkdir(parents=True, exist_ok=True)
+    else:
+        dest.touch(exist_ok=True)
+    src.symlink_to(dest, target_is_directory=is_dir)
+
+
