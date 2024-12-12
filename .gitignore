@@ -131,3 +131,9 @@ dmypy.json
 
 pytest-tmp/
 wandb/
+
+# psiflow internal and its symlinks
+psiflow_internal/
+psiflow_log
+psiflow_submit_scripts
+psiflow_task_logs
