@@ -295,25 +295,6 @@ def test_npt(dataset):
         output.state.result().cell,
     )
 
-    walker = Walker(
-        dataset[0],
-        einstein,
-        temperature=600,
-        pressure=0,
-        volume_constrained=True,
-    )
-    output = sample([walker], steps=30)[0]
-    # cell should have changed, but not the volume
-    assert not np.allclose(
-        walker.start.result().cell,
-        output.state.result().cell,
-    )
-    # volume actually does change with barostat mode='nst' (?)
-    # assert np.allclose(
-    #     np.linalg.det(walker.start.result().cell),
-    #     np.linalg.det(output.state.result().cell),
-    # )
-
 
 def test_reset(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)

@@ -121,20 +121,14 @@ def setup_motion(walker: Walker, fix_com: bool) -> ET.Element:
         else:
             dynamics.append(thermostat)
     elif walker.npt:
-        if walker.volume_constrained:
-            mode = "nst"
-        else:
-            mode = "npt"
+        mode = "npt"
         dynamics = ET.Element("dynamics", mode=mode)
         dynamics.append(timestep_element)
         if walker.pimd:
             dynamics.append(thermostat_pimd)
         else:
             dynamics.append(thermostat)
-        if walker.volume_constrained:
-            mode = "anisotropic"
-        else:
-            mode = "flexible"
+        mode = "flexible"
         barostat = ET.Element("barostat", mode=mode)
         tau = ET.Element("tau", units="femtosecond")
         tau.text = "200"

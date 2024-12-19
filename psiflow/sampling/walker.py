@@ -49,7 +49,6 @@ class Walker:
     state: Union[Geometry, AppFuture, None]
     temperature: Optional[float]
     pressure: Optional[float]
-    volume_constrained: bool
     nbeads: int
     timestep: float
     coupling: Optional[Coupling]
@@ -63,7 +62,6 @@ class Walker:
         state: Union[Geometry, AppFuture, None] = None,
         temperature: Optional[float] = 300,
         pressure: Optional[float] = None,
-        volume_constrained: bool = False,
         nbeads: int = 1,
         timestep: float = 0.5,
         metadynamics: Optional[Metadynamics] = None,
@@ -82,7 +80,6 @@ class Walker:
 
         self.temperature = temperature
         self.pressure = pressure
-        self.volume_constrained = volume_constrained
         self.nbeads = nbeads
         self.timestep = timestep
 
