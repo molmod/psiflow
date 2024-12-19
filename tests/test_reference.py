@@ -181,8 +181,10 @@ def test_reference_d3(context, dataset, tmp_path):
     assert state.energy is not None
     assert state.energy < 0.0  # dispersion is attractive
 
-    data = dataset[:3].evaluate(reference)
-    energy = reference.compute(dataset[:3], "energy")
+    subset = dataset[:3]
+    data = subset.evaluate(reference)
+    energy = reference.compute(subset, "energy")
+    forces = reference.compute(subset, "forces")
 
     assert np.allclose(
         data.get("energy").result(),
@@ -193,6 +195,7 @@ def test_reference_d3(context, dataset, tmp_path):
         0.0,
     )
 
+    assert len(forces.result().shape) == 3
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_success(context, simple_cp2k_input):

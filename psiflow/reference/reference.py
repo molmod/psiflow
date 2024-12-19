@@ -115,7 +115,7 @@ class Reference(Computable):
         for output in outputs_:
             if output not in self.outputs:
                 raise ValueError("output {} not in {}".format(output, self.outputs))
-            index = outputs_.index(output)
+            index = self.outputs.index(output)
             to_return.append(compute_outputs[index])
         if len(outputs_) == 1:
             return to_return[0]
