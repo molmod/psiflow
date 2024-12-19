@@ -553,7 +553,7 @@ def get_length(arg):
 def compute(
     arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
     *apply_apps: Union[PythonApp, Callable],
-    outputs_: Union[str, list[str], None] = None,
+    outputs_: Union[str, list[str], tuple[str, ...], None] = None,
     reduce_func: Union[PythonApp, Callable] = aggregate_multiple,
     batch_size: Optional[int] = None,
 ) -> Union[list[AppFuture], AppFuture]:
@@ -570,7 +570,7 @@ def compute(
     Returns:
         Union[list[AppFuture], AppFuture]: Future(s) representing computation results.
     """
-    if outputs_ is not None and not isinstance(outputs_, list):
+    if type(outputs_) is str:
         outputs_ = [outputs_]
     if batch_size is not None:
         if isinstance(arg, Dataset):
@@ -627,7 +627,7 @@ class Computable:
     def compute(
         self,
         arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
-        outputs: Union[str, list[str], None] = None,
+        *outputs: Optional[str],
         batch_size: Optional[int] = -1,  # if -1: take class default
     ) -> Union[list[AppFuture], AppFuture]:
         """
@@ -641,13 +641,4 @@ class Computable:
         Returns:
             Union[list[AppFuture], AppFuture]: Future(s) representing computation results.
         """
-        if outputs is None:
-            outputs = list(self.__class__.outputs)
-        if batch_size == -1:
-            batch_size = self.__class__.batch_size
-        return compute(
-            arg,
-            self.app,
-            outputs_=outputs,
-            batch_size=batch_size,
-        )
+        raise NotImplementedError

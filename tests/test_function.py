@@ -45,7 +45,7 @@ def test_einstein_crystal(dataset):
     hamiltonian = EinsteinCrystal(dataset[0], force_constant=1.0)
 
     forces_, stress_, energy_ = hamiltonian.compute(
-        dataset[:4], outputs=["forces", "stress", "energy"]
+        dataset[:4], "forces", "stress", "energy"
     )
     assert np.allclose(
         energy_.result(),
@@ -56,7 +56,7 @@ def test_einstein_crystal(dataset):
         forces,
     )
 
-    forces = hamiltonian.compute(dataset[:4], outputs=["forces"], batch_size=3)
+    forces = hamiltonian.compute(dataset[:4], "forces", batch_size=3)
     assert np.allclose(
         forces.result(),
         forces_.result(),
@@ -173,7 +173,7 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     distance = np.linalg.norm(positions[:, 0, :] - positions[:, 1, :], axis=1)
     distance = distance.reshape(-1, 1)
 
-    energy = hamiltonian.compute(dataset[:10], ["energy"]).result()
+    energy = hamiltonian.compute(dataset[:10], "energy").result()
 
     sigma = 2 * np.ones((1, 2))
     height = np.array([70, 70]).reshape(1, -1) * (kJ / mol)  # unit consistency
