@@ -21,6 +21,8 @@ jobs:
             python=3.10
             ndcctools==7.11.1
             py-plumed
+            simple-dftd3
+            dftd3-python
             pip
             -c conda-forge
           init-shell: bash
@@ -35,5 +37,7 @@ jobs:
           cd ${{ runner.temp }} && git clone https://github.com/molmod/psiflow
           cd psiflow
           export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
-          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
+          apptainer exec oras://ghcr.io/molmod/cp2k:2024.1 ls
+          apptainer exec oras://ghcr.io/molmod/gpaw:24.1 ls
+          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml tests/test_reference.py
         shell: micromamba-shell {0}
