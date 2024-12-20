@@ -20,6 +20,7 @@ jobs:
           create-args: >-
             python=3.10
             ndcctools==7.11.1
+            py-plumed
             pip
             -c conda-forge
           init-shell: bash
