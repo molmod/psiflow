@@ -1,15 +1,27 @@
 ---
 ModelEvaluation:
-  max_walltime: 1
-  simulation_engine: 'openmm'
+  max_simulation_time: 0.4
   gpu: false
   use_threadpool: true
 ModelTraining:
-  max_walltime: 1
+  max_training_time: 1
   gpu: true
   use_threadpool: true
-ReferenceEvaluation:
-  max_walltime: 1
-  mpi_command: 'mpirun -np {}'
-  use_threadpool: true
+  max_workers: 1
+CP2K:
+  cores_per_worker: 2
+  max_evaluation_time: 0.3
+  launch_command: 'apptainer exec -e --no-init oras://ghcr.io/molmod/cp2k:2024.1 /opt/entry.sh mpirun -bind-to core -np 2 -env OMP_NUM_THREADS 1 cp2k.psmp'
+CP2K_container:
+  cores_per_worker: 2
+  max_evaluation_time: 0.3
+  launch_command: 'apptainer exec -e --no-init oras://ghcr.io/molmod/cp2k:2024.1 /opt/entry.sh mpirun -bind-to core -np 2 -env OMP_NUM_THREADS 1 cp2k.psmp'
+GPAW:
+  cores_per_worker: 2
+  max_evaluation_time: 0.3
+  launch_command: 'apptainer exec -e --no-init oras://ghcr.io/molmod/gpaw:24.1 /opt/entry.sh mpirun -np 2 gpaw python /opt/run_gpaw.py'
+GPAW_container:
+  cores_per_worker: 2
+  max_evaluation_time: 0.3
+  launch_command: 'apptainer exec -e --no-init oras://ghcr.io/molmod/gpaw:24.1 /opt/entry.sh mpirun -np 2 gpaw python /opt/run_gpaw.py'
 ...

@@ -9,22 +9,17 @@ jobs:
   test-py310:
     runs-on: ubuntu-latest
     steps:
+      - uses: eWaterCycle/setup-apptainer@v2
+        with:
+          apptainer-version: 1.3.0
       - uses: mamba-org/setup-micromamba@v1
         with:
-          micromamba-version: '1.5.0-0'
+          micromamba-version: '2.0.5-0'
           environment-name: 'test-env'
           generate-run-shell: true
-          # constraints on env:
-          # - spglib / cp2k linking error for spglib > 2.0.*
-          # - openmm-torch 1.0 requires cuda
-          # - openmm-torch >1.0 requires python 3.9
           create-args: >-
             python=3.10
-            openmm-torch=1.*=*cpu*
-            openmm-plumed
-            py-plumed
-            cp2k=2024.1=*openmpi*
-            spglib=2.0.*
+            ndcctools==7.11.1
             pip
             -c conda-forge
           init-shell: bash
@@ -32,67 +27,12 @@ jobs:
           post-cleanup: 'all'
       - name: install pip dependencies and execute pytest
         run: |
-          pip install typeguard==2.13.3
-          pip install cython==0.29.36 matscipy prettytable
-          pip install git+https://github.com/molmod/molmod
-          pip install git+https://github.com/molmod/yaff
-          pip install e3nn==0.4.4
-          pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0' mdtraj tables
-          pip install git+https://github.com/acesuit/MACE.git@55f7411
-          pip install git+https://github.com/mir-group/nequip.git@develop --no-deps
-          pip install git+https://github.com/mir-group/allegro --no-deps
-          pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
-          pip install pyscf
-          pip install 'psiflow[dev,parsl] @ git+https://github.com/molmod/psiflow.git'
+          pip install pyfftw colorcet wandb pandas plotly plumed 'numpy<2.0.0'
+          pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@v3.0.0-beta4
+          pip install git+https://github.com/acesuit/MACE.git@v0.3.5
+          pip install 'psiflow @ git+https://github.com/molmod/psiflow.git'
           cd ${{ runner.temp }} && git clone https://github.com/molmod/psiflow
           cd psiflow
-          which cp2k.psmp
           export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
-          export CP2K_DATA_DIR=$(dirname $(which python))/../share/cp2k/data
-          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
-        shell: micromamba-shell {0}
-  test-py311:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: mamba-org/setup-micromamba@v1
-        with:
-          micromamba-version: '1.5.0-0'
-          environment-name: 'test-env'
-          generate-run-shell: true
-          # constraints on env:
-          # - spglib / cp2k linking error for spglib > 2.0.*
-          # - openmm-torch 1.0 requires cuda
-          # - openmm-torch >1.0 requires python 3.9
-          create-args: >-
-            python=3.11
-            openmm-torch=1.*=*cpu*
-            openmm-plumed
-            py-plumed
-            cp2k=2024.1=*openmpi*
-            spglib=2.0.*
-            pip
-            -c conda-forge
-          init-shell: bash
-          cache-environment: true
-          post-cleanup: 'all'
-      - name: install pip dependencies and execute pytest
-        run: |
-          pip install typeguard==2.13.3
-          pip install cython==0.29.36 matscipy prettytable
-          pip install git+https://github.com/molmod/molmod
-          pip install git+https://github.com/molmod/yaff
-          pip install e3nn==0.4.4
-          pip install numpy ase tqdm pyyaml 'torch-runstats>=0.2.0' 'torch-ema>=0.3.0' mdtraj tables
-          pip install git+https://github.com/acesuit/MACE.git@55f7411
-          pip install git+https://github.com/mir-group/nequip.git@develop --no-deps
-          pip install git+https://github.com/mir-group/allegro --no-deps
-          pip install git+https://github.com/svandenhaute/openmm-ml.git@triclinic
-          pip install pyscf
-          pip install 'psiflow[dev,parsl] @ git+https://github.com/molmod/psiflow.git'
-          cd ${{ runner.temp }} && git clone https://github.com/molmod/psiflow
-          cd psiflow
-          which cp2k.psmp
-          export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
-          export CP2K_DATA_DIR=$(dirname $(which python))/../share/cp2k/data
           pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
         shell: micromamba-shell {0}
