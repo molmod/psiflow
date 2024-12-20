@@ -131,8 +131,8 @@ class ExecutionDefinition:
             provider_cls = SlurmProvider
             provider_kwargs = kwargs.pop("slurm")  # do not allow empty dict
             provider_kwargs["init_blocks"] = 0
-            if not 'exclusive' in provider_kwargs:
-                provider_kwargs['exclusive'] = False
+            if "exclusive" not in provider_kwargs:
+                provider_kwargs["exclusive"] = False
         else:
             provider_cls = LocalProvider  # noqa: F405
             provider_kwargs = kwargs.pop("local", {})
@@ -452,7 +452,7 @@ class ExecutionContext:
         max_idletime: float = 20,
         internal_tasks_max_threads: int = 10,
         default_threads: int = 4,
-        htex_address: str = '127.0.0.1',
+        htex_address: str = "127.0.0.1",
         zip_staging: Optional[bool] = None,
         container_uri: Optional[str] = None,
         container_engine: str = "apptainer",
@@ -552,11 +552,14 @@ class ExecutionContext:
         context = ExecutionContext(config, definitions, path / "context_dir")
 
         if make_symlinks:
-            src, dest = Path.cwd() / f'psiflow_log', path / 'parsl.log'
+            src, dest = Path.cwd() / "psiflow_log", path / "parsl.log"
             _create_symlink(src, dest)
-            src, dest = Path.cwd() / f'psiflow_submit_scripts', path / '000' / 'submit_scripts'
+            src, dest = (
+                Path.cwd() / "psiflow_submit_scripts",
+                path / "000" / "submit_scripts",
+            )
             _create_symlink(src, dest, is_dir=True)
-            src, dest = Path.cwd() / f'psiflow_task_logs', path / '000' / 'task_logs'
+            src, dest = Path.cwd() / "psiflow_task_logs", path / "000" / "task_logs"
             _create_symlink(src, dest, is_dir=True)
 
         return context
@@ -684,5 +687,3 @@ def _create_symlink(src: Path, dest: Path, is_dir: bool = False) -> None:
     else:
         dest.touch(exist_ok=True)
     src.symlink_to(dest, target_is_directory=is_dir)
-
-

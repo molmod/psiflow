@@ -55,7 +55,7 @@ def _nan_if_unsuccessful(
         return result
 
 
-nan_if_unsuccessful = python_app(_nan_if_unsuccessful, executors=['default_threads'])
+nan_if_unsuccessful = python_app(_nan_if_unsuccessful, executors=["default_threads"])
 
 
 @join_app

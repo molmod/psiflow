@@ -68,9 +68,9 @@ def set_global_section(cp2k_input_dict: dict, properties: tuple):
     global_dict = cp2k_input_dict["global"]
 
     # override low/silent print levels
-    level = global_dict.pop('print_level', 'MEDIUM')
-    if level in ['SILENT', 'LOW']:
-        global_dict['print_level'] = 'MEDIUM'
+    level = global_dict.pop("print_level", "MEDIUM")
+    if level in ["SILENT", "LOW"]:
+        global_dict["print_level"] = "MEDIUM"
 
     if properties == ("energy",):
         global_dict["run_type"] = "ENERGY"
@@ -156,11 +156,11 @@ def _prepare_input(
     if "forces" in properties:
         cp2k_input_dict["force_eval"]["print"] = {"FORCES": {}}
     cp2k_input_str = dict_to_str(cp2k_input_dict)
-    with open(outputs[0], 'w') as f:
+    with open(outputs[0], "w") as f:
         f.write(cp2k_input_str)
 
 
-prepare_input = python_app(_prepare_input, executors=['default_threads'])
+prepare_input = python_app(_prepare_input, executors=["default_threads"])
 
 
 # typeguarding for some reason incompatible with WQ
@@ -175,14 +175,9 @@ def cp2k_singlepoint_pre(
     cd_command = "cd $mytmpdir"
     cp_command = "cp {} cp2k.inp".format(inputs[0].filepath)
 
-    command_list = [
-        tmp_command,
-        cd_command,
-        cp_command,
-        cp2k_command
-    ]
+    command_list = [tmp_command, cd_command, cp_command, cp2k_command]
 
-    return ' && '.join(command_list)
+    return " && ".join(command_list)
 
 
 @typeguard.typechecked
@@ -242,7 +237,7 @@ class CP2K(Reference):
                 geometry,
                 cp2k_input_dict=self.cp2k_input_dict,
                 properties=tuple(self.outputs),
-                outputs=[psiflow.context().new_file('cp2k_', '.inp')],
+                outputs=[psiflow.context().new_file("cp2k_", ".inp")],
             )
             return app_pre(
                 cp2k_command=cp2k_command,

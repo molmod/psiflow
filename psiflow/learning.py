@@ -17,7 +17,7 @@ from psiflow.metrics import Metrics
 from psiflow.models import Model
 from psiflow.reference import Reference, evaluate
 from psiflow.sampling import SimulationOutput, Walker, sample
-from psiflow.utils.apps import boolean_or, setup_logger, unpack_i, isnan
+from psiflow.utils.apps import boolean_or, isnan, setup_logger, unpack_i
 
 logger = setup_logger(__name__)
 

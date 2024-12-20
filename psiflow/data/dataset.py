@@ -43,6 +43,7 @@ class Dataset:
 
     This class provides methods for manipulating and analyzing collections of atomic structures.
     """
+
     extxyz: psiflow._DataFuture
 
     def __init__(
@@ -415,6 +416,7 @@ def _concatenate_multiple(*args: list[np.ndarray]) -> list[np.ndarray]:
     Note:
         This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
+
     def pad_arrays(
         arrays: list[np.ndarray],
         pad_dimension: int = 1,
@@ -621,6 +623,7 @@ class Computable:
         outputs (ClassVar[tuple[str, ...]]): Names of output quantities.
         batch_size (ClassVar[Optional[int]]): Default batch size for computation.
     """
+
     outputs: ClassVar[tuple[str, ...]] = ()
     batch_size: ClassVar[Optional[int]] = None
 

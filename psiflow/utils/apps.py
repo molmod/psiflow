@@ -141,4 +141,4 @@ def _isnan(a: Union[float, np.ndarray]) -> bool:
     return bool(np.any(np.isnan(a)))
 
 
-isnan = python_app(_isnan, executors=['default_threads'])
+isnan = python_app(_isnan, executors=["default_threads"])
