@@ -8,8 +8,6 @@ on:
 jobs:
   test-py310:
     runs-on: ubuntu-latest
-    container:
-      options: --privileged
     steps:
       - name: Configure user namespaces
         run: |
