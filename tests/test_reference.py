@@ -330,6 +330,18 @@ def test_cp2k_failure(context, tmp_path):
     assert "ABORT" in log  # verify error is captured
 
 
+def test_cp2k_memory(context, simple_cp2k_input):
+    reference = CP2K(simple_cp2k_input)
+    geometry = Geometry.from_data(
+        numbers=np.ones(4000),
+        positions=np.random.uniform(0, 20, size=(4000, 3)),
+        cell=20 * np.eye(3),  # box way too large
+    )
+    energy, forces = reference.compute(geometry)
+    energy, forces = energy.result(), forces.result()
+    assert np.all(np.isnan(energy))
+
+
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_timeout(context, simple_cp2k_input):
     reference = CP2K(simple_cp2k_input)
