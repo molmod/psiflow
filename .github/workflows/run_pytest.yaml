@@ -39,5 +39,5 @@ jobs:
           export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
           apptainer exec oras://ghcr.io/molmod/cp2k:2024.1 ls
           apptainer exec oras://ghcr.io/molmod/gpaw:24.1 ls
-          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml tests/test_reference.py
+          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
         shell: micromamba-shell {0}
