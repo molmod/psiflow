@@ -131,6 +131,8 @@ class ExecutionDefinition:
             provider_cls = SlurmProvider
             provider_kwargs = kwargs.pop("slurm")  # do not allow empty dict
             provider_kwargs["init_blocks"] = 0
+            if not 'exclusive' in provider_kwargs:
+                provider_kwargs['exclusive'] = False
         else:
             provider_cls = LocalProvider  # noqa: F405
             provider_kwargs = kwargs.pop("local", {})
