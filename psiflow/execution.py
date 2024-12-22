@@ -488,7 +488,7 @@ class ExecutionContext:
         )
         model_training = ModelTraining.from_config(
             container=container,
-            **kwargs.pop("ModelTraining", {}),
+            **kwargs.pop("ModelTraining", {'gpu': True}),  # avoid triggering assertion
         )
         reference_evaluations = []  # reference evaluations might be class specific
         for key in list(kwargs.keys()):
