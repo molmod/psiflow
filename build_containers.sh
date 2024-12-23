@@ -59,9 +59,12 @@ if [ "$psiflow" = "true" ]; then
 			-t ghcr.io/molmod/$TAG \
 			-f Dockerfile . # test
 		if [ "$build_sif" = "true" ]; then
+			export TMPDIR=$(pwd)/tmp
+			mkdir -p $TMPDIR
 			apptainer build -F $TAG.sif docker-daemon:ghcr.io/molmod/$TAG
 			apptainer push $TAG.sif oras://ghcr.io/molmod/$TAG
 			rm $TAG.sif
+			rm -rf $TMPDIR
 		fi
 	done
 fi

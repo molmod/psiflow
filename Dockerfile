@@ -60,7 +60,7 @@ RUN /bin/bash -c -o pipefail \
     "source /opt/venv/bin/activate && \
      pip install --no-cache-dir pyfftw colorcet wandb pandas plotly plumed 'numpy<2.0.0' && \
      pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@v3.0.0-beta4 && \
-     pip install --no-cache-dir torch==2.1 --index-url https://download.pytorch.org/whl/${GPU_LIBRARY} && \
+     pip install --no-cache-dir torch>=2.5 --index-url https://download.pytorch.org/whl/${GPU_LIBRARY} && \
      pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.5"
 ARG DATE
 RUN /bin/bash -c -o pipefail \
