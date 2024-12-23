@@ -514,7 +514,7 @@ class ExecutionContext:
             address=htex_address,
             working_dir=str(path / "default_htex"),
             cores_per_worker=1,
-            max_workers=default_threads,
+            max_workers_per_node=default_threads,
             cpu_affinity="none",
             provider=LocalProvider(launcher=launcher, init_blocks=0),  # noqa: F405
         )

@@ -40,10 +40,10 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-PSIFLOW_VERSION="v4.0.0-rc1"
-CCTOOLS_VERSION=7.11.1
+PSIFLOW_VERSION="v4.0.0"
+CCTOOLS_VERSION=7.14.0
 PLUMED_VERSION=2.9.0
-GPU_LIBRARIES=("rocm5.6" "cu118")
+GPU_LIBRARIES=("rocm6.2" "cu118")
 
 # build model
 if [ "$psiflow" = "true" ]; then
