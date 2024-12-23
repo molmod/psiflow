@@ -19,7 +19,7 @@ jobs:
           generate-run-shell: true
           create-args: >-
             python=3.10
-            ndcctools==7.11.1
+            ndcctools==7.14.0
             py-plumed
             simple-dftd3
             dftd3-python
