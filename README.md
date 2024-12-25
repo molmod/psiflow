@@ -103,7 +103,7 @@ order:
 4. Check the actual 'jobscripts' that were generated and which were submitted to the
    cluster. Quite often, there can be a spelling mistake in e.g. the compute project you
    are using, or you are requesting a resource on a partition that is not available.
-   These jobscripts (and there output and error) can be found under
+   These jobscripts (and their output and error) can be found under
    `psiflow_internal/000/submit_scripts/`.
 
 **Where do these container images come from?**
