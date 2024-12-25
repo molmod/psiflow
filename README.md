@@ -2,7 +2,7 @@
 ![psiflow](./docs/logo_dark.png#gh-dark-mode-only)
 
 
-![License](https://flat.badgen.net/github/license/micromatch/micromatch)
+![License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)
 [![Docs](https://flat.badgen.net/static/docs/passing/green)](https://molmod.github.io/psiflow)
 [![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Fmolmod%2Fpsiflow%2Fbadge%3Fref%3Dmain&style=flat-square)](https://actions-badge.atrox.dev/molmod/psiflow/goto?ref=main)
 ![Python](https://flat.badgen.net/static/python/3.10%20|%203.11/blue)
