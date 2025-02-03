@@ -10,10 +10,10 @@ description = "Library for developing interatomic potentials"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "ase >= 3.23.0",
+    "ase>=3.23.0",
     "pyyaml>=6.0",
-    "numpy>=1.22.3,<2",
-    "parsl >= 2024.12.16",
+    "numpy>=1.22.3, <2",
+    "parsl==2024.12.16",
     "prettytable",
     "psutil",
     "cp2k-input-tools @ git+https://github.com/cp2k/cp2k-input-tools.git@3b9929735dcb3c8c0620a548b1fe20efecbad077",  # need 2024.1
