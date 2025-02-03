@@ -75,7 +75,7 @@ def optimize(
     state: Union[Geometry, AppFuture],
     hamiltonian: Hamiltonian,
     mode: str = 'full',
-    steps: int = 500,
+    steps: int = int(1e12),
     keep_trajectory: bool = False,
     pressure: float = 0,
     f_max: float = 1e-3,
