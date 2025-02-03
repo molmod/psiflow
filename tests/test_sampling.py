@@ -496,7 +496,7 @@ def test_optimize(dataset):
     """
     plumed_v = PlumedHamiltonian(plumed_input)
     final = optimize(geom, plumed_v, f_max=1e-8).result()
-    assert np.allclose(final.energy, 0.0) and np.allclose(np.linalg.det(final.cell), 75)
+    assert np.allclose(final.energy, 0.0) and np.allclose(final.volume, 75)
 
     plumed_input = """
     UNITS LENGTH=A ENERGY=kj/mol TIME=fs
@@ -513,10 +513,10 @@ def test_optimize(dataset):
 
     final = optimize(geom, plumed_c, mode='fix_volume', f_max=1e-8).result()
     assert np.allclose(final.cell[0], [3, .2, .1], atol=1e-4)
-    assert np.allclose(np.linalg.det(geom.cell), np.linalg.det(final.cell))
+    assert np.allclose(geom.volume, final.volume)
 
     final = optimize(geom, plumed_v + plumed_c, f_max=1e-8).result()
     assert np.allclose(final.cell[0], [3, .2, .1], atol=1e-4)
-    assert np.allclose(np.linalg.det(final.cell), 75)
+    assert np.allclose(final.volume, 75)
 
 
