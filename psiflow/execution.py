@@ -6,6 +6,7 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from threading import Lock
 
 # see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
 from typing import Any, Optional, Union
@@ -420,6 +421,7 @@ class ExecutionContext:
         self.definitions = {d.name: d for d in definitions}
         assert len(self.definitions) == len(definitions)
         self.file_index = {}
+        self.lock = Lock()
         parsl.load(config)
 
     def __enter__(self):
@@ -431,16 +433,17 @@ class ExecutionContext:
         parsl.dfk().cleanup()
 
     def new_file(self, prefix: str, suffix: str) -> File:
-        assert prefix[-1] == "_"
-        assert suffix[0] == "."
-        key = (prefix, suffix)
-        if key not in self.file_index.keys():
-            self.file_index[key] = 0
-        padding = 6
-        assert self.file_index[key] < (16**padding)
-        identifier = "{0:0{1}x}".format(self.file_index[key], padding)
-        self.file_index[key] += 1
-        return File(str(self.path / (prefix + identifier + suffix)))
+        with self.lock:
+            assert prefix[-1] == "_"
+            assert suffix[0] == "."
+            key = (prefix, suffix)
+            if key not in self.file_index.keys():
+                self.file_index[key] = 0
+            padding = 6
+            assert self.file_index[key] < (16**padding)
+            identifier = "{0:0{1}x}".format(self.file_index[key], padding)
+            self.file_index[key] += 1
+            return File(str(self.path / (prefix + identifier + suffix)))
 
     @classmethod
     def from_config(
