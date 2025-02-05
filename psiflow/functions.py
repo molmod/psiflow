@@ -1,6 +1,6 @@
 import json
 import os
-import sys
+import warnings
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +25,24 @@ class Function:
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
         raise NotImplementedError
+
+    def compute(
+        self,
+        geometries: list[Geometry],
+    ) -> dict[str, float | np.ndarray]:
+        """Evaluate multiple geometries and merge data into single arrays"""
+        value, grad_pos, grad_cell = create_outputs(
+            self.outputs,
+            geometries,
+        )
+        for i, geometry in enumerate(geometries):
+            if geometry == NullState:
+                continue
+            out = self(geometry)
+            value[i] = out['energy']
+            grad_pos[i, :len(geometry)] = out['forces']
+            grad_cell[i] = out['stress']
+        return {"energy": value, "forces": grad_pos, "stress": grad_cell}
 
 
 @dataclass
@@ -210,7 +228,7 @@ class MACEFunction(EnergyFunction):
             try:
                 total += counts[idx] * self.atomic_energies[symbol]
             except KeyError:
-                print(f'(MACEFunction) No atomic energy entry for symbol "{symbol}". Are you sure?', file=sys.stderr)
+                warnings.warn(f'(MACEFunction) No atomic energy entry for symbol "{symbol}". Are you sure?')
         return total
 
     def __call__(
@@ -247,18 +265,6 @@ class MACEFunction(EnergyFunction):
         return {"energy": energy, "forces": forces, "stress": stress}
 
 
-def sort_outputs(
-    outputs_: list[str],
-    **kwargs,
-) -> list[np.ndarray]:
-    output_arrays = []
-    for name in outputs_:
-        array = kwargs.get(name, None)
-        assert array is not None
-        output_arrays.append(array)
-    return output_arrays
-
-
 def _apply(
     arg: Union[Geometry, list[Geometry], None],
     outputs_: tuple[str, ...],
@@ -277,8 +283,8 @@ def _apply(
     else:
         states = arg
     function = function_cls(**parameters)
-    output_dict = function(states)
-    output_arrays = sort_outputs(outputs_, **output_dict)
+    output_dict = function.compute(states)
+    output_arrays = [output_dict[k] for k in outputs_]
     return output_arrays
 
 
@@ -306,29 +312,3 @@ def function_from_json(path: Union[str, Path], **kwargs) -> Function:
     function = function_cls(**data)
     return function
 
-
-# def __call__(
-#     self,
-#     geometries: list[Geometry],
-# ) -> dict[str, np.ndarray]:
-#     value, grad_pos, grad_cell = create_outputs(
-#         self.outputs,
-#         geometries,
-#     )
-#
-#     for i, geometry in enumerate(geometries):
-#         if geometry == NullState:
-#             continue
-#
-#         delta = geometry.per_atom.positions - self.centers
-#         value[i] = self.force_constant * np.sum(delta**2) / 2
-#         grad_pos[i, : len(geometry)] = (-1.0) * self.force_constant * delta
-#         if geometry.periodic and self.volume > 0.0:
-#             delta = np.linalg.det(geometry.cell) - self.volume
-#             _stress = self.force_constant * np.eye(3) * delta
-#         else:
-#             _stress = np.zeros((3, 3))
-#         grad_cell[i, :] = _stress
-#
-#     return {"energy": value, "forces": grad_pos, "stress": grad_cell}
-#
