@@ -28,25 +28,26 @@ jobs:
           init-shell: bash
           cache-environment: true
           post-cleanup: 'all'
+      
+      - name: Install pip dependencies
+        run: |
+          pip install pyfftw colorcet wandb pandas plotly plumed 'numpy<2.0.0'
+          pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@v3.0.0-beta4
+          pip install torch==2.5.1
+          pip install git+https://github.com/acesuit/MACE.git@v0.3.5
+        # pip install 'psiflow[dev] @ git+https://github.com/molmod/psiflow.git'
 
       - name: Checkout specific commit
         uses: actions/checkout@v4
+      - run: ls
       - name: Install Psiflow
         run: |
-          ls
           pip install .[dev]
           cd psiflow
           pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
         shell: micromamba-shell {0}
 
 
-      # - name: Install pip dependencies
-      #   run: |
-      #     pip install pyfftw colorcet wandb pandas plotly plumed 'numpy<2.0.0'
-      #     pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@v3.0.0-beta4
-      #     pip install torch==2.5.1
-      #     pip install git+https://github.com/acesuit/MACE.git@v0.3.5
-      #     pip install 'psiflow[dev] @ git+https://github.com/molmod/psiflow.git'
       # - name: Download container images
       #   run: |
       #     apptainer exec oras://ghcr.io/molmod/cp2k:2024.1 ls
