@@ -40,29 +40,20 @@ jobs:
       - name: Checkout specific commit
         uses: actions/checkout@v4
         
-      - run: ls -a
-      
-      - name: Install Psiflow
+      - name: Install Psiflow and download containers
         run: |
           pip install .[dev]
-          # cd psiflow
-          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
+          apptainer exec oras://ghcr.io/molmod/cp2k:2024.1 ls
+          apptainer exec oras://ghcr.io/molmod/gpaw:24.1 ls
         shell: micromamba-shell {0}
 
-
-      # - name: Download container images
-      #   run: |
-      #     apptainer exec oras://ghcr.io/molmod/cp2k:2024.1 ls
-      #     apptainer exec oras://ghcr.io/molmod/gpaw:24.1 ls
-      # - name: Run test suite
-      #   env:
-      #     WANDB_API_KEY: secrets.WANDB_API_KEY
-      #   shell: micromamba-shell {0}
-      #   run: |
-      #     cd ${{ runner.temp }}
-      #     git clone https://github.com/molmod/psiflow
-      #     cd psiflow
-      #     pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
+      - name: Run test suite
+        env:
+          WANDB_API_KEY: secrets.WANDB_API_KEY
+        shell: micromamba-shell {0}
+        run: |
+          ls -a
+          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
           
         
       # - name: install pip dependencies and execute pytest
