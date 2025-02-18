@@ -39,11 +39,11 @@ jobs:
 
       - name: Checkout specific commit
         uses: actions/checkout@v4
-      - run: ls
+      - run: ls -a
       - name: Install Psiflow
         run: |
           pip install .[dev]
-          cd psiflow
+        # cd psiflow
           pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
         shell: micromamba-shell {0}
 
