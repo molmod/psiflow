@@ -39,7 +39,7 @@ jobs:
 
       - name: Checkout specific commit
         uses: actions/checkout@v4
-      - run: ls -a
+      - run: 'ls -a'
       - name: Install Psiflow
         run: |
           pip install .[dev]
