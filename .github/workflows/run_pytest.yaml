@@ -44,7 +44,9 @@ jobs:
         shell: micromamba-shell {0}
         env:
           WANDB_API_KEY: secrets.WANDB_API_KEY
+          WANDB_MODE: off                          # disables WandB API calls
         run: |
           pip install .[dev]
+          pip list
           pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
 
