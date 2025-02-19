@@ -28,16 +28,24 @@ jobs:
           init-shell: bash
           cache-environment: true
           post-cleanup: 'all'
-      - name: install pip dependencies and execute pytest
+      - name: Install dependencies and download containers
+        shell: micromamba-shell {0}
         run: |
+          which pip
           pip install pyfftw colorcet wandb pandas plotly plumed 'numpy<2.0.0'
           pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@v3.0.0-beta4
+          pip install torch==2.5.1
           pip install git+https://github.com/acesuit/MACE.git@v0.3.5
-          pip install 'psiflow[dev] @ git+https://github.com/molmod/psiflow.git'
-          cd ${{ runner.temp }} && git clone https://github.com/molmod/psiflow
-          cd psiflow
-          export WANDB_API_KEY=${{ secrets.WANDB_API_KEY }}
           apptainer exec oras://ghcr.io/molmod/cp2k:2024.1 ls
           apptainer exec oras://ghcr.io/molmod/gpaw:24.1 ls
-          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
+      - name: Checkout specific commit
+        uses: actions/checkout@v4
+      - name: Install Psiflow and run tests
         shell: micromamba-shell {0}
+        env:
+          WANDB_API_KEY: secrets.WANDB_API_KEY
+          WANDB_MODE: offline                        # disables WandB server calls
+        run: |
+          pip install .[dev]
+          pip list
+          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
