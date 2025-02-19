@@ -1,4 +1,6 @@
 ---
+parsl_log_level: WARNING
+retries: 0
 ModelEvaluation:
   max_simulation_time: 0.4
   gpu: false
