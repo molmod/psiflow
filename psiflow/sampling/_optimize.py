@@ -25,7 +25,6 @@ from psiflow.geometry import Geometry
 from psiflow.functions import function_from_json, EnergyFunction
 
 
-EVAL_COMMAND: str = __file__
 ALLOWED_MODES: tuple[str, ...] = ('full', 'fix_volume', 'fix_shape', 'fix_cell')
 FILE_OUT: str = 'out.xyz'
 FILE_TRAJ: str = 'out.traj'
@@ -110,8 +109,8 @@ def run(args: SimpleNamespace):
     atoms = ase.io.read(args.start_xyz)
     if not any(atoms.pbc):
         atoms.center(vacuum=0)              # optimiser mysteriously requires a nonzero unit cell
-        if args.mode != 'fix_cell':
-            args.mode = 'fix_cell'
+        if config['mode'] != 'fix_cell':
+            config['mode'] = 'fix_cell'
             warnings.warn('Molecular structure is not periodic. Ignoring cell..')
 
     # construct calculator by combining hamiltonians
@@ -160,7 +159,7 @@ def clean(args: SimpleNamespace):
     return
 
 
-if __name__ == '__main__':
+def main():
     signal.signal(signal.SIGTERM, timeout_handler)
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(help='what to do', dest='action')
