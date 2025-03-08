@@ -12,7 +12,7 @@ from ase.data import atomic_numbers
 from ase.units import Bohr, Ha
 from cp2k_input_tools.generator import CP2KInputGenerator
 from cp2k_input_tools.parser import CP2KInputParserSimplified
-from parsl.app.app import bash_app, python_app
+from parsl.app.app import bash_app, python_app, join_app
 
 import psiflow
 from psiflow.geometry import Geometry, NullState
@@ -232,6 +232,7 @@ class CP2K(Reference):
         # disk, then call the actual bash app with the input file as a DataFuture dependency
         # This is necessary because for very large structures, the size of the cp2k input
         # file is too long to pass as an argument in a command line
+        @join_app
         def wrapped_app_pre(geometry, stdout: str, stderr: str):
             future = prepare_input(
                 geometry,
