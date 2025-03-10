@@ -235,7 +235,7 @@ class CP2K(Reference):
         def wrapped_app_pre(geometry, stdout: str, stderr: str):
             future = prepare_input(
                 geometry,
-                cp2k_input_dict=self.cp2k_input_dict,
+                cp2k_input_dict=copy.deepcopy(self.cp2k_input_dict),
                 properties=tuple(self.outputs),
                 outputs=[psiflow.context().new_file("cp2k_", ".inp")],
             )
