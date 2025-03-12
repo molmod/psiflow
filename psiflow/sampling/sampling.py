@@ -346,7 +346,7 @@ def _execute_ipi(
     outputs: list = [],
     parsl_resource_specification: Optional[dict] = {},
 ) -> str:
-    tmp_command = "tmpdir=$(mktemp -d);"
+    tmp_command = "tmpdir=$(mktemp -d -p /tmp);"
     cd_command = "cd $tmpdir;"
     write_command = " "
     for i, plumed_str in enumerate(plumed_list):
