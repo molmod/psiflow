@@ -103,7 +103,7 @@ def _execute_ipi(
         args = client_args[i]
         assert len(args) == 1  # only have one client per hamiltonian
         for arg in args:
-            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg,)
+            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg),
 
     command_end = f'{command_server} --cleanup'
     command_copy = f'cp i-pi.output_full.hess {outputs[0]}'

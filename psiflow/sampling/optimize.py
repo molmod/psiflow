@@ -14,32 +14,9 @@ from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.sampling.sampling import make_start_command, make_client_command
+from psiflow.sampling.sampling import setup_sockets, make_start_command, make_client_command
 from psiflow.utils.io import save_xml
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
-
-
-@typeguard.typechecked
-def setup_sockets(
-    hamiltonians_map: dict[str, Hamiltonian],
-) -> list[ET.Element]:
-    sockets = []
-    for name in hamiltonians_map.keys():
-        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
-        timeout = ET.Element("timeout")
-        timeout.text = str(
-            60 * psiflow.context().definitions["ModelEvaluation"].timeout
-        )
-        ffsocket.append(timeout)
-        exit_on = ET.Element("exit_on_disconnect")
-        exit_on.text = " TRUE "
-        ffsocket.append(exit_on)
-        address = ET.Element("address")  # placeholder
-        address.text = name.lower()
-        ffsocket.append(address)
-
-        sockets.append(ffsocket)
-    return sockets
 
 
 @typeguard.typechecked
@@ -128,7 +105,7 @@ def _execute_ipi(
         args = client_args[i]
         assert len(args) == 1  # only have one client per hamiltonian
         for arg in args:
-            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg,)
+            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg),
 
     command_end = f'{command_server} --cleanup --output_xyz={outputs[0].filepath}'
     command_copy = f'cp walker-0_output.trajectory_0.ase {outputs[1].filepath}' if keep_trajectory else ''

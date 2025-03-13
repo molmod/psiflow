@@ -13,7 +13,6 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
-from psiflow.sampling.optimize import setup_sockets
 from psiflow.sampling.output import (
     DEFAULT_OBSERVABLES,
     SimulationOutput,
@@ -198,6 +197,29 @@ def setup_forces(weights_header: tuple[str, ...]) -> ET.Element:
 
 
 @typeguard.typechecked
+def setup_sockets(
+    hamiltonians_map: dict[str, Hamiltonian],
+) -> list[ET.Element]:
+    sockets = []
+    for name in hamiltonians_map.keys():
+        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
+        timeout = ET.Element("timeout")
+        timeout.text = str(
+            60 * psiflow.context().definitions["ModelEvaluation"].timeout
+        )
+        ffsocket.append(timeout)
+        exit_on = ET.Element("exit_on_disconnect")
+        exit_on.text = " TRUE "
+        ffsocket.append(exit_on)
+        address = ET.Element("address")  # placeholder
+        address.text = name.lower()
+        ffsocket.append(address)
+
+        sockets.append(ffsocket)
+    return sockets
+
+
+@typeguard.typechecked
 def setup_ffplumed(nplumed: int) -> list[ET.Element]:
     ffplumed = []
     for i in range(nplumed):
@@ -370,7 +392,7 @@ def _execute_ipi(
     for i, name in enumerate(hamiltonian_names):
         args = client_args[i]
         for arg in args:
-            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg, max_force)
+            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg, max_force),
 
     command_end = f'{command_server} --cleanup --output_xyz={outputs[0].filepath}'
     commands_copy = []
