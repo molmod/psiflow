@@ -1,125 +1,230 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import xml.etree.ElementTree as ET
 from typing import Optional, Union
 
 import parsl
 import typeguard
+from ase.units import Bohr, Ha
 from parsl.app.app import bash_app, join_app
-from parsl.dataflow.futures import AppFuture, DataFuture
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.utils.io import dump_json
-from psiflow.sampling.sampling import serialize_mixture, label_forces
+from psiflow.sampling.sampling import make_start_command, make_client_command
+from psiflow.utils.io import save_xml
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
-from ._optimize import ALLOWED_MODES
 
-EXECUTABLE = 'psiflow-ase-opt'      # not stored in ModelEvaluation (yet?)
+@typeguard.typechecked
+def setup_sockets(
+    hamiltonians_map: dict[str, Hamiltonian],
+) -> list[ET.Element]:
+    sockets = []
+    for name in hamiltonians_map.keys():
+        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
+        timeout = ET.Element("timeout")
+        timeout.text = str(
+            60 * psiflow.context().definitions["ModelEvaluation"].timeout
+        )
+        ffsocket.append(timeout)
+        exit_on = ET.Element("exit_on_disconnect")
+        exit_on.text = " TRUE "
+        ffsocket.append(exit_on)
+        address = ET.Element("address")  # placeholder
+        address.text = name.lower()
+        ffsocket.append(address)
+
+        sockets.append(ffsocket)
+    return sockets
 
 
-def _execute_ase(
-    command_launch: str,
-    inputs: list[DataFuture],
-    outputs: list[DataFuture],
+@typeguard.typechecked
+def setup_forces(hamiltonian: Hamiltonian) -> tuple[dict[str, Hamiltonian], ET.Element]:
+    hamiltonian = 1.0 * hamiltonian  # convert to mixture
+    counts = {}
+    hamiltonians_map = {}
+    forces = ET.Element("forces")
+    for h, c in zip(hamiltonian.hamiltonians, hamiltonian.coefficients):
+        name = h.__class__.__name__
+        if name not in counts:
+            counts[name] = 0
+        count = counts.get(name)
+        counts[name] += 1
+        force = ET.Element("force", forcefield=name + str(count), weight=str(c))
+        forces.append(force)
+        hamiltonians_map[name + str(count)] = h
+    return hamiltonians_map, forces
+
+
+@typeguard.typechecked
+def setup_motion(
+    mode: str,
+    etol: float,
+    ptol: float,
+    ftol: float,
+) -> ET.Element:
+    motion = ET.Element("motion", mode="minimize")
+    optimizer = ET.Element("optimizer", mode=mode)
+    tolerances = ET.Element("tolerances")
+
+    energy = ET.Element("energy")
+    energy.text = " {} ".format(etol / Ha)
+    tolerances.append(energy)
+    position = ET.Element("position")
+    position.text = " {} ".format(ptol / Bohr)
+    tolerances.append(position)
+    force = ET.Element("force")
+    force.text = " {} ".format(ftol / Ha * Bohr)
+    tolerances.append(force)
+    optimizer.append(tolerances)
+    motion.append(optimizer)
+    return motion
+
+
+@typeguard.typechecked
+def setup_output(keep_trajectory: bool) -> ET.Element:
+    output = ET.Element("output", prefix="output")
+    checkpoint = ET.Element(
+        "checkpoint",
+        filename="checkpoint",
+        stride="1",
+        overwrite="True",
+    )
+    output.append(checkpoint)
+    if keep_trajectory:
+        trajectory = ET.Element(  # needed in any case
+            "trajectory",
+            stride="1",
+            format="ase",
+            filename="trajectory",
+            bead="0",
+        )
+        trajectory.text = r" positions "
+        output.append(trajectory)
+    return output
+
+
+def _execute_ipi(
+    hamiltonian_names: list[str],
+    client_args: list[list[str]],
+    keep_trajectory: bool,
+    command_server: str,
+    command_client: str,
     env_vars: dict = {},
     stdout: str = "",
     stderr: str = "",
+    inputs: list = [],
+    outputs: list = [],
     parsl_resource_specification: Optional[dict] = None,
 ) -> str:
     env_command = 'export ' + ' '.join([f"{name}={value}" for name, value in env_vars.items()])
-    command_start = ' '.join([
-        command_launch, 'run',
-        f'--input_config={inputs[0].filepath}',
-        f'--start_xyz={inputs[1].filepath}',
-        *[f'--path_hamiltonian={_.filepath}' for _ in inputs[2:]], '&'
-    ])
-    command_end = ' '.join([
-        command_launch, 'clean', f'--output_xyz={outputs[0].filepath}',
-        f'--output_traj={outputs[1].filepath}' if len(outputs) == 2 else ''
-    ])
+    command_start = make_start_command(command_server, inputs[0], inputs[1])
+    commands_client = []
+    for i, name in enumerate(hamiltonian_names):
+        args = client_args[i]
+        assert len(args) == 1  # only have one client per hamiltonian
+        for arg in args:
+            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg,)
+
+    command_end = f'{command_server} --cleanup --output_xyz={outputs[0].filepath}'
+    command_copy = f'cp walker-0_output.trajectory_0.ase {outputs[1].filepath}' if keep_trajectory else ''
     command_list = [
         TMP_COMMAND,
         CD_COMMAND,
         env_command,
         command_start,
+        "sleep 3s",
+        *commands_client,
         "wait",
         command_end,
+        command_copy,
     ]
     return "\n".join(command_list)
 
 
-execute_ase = bash_app(_execute_ase, executors=["ModelEvaluation"])
+execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 
 
 @typeguard.typechecked
 def optimize(
     state: Union[Geometry, AppFuture],
     hamiltonian: Hamiltonian,
-    mode: str = 'full',
-    steps: int = int(1e12),
+    steps: int = 5000,
     keep_trajectory: bool = False,
-    pressure: float = 0,
-    f_max: float = 1e-3,
+    mode: str = "lbfgs",
+    etol: float = 1e-3,
+    ptol: float = 1e-5,
+    ftol: float = 1e-3,
 ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
+    hamiltonians_map, forces = setup_forces(hamiltonian)
+    sockets = setup_sockets(hamiltonians_map)
 
-    assert mode in ALLOWED_MODES
-    assert steps > 0
-    assert f_max > 0
+    initialize = ET.Element("initialize", nbeads="1")
+    start = ET.Element("file", mode="ase", cell_units="angstrom")
+    start.text = " start_0.xyz "
+    initialize.append(start)
+    motion = setup_motion(mode, etol, ptol, ftol)
+
+    system = ET.Element("system", prefix="walker-0")
+    system.append(initialize)
+    system.append(motion)
+    system.append(forces)
+
+    output = setup_output(keep_trajectory)
+
+    simulation = ET.Element("simulation", mode="static")
+    simulation.append(output)
+    for socket in sockets:
+        simulation.append(socket)
+    simulation.append(system)
+    total_steps = ET.Element("total_steps")
+    total_steps.text = " {} ".format(steps)
+    simulation.append(total_steps)
 
     context = psiflow.context()
     definition = context.definitions["ModelEvaluation"]
-
-    command_list = [EXECUTABLE]
-    if definition.max_simulation_time is not None:
-        max_time = 0.9 * (60 * definition.max_simulation_time)
-        command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
-    command_launch = " ".join(command_list)
-
-    input_geometry = Dataset([state]).extxyz
-    hamiltonian = 1.0 * hamiltonian  # convert to mixture
-    names, coeffs = label_forces(hamiltonian), hamiltonian.coefficients
-    input_forces = serialize_mixture(hamiltonian, dtype="float64")          # double precision for MLPs
-    forces = [
-        dict(forcefield=n, weight=str(c), file=f.filename) for n, c, f in zip(names, coeffs, input_forces)
-    ]
-
-    config = dict(
-        task='ASE optimisation',
-        forces=forces,
-        mode=mode,
-        f_max=f_max,
-        pressure=pressure,
-        max_steps=steps,
-        keep_trajectory=keep_trajectory,
-    )
-    input_future = dump_json(
-        outputs=[context.new_file("input_", ".json")],
-        **config,
+    input_future = save_xml(
+        simulation,
+        outputs=[context.new_file("input_", ".xml")],
     ).outputs[0]
-    inputs = [input_future, input_geometry, *input_forces]
+    inputs = [
+        input_future,
+        Dataset([state]).extxyz,
+    ]
+    inputs += [h.serialize_function(dtype="float64") for h in hamiltonians_map.values()]
 
+    hamiltonian_names = list(hamiltonians_map.keys())
+    client_args = []
+    for name in hamiltonian_names:
+        args = definition.get_client_args(name, 1, "minimize")
+        client_args.append(args)
     outputs = [context.new_file("data_", ".xyz")]
     if keep_trajectory:
         outputs.append(context.new_file("opt_", ".xyz"))
 
-    # print(*inputs, sep='\n')
-    # print(*outputs, sep='\n')
+    command_server = definition.server_command()
+    command_client = definition.client_command()
+    resources = definition.wq_resources(1)
 
-    result = execute_ase(
-        command_launch=command_launch,
+    result = execute_ipi(
+        hamiltonian_names,
+        client_args,
+        keep_trajectory,
+        command_server,
+        command_client,
         env_vars=definition.env_vars,
-        inputs=inputs,
-        outputs=outputs,
         stdout=parsl.AUTO_LOGNAME,
         stderr=parsl.AUTO_LOGNAME,
-        parsl_resource_specification=definition.wq_resources(1),
+        inputs=inputs,
+        outputs=outputs,
+        parsl_resource_specification=resources,
     )
 
-    final = Dataset(None, result.outputs[0])[-1]
+    final = Dataset(None, result.outputs[0]).evaluate(hamiltonian)[-1]
     if keep_trajectory:
         trajectory = Dataset(None, result.outputs[1])
         return final, trajectory
