@@ -400,9 +400,9 @@ def _execute_ipi(
         commands_copy += f'cp walker-{i}_output.properties {outputs[i + 1].filepath}',
         if keep_trajectory:
             commands_copy += f'cp walker-{i}_output.trajectory_0.extxyz {outputs[i + nwalkers + 1].filepath}',
-    command_copy = '; '.join(commands_copy)
     if coupling_command is not None:
-        command_copy += coupling_command
+        commands_copy += coupling_command,
+    command_copy = '; '.join(commands_copy)
 
     command_list = [
         TMP_COMMAND,
