@@ -10,6 +10,7 @@ import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference
 from psiflow.utils.apps import copy_app_future
+from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 
 @typeguard.typechecked
@@ -32,19 +33,14 @@ def d3_singlepoint_pre(
     stderr: str = "",
 ) -> str:
     from psiflow.reference._dftd3 import input_string
-
     input_str = input_string(geometry, parameters, properties)
-    tmp_command = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
-    cd_command = "cd $mytmpdir;"
-    write_command = "echo '{}' > input.json;".format(input_str)
     command_list = [
-        tmp_command,
-        cd_command,
-        write_command,
-        "python -u",
-        d3_command,
+        TMP_COMMAND,
+        CD_COMMAND,
+        f"echo '{input_str}' > input.json",
+        f"python -u {d3_command}",
     ]
-    return " ".join(command_list)
+    return "\n".join(command_list)
 
 
 @typeguard.typechecked

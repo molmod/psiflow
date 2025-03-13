@@ -17,6 +17,7 @@ from parsl.app.app import bash_app, python_app
 import psiflow
 from psiflow.geometry import Geometry, NullState
 from psiflow.reference.reference import Reference
+from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -171,12 +172,8 @@ def cp2k_singlepoint_pre(
     inputs: list = [],
     parsl_resource_specification: Optional[dict] = None,
 ):
-    tmp_command = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir")'
-    cd_command = "cd $mytmpdir"
-    cp_command = "cp {} cp2k.inp".format(inputs[0].filepath)
-
-    command_list = [tmp_command, cd_command, cp_command, cp2k_command]
-
+    cp_command = f"cp {inputs[0].filepath} cp2k.inp"
+    command_list = [TMP_COMMAND, CD_COMMAND, cp_command, cp2k_command]
     return " && ".join(command_list)
 
 

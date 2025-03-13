@@ -14,9 +14,11 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, mass_weight
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.sampling.optimize import setup_forces, setup_sockets
+from psiflow.sampling.sampling import (setup_sockets, label_forces, make_force_xml, serialize_mixture,
+                                       make_start_command, make_client_command)
 from psiflow.utils.apps import multiply
 from psiflow.utils.io import load_numpy, save_xml
+from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 
 @typeguard.typechecked
@@ -95,38 +97,28 @@ def _execute_ipi(
     outputs: list = [],
     parsl_resource_specification: Optional[dict] = None,
 ) -> str:
-    tmp_command = "tmpdir=$(mktemp -d);"
-    cd_command = "cd $tmpdir;"
-    command_start = command_server + " --nwalkers=1"
-    command_start += " --input_xml={}".format(inputs[0].filepath)
-    command_start += " --start_xyz={}".format(inputs[1].filepath)
-    command_start += "  & \n"
-    command_clients = ""
+    command_start = make_start_command(command_server, inputs[0], inputs[1])
+    commands_client = []
     for i, name in enumerate(hamiltonian_names):
         args = client_args[i]
         assert len(args) == 1  # only have one client per hamiltonian
-        for _j, arg in enumerate(args):
-            command_ = command_client + " --address={}".format(name.lower())
-            command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
-            command_ += " --start={}".format(inputs[1].filepath)
-            command_ += " " + arg + " "
-            command_ += " & \n"
-            command_clients += command_
+        for arg in args:
+            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg,)
 
-    command_end = command_server
-    command_end += " --cleanup;"
-    command_copy = " cp i-pi.output_full.hess {};".format(outputs[0])
+    command_end = f'{command_server} --cleanup'
+    command_copy = f'cp i-pi.output_full.hess {outputs[0]}'
+
     command_list = [
-        tmp_command,
-        cd_command,
+        TMP_COMMAND,
+        CD_COMMAND,
         command_start,
-        "sleep 3s;",
-        command_clients,
-        "wait;",
+        "sleep 3s",
+        *commands_client,
+        "wait",
         command_end,
         command_copy,
     ]
-    return " ".join(command_list)
+    return "\n".join(command_list)
 
 
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
@@ -141,8 +133,10 @@ def compute_harmonic(
     pos_shift: float = 0.01,
     energy_shift: float = 0.00095,
 ) -> AppFuture:
-    hamiltonians_map, forces = setup_forces(hamiltonian)
-    sockets = setup_sockets(hamiltonians_map)
+    hamiltonian = 1 * hamiltonian
+    names = label_forces(hamiltonian)
+    sockets = setup_sockets(names)
+    forces = make_force_xml(hamiltonian, names)
 
     initialize = ET.Element("initialize", nbeads="1")
     start = ET.Element("file", mode="ase", cell_units="angstrom")
@@ -176,11 +170,10 @@ def compute_harmonic(
         input_future,
         Dataset([state]).extxyz,
     ]
-    inputs += [h.serialize_function(dtype="float64") for h in hamiltonians_map.values()]
+    inputs += serialize_mixture(hamiltonian, dtype="float64")
 
-    hamiltonian_names = list(hamiltonians_map.keys())
     client_args = []
-    for name in hamiltonian_names:
+    for name in names:
         args = definition.get_client_args(name, 1, "vibrations")
         client_args.append(args)
     outputs = [
@@ -192,7 +185,7 @@ def compute_harmonic(
     resources = definition.wq_resources(1)
 
     result = execute_ipi(
-        hamiltonian_names,
+        names,
         client_args,
         command_server,
         command_client,
