@@ -2,6 +2,21 @@
 import os
 
 
+class SocketNotFoundException(Exception):
+    pass
+
+
+def wait_for_socket(address: 'Path', timeout: float = 10, interval: float = 0.1) -> None:
+    """"""
+    import time
+    while not address.exists():
+        time.sleep(interval)
+        timeout -= interval
+        if timeout < 0:
+            raise SocketNotFoundException(f'Could not find socket "{address}" to connect to..')
+    return
+
+
 def main():
     import argparse
     import time
@@ -73,18 +88,22 @@ def main():
 
     affinity = os.sched_getaffinity(os.getpid())
     print("CPU affinity after function init: {}".format(affinity))
-
     try:
         t0 = time.time()
         function([template] * 10)  # torch warm-up before simulation
         print("time for 10 evaluations: {}".format(time.time() - t0))
+        socket_address = Path.cwd() / args.address
+        wait_for_socket(socket_address)
         run_driver(
             unix=True,
-            address=str(Path.cwd() / args.address),
+            address=str(socket_address),
             driver=driver,
             sockets_prefix="",
         )
     except ForceMagnitudeException as e:
-        print(e)  # induce timeout in server
-    except ConnectionResetError as e:  # some other client induced a timeout
+        print(e)                                                # induce timeout in server
+    except ConnectionResetError as e:                           # some other client induced a timeout
         print(e)
+    except SocketNotFoundException as e:
+        print(e, *list(Path.cwd().iterdir()), sep='\n')         # server-side socket not found
+
