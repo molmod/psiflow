@@ -410,7 +410,6 @@ def _execute_ipi(
         write_command,
         env_command,
         command_start,
-        "sleep 3s",
         *commands_client,
         "wait",
         command_end,
