@@ -12,7 +12,6 @@ def wait_for_socket(address: 'Path', timeout: float = 10, interval: float = 0.1)
     while not address.exists():
         time.sleep(interval)
         timeout -= interval
-        print(timeout)
         if timeout < 0:
             raise SocketNotFoundException(f'Could not find socket "{address}" to connect to..')
     return
