@@ -393,7 +393,6 @@ def _execute_ipi(
         cd_command,
         write_command,
         command_start,
-        "sleep 3s;",
         command_clients,
         "wait;",
         command_end,
