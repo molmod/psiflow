@@ -14,30 +14,9 @@ from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
+from psiflow.sampling.sampling import setup_sockets, make_start_command, make_client_command
 from psiflow.utils.io import save_xml
-
-
-@typeguard.typechecked
-def setup_sockets(
-    hamiltonians_map: dict[str, Hamiltonian],
-) -> list[ET.Element]:
-    sockets = []
-    for name in hamiltonians_map.keys():
-        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
-        timeout = ET.Element("timeout")
-        timeout.text = str(
-            60 * psiflow.context().definitions["ModelEvaluation"].timeout
-        )
-        ffsocket.append(timeout)
-        exit_on = ET.Element("exit_on_disconnect")
-        exit_on.text = " TRUE "
-        ffsocket.append(exit_on)
-        address = ET.Element("address")  # placeholder
-        address.text = name.lower()
-        ffsocket.append(address)
-
-        sockets.append(ffsocket)
-    return sockets
+from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 
 @typeguard.typechecked
@@ -119,47 +98,29 @@ def _execute_ipi(
     outputs: list = [],
     parsl_resource_specification: Optional[dict] = None,
 ) -> str:
-    tmp_command = "tmpdir=$(mktemp -d);"
-    cd_command = "cd $tmpdir;"
-    env_command = " "
-    for name, value in env_vars.items():
-        env_command += "export {}={}; ".format(name, value)
-    command_start = command_server + " --nwalkers=1"
-    command_start += " --input_xml={}".format(inputs[0].filepath)
-    command_start += " --start_xyz={}".format(inputs[1].filepath)
-    command_start += "  & \n"
-    command_clients = ""
+    env_command = 'export ' + ' '.join([f"{name}={value}" for name, value in env_vars.items()])
+    command_start = make_start_command(command_server, inputs[0], inputs[1])
+    commands_client = []
     for i, name in enumerate(hamiltonian_names):
         args = client_args[i]
         assert len(args) == 1  # only have one client per hamiltonian
-        for _j, arg in enumerate(args):
-            command_ = command_client + " --address={}".format(name.lower())
-            command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
-            command_ += " --start={}".format(inputs[1].filepath)
-            command_ += " " + arg + " "
-            command_ += " & \n"
-            command_clients += command_
+        for arg in args:
+            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg),
 
-    command_end = command_server
-    command_end += " --cleanup"
-    command_end += " --output_xyz={}; ".format(outputs[0].filepath)
-    command_copy = ""
-    if keep_trajectory:
-        command_copy += "cp walker-0_output.trajectory_0.ase {}; ".format(
-            outputs[1].filepath
-        )
+    command_end = f'{command_server} --cleanup --output_xyz={outputs[0].filepath}'
+    command_copy = f'cp walker-0_output.trajectory_0.ase {outputs[1].filepath}' if keep_trajectory else ''
     command_list = [
-        tmp_command,
-        cd_command,
+        TMP_COMMAND,
+        CD_COMMAND,
         env_command,
         command_start,
-        "sleep 3s;",
-        command_clients,
-        "wait;",
+        "sleep 3s",
+        *commands_client,
+        "wait",
         command_end,
         command_copy,
     ]
-    return " ".join(command_list)
+    return "\n".join(command_list)
 
 
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])

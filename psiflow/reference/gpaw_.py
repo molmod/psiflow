@@ -11,6 +11,7 @@ import psiflow
 from psiflow.geometry import Geometry, new_nullstate
 from psiflow.reference.reference import Reference
 from psiflow.utils.apps import copy_app_future
+from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 
 @typeguard.typechecked
@@ -34,18 +35,15 @@ def gpaw_singlepoint_pre(
     stderr: str = "",
 ) -> str:
     from psiflow.reference.gpaw_ import input_string
-
     input_str = input_string(geometry, gpaw_parameters, properties)
-    tmp_command = 'mytmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t "mytmpdir");'
-    cd_command = "cd $mytmpdir;"
-    write_command = "echo '{}' > input.json;".format(input_str)
+    write_command = f"echo '{input_str}' > input.json"
     command_list = [
-        tmp_command,
-        cd_command,
+        TMP_COMMAND,
+        CD_COMMAND,
         write_command,
         gpaw_command,
     ]
-    return " ".join(command_list)
+    return "\n".join(command_list)
 
 
 @typeguard.typechecked
