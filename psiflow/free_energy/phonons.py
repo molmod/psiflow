@@ -15,8 +15,10 @@ from psiflow.data import Dataset
 from psiflow.geometry import Geometry, mass_weight
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.sampling.optimize import setup_forces, setup_sockets
+from psiflow.sampling.sampling import make_start_command, make_client_command
 from psiflow.utils.apps import multiply
 from psiflow.utils.io import load_numpy, save_xml
+from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 
 @typeguard.typechecked
@@ -95,38 +97,28 @@ def _execute_ipi(
     outputs: list = [],
     parsl_resource_specification: Optional[dict] = None,
 ) -> str:
-    tmp_command = "tmpdir=$(mktemp -d);"
-    cd_command = "cd $tmpdir;"
-    command_start = command_server + " --nwalkers=1"
-    command_start += " --input_xml={}".format(inputs[0].filepath)
-    command_start += " --start_xyz={}".format(inputs[1].filepath)
-    command_start += "  & \n"
-    command_clients = ""
+    command_start = make_start_command(command_server, inputs[0], inputs[1])
+    commands_client = []
     for i, name in enumerate(hamiltonian_names):
         args = client_args[i]
         assert len(args) == 1  # only have one client per hamiltonian
-        for _j, arg in enumerate(args):
-            command_ = command_client + " --address={}".format(name.lower())
-            command_ += " --path_hamiltonian={}".format(inputs[2 + i].filepath)
-            command_ += " --start={}".format(inputs[1].filepath)
-            command_ += " " + arg + " "
-            command_ += " & \n"
-            command_clients += command_
+        for arg in args:
+            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg),
 
-    command_end = command_server
-    command_end += " --cleanup;"
-    command_copy = " cp i-pi.output_full.hess {};".format(outputs[0])
+    command_end = f'{command_server} --cleanup'
+    command_copy = f'cp i-pi.output_full.hess {outputs[0]}'
+
     command_list = [
-        tmp_command,
-        cd_command,
+        TMP_COMMAND,
+        CD_COMMAND,
         command_start,
-        "sleep 3s;",
-        command_clients,
-        "wait;",
+        "sleep 3s",
+        *commands_client,
+        "wait",
         command_end,
         command_copy,
     ]
-    return " ".join(command_list)
+    return "\n".join(command_list)
 
 
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
