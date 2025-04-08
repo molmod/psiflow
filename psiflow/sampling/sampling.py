@@ -240,6 +240,11 @@ def setup_system_template(
     else:
         velocities.text = " 300 "
     initialize.append(velocities)
+    if walkers[0].masses is not None:
+        masses = ET.Element("masses", mode="manual")
+        amu = 1822.8885  # amu in atomic units
+        masses.text = str(list(walkers[0].masses * amu)).replace("[", "[ ").replace("]", " ]")  # replace str(list()) with np.array_str()?
+        initialize.append(masses)
 
     system = ET.Element("system", prefix="walker-INDEX")
     system.append(initialize)
