@@ -18,6 +18,14 @@ class ForceMagnitudeException(Exception):
     pass
 
 
+class TimeoutException(Exception):
+    pass
+
+
+def timeout_handler(signum, frame):
+    raise TimeoutException
+
+
 @typeguard.typechecked
 def check_forces(
     forces: np.ndarray,

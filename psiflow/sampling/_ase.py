@@ -22,21 +22,15 @@ from ase.calculators.calculator import Calculator, all_properties
 from ase.calculators.mixing import LinearCombinationCalculator
 from ase.optimize.precon import PreconLBFGS
 from ase.filters import FrechetCellFilter
+
 from psiflow.geometry import Geometry
 from psiflow.functions import function_from_json, EnergyFunction
+from psiflow.sampling.utils import TimeoutException, timeout_handler
 
 
 ALLOWED_MODES: tuple[str, ...] = ('full', 'fix_volume', 'fix_shape', 'fix_cell')
 FILE_OUT: str = 'out.xyz'
 FILE_TRAJ: str = 'out.traj'
-
-
-class TimeoutException(Exception):
-    pass
-
-
-def timeout_handler(signum, frame):
-    raise TimeoutException
 
 
 class FunctionCalculator(Calculator):
@@ -54,8 +48,7 @@ class FunctionCalculator(Calculator):
     ):
         super().calculate(atoms, properties, system_changes)
         geometry = Geometry.from_atoms(self.atoms)
-        outputs = self.function([geometry])
-        self.results = {name: array[0] for name, array in outputs.items()}
+        self.results = self.function(geometry)
         self.results['free_energy'] = self.results['energy']                # required by optimiser
 
 
