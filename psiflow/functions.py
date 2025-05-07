@@ -256,7 +256,7 @@ class MACEFunction(EnergyFunction):
         )
         config = data.config_from_atoms(atoms)
         data = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.r_max)
-        batch = Batch.from_data_list([data])
+        batch = Batch.from_data_list([data]).to(device=self.device)
         out = self.model(batch.to_dict(), compute_stress=cell is not None)
         energy += out["energy"].detach().cpu().item()
         forces += out["forces"].detach().cpu().numpy()
