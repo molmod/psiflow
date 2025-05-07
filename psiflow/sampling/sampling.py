@@ -237,29 +237,6 @@ def setup_forces(weights_header: tuple[str, ...]) -> ET.Element:
 
 
 @typeguard.typechecked
-def setup_sockets(
-    hamiltonians_map: dict[str, Hamiltonian],
-) -> list[ET.Element]:
-    sockets = []
-    for name in hamiltonians_map.keys():
-        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
-        timeout = ET.Element("timeout")
-        timeout.text = str(
-            60 * psiflow.context().definitions["ModelEvaluation"].timeout
-        )
-        ffsocket.append(timeout)
-        exit_on = ET.Element("exit_on_disconnect")
-        exit_on.text = " TRUE "
-        ffsocket.append(exit_on)
-        address = ET.Element("address")  # placeholder
-        address.text = name.lower()
-        ffsocket.append(address)
-
-        sockets.append(ffsocket)
-    return sockets
-
-
-@typeguard.typechecked
 def setup_ffplumed(nplumed: int) -> list[ET.Element]:
     ffplumed = []
     for i in range(nplumed):

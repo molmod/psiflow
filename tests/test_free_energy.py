@@ -9,7 +9,7 @@ from psiflow.free_energy import (
 )
 from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, Harmonic, MACEHamiltonian
-from psiflow.sampling import optimize
+from psiflow.sampling.ase import optimize
 
 
 def test_integration_simple(dataset):

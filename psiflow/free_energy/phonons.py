@@ -13,7 +13,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, mass_weight
-from psiflow.hamiltonians import Hamiltonian
+from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian
 from psiflow.sampling.sampling import (
     setup_sockets,
     label_forces,
@@ -118,7 +118,6 @@ def _execute_ipi(
         TMP_COMMAND,
         CD_COMMAND,
         command_start,
-        "sleep 3s",
         *commands_client,
         "wait",
         command_end,
@@ -139,7 +138,7 @@ def compute_harmonic(
     pos_shift: float = 0.01,
     energy_shift: float = 0.00095,
 ) -> AppFuture:
-    hamiltonian = 1 * hamiltonian
+    hamiltonian: MixtureHamiltonian = 1 * hamiltonian
     names = label_forces(hamiltonian)
     sockets = setup_sockets(names)
     forces = make_force_xml(hamiltonian, names)
