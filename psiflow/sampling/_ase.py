@@ -3,6 +3,7 @@ Structure optimisation through ASE
 TODO: do we need to check for very large forces?
 TODO: what units are pressure?
 TODO: what to do when max_steps is reached before converging?
+TODO: timeout is duplicated code
 """
 
 import os
