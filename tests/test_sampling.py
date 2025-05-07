@@ -467,6 +467,23 @@ FLUSH STRIDE=1
             assert len(f.read()) > 0
 
 
+def test_optimize_ipi(dataset):
+    einstein = EinsteinCrystal(dataset[2], force_constant=10)
+    final = optimize_ipi(dataset[0], einstein, steps=1000000).result()
+
+    assert np.allclose(
+        final.per_atom.positions,
+        dataset[2].result().per_atom.positions,
+        atol=1e-4,
+    )
+    assert np.allclose(final.energy, 0.0)  # einstein energy >= 0
+
+    # i-PI optimizer's curvature guess fails in optimum --> don't start in dataset[2]
+    optimized = optimize_dataset_ipi(dataset[3:5], einstein, steps=1000000)
+    for g in optimized.geometries().result():
+        assert np.allclose(g.energy, 0.0)
+
+
 def test_optimize_ase(dataset):
     # TODO: test applied_pressure?
 
