@@ -25,6 +25,7 @@ dependencies = [
 psiflow-client = "psiflow.sampling.client:main"
 psiflow-server = "psiflow.sampling.server:main"
 psiflow-mace-train = "psiflow.models.mace_utils:main"
+psiflow-ase-opt = "psiflow.sampling._ase:main"
 
 
 [project.optional-dependencies]

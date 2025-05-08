@@ -8,7 +8,8 @@ import psiflow
 from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
 from psiflow.models import MACE
-from psiflow.sampling import optimize, optimize_dataset
+from psiflow.sampling.optimize import optimize as optimize_ipi, optimize_dataset as optimize_dataset_ipi
+from psiflow.sampling.ase import optimize as optimize_ase, optimize_dataset as optimize_dataset_ase
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.sampling import sample, template
 from psiflow.sampling.server import parse_checkpoint
@@ -466,23 +467,69 @@ FLUSH STRIDE=1
             assert len(f.read()) > 0
 
 
-def test_optimize(dataset):
+def test_optimize_ipi(dataset):
     einstein = EinsteinCrystal(dataset[2], force_constant=10)
-    final = optimize(dataset[0], einstein, steps=1000000).result()
+    final = optimize_ipi(dataset[0], einstein, steps=1000000).result()
 
     assert np.allclose(
         final.per_atom.positions,
         dataset[2].result().per_atom.positions,
         atol=1e-4,
     )
-    # assert np.allclose(
-    #        final.cell,
-    #        dataset[2].result().cell,
-    #        atol=1e-4,
-    #        )
     assert np.allclose(final.energy, 0.0)  # einstein energy >= 0
 
     # i-PI optimizer's curvature guess fails in optimum --> don't start in dataset[2]
-    optimized = optimize_dataset(dataset[3:5], einstein, steps=1000000)
+    optimized = optimize_dataset_ipi(dataset[3:5], einstein, steps=1000000)
     for g in optimized.geometries().result():
         assert np.allclose(g.energy, 0.0)
+
+
+def test_optimize_ase(dataset):
+    # TODO: test applied_pressure?
+
+    einstein = EinsteinCrystal(dataset[2], force_constant=10)
+    final = optimize_ase(dataset[0], einstein, mode='fix_cell', f_max=1e-4).result()
+
+    assert np.allclose(
+        final.per_atom.positions,
+        dataset[2].result().per_atom.positions,
+        atol=1e-4,
+    )
+    assert np.allclose(final.energy, 0.0)  # einstein energy >= 0
+
+    optimized = optimize_dataset_ase(dataset[3:5], einstein, mode='fix_cell', f_max=1e-4)
+    for g in optimized.geometries().result():
+        assert np.allclose(g.energy, 0.0)
+
+    geom = dataset[0].result()
+    plumed_input = """
+    UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+    CV: VOLUME
+    RESTRAINT ARG=CV AT=75 KAPPA=1
+    """
+    plumed_v = PlumedHamiltonian(plumed_input)
+    final = optimize_ase(geom, plumed_v, f_max=1e-8).result()
+    assert np.allclose(final.energy, 0.0) and np.allclose(final.volume, 75)
+
+    plumed_input = """
+    UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+    cell: CELL
+    RESTRAINT ARG=cell.ax AT=3 KAPPA=1
+    RESTRAINT ARG=cell.ay AT=.2 KAPPA=1
+    RESTRAINT ARG=cell.az AT=.1 KAPPA=1
+    """
+    plumed_c = PlumedHamiltonian(plumed_input)
+    final = optimize_ase(geom, plumed_c, mode='fix_shape', f_max=1e-8).result()
+    ratio = geom.cell / final.cell
+    assert np.allclose(final.cell[0], [3, 0, 0])
+    assert np.allclose(ratio[ratio != 0], ratio[0, 0])          # check isotropic scaling (for nonzero components)
+
+    final = optimize_ase(geom, plumed_c, mode='fix_volume', f_max=1e-8).result()
+    assert np.allclose(final.cell[0], [3, .2, .1], atol=1e-4)
+    assert np.allclose(geom.volume, final.volume)
+
+    final = optimize_ase(geom, plumed_v + plumed_c, f_max=1e-8).result()
+    assert np.allclose(final.cell[0], [3, .2, .1], atol=1e-4)
+    assert np.allclose(final.volume, 75)
+
+

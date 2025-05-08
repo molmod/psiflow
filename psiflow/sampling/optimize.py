@@ -114,7 +114,6 @@ def _execute_ipi(
         CD_COMMAND,
         env_command,
         command_start,
-        "sleep 3s",
         *commands_client,
         "wait",
         command_end,

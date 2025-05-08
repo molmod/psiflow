@@ -14,6 +14,7 @@ from ase.io import read, write
 from ase.units import Bohr, Ha, _e, _hbar
 
 from psiflow.geometry import Geometry
+from psiflow.sampling.utils import TimeoutException, timeout_handler
 
 NONPERIODIC_CELL = 1000 * np.eye(3)
 
@@ -305,14 +306,6 @@ def insert_addresses(input_xml):
                     address = child_
                     break
             address.text = str(Path.cwd() / address.text.strip())
-
-
-class TimeoutException(Exception):
-    pass
-
-
-def timeout_handler(signum, frame):
-    raise TimeoutException
 
 
 def insert_data_start(input_xml, data_start):

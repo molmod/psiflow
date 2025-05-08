@@ -114,11 +114,12 @@ class MixtureHamiltonian(Hamiltonian):
 
     def __init__(
         self,
-        hamiltonians: list[Hamiltonian],
-        coefficients: list[float],
+        hamiltonians: Union[tuple, list][Hamiltonian],
+        coefficients: Union[tuple, list][float],
     ) -> None:
-        self.hamiltonians = hamiltonians
-        self.coefficients = coefficients
+        assert len(hamiltonians) == len(coefficients)
+        self.hamiltonians = list(hamiltonians)
+        self.coefficients = list(coefficients)
 
     def compute(  # override compute for efficient batching
         self,

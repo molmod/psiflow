@@ -2,13 +2,14 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 import math
 import xml.etree.ElementTree as ET
-from typing import Optional, Union
+from typing import Optional, Union, Iterable
+from collections import defaultdict
 
 import parsl
 import typeguard
 from parsl.app.app import bash_app
 from parsl.data_provider.files import File
-from parsl.dataflow.futures import AppFuture
+from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
 from psiflow.data import Dataset
@@ -31,23 +32,15 @@ def template(
     total_hamiltonian = 1.0 * sum([w.hamiltonian for w in walkers], start=Zero())
     assert not total_hamiltonian == Zero()
 
-    # create string names for hamiltonians and sort
-    names = []
-    counts = {}
-    for h in total_hamiltonian.hamiltonians:
-        if h.__class__.__name__ not in counts:
-            counts[h.__class__.__name__] = 0
-        count = counts.get(h.__class__.__name__)
-        counts[h.__class__.__name__] += 1
-        names.append(h.__class__.__name__ + str(count))
-    _, hamiltonians = zip(*sorted(zip(names, total_hamiltonian.hamiltonians)))
-    _, coefficients = zip(*sorted(zip(names, total_hamiltonian.coefficients)))
-    hamiltonians = list(hamiltonians)
-    coefficients = list(coefficients)
-    names = sorted(names)
+    # create string names for hamiltonians and sort     TODO: why sort?
+    names = label_forces(total_hamiltonian)
+    names, hamiltonians, coefficients = zip(
+        *sorted(zip(names, total_hamiltonian.hamiltonians, total_hamiltonian.coefficients))
+    )
     assert MixtureHamiltonian(hamiltonians, coefficients) == total_hamiltonian
     total_hamiltonian = MixtureHamiltonian(hamiltonians, coefficients)
 
+    # TODO: take care of ordering in weights_table (names <> total_hamiltonian.hamiltonians)
     weights_header = tuple(names)
     if walkers[0].npt:
         weights_header = ("TEMP", "PRESSURE") + weights_header
@@ -97,6 +90,53 @@ def template(
 
     hamiltonians_map = {n: h for n, h in zip(names, hamiltonians)}
     return hamiltonians_map, weights_table, plumed_list
+
+
+def label_forces(hamiltonian: MixtureHamiltonian) -> list[str]:
+    """Create unique string name for every hamiltonian"""
+    # TODO: move into class?
+    assert isinstance(hamiltonian, MixtureHamiltonian)
+    names, counts = [], defaultdict(lambda: 0)
+    for h in hamiltonian.hamiltonians:
+        name = h.__class__.__name__
+        names.append(f'{name}{counts[name]}')
+        counts[name] += 1
+    return names
+
+
+def make_force_xml(hamiltonian: MixtureHamiltonian, names: list[str]) -> ET.Element:
+    forces = ET.Element("forces")
+    for n, c in zip(names, hamiltonian.coefficients):
+        forces.append(ET.Element("force", forcefield=n, weight=str(c)))
+    return forces
+
+
+def serialize_mixture(hamiltonian: MixtureHamiltonian, **kwargs) -> list[DataFuture]:
+    # TODO: move into class?
+    return [h.serialize_function(**kwargs) for h in hamiltonian.hamiltonians]
+
+
+@typeguard.typechecked
+def setup_sockets(
+    hamiltonian_labels: Iterable[str],
+) -> list[ET.Element]:
+    sockets = []
+    for name in hamiltonian_labels:
+        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
+        timeout = ET.Element("timeout")
+        timeout.text = str(
+            60 * psiflow.context().definitions["ModelEvaluation"].timeout
+        )
+        ffsocket.append(timeout)
+        exit_on = ET.Element("exit_on_disconnect")
+        exit_on.text = " TRUE "
+        ffsocket.append(exit_on)
+        address = ET.Element("address")  # placeholder
+        address.text = name.lower()
+        ffsocket.append(address)
+
+        sockets.append(ffsocket)
+    return sockets
 
 
 @typeguard.typechecked
@@ -194,29 +234,6 @@ def setup_forces(weights_header: tuple[str, ...]) -> ET.Element:
         force = ET.Element("force", forcefield=name, weight=name.upper())
         forces.append(force)
     return forces
-
-
-@typeguard.typechecked
-def setup_sockets(
-    hamiltonians_map: dict[str, Hamiltonian],
-) -> list[ET.Element]:
-    sockets = []
-    for name in hamiltonians_map.keys():
-        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
-        timeout = ET.Element("timeout")
-        timeout.text = str(
-            60 * psiflow.context().definitions["ModelEvaluation"].timeout
-        )
-        ffsocket.append(timeout)
-        exit_on = ET.Element("exit_on_disconnect")
-        exit_on.text = " TRUE "
-        ffsocket.append(exit_on)
-        address = ET.Element("address")  # placeholder
-        address.text = name.lower()
-        ffsocket.append(address)
-
-        sockets.append(ffsocket)
-    return sockets
 
 
 @typeguard.typechecked
@@ -487,7 +504,7 @@ def _sample(
         verbosity=str(verbosity),
         safe_stride=str(checkpoint_step),
     )
-    sockets = setup_sockets(hamiltonians_map)
+    sockets = setup_sockets(hamiltonians_map.keys())
     for socket in sockets:
         simulation.append(socket)
     ffplumed = setup_ffplumed(len(plumed_list))

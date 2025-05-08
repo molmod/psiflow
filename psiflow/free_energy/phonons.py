@@ -13,9 +13,15 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, mass_weight
-from psiflow.hamiltonians import Hamiltonian
-from psiflow.sampling.optimize import setup_forces, setup_sockets
-from psiflow.sampling.sampling import make_start_command, make_client_command
+from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian
+from psiflow.sampling.sampling import (
+    setup_sockets,
+    label_forces,
+    make_force_xml,
+    serialize_mixture,
+    make_start_command,
+    make_client_command
+)
 from psiflow.utils.apps import multiply
 from psiflow.utils.io import load_numpy, save_xml
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
@@ -112,7 +118,6 @@ def _execute_ipi(
         TMP_COMMAND,
         CD_COMMAND,
         command_start,
-        "sleep 3s",
         *commands_client,
         "wait",
         command_end,
@@ -133,8 +138,10 @@ def compute_harmonic(
     pos_shift: float = 0.01,
     energy_shift: float = 0.00095,
 ) -> AppFuture:
-    hamiltonians_map, forces = setup_forces(hamiltonian)
-    sockets = setup_sockets(hamiltonians_map)
+    hamiltonian: MixtureHamiltonian = 1 * hamiltonian
+    names = label_forces(hamiltonian)
+    sockets = setup_sockets(names)
+    forces = make_force_xml(hamiltonian, names)
 
     initialize = ET.Element("initialize", nbeads="1")
     start = ET.Element("file", mode="ase", cell_units="angstrom")
@@ -168,11 +175,10 @@ def compute_harmonic(
         input_future,
         Dataset([state]).extxyz,
     ]
-    inputs += [h.serialize_function(dtype="float64") for h in hamiltonians_map.values()]
+    inputs += serialize_mixture(hamiltonian, dtype="float64")
 
-    hamiltonian_names = list(hamiltonians_map.keys())
     client_args = []
-    for name in hamiltonian_names:
+    for name in names:
         args = definition.get_client_args(name, 1, "vibrations")
         client_args.append(args)
     outputs = [
@@ -184,7 +190,7 @@ def compute_harmonic(
     resources = definition.wq_resources(1)
 
     result = execute_ipi(
-        hamiltonian_names,
+        names,
         client_args,
         command_server,
         command_client,

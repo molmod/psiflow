@@ -9,7 +9,7 @@ from psiflow.free_energy import (
 )
 from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, Harmonic, MACEHamiltonian
-from psiflow.sampling import optimize
+from psiflow.sampling.ase import optimize
 
 
 def test_integration_simple(dataset):
@@ -18,8 +18,8 @@ def test_integration_simple(dataset):
     geometry = optimize(
         dataset[3],
         einstein,
-        steps=20000,
-        ftol=1e-4,
+        mode='fix_cell',
+        f_max=1e-4,
     )
     hessian = compute_harmonic(
         geometry,
@@ -124,8 +124,8 @@ def test_dihydrogen(dataset_h2):
     optimized = optimize(
         geometry,
         hamiltonian,
-        steps=2000,
-        ftol=1e-4,
+        mode='fix_cell',
+        f_max=1e-4,
     ).result()
     assert optimized.energy is not None
     assert np.linalg.norm(optimized.per_atom.forces) < 1e-2
