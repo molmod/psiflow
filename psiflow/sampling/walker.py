@@ -49,6 +49,7 @@ class Walker:
     state: Union[Geometry, AppFuture, None]
     temperature: Optional[float]
     pressure: Optional[float]
+    vol_constraint: Optional[bool]
     masses: Union[np.ndarray, float, None]
     nbeads: int
     timestep: float
@@ -63,6 +64,7 @@ class Walker:
         state: Union[Geometry, AppFuture, None] = None,
         temperature: Optional[float] = 300,
         pressure: Optional[float] = None,
+        vol_constraint: Optional[bool] = None,
         masses: Union[np.ndarray, float, None] = None,
         nbeads: int = 1,
         timestep: float = 0.5,
@@ -81,7 +83,14 @@ class Walker:
             self.start = order_parameter.evaluate(self.start)
 
         self.temperature = temperature
+        if vol_constraint:
+            print("Setting the pressure to 0 as the volume is constrained", flush=True)
+            pressure = 0.0
         self.pressure = pressure
+        
+        if vol_constraint is None:
+            vol_constraint = False
+        self.vol_constraint = vol_constraint
 
         if isinstance(masses, (float, int)):
             masses *= self.start.atomic_masses
@@ -117,6 +126,7 @@ class Walker:
                 state=self.state,
                 temperature=self.temperature,
                 pressure=self.pressure,
+                vol_constraint=self.vol_constraint,
                 masses=self.masses,
                 nbeads=self.nbeads,
                 timestep=self.timestep,
