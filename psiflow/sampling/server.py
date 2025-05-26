@@ -356,7 +356,7 @@ def start(args):
     with open("input.xml", "wb") as f:
         f.write(ET.tostring(input_xml, encoding="utf-8"))
 
-    simulation = Simulation.load_from_xml("input.xml", sockets_prefix="")
+    simulation = Simulation.load_from_xml(Path("input.xml"), sockets_prefix="")
     try:
         simulation.run()
         softexit.trigger(status="success", message=" @ SIMULATION: Exiting cleanly.")

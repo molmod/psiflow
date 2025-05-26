@@ -23,7 +23,7 @@ def main():
     from pathlib import Path
 
     from ase.io import read
-    from ipi._driver.driver import run_driver
+    from psiflow.utils.driver import run_driver
 
     from psiflow.functions import function_from_json
     from psiflow.geometry import Geometry
