@@ -35,7 +35,7 @@ from psiflow.utils.io import dump_json
 class Hamiltonian(Computable):
     outputs: ClassVar[tuple] = ("energy", "forces", "stress")
     batch_size = 1000
-    app: Callable
+    app: ClassVar[Callable]             # TODO: app is actually an instance variable, but serialization complains..
     function_name: ClassVar[str]
 
     def compute(

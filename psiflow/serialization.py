@@ -42,7 +42,7 @@ def create_setter(name, kind, type_hint):
     return setter
 
 
-def update_init(init_func):
+def update_init(init_func):             # TODO: why not have a Mixin class instead?
     def wrapper(self, *args, **kwargs):
         self._geoms = {}
         self._files = {}
