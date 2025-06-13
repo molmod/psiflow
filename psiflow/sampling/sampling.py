@@ -242,11 +242,11 @@ def setup_ffplumed(nplumed: int) -> list[ET.Element]:
     for i in range(nplumed):
         input_file = ET.Element("file", mode="xyz", cell_units="angstrom")
         input_file.text = "start_0.xyz"  # always present
-        plumeddat = ET.Element("plumeddat")
-        plumeddat.text = "metad_input{}.txt".format(i)
+        plumed_dat = ET.Element("plumed_dat")
+        plumed_dat.text = "metad_input{}.txt".format(i)
         ff = ET.Element("ffplumed", name="metad{}".format(i), pbc="False")
         ff.append(input_file)
-        ff.append(plumeddat)
+        ff.append(plumed_dat)
         ffplumed.append(ff)
     return ffplumed
 
