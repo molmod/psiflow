@@ -58,7 +58,7 @@ class Hamiltonian(Computable):
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         raise NotImplementedError
 
-    def __mul__(self, a: float) -> Hamiltonian:
+    def __mul__(self, a: float) -> MixtureHamiltonian:
         return MixtureHamiltonian([self], [a])
 
     def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
@@ -106,6 +106,9 @@ class Zero(Hamiltonian):
 
     def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
         return hamiltonian          # (Zero + Hamiltonian) is different from (Hamiltonian + Zero)
+
+    __rmul__ = __mul__  # handle float * Zero
+
 
 
 @typeguard.typechecked
@@ -161,6 +164,8 @@ class MixtureHamiltonian(Hamiltonian):
             self.hamiltonians,
             [c * a for c in self.coefficients],
         )
+
+    __rmul__ = __mul__  # handle float * MixtureHamiltonian
 
     def __len__(self) -> int:
         return len(self.coefficients)
@@ -223,6 +228,9 @@ class MixtureHamiltonian(Hamiltonian):
             names.append(f"{name}{counts[name]}")
             counts[name] += 1
         return names
+
+    def serialize(self, **kwargs) -> list[DataFuture]:
+        return [h.serialize_function(**kwargs) for h in self.hamiltonians]
 
 
 @typeguard.typechecked

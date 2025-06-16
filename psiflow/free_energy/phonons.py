@@ -16,9 +16,7 @@ from psiflow.geometry import Geometry, mass_weight
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian
 from psiflow.sampling.sampling import (
     setup_sockets,
-    label_forces,
     make_force_xml,
-    serialize_mixture,
     make_start_command,
     make_client_command
 )
@@ -139,7 +137,7 @@ def compute_harmonic(
     energy_shift: float = 0.00095,
 ) -> AppFuture:
     hamiltonian: MixtureHamiltonian = 1 * hamiltonian
-    names = label_forces(hamiltonian)
+    names = hamiltonian.get_named_components()
     sockets = setup_sockets(names)
     forces = make_force_xml(hamiltonian, names)
 
@@ -175,7 +173,7 @@ def compute_harmonic(
         input_future,
         Dataset([state]).extxyz,
     ]
-    inputs += serialize_mixture(hamiltonian, dtype="float64")
+    inputs += hamiltonian.serialize(dtype="float64")
 
     client_args = []
     for name in names:
