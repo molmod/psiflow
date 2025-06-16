@@ -254,7 +254,7 @@ def setup_system_template(
     start.text = " start_INDEX.xyz "
     initialize.append(start)
     velocities = ET.Element("velocities", mode="thermal", units="kelvin")
-    velocities.text = " TEMP " if " TEMP " in weights_names else " 300 "    # valid template parameter
+    velocities.text = " TEMP " if "TEMP" in weights_names else " 300 "    # valid template parameter
     initialize.append(velocities)
     if walkers[0].masses is not None:
         import ase.units
