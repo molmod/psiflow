@@ -26,6 +26,22 @@ def timeout_handler(signum, frame):
     raise TimeoutException
 
 
+def check_input(args):
+    """
+    Check the input arguments for the function driver, 
+    to give us more control over the driver before evaluation.
+    This function is a placeholder temporarily."""
+    pass
+
+
+def check_outputs(args):
+    """
+    Check the outputs of the function driver, 
+    to give us more control over the driver during evaluation.
+    This function is a placeholder temporarily."""
+    pass
+
+
 @typeguard.typechecked
 def check_forces(
     forces: np.ndarray,
