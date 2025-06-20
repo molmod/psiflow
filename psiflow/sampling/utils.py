@@ -34,7 +34,7 @@ def check_input(args):
     pass
 
 
-def check_outputs(args):
+def check_output(args):
     """
     Check the outputs of the function driver, 
     to give us more control over the driver during evaluation.
