@@ -117,3 +117,14 @@ class FunctionDriver:
         extras = ""
 
         return pot_ipi, force_ipi, vir_ipi, extras
+
+
+def initialise_driver(driver) -> None:
+    """This function does not do anything yet. Stay tuned."""
+    pass
+
+
+def check_output(data: dict) -> None:
+    """This function does not do anything yet. Stay tuned."""
+    pass
+
