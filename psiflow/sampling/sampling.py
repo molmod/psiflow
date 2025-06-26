@@ -117,26 +117,20 @@ def serialize_mixture(hamiltonian: MixtureHamiltonian, **kwargs) -> list[DataFut
 
 
 @typeguard.typechecked
-def setup_sockets(
-    hamiltonian_labels: Iterable[str],
+def setup_ffdirects(
+    hamiltonian_map: dict,
 ) -> list[ET.Element]:
-    sockets = []
-    for name in hamiltonian_labels:
-        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
-        timeout = ET.Element("timeout")
-        timeout.text = str(
-            60 * psiflow.context().definitions["ModelEvaluation"].timeout
-        )
-        ffsocket.append(timeout)
-        exit_on = ET.Element("exit_on_disconnect")
-        exit_on.text = " TRUE "
-        ffsocket.append(exit_on)
-        address = ET.Element("address")  # placeholder
-        address.text = name.lower()
-        ffsocket.append(address)
-
-        sockets.append(ffsocket)
-    return sockets
+    ffdirects = []
+    for name, hamiltonian in hamiltonian_map.items():
+        ffdirect = ET.Element("ffdirect", name=name)
+        pes = ET.Element("pes")
+        pes.text = "psiflow"
+        ffdirect.append(pes)
+        parameters = ET.Element("parameters")
+        parameters.text = "{template: start_0.xyz, hamiltonian: " + str(hamiltonian.serialize_function().filepath) + " }"
+        ffdirect.append(parameters)
+        ffdirects.append(ffdirect)
+    return ffdirects
 
 
 @typeguard.typechecked
@@ -242,11 +236,11 @@ def setup_ffplumed(nplumed: int) -> list[ET.Element]:
     for i in range(nplumed):
         input_file = ET.Element("file", mode="xyz", cell_units="angstrom")
         input_file.text = "start_0.xyz"  # always present
-        plumeddat = ET.Element("plumeddat")
-        plumeddat.text = "metad_input{}.txt".format(i)
+        plumed_dat = ET.Element("plumed_dat")
+        plumed_dat.text = "metad_input{}.txt".format(i)
         ff = ET.Element("ffplumed", name="metad{}".format(i), pbc="False")
         ff.append(input_file)
-        ff.append(plumeddat)
+        ff.append(plumed_dat)
         ffplumed.append(ff)
     return ffplumed
 
@@ -412,10 +406,10 @@ def _execute_ipi(
     env_command = 'export ' + ' '.join([f"{name}={value}" for name, value in env_vars.items()])
     command_start = make_start_command(command_server, inputs[0], inputs[1], nwalkers)
     commands_client = []
-    for i, name in enumerate(hamiltonian_names):
-        args = client_args[i]
-        for arg in args:
-            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg, max_force),
+    # for i, name in enumerate(hamiltonian_names):
+    #     args = client_args[i]
+    #     for arg in args:
+    #         commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg, max_force),
 
     command_end = f'{command_server} --cleanup --output_xyz={outputs[0].filepath}'
     commands_copy = []
@@ -504,9 +498,9 @@ def _sample(
         verbosity=str(verbosity),
         safe_stride=str(checkpoint_step),
     )
-    sockets = setup_sockets(hamiltonians_map.keys())
-    for socket in sockets:
-        simulation.append(socket)
+    ffdirects = setup_ffdirects(hamiltonians_map)
+    for ffdirect in ffdirects:
+        simulation.append(ffdirect)
     ffplumed = setup_ffplumed(len(plumed_list))
     for ff in ffplumed:
         simulation.append(ff)

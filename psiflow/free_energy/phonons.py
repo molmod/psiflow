@@ -15,7 +15,7 @@ from psiflow.data import Dataset
 from psiflow.geometry import Geometry, mass_weight
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian
 from psiflow.sampling.sampling import (
-    setup_sockets,
+    setup_ffdirects,
     label_forces,
     make_force_xml,
     serialize_mixture,
@@ -140,7 +140,8 @@ def compute_harmonic(
 ) -> AppFuture:
     hamiltonian: MixtureHamiltonian = 1 * hamiltonian
     names = label_forces(hamiltonian)
-    sockets = setup_sockets(names)
+    hamiltonians_map = {n: h for n, h in zip(names, hamiltonian.hamiltonians)}
+    sockets = setup_ffdirects(hamiltonians_map)
     forces = make_force_xml(hamiltonian, names)
 
     initialize = ET.Element("initialize", nbeads="1")
