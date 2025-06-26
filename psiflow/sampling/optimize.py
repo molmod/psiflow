@@ -14,7 +14,7 @@ from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.sampling.sampling import setup_sockets, make_start_command, make_client_command
+from psiflow.sampling.sampling import setup_ffdirects, make_start_command, make_client_command
 from psiflow.utils.io import save_xml
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
@@ -137,7 +137,7 @@ def optimize(
     ftol: float = 1e-3,
 ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
     hamiltonians_map, forces = setup_forces(hamiltonian)
-    sockets = setup_sockets(hamiltonians_map)
+    sockets = setup_ffdirects(hamiltonians_map)
 
     initialize = ET.Element("initialize", nbeads="1")
     start = ET.Element("file", mode="ase", cell_units="angstrom")
