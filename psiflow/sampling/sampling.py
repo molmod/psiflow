@@ -44,7 +44,7 @@ class EnsembleTable:
         return self.weights[:, self.keys.index(key)]
 
     def __len__(self) -> int:
-        return len(self.keys)
+        return self.weights.shape[0]
 
     def __eq__(self, other: EnsembleTable) -> bool:
         if (
@@ -275,6 +275,8 @@ def setup_system_template(
     system_template.append(labels)
 
     for i in range(len(ensemble_table)):
+        print(i)
+        print(ensemble_table.get_index(i))
         instance = ET.Element("instance")
         instance.text = create_xml_list([f'{i}'] + [str(w) for w in ensemble_table.get_index(i)])
         system_template.append(instance)
