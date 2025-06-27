@@ -13,7 +13,6 @@ from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.utils.io import dump_json
-from psiflow.sampling.sampling import serialize_mixture, label_forces
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 from ._ase import ALLOWED_MODES
@@ -79,8 +78,8 @@ def optimize(
 
     input_geometry = Dataset([state]).extxyz
     hamiltonian = 1.0 * hamiltonian  # convert to mixture
-    names, coeffs = label_forces(hamiltonian), hamiltonian.coefficients
-    input_forces = serialize_mixture(hamiltonian, dtype="float64")          # double precision for MLPs
+    names, coeffs = hamiltonian.get_named_components(), hamiltonian.coefficients
+    input_forces = hamiltonian.serialize(dtype="float64")                   # double precision for MLPs
     forces = [
         dict(forcefield=n, weight=str(c), file=f.filename) for n, c, f in zip(names, coeffs, input_forces)
     ]

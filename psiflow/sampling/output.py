@@ -25,8 +25,7 @@ DEFAULT_OBSERVABLES = [
 
 @typeguard.typechecked
 def potential_component_names(n: int):
-    str_format = "pot_component_raw({})"
-    return [str_format.format(i) + "{electronvolt}" for i in range(n)]
+    return [f'pot_component_raw({i}){{electronvolt}}' for i in range(n)]
 
 
 @typeguard.typechecked

@@ -11,7 +11,7 @@ from psiflow.models import MACE
 from psiflow.sampling.optimize import optimize as optimize_ipi, optimize_dataset as optimize_dataset_ipi
 from psiflow.sampling.ase import optimize as optimize_ase, optimize_dataset as optimize_dataset_ase
 from psiflow.sampling.metadynamics import Metadynamics
-from psiflow.sampling.sampling import sample, template
+from psiflow.sampling.sampling import sample, template, EnsembleTable
 from psiflow.sampling.server import parse_checkpoint
 from psiflow.sampling.walker import (
     Walker,
@@ -53,58 +53,45 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
 
     # nvt
     _walkers = [walkers[0], walkers[-1]]
-    hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
     assert _walkers[0].nvt
-    assert len(hamiltonians_map) == 1
-    assert weights_table[0] == ("TEMP", "EinsteinCrystal0", "METAD0", "METAD1")
+    assert len(hamiltonian_components) == 1
+    keys_ref = ("TEMP", "EinsteinCrystal0", "METAD0", "METAD1")
+    weights_ref = np.array([[300, 1, 1, 0], [600, 1, 0, 1]])
+    assert ensemble_table == EnsembleTable(keys_ref, weights_ref)
     assert len(plumed_list) == 2
-    assert weights_table[1] == (300, 1.0, 1.0, 0.0)
-    assert weights_table[2] == (600, 1.0, 0.0, 1.0)
 
     # remove
     _walkers[0].metadynamics = None
     _walkers[1].metadynamics = None
-    hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
     assert _walkers[0].nvt
-    assert len(hamiltonians_map) == 1
-    assert weights_table[0] == ("TEMP", "EinsteinCrystal0")
+    assert len(hamiltonian_components) == 1
+    keys_ref = ("TEMP", "EinsteinCrystal0")
+    weights_ref = np.array([[300, 1], [600, 1]])
+    assert ensemble_table == EnsembleTable(keys_ref, weights_ref)
     assert len(plumed_list) == 0
-    assert weights_table[1] == (300, 1.0)
-    assert weights_table[2] == (600, 1.0)
 
     # pimd partition
     _walkers = [walkers[1], walkers[2]]
-    hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
     assert _walkers[0].pimd
-    assert len(hamiltonians_map) == 3
-    assert weights_table[0] == (
-        "TEMP",
-        "EinsteinCrystal0",
-        "EinsteinCrystal1",
-        "PlumedHamiltonian0",
-        "METAD0",
-    )
-    assert weights_table[1] == (300, 0.0, 0.5, 0.0, 1.0)
-    assert weights_table[2] == (300, 1.0, 0.0, 1.0, 0.0)
+    assert len(hamiltonian_components) == 3
+    keys_ref = ("TEMP", "EinsteinCrystal0", "EinsteinCrystal1", "PlumedHamiltonian0", "METAD0")
+    weights_ref = np.array([[300, 0.0, 0.5, 0.0, 1.0], [300, 1.0, 0.0, 1.0, 0.0]])
+    assert ensemble_table == EnsembleTable(keys_ref, weights_ref)
 
     # npt partition
     _walkers = [walkers[3], walkers[4]]
     with pytest.raises(AssertionError):  # mtd objects were equal
-        hamiltonians_map, weights_table, plumed_list = template(_walkers)
+        _ = template(_walkers)
     _walkers[0].metadynamics = Metadynamics("METAD: FILE=bla")
-    hamiltonians_map, weights_table, plumed_list = template(_walkers)
+    hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
     assert _walkers[0].npt
-    assert len(hamiltonians_map) == 2
-    assert weights_table[0] == (
-        "TEMP",
-        "PRESSURE",
-        "EinsteinCrystal0",
-        "EinsteinCrystal1",
-        "METAD0",
-        "METAD1",
-    )
-    assert weights_table[1] == (300, 0, 0.0, 1.0, 1.0, 0.0)
-    assert weights_table[2] == (600, 100, 1.0, 0.0, 0.0, 1.0)
+    assert len(hamiltonian_components) == 2
+    keys_ref = ("TEMP", "PRESSURE", "EinsteinCrystal0", "EinsteinCrystal1", "METAD0", "METAD1")
+    weights_ref = np.array([[300, 0, 0.0, 1.0, 1.0, 0.0], [600, 100, 1.0, 0.0, 0.0, 1.0]])
+    assert ensemble_table == EnsembleTable(keys_ref, weights_ref)
 
 
 def test_parse_checkpoint(checkpoint):
