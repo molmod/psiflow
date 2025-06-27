@@ -32,10 +32,41 @@ class HamiltonianComponent:
     shared: bool
 
 
+@dataclass
+class EnsembleTable:
+    keys: tuple[str, ...]
+    weights: np.ndarray
+
+    def get_index(self, idx: int) -> np.ndarray:
+        return self.weights[idx]
+
+    def get_key(self, key: str) -> np.ndarray:
+        return self.weights[:, self.keys.index(key)]
+
+    def __len__(self) -> int:
+        return len(self.keys)
+
+    def __eq__(self, other: EnsembleTable) -> bool:
+        if (
+            not isinstance(other, EnsembleTable) or
+            len(self) != len(other) or
+            set(self.keys) != set(other.keys) or
+            self.weights.shape != other.weights.shape
+        ):
+            return False
+        key_order = [other.keys.index(key) for key in self.keys]
+        return np.all(self.weights == other.weights[:, key_order])
+
+
+def create_xml_list(items: list[str]) -> str:
+    """Pure helper"""
+    return ' [ {} ] '.format(', '.join(items))
+
+
 @typeguard.typechecked
 def template(
     walkers: list[Walker],
-) -> tuple[list[HamiltonianComponent], tuple[str, ...], np.ndarray, list[AppFuture]]:
+) -> tuple[list[HamiltonianComponent], EnsembleTable, list[AppFuture]]:
     # multiply by 1.0 to ensure result is Mixture in case len(walkers) == 1
     total_hamiltonian = 1.0 * sum([w.hamiltonian for w in walkers], start=Zero())
     assert not total_hamiltonian == Zero()
@@ -80,11 +111,11 @@ def template(
             weights_dict[f'METAD{len(metad_objects) - 1}'] = [(i == j) for j in range(len(walkers))]
     plumed_list = [mtd.input() for mtd in metad_objects]
 
-    weights_name = tuple(names + list(weights_dict.keys()))
     weights_ensemble = np.array([*weights_dict.values()]).T
+    weights_name = tuple(names + list(weights_dict.keys()))
     weights_table = np.concatenate([weights_hamiltonian, weights_ensemble], axis=-1)
 
-    return components, weights_name, weights_table, plumed_list
+    return components, EnsembleTable(weights_name, weights_table), plumed_list
 
 
 def make_force_xml(hamiltonian: MixtureHamiltonian, names: list[str]) -> ET.Element:
@@ -199,7 +230,7 @@ def setup_ensemble(components: list[HamiltonianComponent], weights_header: tuple
     if bias_weights_list:
         ensemble.append(bias)
         bias_weights = ET.Element("bias_weights")
-        bias_weights.text = " [ " + ", ".join(bias_weights_list) + " ] "
+        bias_weights.text = create_xml_list(bias_weights_list)
         ensemble.append(bias_weights)
 
     return ensemble
@@ -233,20 +264,19 @@ def setup_ffplumed(nplumed: int) -> list[ET.Element]:
 @typeguard.typechecked
 def setup_system_template(
     walkers: list[Walker],
-    weights_names: tuple[str, ...],
-    weights_table: np.ndarray,
+    ensemble_table: EnsembleTable,
     motion: ET.Element,
     ensemble: ET.Element,
     forces: ET.Element,
 ) -> ET.Element:
     system_template = ET.Element("system_template")
     labels = ET.Element("labels")
-    labels.text = "[ INDEX, {} ]".format(", ".join([w.upper() for w in weights_names]))
+    labels.text = create_xml_list(['INDEX'] + [w.upper() for w in ensemble_table.keys])
     system_template.append(labels)
 
-    for i, weights in enumerate(weights_table):
+    for i in range(len(ensemble_table)):
         instance = ET.Element("instance")
-        instance.text = "[ {}, {} ]".format(i, ", ".join([str(w) for w in weights]))
+        instance.text = create_xml_list([f'{i}'] + [str(w) for w in ensemble_table.get_index(i)])
         system_template.append(instance)
 
     initialize = ET.Element("initialize", nbeads=str(walkers[0].nbeads))
@@ -254,13 +284,13 @@ def setup_system_template(
     start.text = " start_INDEX.xyz "
     initialize.append(start)
     velocities = ET.Element("velocities", mode="thermal", units="kelvin")
-    velocities.text = " TEMP " if "TEMP" in weights_names else " 300 "    # valid template parameter
+    velocities.text = " TEMP " if "TEMP" in ensemble_table.keys else " 300 "        # valid template parameter
     initialize.append(velocities)
     if walkers[0].masses is not None:
         import ase.units
         AMU_TO_AU = ase.units._amu / ase.units._me
         masses = ET.Element("masses", mode="manual")
-        masses.text = str(list(walkers[0].masses * AMU_TO_AU)).replace("[", "[ ").replace("]", " ]")  # replace str(list()) with np.array_str()?
+        masses.text = create_xml_list([str(i) for i in walkers[0].masses * AMU_TO_AU])
         initialize.append(masses)
 
     system = ET.Element("system", prefix="walker-INDEX")
@@ -321,7 +351,7 @@ def setup_output(
         filename="properties",
         stride=str(step),
     )
-    properties.text = " [ " + ", ".join(observables) + " ] "
+    properties.text = create_xml_list(observables)
     output.append(properties)
     return output, observables
 
@@ -436,19 +466,18 @@ def _sample(
     verbosity: str = "medium",
 ) -> list[SimulationOutput]:
     assert len(walkers) > 0
-    hamiltonian_components, weights_name, weights_table, plumed_list = template(walkers)
+    hamiltonian_components, ensemble_table, plumed_list = template(walkers)
     coupling = walkers[0].coupling
 
     if motion_defaults is not None:
         raise NotImplementedError
 
     motion = setup_motion(walkers[0], fix_com)
-    ensemble = setup_ensemble(hamiltonian_components, weights_name)
+    ensemble = setup_ensemble(hamiltonian_components, ensemble_table.keys)
     forces = setup_forces(hamiltonian_components)
     system_template = setup_system_template(
         walkers,
-        weights_name,
-        weights_table,
+        ensemble_table,
         motion,
         ensemble,
         forces,

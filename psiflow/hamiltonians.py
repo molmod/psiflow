@@ -64,9 +64,8 @@ class Hamiltonian(Computable):
     def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
         if type(hamiltonian) is Zero:
             return self
-        if type(hamiltonian) is MixtureHamiltonian:
-            return hamiltonian.__add__(self)
-        return MixtureHamiltonian([self, hamiltonian], [1., 1.])
+        mixture = MixtureHamiltonian([self], [1.])
+        return mixture.__add__(hamiltonian)
 
     def __sub__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
         return self + (-1.0) * hamiltonian
