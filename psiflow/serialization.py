@@ -14,6 +14,10 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 
+
+# TODO: this is only used in the Learning class currently
+
+
 _DataFuture = Union[File, DataFuture]
 
 
@@ -42,7 +46,7 @@ def create_setter(name, kind, type_hint):
     return setter
 
 
-def update_init(init_func):
+def update_init(init_func):             # TODO: why not have a Mixin class instead?
     def wrapper(self, *args, **kwargs):
         self._geoms = {}
         self._files = {}
