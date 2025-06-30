@@ -275,8 +275,6 @@ def setup_system_template(
     system_template.append(labels)
 
     for i in range(len(ensemble_table)):
-        print(i)
-        print(ensemble_table.get_index(i))
         instance = ET.Element("instance")
         instance.text = create_xml_list([f'{i}'] + [str(w) for w in ensemble_table.get_index(i)])
         system_template.append(instance)
