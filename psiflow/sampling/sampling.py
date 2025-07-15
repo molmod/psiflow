@@ -383,7 +383,7 @@ def setup_smotion(
 
 def make_start_command(command: str, input_xml: File, start_xyz: File, nwalkers: int = 1) -> str:
     """"""
-    return f'{command} --nwalkers={nwalkers} --input_xml={input_xml.filepath} --start_xyz={start_xyz.filepath} &'
+    return f'{command} run --nwalkers={nwalkers} --input_xml={input_xml.filepath} --start_xyz={start_xyz.filepath} &'
 
 
 def make_client_command(command: str, address: str, hamiltonian: File,
@@ -393,6 +393,20 @@ def make_client_command(command: str, address: str, hamiltonian: File,
         c=command, a=address.lower(), p=hamiltonian.filepath, s=start.filepath, arg=arg,
         m=(f'--max_force={max_force}' if max_force is not None else ''),
     )
+
+
+def make_cleanup_command(command: str, output_xyz: File, output_props: list[File], output_trajs: list[File]) -> str:
+    """"""
+    assert (len(output_trajs) == 0) or (len(output_props) == len(output_trajs))
+    command_list = [command, 'cleanup', f'--output_xyz={output_xyz.filepath}']
+    command_list.append(
+        "--output_props=" + ",".join([file.filepath for file in output_props])
+    )
+    if output_trajs:
+        command_list.append(
+            "--output_traj=" + ",".join([file.filepath for file in output_trajs])
+        )
+    return ' '.join(command_list)
 
 
 def _execute_ipi(
@@ -422,17 +436,9 @@ def _execute_ipi(
         args = client_args[i]
         for arg in args:
             commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg, max_force),
-
-    command_end = f'{command_server} --cleanup --output_xyz={outputs[0].filepath}'
-    commands_copy = []
-    for i in range(nwalkers):
-        commands_copy += f'cp walker-{i}_output.properties {outputs[i + 1].filepath}',
-        if keep_trajectory:
-            commands_copy += f'cp walker-{i}_output.trajectory_0.extxyz {outputs[i + nwalkers + 1].filepath}',
-    if coupling_command is not None:
-        commands_copy += coupling_command,
-    command_copy = '; '.join(commands_copy)
-
+    command_end = make_cleanup_command(command_server, outputs[0],
+                                       outputs[1:nwalkers+1],
+                                       outputs[1+nwalkers:1+2*nwalkers] if keep_trajectory else [])
     command_list = [
         TMP_COMMAND,
         CD_COMMAND,
@@ -442,8 +448,9 @@ def _execute_ipi(
         *commands_client,
         "wait",
         command_end,
-        command_copy,
     ]
+    if coupling_command:
+        command_list.append(coupling_command)
     return "\n".join(command_list)
 
 
