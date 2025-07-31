@@ -86,57 +86,67 @@ def set_global_section(cp2k_input_dict: dict, properties: tuple):
         global_dict["fm"] = {"type_of_matrix_multiplication": "SCALAPACK"}
 
 
+def find_line(lines: list[str], line: str, idx_start: int = 0) -> int:
+    """TODO: to general utils"""
+    for i, l in enumerate(lines[idx_start:]):
+        if l.strip().startswith(line):
+            return i + idx_start
+
+
+def _parse_cp2k_output(cp2k_output_str: str, properties: tuple) -> dict[str, float | np.ndarray]:
+    all_lines = cp2k_output_str.split("\n")
+
+    # find number of atoms
+    # TODO: what if this does not work?
+    idx = find_line(all_lines, "TOTAL NUMBERS AND MAXIMUM NUMBERS")
+    idx = find_line(all_lines, "- Atoms:", idx)
+    natoms = int(all_lines[idx].split()[-1])
+
+    # read coordinates
+    key = "MODULE QUICKSTEP: ATOMIC COORDINATES IN ANGSTROM"
+    idx = find_line(all_lines, key, idx) + 3
+    lines = all_lines[idx : idx + natoms]
+    positions = np.array([line.split()[4:7] for line in lines], dtype=float)
+
+    # read energy
+    key = "ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]"
+    idx = find_line(all_lines, key, idx)
+    energy = float(all_lines[idx].split()[-1]) * Ha
+
+    data = dict(natoms=natoms, positions=positions, energy=energy)
+    if "forces" not in properties:
+        return data
+
+    # read forces if requested
+    key = "ATOMIC FORCES in [a.u.]"
+    idx = find_line(all_lines, key, idx) + 3
+    lines = all_lines[idx : idx + natoms]
+    forces = np.array([line.split()[3:] for line in lines], dtype=float)
+    forces *= Ha / Bohr
+
+    return data | {'forces': forces}
+
+
 def parse_cp2k_output(
     cp2k_output_str: str, properties: tuple, geometry: Geometry
 ) -> Geometry:
-    natoms = len(geometry)
-    all_lines = cp2k_output_str.split("\n")
+    try:
+        data = _parse_cp2k_output(cp2k_output_str, properties)
+    except TypeError:
+        # output log is not complete
+        # TODO: find out what went wrong
+        return geometry
 
-    # read coordinates
-    lines = None
-    for i, line in enumerate(all_lines):
-        if line.strip().startswith("MODULE QUICKSTEP: ATOMIC COORDINATES IN ANGSTROM"):
-            skip = 3
-            lines = all_lines[i + skip : i + skip + natoms]
-    if lines is None:
-        return NullState
-    assert len(lines) == natoms
-    positions = np.zeros((natoms, 3))
-    for j, line in enumerate(lines):
-        try:
-            positions[j, :] = np.array([float(f) for f in line.split()[4:7]])
-        except ValueError:  # if positions exploded, CP2K puts *** instead of float
-            return NullState
     assert np.allclose(
-        geometry.per_atom.positions, positions, atol=1e-2
-    )  # accurate up to 0.01 A
+        geometry.per_atom.positions, data['positions'], atol=1e-4
+    )  # less than float accuracy
 
-    # try and read energy
-    energy = None
-    for line in all_lines:
-        if line.strip().startswith("ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]"):
-            energy = float(line.split()[-1]) * Ha
-    if energy is None:
-        return NullState
-    geometry.energy = energy
-    geometry.per_atom.forces[:] = np.nan
-
-    # try and read forces if requested
-    if "forces" in properties:
-        lines = None
-        for i, line in enumerate(all_lines):
-            if line.strip().startswith("ATOMIC FORCES in [a.u.]"):
-                skip = 3
-                lines = all_lines[i + skip : i + skip + natoms]
-        if lines is None:
-            return NullState
-        assert len(lines) == natoms
-        forces = np.zeros((natoms, 3))
-        for j, line in enumerate(lines):
-            forces[j, :] = np.array([float(f) for f in line.split()[3:6]])
-        forces *= Ha / Bohr
-        geometry.per_atom.forces[:] = forces
-    geometry.stress = None
+    # TODO: store data in geometry -> this should be a general method
+    geometry = geometry.copy()
+    geometry.reset()
+    geometry.energy = data['energy']
+    if "forces" in data:
+        geometry.per_atom.forces = data['forces']
     return geometry
 
 
@@ -146,7 +156,7 @@ def _prepare_input(
     properties: tuple = (),
     outputs: list = [],
 ):
-    from psiflow.reference._cp2k import (
+    from psiflow.reference.cp2k import (
         dict_to_str,
         insert_atoms_in_input,
         set_global_section,
@@ -174,7 +184,7 @@ def cp2k_singlepoint_pre(
 ):
     cp_command = f"cp {inputs[0].filepath} cp2k.inp"
     command_list = [TMP_COMMAND, CD_COMMAND, cp_command, cp2k_command]
-    return " && ".join(command_list)
+    return "\n".join(command_list)
 
 
 @typeguard.typechecked
@@ -184,7 +194,7 @@ def cp2k_singlepoint_post(
     inputs: list = [],
 ) -> Geometry:
     from psiflow.geometry import NullState, new_nullstate
-    from psiflow.reference._cp2k import parse_cp2k_output
+    from psiflow.reference.cp2k import parse_cp2k_output
 
     with open(inputs[0], "r") as f:
         cp2k_output_str = f.read()

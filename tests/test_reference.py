@@ -80,6 +80,13 @@ def test_cp2k_check_input(simple_cp2k_input):
 
 def test_cp2k_parse_output():
     cp2k_output_str = """
+     TOTAL NUMBERS AND MAXIMUM NUMBERS
+
+      Total number of            - Atomic kinds:                                   1
+                                 - Atoms:                                          1
+      
+      ### SKIPPED A BIT ###
+          
      MODULE QUICKSTEP: ATOMIC COORDINATES IN ANGSTROM
 
    Atom Kind Element         X             Y             Z       Z(eff)     Mass
@@ -373,7 +380,7 @@ def test_cp2k_energy(context, simple_cp2k_input):
 def test_cp2k_atomic_energies(
     dataset, simple_cp2k_input
 ):  # use energy-only because why not
-    reference = CP2K(simple_cp2k_input, outputs=("energy",), executor="CP2K_container")
+    reference = CP2K(simple_cp2k_input, outputs=("energy",), executor="CP2K")
     element = "H"
     energy = reference.compute_atomic_energy(element, box_size=4)
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
@@ -442,6 +449,9 @@ def test_gpaw_single(dataset, dataset_h2):
         minimal_box_multiple=2,
     )
     state = evaluate(dataset_h2[0], gpaw).result()
+
+    print(state.energy)
+
     assert state.energy is not None
     assert state.energy < 0.0
     assert np.allclose(
