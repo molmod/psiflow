@@ -15,7 +15,12 @@ import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
-from psiflow.reference.utils import find_line, Status, lines_to_array, copy_data_to_geometry
+from psiflow.reference.utils import (
+    find_line,
+    Status,
+    lines_to_array,
+    copy_data_to_geometry,
+)
 
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -141,7 +146,11 @@ def _execute_calc(
     return "\n".join(command_list)
 
 
-def _process_output(geometry: Geometry, properties: tuple[str, ...], inputs: list[Path]) -> Geometry:
+def _process_output(
+    geometry: Geometry,
+    properties: tuple[str, ...],
+    inputs: tuple[Path] = (),
+) -> Geometry:
     """"""
     with open(inputs[0], "r") as f:
         stdout = f.read()
@@ -151,8 +160,8 @@ def _process_output(geometry: Geometry, properties: tuple[str, ...], inputs: lis
         # TODO: find out what went wrong
         data = None
     geometry = copy_data_to_geometry(geometry, data)
-    geometry.order['stdout'] = inputs[0].name
-    geometry.order['stderr'] = inputs[0].name
+    geometry.order["stdout"] = inputs[0].name
+    geometry.order["stderr"] = inputs[0].name
     return geometry
 
 
@@ -197,7 +206,10 @@ class ORCA(Reference):
             command=command,
             parsl_resource_specification=wq_resources,
         )
-        self.app_post = python_app(_process_output, executors=["default_threads"])
+        self.app_post = partial(
+            python_app(_process_output, executors=["default_threads"]),
+            properties=self.outputs,
+        )
 
     def get_single_atom_references(self, element):
         raise NotImplementedError
