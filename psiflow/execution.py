@@ -425,6 +425,7 @@ class ReferenceEvaluation(ExecutionDefinition):
 
             commands.append(f"ulimit -v {parse_size(self.memory_limit)}")
 
+        # exit code 0 so parsl always thinks bash app succeeded
         return "\n".join([*commands, launch_command, 'exit 0'])
 
     def wq_resources(self):

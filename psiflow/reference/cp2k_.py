@@ -17,6 +17,7 @@ from parsl.app.app import bash_app, python_app
 import psiflow
 from psiflow.geometry import Geometry, NullState
 from psiflow.reference.reference import Reference
+from psiflow.reference.utils import find_line
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -86,11 +87,7 @@ def set_global_section(cp2k_input_dict: dict, properties: tuple):
         global_dict["fm"] = {"type_of_matrix_multiplication": "SCALAPACK"}
 
 
-def find_line(lines: list[str], line: str, idx_start: int = 0) -> int:
-    """TODO: to general utils"""
-    for i, l in enumerate(lines[idx_start:]):
-        if l.strip().startswith(line):
-            return i + idx_start
+
 
 
 def _parse_cp2k_output(cp2k_output_str: str, properties: tuple) -> dict[str, float | np.ndarray]:
@@ -117,7 +114,7 @@ def _parse_cp2k_output(cp2k_output_str: str, properties: tuple) -> dict[str, flo
     if "forces" not in properties:
         return data
 
-    # read forces if requested
+    # read forces
     key = "ATOMIC FORCES in [a.u.]"
     idx = find_line(all_lines, key, idx) + 3
     lines = all_lines[idx : idx + natoms]

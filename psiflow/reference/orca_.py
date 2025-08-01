@@ -1,20 +1,22 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import copy
 import logging
 from functools import partial
 from typing import Optional, Union
+from pathlib import Path
 
 import ase.symbols
 import numpy as np
 import typeguard
-from ase.data import atomic_numbers
+from ase.units import Bohr, Ha
 from parsl.app.app import bash_app, python_app
 
 import psiflow
-from psiflow.geometry import Geometry, NullState
+from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
+from psiflow.reference.utils import find_line, Status, lines_to_array, copy_data_to_geometry
+
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -22,8 +24,7 @@ logger = logging.getLogger(__name__)  # logging per module
 # TODO: tests
 # TODO: check for force_eval?
 # TODO: check format_resources for units?
-
-#  parse output
+# TODO: check periodicity?
 
 
 KEY_GHOST = "ghost"
@@ -80,6 +81,42 @@ def format_resources(cores: int = 1, memory: int = 1000, **kwargs) -> str:
     return "\n".join([mem, cores])
 
 
+def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
+    lines = stdout.split("\n")
+    data = {}
+
+    # output status
+    line = "****ORCA TERMINATED NORMALLY****"
+    idx = find_line(lines, line, reverse=True, max_lines=5)
+    data["status"] = status = Status.SUCCESS if idx is not None else Status.FAILED
+    if status == Status.SUCCESS:
+        # total runtime
+        idx = find_line(lines, "TOTAL RUN TIME", reverse=True, max_lines=5)
+        data["runtime"] = lines[idx][16:]  # TODO: convert to number
+
+    # read coordinates
+    idx_start = idx = find_line(lines, "CARTESIAN COORDINATES (ANGSTROEM)") + 2
+    idx_stop = idx = find_line(lines, "---", idx) - 1
+    positions = lines_to_array(lines[idx_start:idx_stop], start=1, stop=4)
+    data["positions"], data["natoms"] = positions, positions.shape[0]
+
+    # read energy
+    # TODO: not exactly equal to log file - different conversion factor?
+    idx = find_line(lines, "FINAL SINGLE POINT ENERGY", idx)
+    data["energy"] = float(lines[idx].split()[-1]) * Ha
+
+    if "forces" not in properties:
+        return data
+
+    # read forces
+    idx_start = idx = find_line(lines, "CARTESIAN GRADIENT", idx) + 3
+    idx_stop = find_line(lines, "Difference", idx) - 1
+    forces = lines_to_array(lines[idx_start:idx_stop], start=3, stop=6)
+    data["forces"] = forces * Ha / Bohr
+
+    return data
+
+
 def _create_input(
     input_template: str, geometry: Geometry, resources: dict, outputs: ()
 ) -> None:
@@ -104,10 +141,18 @@ def _execute_calc(
     return "\n".join(command_list)
 
 
-def _process_output(geometry: Geometry, inputs: list[str]):
+def _process_output(geometry: Geometry, properties: tuple[str, ...], inputs: list[Path]) -> Geometry:
     """"""
-    print(geometry)
-    print(inputs)
+    with open(inputs[0], "r") as f:
+        stdout = f.read()
+    try:
+        data = parse_output(stdout, properties)
+    except TypeError:
+        # TODO: find out what went wrong
+        data = None
+    geometry = copy_data_to_geometry(geometry, data)
+    geometry.order['stdout'] = inputs[0].name
+    geometry.order['stderr'] = inputs[0].name
     return geometry
 
 
