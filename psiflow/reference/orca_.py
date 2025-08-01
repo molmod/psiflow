@@ -149,7 +149,7 @@ def _execute_calc(
 def _process_output(
     geometry: Geometry,
     properties: tuple[str, ...],
-    inputs: tuple[Path] = (),
+    inputs: tuple[str] = (),
 ) -> Geometry:
     """"""
     with open(inputs[0], "r") as f:
@@ -160,8 +160,8 @@ def _process_output(
         # TODO: find out what went wrong
         data = None
     geometry = copy_data_to_geometry(geometry, data)
-    geometry.order["stdout"] = inputs[0].name
-    geometry.order["stderr"] = inputs[0].name
+    geometry.order["stdout"] = Path(inputs[0]).name
+    geometry.order["stderr"] = Path(inputs[1]).name
     return geometry
 
 
