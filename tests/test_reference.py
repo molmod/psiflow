@@ -9,7 +9,7 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
 from psiflow.reference import CP2K, D3, GPAW, evaluate
-from psiflow.reference._cp2k import dict_to_str, parse_cp2k_output, str_to_dict
+from psiflow.reference.cp2k_ import dict_to_str, parse_cp2k_output, str_to_dict
 
 
 @pytest.fixture
@@ -380,7 +380,7 @@ def test_cp2k_energy(context, simple_cp2k_input):
 def test_cp2k_atomic_energies(
     dataset, simple_cp2k_input
 ):  # use energy-only because why not
-    reference = CP2K(simple_cp2k_input, outputs=("energy",), executor="CP2K")
+    reference = CP2K(simple_cp2k_input, outputs=("energy",))
     element = "H"
     energy = reference.compute_atomic_energy(element, box_size=4)
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
@@ -464,7 +464,6 @@ def test_gpaw_single(dataset, dataset_h2):
         xc="LDA",
         h=0.1,
         minimal_box_multiple=2,
-        executor="GPAW_container",
     )
     energy = gpaw.compute(dataset_h2[:1])[0].result()
     assert np.allclose(state.energy, energy)

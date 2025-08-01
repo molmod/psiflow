@@ -17,6 +17,8 @@ from psiflow.utils.apps import copy_app_future, unpack_i
 
 logger = logging.getLogger(__name__)  # logging per module
 
+# TODO: cleanup flow of apps
+
 
 @typeguard.typechecked
 def _extract_energy(state: Geometry):

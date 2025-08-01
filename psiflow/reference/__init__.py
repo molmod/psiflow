@@ -1,4 +1,5 @@
-from .cp2k import CP2K  # noqa: F401
-from .dftd3 import D3  # noqa: F401
-from .gpaw import GPAW  # noqa: F401
+# module naming is chosen to avoid import conflicts
+from .cp2k_ import CP2K  # noqa: F401
+from .dftd3_ import D3  # noqa: F401
+from .gpaw_ import GPAW  # noqa: F401
 from .reference import Reference, evaluate  # noqa: F401

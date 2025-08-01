@@ -5,11 +5,12 @@ import math
 import re
 import shutil
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
 
 # see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, ClassVar, Protocol
 
 import parsl
 import psutil
@@ -34,6 +35,68 @@ import psiflow
 logger = logging.getLogger(__name__)  # logging per module
 
 
+# TODO: max_runtime is in seconds, max_simulation_time (and others) is in minutes
+# TODO: do the ref evals need to be subclasses?
+# TODO: ExecutionDefinition gpu argument?
+# TODO: ExecutionDefinition wrap_in_timeout functionality
+# TODO: ExecutionDefinition wrap_in_srun functionality? Actually for MD this is more iffy right
+# TODO: ExecutionDefinition why properties?
+# TODO: ExecutionDefinition centralize wq_resources
+# TODO: configuration file with all options
+# TODO: reference MPI args not really checked
+# TODO: timeout -s 9 or -s 15?
+# TODO: executor keys are hardcoded strings..
+# TODO: mpi flags are very finicky across implementations --> use ENV args?
+#  OMPI_MCA_orte_report_bindings=1 I_MPI_DEBUG=4
+# TODO: define a 'format_env_variables' util
+# TODO: the GPAW container needs an up-to-date Psiflow version?
+
+
+EXECUTION_KWARGS = (
+    "container_uri",
+    "container_engine",
+    "container_addopts",
+    "container_entrypoint",
+)
+
+
+@dataclass
+class ContainerSpec:
+    uri: str
+    engine: str = "apptainer"
+    addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs"
+    entrypoint: str = "/opt/entry.sh"
+
+    def __post_init__(self):
+        assert self.engine in ("apptainer", "singularity")
+        assert len(self.uri) > 0
+
+    def launch_command(self, gpu: bool = False) -> str:
+        # TODO: pretty sure some of this is overkill
+        pwd = Path.cwd().resolve()  # access to data / internal dir
+        args = [self.engine, "exec", self.addopts, f"--bind {pwd}"]
+        if gpu:
+            if "rocm" in self.uri:
+                args.append("--rocm")
+            else:
+                args.append("--nv")
+        args += [self.uri, self.entrypoint]
+        return " ".join(args)
+
+    @staticmethod
+    def from_kwargs(kwargs: dict) -> Optional[ContainerSpec]:
+        if "container_uri" not in kwargs:
+            return None
+        keys = (
+            "container_uri",
+            "container_engine",
+            "container_addopts",
+            "container_entrypoint",
+        )
+        args = [kwargs[key] for key in keys if key in kwargs]
+        return ContainerSpec(*args)  # TODO: slightly hacky
+
+
 @typeguard.typechecked
 class ExecutionDefinition:
     def __init__(
@@ -42,16 +105,20 @@ class ExecutionDefinition:
         gpu: bool,
         cores_per_worker: int,
         use_threadpool: bool,
-        worker_prepend: str,
+        container: Optional[ContainerSpec],
         max_workers: Optional[int] = None,
+        **kwargs,
     ) -> None:
         self.parsl_provider = parsl_provider
         self.gpu = gpu
         self.cores_per_worker = cores_per_worker
         self.use_threadpool = use_threadpool
-        self.worker_prepend = worker_prepend
-        self.name = self.__class__.__name__
+        self.container = container
         self._max_workers = max_workers
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
 
     @property
     def cores_available(self):
@@ -78,7 +145,7 @@ class ExecutionDefinition:
             walltime = 1e9
         return walltime
 
-    def create_executor(self, path: Path, **kwargs) -> ParslExecutor:
+    def create_executor(self, path: Path) -> ParslExecutor:
         if self.use_threadpool:
             executor = ThreadPoolExecutor(
                 max_threads=self.cores_per_worker,
@@ -101,6 +168,13 @@ class ExecutionDefinition:
             else:
                 worker_options.append("--idle-timeout={}".format(20))
 
+            # only ModelEvaluation and ModelTraining run in containers
+            if isinstance(self, ReferenceEvaluation):
+                worker_executable = "work_queue_worker"
+            else:
+                prepend = self.container.launch_command()
+                worker_executable = f"{prepend} work_queue_worker"
+
             executor = MyWorkQueueExecutor(
                 label=self.name,
                 working_dir=str(path / self.name),
@@ -111,7 +185,7 @@ class ExecutionDefinition:
                 max_retries=1,
                 coprocess=False,
                 worker_options=" ".join(worker_options),
-                worker_executable="{} work_queue_worker".format(self.worker_prepend),
+                worker_executable=worker_executable,
                 scaling_cores_per_worker=cores,
             )
         return executor
@@ -122,7 +196,7 @@ class ExecutionDefinition:
         gpu: bool = False,
         cores_per_worker: int = 1,
         use_threadpool: bool = False,
-        container: Optional[dict] = None,
+        container: Optional[ContainerSpec] = None,
         **kwargs,
     ):
         # search for any section in the config which defines the Parsl ExecutionProvider
@@ -132,8 +206,7 @@ class ExecutionDefinition:
             provider_cls = SlurmProvider
             provider_kwargs = kwargs.pop("slurm")  # do not allow empty dict
             provider_kwargs["init_blocks"] = 0
-            if "exclusive" not in provider_kwargs:
-                provider_kwargs["exclusive"] = False
+            provider_kwargs.setdefault("exclusive", False)
         else:
             provider_cls = LocalProvider  # noqa: F405
             provider_kwargs = kwargs.pop("local", {})
@@ -145,10 +218,8 @@ class ExecutionDefinition:
             launcher = SimpleLauncher()
 
         if container is not None:
+            # TODO: why not exactly?
             assert not use_threadpool
-            worker_prepend = container_launch_command(gpu=gpu, **container)
-        else:
-            worker_prepend = ""
 
         # initialize provider
         parsl_provider = provider_cls(
@@ -159,7 +230,7 @@ class ExecutionDefinition:
             parsl_provider=parsl_provider,
             gpu=gpu,
             use_threadpool=use_threadpool,
-            worker_prepend=worker_prepend,
+            container=container,
             cores_per_worker=cores_per_worker,
             **kwargs,
         )
@@ -314,73 +385,47 @@ class ModelTraining(ExecutionDefinition):
 class ReferenceEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        name: str,
-        launch_command: Optional[str] = None,
+        spec: ReferenceSpec,
         max_evaluation_time: Optional[float] = None,
         memory_limit: Optional[str] = None,
         **kwargs,
     ) -> None:
+        # TODO: how to know which code?
         super().__init__(**kwargs)
-        self.name = name  # override name
-
-        if launch_command is None:
-            launch_command = self.default_launch_command
-        self.launch_command = launch_command
-
-        if max_evaluation_time is None:
-            max_evaluation_time = self.max_runtime / 60
-        assert max_evaluation_time * 60 <= self.max_runtime
-        self.max_evaluation_time = max_evaluation_time
-
+        self.spec = spec
+        self.max_evaluation_time = max_evaluation_time * 60  # seconds
+        if max_evaluation_time:
+            assert 0 < max_evaluation_time < self.max_runtime
         self.memory_limit = memory_limit
 
-    @property
-    def default_launch_command(self):
-        if self.name.startswith("CP2K"):
-            ranks = self.cores_per_worker  # use nprocs = ncores, nthreads = 1
-            mpi_command = "mpirun -np {} ".format(ranks)
-            mpi_command += "-x OMP_NUM_THREADS=1 "  # cp2k runs best with these settings
-            mpi_command += "--bind-to core --map-by core"  # set explicitly
-            command = "cp2k.psmp -i cp2k.inp"
-            return " ".join([mpi_command, command])
-        if self.name.startswith("GPAW"):
-            ranks = self.cores_per_worker  # use nprocs = ncores, nthreads = 1
-            mpi_command = "mpirun -np {} ".format(ranks)
-            mpi_command += "-x OMP_NUM_THREADS=1 "  # cp2k runs best with these settings
-            mpi_command += "--bind-to core --map-by core"  # set explicitly
-            script = "$(python -c 'import psiflow.reference.gpaw_; print(psiflow.reference.gpaw_.__file__)')"
-            return " ".join([mpi_command, "gpaw", "python", script])
-        if self.name.startswith("ORCA"):
-            raise ValueError('provide path to ORCA executable via "launch_command"')
-
     def command(self):
-        extra_commands = []
+        launch_command = self.spec.launch_command()
+        kwargs = {k: getattr(self, k) for k in self.spec.reference_args}
+        launch_command = launch_command.format(**kwargs)
 
-        launch_command = self.launch_command
-        if self.name.startswith("CP2K"):
-            launch_command += " -i cp2k.inp"  # add input file
-        elif self.name.startswith("GPAW"):
-            launch_command += " input.json"
-        if self.max_evaluation_time is not None:
-            max_time = 0.9 * (60 * self.max_evaluation_time)
-            launch_command = "timeout -s 9 {}s {}".format(max_time, launch_command)
+        if self.container is not None:
+            launch_command = f"{self.container.launch_command()} {launch_command}"
+
+        if (max_time := self.max_evaluation_time) is None:
+            # leave some slack for startup and cleanup
+            max_time = max(0.9 * self.max_runtime, self.max_runtime - 5)
+        launch_command = f"timeout -s 9 {max_time}s {launch_command}"
+
+        commands = []
         if self.memory_limit is not None:
             # based on https://stackoverflow.com/a/42865957/2002471
             units = {"KB": 1, "MB": 2**10, "GB": 2**20, "TB": 2**30}
 
-            def parse_size(size):
+            def parse_size(size):  # TODO: to utils?
                 size = size.upper()
                 if not re.match(r" ", size):
                     size = re.sub(r"([KMGT]?B)", r" \1", size)
                 number, unit = [string.strip() for string in size.split()]
                 return int(float(number) * units[unit])
 
-            actual = parse_size(self.memory_limit)
-            extra_commands.append("ulimit -v {}".format(actual))
+            commands.append(f"ulimit -v {parse_size(self.memory_limit)}")
 
-        body = "; ".join(extra_commands + [launch_command, "exit 0"]) + "; "
-        command = " { " + body + " } "
-        return command
+        return "\n".join([*commands, launch_command, 'exit 0'])
 
     def wq_resources(self):
         if self.use_threadpool:
@@ -392,6 +437,74 @@ class ReferenceEvaluation(ExecutionDefinition):
         resource_specification["memory"] = int(memory)
         resource_specification["running_time_min"] = self.max_evaluation_time
         return resource_specification
+
+    @property
+    def name(self) -> str:
+        return self.spec.name
+
+
+class ReferenceSpec(Protocol):
+    name: ClassVar[str]
+    reference_args: ClassVar[tuple[str, ...]]
+    mpi_command: str
+    mpi_args: tuple[str, ...]
+    executable: str
+
+    def launch_command(self) -> str:
+        raise NotImplementedError
+
+
+@dataclass
+class CP2KReferenceSpec(ReferenceSpec):
+    name = "CP2K"
+    reference_args = ("cores_per_worker",)
+    mpi_command: str = "mpirun -np {cores_per_worker}"
+    mpi_args: tuple[str, ...] = (
+        "-ENV OMP_NUM_THREADS=1",
+        "--bind-to core",
+        "--map-by core",
+    )
+    executable: str = "cp2k.psmp -i cp2k.inp"
+
+    def launch_command(self):
+        # use nprocs = ncores, nthreads = 1
+        return " ".join([self.mpi_command, *self.mpi_args, self.executable])
+
+
+@dataclass
+class GPAWReferenceSpec(ReferenceSpec):
+    name = "GPAW"
+    reference_args = ("cores_per_worker",)
+    mpi_command: str = "mpirun -np {cores_per_worker}"
+    mpi_args: tuple[str, ...] = (
+        "-x OMP_NUM_THREADS=1",
+        "--bind-to core",
+        "--map-by core",
+    )
+    executable: str = (
+        "gpaw python $(python -c 'import psiflow.reference._gpaw; print(psiflow.reference._gpaw.__file__)') input.json"
+    )
+
+    def launch_command(self):
+        # use nprocs = ncores, nthreads = 1
+        return " ".join([self.mpi_command, *self.mpi_args, self.executable])
+
+
+@dataclass
+class ORCAReferenceSpec(ReferenceSpec):
+    name = "ORCA"
+    reference_args = ()
+    mpi_command: str = ""
+    mpi_args: tuple[str, ...] = (
+        "-x OMP_NUM_THREADS=1",
+        "--bind-to core",
+        "--map-by core",
+    )
+    executable: str = "$(which orca) orca.inp"
+
+    def launch_command(self):
+        mpi_str = " ".join(self.mpi_args)
+        return f'{self.executable} "{mpi_str}"'
 
 
 @typeguard.typechecked
@@ -457,10 +570,6 @@ class ExecutionContext:
         default_threads: int = 4,
         htex_address: str = "127.0.0.1",
         zip_staging: Optional[bool] = None,
-        container_uri: Optional[str] = None,
-        container_engine: str = "apptainer",
-        container_addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs",
-        container_entrypoint: str = "/opt/entry.sh",
         make_symlinks: bool = True,
         **kwargs,
     ) -> ExecutionContext:
@@ -474,31 +583,25 @@ class ExecutionContext:
             name="parsl",
             level=getattr(logging, parsl_log_level),
         )
-        if container_uri is not None:
-            container = {
-                "uri": container_uri,
-                "engine": container_engine,
-                "addopts": container_addopts,
-                "entrypoint": container_entrypoint,
-            }
-        else:
-            container = None
 
         # create definitions
+        base_container = ContainerSpec.from_kwargs(kwargs)
+        kwargs.pop("container_uri", None)
         model_evaluation = ModelEvaluation.from_config(
-            container=container,
+            container=base_container,
             **kwargs.pop("ModelEvaluation", {}),
         )
         model_training = ModelTraining.from_config(
-            container=container,
-            **kwargs.pop("ModelTraining", {'gpu': True}),  # avoid triggering assertion
+            container=base_container,
+            **kwargs.pop("ModelTraining", {"gpu": True}),  # avoid triggering assertion
         )
         reference_evaluations = []  # reference evaluations might be class specific
         for key in list(kwargs.keys()):
-            if key[:4] in ["CP2K", "GPAW"]:
+            if key[:4] in REFERENCE_SPECS:  # allow for e.g., CP2K_small
                 config = kwargs.pop(key)
                 reference_evaluation = ReferenceEvaluation.from_config(
-                    name=key,
+                    spec=init_spec(REFERENCE_SPECS[key], config),
+                    container=ContainerSpec.from_kwargs(kwargs | config),
                     **config,
                 )
                 reference_evaluations.append(reference_evaluation)
@@ -508,8 +611,8 @@ class ExecutionContext:
         executors = [d.create_executor(path=path) for d in definitions]
 
         # create default executors
-        if container is not None:
-            launcher = WrappedLauncher(prepend=container_launch_command(**container))
+        if base_container is not None:
+            launcher = WrappedLauncher(prepend=base_container.launch_command())
         else:
             launcher = SimpleLauncher()
         htex = HighThroughputExecutor(
@@ -521,13 +624,12 @@ class ExecutionContext:
             cpu_affinity="none",
             provider=LocalProvider(launcher=launcher, init_blocks=0),  # noqa: F405
         )
-        executors.append(htex)
         threadpool = ThreadPoolExecutor(
             label="default_threads",
             max_threads=default_threads,
             working_dir=str(path),
         )
-        executors.append(threadpool)
+        executors.extend([htex, threadpool])
 
         # remove additional kwargs
         # if zip_staging:
@@ -614,33 +716,6 @@ class ExecutionContextLoader:
         parsl.wait_for_current_tasks()
 
 
-@typeguard.typechecked
-def container_launch_command(
-    uri: str,
-    engine: str = "apptainer",
-    gpu: bool = False,
-    addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs",
-    entrypoint: str = "/opt/entry.sh",
-) -> str:
-    assert engine in ["apptainer", "singularity"]
-    assert len(uri) > 0
-
-    launch_command = ""
-    launch_command += engine
-    launch_command += " exec "
-    launch_command += addopts
-    launch_command += " --bind {}".format(
-        Path.cwd().resolve()
-    )  # access to data / internal dir
-    if gpu:
-        if "rocm" in uri:
-            launch_command += " --rocm"
-        else:  # default
-            launch_command += " --nv"
-    launch_command += " {} {} ".format(uri, entrypoint)
-    return launch_command
-
-
 class SlurmLauncher(Launcher):
     def __init__(self, debug: bool = True, overrides: str = ""):
         super().__init__(debug=debug)
@@ -690,3 +765,16 @@ def _create_symlink(src: Path, dest: Path, is_dir: bool = False) -> None:
     else:
         dest.touch(exist_ok=True)
     src.symlink_to(dest, target_is_directory=is_dir)
+
+
+REFERENCE_SPECS = {
+    "CP2K": CP2KReferenceSpec,
+    "GPAW": GPAWReferenceSpec,
+    "ORCA": ORCAReferenceSpec,
+}
+
+
+def init_spec(spec_cls: type(ReferenceSpec), kwargs: dict) -> ReferenceSpec:
+    keys = ("mpi_command", "mpi_args", "executable")
+    cls_kwargs = {k: kwargs[k] for k in keys if k in kwargs}
+    return spec_cls(**cls_kwargs)

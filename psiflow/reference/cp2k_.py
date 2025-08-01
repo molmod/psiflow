@@ -156,7 +156,7 @@ def _prepare_input(
     properties: tuple = (),
     outputs: list = [],
 ):
-    from psiflow.reference.cp2k import (
+    from psiflow.reference.cp2k_ import (
         dict_to_str,
         insert_atoms_in_input,
         set_global_section,
@@ -194,7 +194,7 @@ def cp2k_singlepoint_post(
     inputs: list = [],
 ) -> Geometry:
     from psiflow.geometry import NullState, new_nullstate
-    from psiflow.reference.cp2k import parse_cp2k_output
+    from psiflow.reference.cp2k_ import parse_cp2k_output
 
     with open(inputs[0], "r") as f:
         cp2k_output_str = f.read()

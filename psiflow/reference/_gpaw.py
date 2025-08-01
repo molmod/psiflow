@@ -1,11 +1,16 @@
+# TODO: remove psiflow deps
 import json
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.mixing import SumCalculator
 from ase.parallel import world
-from dftd3.ase import DFTD3
-from gpaw import GPAW as GPAWCalculator
+try:
+    from dftd3.ase import DFTD3
+    from gpaw import GPAW as GPAWCalculator
+except ModuleNotFoundError:
+    # module is imported from the main Psiflow process
+    pass
 
 from psiflow.geometry import Geometry
 
