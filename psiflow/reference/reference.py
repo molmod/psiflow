@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)  # logging per module
 # TODO: error handling
 # TODO: fix tests
 # TODO: task naming is no longer descriptive
+# TODO: some actual logging?
 
 
 @join_app
@@ -34,7 +35,7 @@ def get_minimum_energy(element: str, **kwargs) -> AppFuture[float]:
     logger.info(f"Atomic energies for element {element}")
     for m, energy in energies.items():
         logger.info(f"\tMultiplicity {m}:{energy:>10.4f} eV")
-    assert not np.isinf(energy), f"Atomic energy calculation of {element} failed"
+    assert not np.isinf(energy), f"Atomic energy calculation of '{element}' failed"
     return copy_app_future(energy)
 
 

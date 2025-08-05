@@ -60,20 +60,23 @@ def get_spin_multiplicities(element: str) -> list[int]:
 
 def copy_data_to_geometry(geom: Geometry, data: dict) -> Geometry:
     """"""
-    # TODO: reject when data cannot match geometry
     geom = geom.copy()
     geom.reset()
-
-    if not np.allclose(data['positions'], geom.per_atom.positions, atol=1e-6):
-        # output does not match geometry
-        data["status"] = Status.INCONSISTENT
-
-    if data["status"] == Status.SUCCESS:
-        geom.energy = data.pop('energy')
-        if 'forces' in data:
-            geom.per_atom.forces[:] = data.pop('forces')
-
-    metadata = {k: data[k] for k in ('status', 'runtime', 'stdout', 'stderr')}
-    print(metadata)  # TODO: nice for debugging
+    metadata = {k: data[k] for k in ("status", "stdout", "stderr")}
     geom.order |= metadata
+    print(metadata)  # TODO: nice for debugging
+
+    if data["status"] != Status.SUCCESS:
+        return geom
+    geom.order['runtime'] = data.get('runtime')
+
+    if not np.allclose(data["positions"], geom.per_atom.positions, atol=1e-6):
+        # output does not match geometry
+        geom.order["status"] = Status.INCONSISTENT
+        return geom
+
+    geom.energy = data["energy"]
+    if "forces" in data:
+        geom.per_atom.forces[:] = data["forces"]
+
     return geom
