@@ -3,14 +3,17 @@ Not sure whether this is necessary, maybe absorb into reference.py?
 """
 
 from enum import Enum
+from typing import Sequence
 
 import numpy as np
 
 from psiflow.geometry import Geometry
 
+
 class Status(Enum):
     SUCCESS = 0
     FAILED = 1
+    INCONSISTENT = 2
 
 
 def find_line(
@@ -41,17 +44,36 @@ def lines_to_array(
     return np.array([line.split()[start:stop] for line in lines], dtype=dtype)
 
 
-def copy_data_to_geometry(geom: Geometry, data: dict | None = None) -> Geometry:
+def get_spin_multiplicities(element: str) -> list[int]:
+    """TODO: rethink this"""
+    # max S = N * 1/2, max mult = 2 * S + 1
+    from ase.symbols import atomic_numbers
+
+    mults = []
+    number = atomic_numbers[element]
+    for mult in range(1, min(number + 2, 16)):
+        if number % 2 == 0 and mult % 2 == 0:
+            continue  # S always whole, mult never even
+        mults.append(mult)
+    return mults
+
+
+def copy_data_to_geometry(geom: Geometry, data: dict) -> Geometry:
     """"""
-    # TODO: revamp this method
     # TODO: reject when data cannot match geometry
     geom = geom.copy()
     geom.reset()
-    if data is None:
-        return geom
-    geom.order['status'] = data['status']
-    geom.order['runtime'] = data['runtime']
-    geom.energy = data['energy']
-    if 'forces' in data:
-        geom.per_atom.forces[:] = data['forces']
+
+    if not np.allclose(data['positions'], geom.per_atom.positions, atol=1e-6):
+        # output does not match geometry
+        data["status"] = Status.INCONSISTENT
+
+    if data["status"] == Status.SUCCESS:
+        geom.energy = data.pop('energy')
+        if 'forces' in data:
+            geom.per_atom.forces[:] = data.pop('forces')
+
+    metadata = {k: data[k] for k in ('status', 'runtime', 'stdout', 'stderr')}
+    print(metadata)  # TODO: nice for debugging
+    geom.order |= metadata
     return geom

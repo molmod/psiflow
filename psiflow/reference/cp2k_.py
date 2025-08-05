@@ -3,81 +3,66 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import copy
 import io
 import logging
+import warnings
 from functools import partial
 from typing import Optional, Union
+from pathlib import Path
 
 import numpy as np
-import typeguard
-from ase.data import atomic_numbers
+import parsl
+from ase.data import chemical_symbols
 from ase.units import Bohr, Ha
 from cp2k_input_tools.generator import CP2KInputGenerator
 from cp2k_input_tools.parser import CP2KInputParserSimplified
-from parsl.app.app import bash_app, python_app
+from parsl import bash_app, python_app, join_app, File
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.geometry import Geometry, NullState
+from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference
-from psiflow.reference.utils import find_line
+from psiflow.reference.utils import (
+    find_line,
+    get_spin_multiplicities,
+    lines_to_array,
+    Status,
+    copy_data_to_geometry,
+)
+from psiflow.utils.apps import copy_app_future
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
-@typeguard.typechecked
-def check_input(cp2k_input_str: str):
-    pass
+# costly to initialise
+input_parser = CP2KInputParserSimplified(
+    repeated_section_unpack=True,
+    # multi_value_unpack=False,
+    # level_reduction_blacklist=['KIND'],
+)
+input_generator = CP2KInputGenerator()
 
 
-@typeguard.typechecked
-def str_to_dict(cp2k_input_str: str) -> dict:
-    return CP2KInputParserSimplified(
-        repeated_section_unpack=True,
-        # multi_value_unpack=False,
-        # level_reduction_blacklist=['KIND'],
-    ).parse(io.StringIO(cp2k_input_str))
+def str_to_dict(input_str: str) -> dict:
+    return input_parser.parse(io.StringIO(input_str))
 
 
-@typeguard.typechecked
-def dict_to_str(cp2k_input_dict: dict) -> str:
-    return "\n".join(list(CP2KInputGenerator().line_iter(cp2k_input_dict)))
+def dict_to_str(input_dict: dict) -> str:
+    return "\n".join(list(input_generator.line_iter(input_dict)))
 
 
-@typeguard.typechecked
-def insert_atoms_in_input(cp2k_input_dict: dict, geometry: Geometry):
-    from ase.data import chemical_symbols
-
-    # get rid of topology if it's there
-    cp2k_input_dict["force_eval"]["subsys"].pop("topology", None)
-
-    coord = []
-    cell = {}
-    numbers = geometry.per_atom.numbers
-    positions = geometry.per_atom.positions
-    for i in range(len(geometry)):
-        coord.append("{} {} {} {}".format(chemical_symbols[numbers[i]], *positions[i]))
-    cp2k_input_dict["force_eval"]["subsys"]["coord"] = {"*": coord}
-
-    assert geometry.periodic  # CP2K needs cell info!
-    for i, vector in enumerate(["A", "B", "C"]):
-        cell[vector] = "{} {} {}".format(*geometry.cell[i])
-    cp2k_input_dict["force_eval"]["subsys"]["cell"] = cell
-
-
-@typeguard.typechecked
-def set_global_section(cp2k_input_dict: dict, properties: tuple):
-    if "global" not in cp2k_input_dict:
-        cp2k_input_dict["global"] = {}
-    global_dict = cp2k_input_dict["global"]
+def modify_input(input_dict: dict, properties: tuple) -> None:
+    global_dict = input_dict.setdefault("global", {})
 
     # override low/silent print levels
-    level = global_dict.pop("print_level", "MEDIUM")
-    if level in ["SILENT", "LOW"]:
+    if global_dict.get("print_level") in ["SILENT", "LOW"]:
         global_dict["print_level"] = "MEDIUM"
 
     if properties == ("energy",):
         global_dict["run_type"] = "ENERGY"
     elif properties == ("energy", "forces"):
+        # output forces
         global_dict["run_type"] = "ENERGY_FORCE"
+        input_dict["force_eval"]["print"] = {"FORCES": {}}
     else:
         raise ValueError("invalid properties: {}".format(properties))
 
@@ -87,210 +72,180 @@ def set_global_section(cp2k_input_dict: dict, properties: tuple):
         global_dict["fm"] = {"type_of_matrix_multiplication": "SCALAPACK"}
 
 
+def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.ndarray]:
+    lines = output_str.split("\n")
+    data = {}
 
-
-
-def _parse_cp2k_output(cp2k_output_str: str, properties: tuple) -> dict[str, float | np.ndarray]:
-    all_lines = cp2k_output_str.split("\n")
+    # output status
+    idx = find_line(lines, "CP2K", reverse=True, max_lines=250)
+    data["status"] = status = Status.SUCCESS if idx is not None else Status.FAILED
+    if status == Status.SUCCESS:
+        # total runtime
+        data["runtime"] = float(lines[idx].split()[-1])
 
     # find number of atoms
-    # TODO: what if this does not work?
-    idx = find_line(all_lines, "TOTAL NUMBERS AND MAXIMUM NUMBERS")
-    idx = find_line(all_lines, "- Atoms:", idx)
-    natoms = int(all_lines[idx].split()[-1])
+    idx = find_line(lines, "TOTAL NUMBERS AND MAXIMUM NUMBERS")
+    idx = find_line(lines, "- Atoms:", idx)
+    natoms = data["natoms"] = int(lines[idx].split()[-1])
 
     # read coordinates
     key = "MODULE QUICKSTEP: ATOMIC COORDINATES IN ANGSTROM"
-    idx = find_line(all_lines, key, idx) + 3
-    lines = all_lines[idx : idx + natoms]
-    positions = np.array([line.split()[4:7] for line in lines], dtype=float)
+    idx = find_line(lines, key, idx) + 3
+    data["positions"] = lines_to_array(lines[idx : idx + natoms], 4, 7)
 
     # read energy
     key = "ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]"
-    idx = find_line(all_lines, key, idx)
-    energy = float(all_lines[idx].split()[-1]) * Ha
+    idx = find_line(lines, key, idx)
+    data["energy"] = float(lines[idx].split()[-1]) * Ha
 
-    data = dict(natoms=natoms, positions=positions, energy=energy)
     if "forces" not in properties:
         return data
 
     # read forces
     key = "ATOMIC FORCES in [a.u.]"
-    idx = find_line(all_lines, key, idx) + 3
-    lines = all_lines[idx : idx + natoms]
-    forces = np.array([line.split()[3:] for line in lines], dtype=float)
-    forces *= Ha / Bohr
+    idx = find_line(lines, key, idx) + 3
+    forces = lines_to_array(lines[idx : idx + natoms], 3)
 
-    return data | {'forces': forces}
+    return data | {"forces": forces * Ha / Bohr}
 
 
-def parse_cp2k_output(
-    cp2k_output_str: str, properties: tuple, geometry: Geometry
-) -> Geometry:
-    try:
-        data = _parse_cp2k_output(cp2k_output_str, properties)
-    except TypeError:
-        # output log is not complete
-        # TODO: find out what went wrong
-        return geometry
-
-    assert np.allclose(
-        geometry.per_atom.positions, data['positions'], atol=1e-4
-    )  # less than float accuracy
-
-    # TODO: store data in geometry -> this should be a general method
-    geometry = geometry.copy()
-    geometry.reset()
-    geometry.energy = data['energy']
-    if "forces" in data:
-        geometry.per_atom.forces = data['forces']
-    return geometry
-
-
-def _prepare_input(
-    geometry: Geometry,
-    cp2k_input_dict: dict = {},
-    properties: tuple = (),
-    outputs: list = [],
+def _create_input(
+    geom: Geometry,
+    input_dict: dict,
+    outputs: (),
 ):
-    from psiflow.reference.cp2k_ import (
-        dict_to_str,
-        insert_atoms_in_input,
-        set_global_section,
-    )
+    # insert_geometry
+    section = input_dict["force_eval"]["subsys"]
+    section.pop("topology", None)  # remove topology section
 
-    set_global_section(cp2k_input_dict, properties)
-    insert_atoms_in_input(cp2k_input_dict, geometry)
-    if "forces" in properties:
-        cp2k_input_dict["force_eval"]["print"] = {"FORCES": {}}
-    cp2k_input_str = dict_to_str(cp2k_input_dict)
+    symbols = np.array(chemical_symbols)[geom.per_atom.numbers]
+    coord = [
+        f"{s:5} {p[0]:<15.8f} {p[1]:<15.8f} {p[2]:<15.8f}"
+        for s, p in zip(symbols, geom.per_atom.positions)
+    ]
+    section["coord"] = {"*": coord}
+
+    cell = {}
+    for i, vector in enumerate(["A", "B", "C"]):
+        cell[vector] = "{} {} {}".format(*geom.cell[i])
+    section["cell"] = cell
+
     with open(outputs[0], "w") as f:
-        f.write(cp2k_input_str)
+        f.write(dict_to_str(input_dict))
 
 
-prepare_input = python_app(_prepare_input, executors=["default_threads"])
-
-
-# typeguarding for some reason incompatible with WQ
-def cp2k_singlepoint_pre(
-    cp2k_command: str = "",
-    stdout: str = "",
-    stderr: str = "",
-    inputs: list = [],
+def _execute(
+    file_in: File,
+    command: str = "",
     parsl_resource_specification: Optional[dict] = None,
-):
-    cp_command = f"cp {inputs[0].filepath} cp2k.inp"
-    command_list = [TMP_COMMAND, CD_COMMAND, cp_command, cp2k_command]
+    stdout: str = parsl.AUTO_LOGNAME,
+    stderr: str = parsl.AUTO_LOGNAME,
+    label: str = "cp2k_singlepoint",
+) -> str:
+    cp_command = f"cp {file_in.filepath} cp2k.inp"
+    command_list = [TMP_COMMAND, CD_COMMAND, cp_command, command]
     return "\n".join(command_list)
 
 
-@typeguard.typechecked
-def cp2k_singlepoint_post(
-    geometry: Geometry,
-    properties: tuple = (),
-    inputs: list = [],
+def _process_output(
+    geom: Geometry,
+    properties: tuple[str, ...],
+    inputs: tuple[str] = (),
 ) -> Geometry:
-    from psiflow.geometry import NullState, new_nullstate
-    from psiflow.reference.cp2k_ import parse_cp2k_output
-
+    """"""
     with open(inputs[0], "r") as f:
-        cp2k_output_str = f.read()
-    geometry = parse_cp2k_output(cp2k_output_str, properties, geometry)
-    if geometry != NullState:
-        geometry.stdout = inputs[0]
-    else:  # a little hacky
-        geometry = new_nullstate()
-        geometry.stdout = inputs[0]
-    return geometry
+        stdout = f.read()
+    try:
+        data = parse_output(stdout, properties)
+    except TypeError:
+        # TODO: find out what went wrong
+        data = {"status": Status.FAILED}
+    data |= {"stdout": Path(inputs[0]).name, "stderr": Path(inputs[1]).name}
+    return copy_data_to_geometry(geom, data)
 
 
-@typeguard.typechecked
+@join_app
+def evaluate(cp2k: CP2K, geom: Geometry) -> AppFuture[Geometry]:
+    """"""
+    if not geom.periodic:
+        msg = "CP2K expects periodic boundary conditions, skipping geometry"
+        warnings.warn(msg)
+        return copy_app_future(geom)
+
+    future = cp2k.app_pre(
+        input_dict=copy.deepcopy(cp2k.input_dict),
+        geom=geom,
+        outputs=[psiflow.context().new_file("cp2k_", ".inp")],
+    )
+    future = cp2k.app_execute(file_in=future.outputs[0])
+    future = cp2k.app_post(
+        geom=geom,
+        inputs=[future.stdout, future.stderr, future],  # wait for future
+    )
+    return future
+
+
 @psiflow.serializable
 class CP2K(Reference):
-    outputs: list
+    outputs: tuple[str, ...]
     executor: str
-    cp2k_input_str: str
-    cp2k_input_dict: dict
+    input_dict: dict
 
     def __init__(
         self,
-        cp2k_input_str: str,
+        input_str: str,
         executor: str = "CP2K",
         outputs: Union[tuple, list] = ("energy", "forces"),
     ):
         self.executor = executor
-        check_input(cp2k_input_str)
-        self.cp2k_input_str = cp2k_input_str
-        self.cp2k_input_dict = str_to_dict(cp2k_input_str)
-        self.outputs = list(outputs)
+        self.outputs = tuple(outputs)
+        self.input_dict = str_to_dict(input_str)
+        modify_input(self.input_dict, outputs)
         self._create_apps()
 
     def _create_apps(self):
         definition = psiflow.context().definitions[self.executor]
-        cp2k_command = definition.command()
+        command = definition.command()
         wq_resources = definition.wq_resources()
-        app_pre = bash_app(cp2k_singlepoint_pre, executors=[self.executor])
-        app_post = python_app(cp2k_singlepoint_post, executors=["default_threads"])
-
-        # create wrapped pre app which first parses the input file and writes it to
-        # disk, then call the actual bash app with the input file as a DataFuture dependency
-        # This is necessary because for very large structures, the size of the cp2k input
-        # file is too long to pass as an argument in a command line
-        def wrapped_app_pre(geometry, stdout: str, stderr: str):
-            future = prepare_input(
-                geometry,
-                cp2k_input_dict=copy.deepcopy(self.cp2k_input_dict),
-                properties=tuple(self.outputs),
-                outputs=[psiflow.context().new_file("cp2k_", ".inp")],
-            )
-            return app_pre(
-                cp2k_command=cp2k_command,
-                stdout=stdout,
-                stderr=stderr,
-                inputs=[future.outputs[0]],
-                parsl_resource_specification=wq_resources,
-            )
-
-        self.app_pre = wrapped_app_pre
+        self.app_pre = python_app(_create_input, executors=["default_threads"])
+        self.app_execute = partial(
+            bash_app(_execute, executors=[self.executor]),
+            command=command,
+            parsl_resource_specification=wq_resources,
+        )
         self.app_post = partial(
-            app_post,
-            properties=tuple(self.outputs),
+            python_app(_process_output, executors=["default_threads"]),
+            properties=self.outputs,
         )
 
-    def get_single_atom_references(self, element):
-        number = atomic_numbers[element]
-        references = []
-        for mult in range(1, 16):
-            if number % 2 == 0 and mult % 2 == 0:
-                continue  # not 2N + 1 is never even
-            if mult - 1 > number:
-                continue  # max S = 2 * (N * 1/2) + 1
-            cp2k_input_dict = copy.deepcopy(self.cp2k_input_dict)
-            cp2k_input_dict["force_eval"]["dft"]["uks"] = "TRUE"
-            cp2k_input_dict["force_eval"]["dft"]["multiplicity"] = mult
-            cp2k_input_dict["force_eval"]["dft"]["charge"] = 0
-            cp2k_input_dict["force_eval"]["dft"]["xc"].pop("vdw_potential", None)
-            if "scf" in cp2k_input_dict["force_eval"]["dft"]:
-                if "ot" in cp2k_input_dict["force_eval"]["dft"]["scf"]:
-                    cp2k_input_dict["force_eval"]["dft"]["scf"]["ot"][
-                        "minimizer"
-                    ] = "CG"
-                else:
-                    cp2k_input_dict["force_eval"]["dft"]["scf"]["ot"] = {
-                        "minimizer": "CG"
-                    }
-            else:
-                cp2k_input_dict["force_eval"]["dft"]["scf"] = {
-                    "ot": {"minimizer": "CG"}
-                }
-            # necessary for oxygen calculation, at least in 2024.1
-            key = "ignore_convergence_failure"
-            cp2k_input_dict["force_eval"]["dft"]["scf"][key] = "TRUE"
+    def evaluate(self, geometry: Geometry | AppFuture) -> AppFuture:
+        return evaluate(self, geometry)
 
-            reference = CP2K(
-                dict_to_str(cp2k_input_dict),
+    def compute_atomic_energy(self, element, box_size=None) -> AppFuture[float]:
+        assert box_size, "CP2K expects a periodic box."
+        return super().compute_atomic_energy(element, box_size)
+
+    def get_single_atom_references(self, element: str) -> dict[int, Reference]:
+        input_dict = copy.deepcopy(self.input_dict)
+        input_section = input_dict["force_eval"]["dft"]
+        input_section |= {"uks": "TRUE", "charge": 0, "multiplicity": "{mult}"}
+        input_section["xc"].pop("vdw_potential", None)  # no dispersion
+        if "scf" in input_section:
+            if "ot" in input_section["scf"]:
+                input_section["scf"]["ot"]["minimizer"] = "CG"
+            else:
+                input_section["scf"]["ot"] = {"minimizer": "CG"}
+        else:
+            input_section["scf"] = {"ot": {"minimizer": "CG"}}
+        # necessary for oxygen calculation, at least in 2024.1
+        input_section["scf"]["ignore_convergence_failure"] = "TRUE"
+        input_str = dict_to_str(input_dict)
+
+        references = {}
+        for mult in get_spin_multiplicities(element):
+            references[mult] = CP2K(
+                input_str.format(mult=mult),
                 outputs=self.outputs,
                 executor=self.executor,
             )
-            references.append((mult, reference))
         return references
