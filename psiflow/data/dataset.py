@@ -284,6 +284,14 @@ class Dataset:
         Returns:
             Dataset: A new Dataset with evaluation results.
         """
+        # TODO: WIP
+        from psiflow.hamiltonians import Hamiltonian
+
+        if not isinstance(computable, Hamiltonian):
+            # avoid extracting and inserting the same quantities
+            return computable.compute_dataset(self)
+
+        # use Hamiltonian.compute method
         if batch_size is not None:
             outputs = computable.compute(self, batch_size=batch_size)
         else:
