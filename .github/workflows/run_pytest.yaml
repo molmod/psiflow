@@ -48,4 +48,4 @@ jobs:
         run: |
           pip install .[dev]
           pip list
-          pytest --skip-gpu --psiflow-config=.github/threadpool.yaml
+          pytest --skip-gpu 
