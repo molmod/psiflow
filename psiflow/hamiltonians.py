@@ -20,6 +20,7 @@ from psiflow.functions import (
     MACEFunction,
     PlumedFunction,
     ZeroFunction,
+    DispersionFunction,
     _apply,
 )
 from psiflow.geometry import Geometry
@@ -28,21 +29,20 @@ from psiflow.utils.apps import copy_app_future, get_attribute
 from psiflow.utils.io import dump_json
 
 
-# TODO: executors not very consistent for some reason (default_threads <> default_htex)
-
 @typeguard.typechecked
 @psiflow.serializable
 class Hamiltonian(Computable):
+    # TODO: app is actually an instance variable, but serialization complains..
     outputs: ClassVar[tuple] = ("energy", "forces", "stress")
     batch_size = 1000
-    app: ClassVar[Callable]             # TODO: app is actually an instance variable, but serialization complains..
+    app: ClassVar[Callable]
     function_name: ClassVar[str]
 
     def compute(
         self,
         arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
         *outputs: Optional[str],
-        batch_size: Optional[int] = -1,  # if -1: take class default        TODO: why not just None?
+        batch_size: Optional[int] = -1,  # if -1: take class default TODO: why?
     ) -> Union[list[AppFuture], AppFuture]:
         if len(outputs) == 0:
             outputs = tuple(self.__class__.outputs)
@@ -64,7 +64,7 @@ class Hamiltonian(Computable):
     def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
         if type(hamiltonian) is Zero:
             return self
-        mixture = MixtureHamiltonian([self], [1.])
+        mixture = MixtureHamiltonian([self], [1.0])
         return mixture.__add__(hamiltonian)
 
     def __sub__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
@@ -104,10 +104,10 @@ class Zero(Hamiltonian):
         return Zero()
 
     def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
-        return hamiltonian          # (Zero + Hamiltonian) is different from (Hamiltonian + Zero)
+        # (Zero + Hamiltonian) is different from (Hamiltonian + Zero)
+        return hamiltonian
 
     __rmul__ = __mul__  # handle float * Zero
-
 
 
 @typeguard.typechecked
@@ -169,11 +169,11 @@ class MixtureHamiltonian(Hamiltonian):
     def __len__(self) -> int:
         return len(self.coefficients)
 
-    def __add__(self, hamiltonian: Hamiltonian | MixtureHamiltonian) -> MixtureHamiltonian:
+    def __add__(self, hamiltonian: Hamiltonian) -> MixtureHamiltonian:
         if type(hamiltonian) is Zero:
             return self
         if type(hamiltonian) is not MixtureHamiltonian:
-            hamiltonian = 1.0 * hamiltonian                 # turn into mixture
+            hamiltonian = 1.0 * hamiltonian  # turn into mixture
 
         coefficients = list(hamiltonian.coefficients)
         hamiltonians = list(hamiltonian.hamiltonians)
@@ -208,9 +208,12 @@ class MixtureHamiltonian(Hamiltonian):
             return None
         return self.coefficients[idx]
 
-    def get_coefficients(self, mixture: MixtureHamiltonian) -> Optional[tuple[float, ...]]:
+    def get_coefficients(
+        self, mixture: MixtureHamiltonian
+    ) -> Optional[tuple[float, ...]]:
         assert type(mixture) is MixtureHamiltonian
-        for h in mixture.hamiltonians:              # every mixture component must be a component of self
+        for h in mixture.hamiltonians:
+            # every mixture component must be a component of self
             if h not in self.hamiltonians:
                 return None
 
@@ -263,9 +266,9 @@ class EinsteinCrystal(Hamiltonian):
 
     def __eq__(self, hamiltonian: Hamiltonian | EinsteinCrystal) -> bool:
         if (
-            not isinstance(hamiltonian, EinsteinCrystal) or
-            not np.allclose(self.force_constant, hamiltonian.force_constant) or
-            self.reference_geometry != hamiltonian.reference_geometry
+            not isinstance(hamiltonian, EinsteinCrystal)
+            or not np.allclose(self.force_constant, hamiltonian.force_constant)
+            or self.reference_geometry != hamiltonian.reference_geometry
         ):
             return False
         return True
@@ -310,8 +313,8 @@ class PlumedHamiltonian(Hamiltonian):
 
     def __eq__(self, other: Hamiltonian | PlumedHamiltonian) -> bool:
         if (
-            not isinstance(other, PlumedHamiltonian) or
-            self.plumed_input != other.plumed_input
+            not isinstance(other, PlumedHamiltonian)
+            or self.plumed_input != other.plumed_input
         ):
             return False
         return True
@@ -329,7 +332,8 @@ class Harmonic(Hamiltonian):
         reference_geometry: Union[Geometry, AppFuture[Geometry]],
         hessian: Union[np.ndarray, AppFuture[np.ndarray]],
     ):
-        self.reference_geometry = reference_geometry            # TODO: why not copy_app_future(geometry) like others?
+        # TODO: why not copy_app_future(geometry) like others?
+        self.reference_geometry = reference_geometry
         self.hessian = hessian
         self._create_apps()
 
@@ -367,8 +371,47 @@ class Harmonic(Hamiltonian):
             )
         else:
             equal = hamiltonian.hessian == self.hessian
-
         if not equal:
+            return False
+        return True
+
+
+@typeguard.typechecked
+@psiflow.serializable
+class D3Hamiltonian(Hamiltonian):
+    method: str
+    damping: str
+    function_name: ClassVar[str] = "DispersionFunction"
+
+    def __init__(self, method: str, damping: str = "d3bj"):
+        self.method, self.damping = method, damping
+        self._create_apps()
+
+    def _create_apps(self):
+        # TODO: does this make sense? GPU settings are useless for example
+        evaluation = psiflow.context().definitions["ModelEvaluation"]
+        apply_app = python_app(_apply, executors=["ModelEvaluation"])
+        resources = evaluation.wq_resources(1)
+        resources.pop("gpus", None)
+
+        # execution-side parameters of function are not included in self.parameters()
+        self.app = partial(
+            apply_app,
+            function_cls=DispersionFunction,
+            parsl_resource_specification=resources,
+            **self.parameters(),
+            num_threads=resources["cores"],
+        )
+
+    def parameters(self) -> dict:
+        return {"method": self.method, "damping": self.damping}
+
+    def __eq__(self, hamiltonian: Hamiltonian | D3Hamiltonian) -> bool:
+        if (
+            not isinstance(hamiltonian, D3Hamiltonian)
+            or self.method != hamiltonian.method
+            or self.damping != hamiltonian.damping
+        ):
             return False
         return True
 
@@ -433,7 +476,7 @@ class MACEHamiltonian(Hamiltonian):
         return True
 
     # TODO: the methods below are outdated..
-    
+
     @classmethod
     def mace_mp0(cls, size: str = "small") -> MACEHamiltonian:
         urls = dict(

@@ -6,13 +6,30 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Optional, Type, Union, get_type_hints
 
+import ase
 import numpy as np
 import typeguard
 from ase import Atoms
 from ase.data import atomic_masses, chemical_symbols
 from ase.units import fs, kJ, mol, nm
+from ase.stress import voigt_6_to_full_3x3_stress
 
 from psiflow.geometry import Geometry, NullState, create_outputs
+
+
+def format_output(
+    geometry: Geometry,
+    energy: float,
+    forces: np.ndarray | None = None,
+    stress: np.ndarray | None = None,
+    **kwargs,
+) -> dict:
+    """"""
+    forces = np.zeros(shape=(len(geometry), 3)) if forces is None else forces
+    stress = np.zeros(shape=(3, 3)) if stress is None else stress
+    if stress.size == 6:
+        stress = voigt_6_to_full_3x3_stress(stress)
+    return {"energy": energy, "forces": forces, "stress": stress}
 
 
 @typeguard.typechecked
@@ -39,9 +56,9 @@ class Function:
             if geometry == NullState:
                 continue
             out = self(geometry)
-            value[i] = out['energy']
-            grad_pos[i, :len(geometry)] = out['forces']
-            grad_cell[i] = out['stress']
+            value[i] = out["energy"]
+            grad_pos[i, : len(geometry)] = out["forces"]
+            grad_cell[i] = out["stress"]
         return {"energy": value, "forces": grad_pos, "stress": grad_cell}
 
 
@@ -64,13 +81,11 @@ class EinsteinCrystalFunction(EnergyFunction):
         delta = geometry.per_atom.positions - self.centers
         energy = self.force_constant * np.sum(delta**2) / 2
         grad_pos = (-1.0) * self.force_constant * delta
+        grad_cell = None
         if geometry.periodic and self.volume > 0.0:
             delta = np.linalg.det(geometry.cell) - self.volume
-            _stress = self.force_constant * np.eye(3) * delta
-        else:
-            _stress = np.zeros((3, 3))
-        grad_cell = _stress
-        return {"energy": energy, "forces": grad_pos, "stress": grad_cell}
+            grad_cell = self.force_constant * np.eye(3) * delta
+        return format_output(geometry, energy, grad_pos, grad_cell)
 
 
 @typeguard.typechecked
@@ -94,9 +109,7 @@ class PlumedFunction(EnergyFunction):
         if key not in self.plumed_instances:
             from plumed import Plumed
 
-            tmp = tempfile.NamedTemporaryFile(
-                prefix="plumed_", mode="w+", delete=False
-            )
+            tmp = tempfile.NamedTemporaryFile(prefix="plumed_", mode="w+", delete=False)
             # plumed creates a back up if this file would already exist
             os.remove(tmp.name)
             plumed_ = Plumed()
@@ -136,11 +149,10 @@ class PlumedFunction(EnergyFunction):
         plumed_.cmd("prepareCalc")
         plumed_.cmd("performCalcNoUpdate")
         plumed_.cmd("getBias", energy)
+        stress = None
         if geometry.periodic:
             stress = virial / np.linalg.det(geometry.cell)
-        else:
-            stress = np.zeros((3, 3))
-        return {"energy": float(energy.item()), "forces": forces, "stress": stress}
+        return format_output(geometry, float(energy.item()), forces, stress)
 
     @staticmethod
     def _geometry_to_key(geometry: Geometry) -> tuple:
@@ -154,7 +166,7 @@ class ZeroFunction(EnergyFunction):
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        return {"energy": 0., "forces": np.zeros(shape=(len(geometry), 3)), "stress": np.zeros(shape=(3, 3))}
+        return format_output(geometry, 0)
 
 
 @typeguard.typechecked
@@ -173,7 +185,7 @@ class HarmonicFunction(EnergyFunction):
         energy = 0.5 * np.dot(delta, grad)
         if self.energy is not None:
             energy += self.energy
-        return {"energy": energy, "forces": (-1.0) * grad.reshape(-1, 3), "stress": np.zeros(shape=(3, 3))}
+        return format_output(geometry, energy, (-1.0) * grad.reshape(-1, 3))
 
 
 @typeguard.typechecked
@@ -228,7 +240,9 @@ class MACEFunction(EnergyFunction):
             try:
                 total += counts[idx] * self.atomic_energies[symbol]
             except KeyError:
-                warnings.warn(f'(MACEFunction) No atomic energy entry for symbol "{symbol}". Are you sure?')
+                warnings.warn(
+                    f'(MACEFunction) No atomic energy entry for symbol "{symbol}". Are you sure?'
+                )
         return total
 
     def __call__(
@@ -241,7 +255,11 @@ class MACEFunction(EnergyFunction):
         # TODO: is this call necessary?
         # torch_tools.set_default_dtype(self.dtype)
 
-        energy, forces, stress = 0.0, np.zeros(shape=(len(geometry), 3)), np.zeros(shape=(3, 3))
+        energy, forces, stress = (
+            0.0,
+            np.zeros(shape=(len(geometry), 3)),
+            np.zeros(shape=(3, 3)),
+        )
 
         # compute offset if possible
         if self.atomic_energies:
@@ -255,14 +273,49 @@ class MACEFunction(EnergyFunction):
             pbc=geometry.periodic,
         )
         config = data.config_from_atoms(atoms)
-        data = data.AtomicData.from_config(config, z_table=self.z_table, cutoff=self.r_max)
+        data = data.AtomicData.from_config(
+            config, z_table=self.z_table, cutoff=self.r_max
+        )
         batch = Batch.from_data_list([data]).to(device=self.device)
         out = self.model(batch.to_dict(), compute_stress=cell is not None)
         energy += out["energy"].detach().cpu().item()
         forces += out["forces"].detach().cpu().numpy()
         if cell is not None:
             stress += out["stress"].detach().cpu().numpy().squeeze()
-        return {"energy": energy, "forces": forces, "stress": stress}
+        return format_output(geometry, energy, forces, stress)
+
+
+@typeguard.typechecked
+@dataclass
+class DispersionFunction(EnergyFunction):
+    method: str
+    damping: str = "d3bj"
+    params_tweaks: Optional[dict[str, float]] = None
+    num_threads: int = 1
+
+    def __post_init__(self):
+        # OMP_NUM_THREADS for parallel evaluation does not work..
+        # https://github.com/dftd3/simple-dftd3/issues/49
+        os.environ["OMP_NUM_THREADS"] = str(self.num_threads * 10)
+
+        from dftd3.ase import DFTD3
+
+        self.calc = DFTD3(
+            method=self.method, damping=self.damping, params_tweaks=self.params_tweaks
+        )
+
+    def __call__(
+        self,
+        geometry: Geometry,
+    ) -> dict[str, float | np.ndarray]:
+        atoms = ase.Atoms(  # TODO: geometry.to_atoms?
+            numbers=geometry.per_atom.numbers,
+            positions=geometry.per_atom.positions,
+            cell=geometry.cell,
+            pbc=geometry.periodic,
+        )
+        self.calc.calculate(atoms)
+        return format_output(geometry, **self.calc.results)
 
 
 def _apply(
@@ -311,4 +364,3 @@ def function_from_json(path: Union[str, Path], **kwargs) -> Function:
             data[key] = value
     function = function_cls(**data)
     return function
-
