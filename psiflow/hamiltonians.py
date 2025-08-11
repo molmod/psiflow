@@ -400,7 +400,7 @@ class D3Hamiltonian(Hamiltonian):
             function_cls=DispersionFunction,
             parsl_resource_specification=resources,
             **self.parameters(),
-            num_threads=resources["cores"],
+            num_threads=resources.get("cores", 1),  # TODO: sloppy
         )
 
     def parameters(self) -> dict:

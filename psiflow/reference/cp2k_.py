@@ -44,12 +44,12 @@ def modify_input(input_dict: dict, properties: tuple) -> None:
     if global_dict.get("print_level") in ["SILENT", "LOW"]:
         global_dict["print_level"] = "MEDIUM"
 
-    if properties == ("energy",):
-        global_dict["run_type"] = "ENERGY"
-    elif properties == ("energy", "forces"):
+    if "forces" in properties:
         # output forces
         global_dict["run_type"] = "ENERGY_FORCE"
         input_dict["force_eval"]["print"] = {"FORCES": {}}
+    elif "energy" in properties:
+        global_dict["run_type"] = "ENERGY"
     else:
         raise ValueError("invalid properties: {}".format(properties))
 
@@ -99,6 +99,7 @@ def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.nda
 @psiflow.serializable
 class CP2K(Reference):
     _execute_label = "cp2k_singlepoint"
+    input_dict: dict
 
     def __init__(
         self,

@@ -35,23 +35,6 @@ import psiflow
 logger = logging.getLogger(__name__)  # logging per module
 
 
-# TODO: max_runtime is in seconds, max_simulation_time (and others) is in minutes
-# TODO: do the ref evals need to be subclasses?
-# TODO: ExecutionDefinition gpu argument?
-# TODO: ExecutionDefinition wrap_in_timeout functionality
-# TODO: ExecutionDefinition wrap_in_srun functionality? Actually for MD this is more iffy right
-# TODO: ExecutionDefinition why properties?
-# TODO: ExecutionDefinition centralize wq_resources
-# TODO: configuration file with all options
-# TODO: reference MPI args not really checked
-# TODO: timeout -s 9 or -s 15?
-# TODO: executor keys are hardcoded strings..
-# TODO: mpi flags are very finicky across implementations --> use ENV args?
-#  OMPI_MCA_orte_report_bindings=1 I_MPI_DEBUG=4
-# TODO: define a 'format_env_variables' util
-# TODO: the GPAW container needs an up-to-date Psiflow version?
-
-
 EXECUTION_KWARGS = (
     "container_uri",
     "container_engine",
@@ -168,12 +151,12 @@ class ExecutionDefinition:
             else:
                 worker_options.append("--idle-timeout={}".format(20))
 
-            # only ModelEvaluation and ModelTraining run in containers
-            if isinstance(self, ReferenceEvaluation):
-                worker_executable = "work_queue_worker"
-            else:
+            # only ModelEvaluation / ModelTraining / default_htex run in containers
+            if not isinstance(self, ReferenceEvaluation) and self.container:
                 prepend = self.container.launch_command()
                 worker_executable = f"{prepend} work_queue_worker"
+            else:
+                worker_executable = "work_queue_worker"
 
             executor = MyWorkQueueExecutor(
                 label=self.name,
@@ -300,7 +283,7 @@ class ModelEvaluation(ExecutionDefinition):
 
     def wq_resources(self, nwalkers):
         if self.use_threadpool:
-            return None
+            return {}
         nclients = min(nwalkers, self.max_workers)
         resource_specification = {}
         resource_specification["cores"] = nclients * self.cores_per_worker
@@ -426,7 +409,7 @@ class ReferenceEvaluation(ExecutionDefinition):
             commands.append(f"ulimit -v {parse_size(self.memory_limit)}")
 
         # exit code 0 so parsl always thinks bash app succeeded
-        return "\n".join([*commands, launch_command, 'exit 0'])
+        return "\n".join([*commands, launch_command, "exit 0"])
 
     def wq_resources(self):
         if self.use_threadpool:
@@ -482,9 +465,7 @@ class GPAWReferenceSpec(ReferenceSpec):
         "--bind-to core",
         "--map-by core",
     )
-    executable: str = (
-        "gpaw python $(python -c 'import psiflow.reference._gpaw; print(psiflow.reference._gpaw.__file__)') input.json"
-    )
+    executable: str = "gpaw python script_gpaw.py input.json"
 
     def launch_command(self):
         # use nprocs = ncores, nthreads = 1

@@ -125,6 +125,8 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
 @psiflow.serializable
 class ORCA(Reference):
     _execute_label = "orca_singlepoint"
+    input_template: str
+    input_kwargs: dict
 
     def __init__(
         self,

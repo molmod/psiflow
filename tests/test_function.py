@@ -1,8 +1,8 @@
 import json
 
 import numpy as np
-from ase.units import kJ, mol # type: ignore
-from parsl.data_provider.files import File # type: ignore
+from ase.units import kJ, mol  # type: ignore
+from parsl.data_provider.files import File  # type: ignore
 
 import psiflow
 from psiflow.data import Dataset
@@ -11,6 +11,7 @@ from psiflow.functions import (
     HarmonicFunction,
     MACEFunction,
     PlumedFunction,
+    DispersionFunction,
     function_from_json,
 )
 from psiflow.hamiltonians import (
@@ -18,6 +19,7 @@ from psiflow.hamiltonians import (
     Harmonic,
     MixtureHamiltonian,
     PlumedHamiltonian,
+    D3Hamiltonian,
     Zero,
 )
 from psiflow.utils._plumed import remove_comments_printflush, set_path_in_plumed
@@ -214,6 +216,20 @@ def test_harmonic_function(dataset):
     assert np.allclose(forces.result(), forces_)
 
 
+def test_dispersion_function(dataset):
+    hamiltonian = D3Hamiltonian(method="pbe", damping="d3bj")
+    energy = hamiltonian.compute(dataset[-1], "energy").result()
+    assert energy is not None
+    assert energy < 0.0  # dispersion is attractive
+
+    subset = dataset[:3]
+    data = subset.evaluate(hamiltonian)
+    energy, forces = hamiltonian.compute(subset, "energy", "forces")
+
+    assert np.allclose(data.get("energy").result(), energy.result())
+    assert len(forces.result().shape) == 3
+
+
 def test_hamiltonian_arithmetic(dataset):
     hamiltonian = EinsteinCrystal(dataset[0], force_constant=1.0)
     hamiltonian_ = EinsteinCrystal(dataset[0].result(), force_constant=1.1)
@@ -257,9 +273,9 @@ def test_hamiltonian_arithmetic(dataset):
 
     geometries = [dataset[i].result() for i in [0, -1]]
     natoms = [len(geometry) for geometry in geometries]
-    forces = zero.compute(geometries, 'forces', batch_size=1).result()
-    assert np.all(forces[0, :natoms[0]] == 0.0)
-    assert np.all(forces[-1, :natoms[1]] == 0.0)
+    forces = zero.compute(geometries, "forces", batch_size=1).result()
+    assert np.all(forces[0, : natoms[0]] == 0.0)
+    assert np.all(forces[-1, : natoms[1]] == 0.0)
 
 
 def test_subtract(dataset):
@@ -424,4 +440,3 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     energies = hamiltonian.compute(dataset, "energy").result()
     energies_ = function.compute(dataset.geometries().result())["energy"]
     assert np.allclose(energies, energies_)
-

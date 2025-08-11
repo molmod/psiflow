@@ -37,6 +37,8 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
 @psiflow.serializable
 class GPAW(Reference):
     _execute_label = "gpaw_singlepoint"
+    parameters: dict
+    script: str
 
     def __init__(
         self,

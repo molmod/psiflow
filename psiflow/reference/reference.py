@@ -1,7 +1,8 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import logging
-from typing import ClassVar, Optional, Union, Callable
+import warnings
+from typing import ClassVar, Optional, Union, Callable, Sequence
 from pathlib import Path
 from functools import partial
 from enum import Enum
@@ -15,16 +16,12 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Computable, Dataset
 from psiflow.data.utils import extract_quantities
-from psiflow.geometry import Geometry
+from psiflow.geometry import Geometry, NullState
 from psiflow.utils.apps import copy_app_future
 from psiflow.utils.parse import LineNotFoundError
 
 
 logger = logging.getLogger(__name__)  # logging per module
-
-# TODO: fix tests + orca test
-# TODO: some actual logging?
-# TODO: safe_compute_dataset functionality?
 
 
 class Status(Enum):
@@ -37,9 +34,8 @@ def update_geometry(geom: Geometry, data: dict) -> Geometry:
     """"""
     geom = geom.copy()
     geom.reset()
-    metadata = {k: data[k] for k in ("status", "stdout", "stderr", "exitcode")}
-    geom.order |= metadata
-    print(metadata)  # TODO: nice for debugging
+    geom.order |= {k: data[k] for k in ("status", "stdout", "stderr")}
+    print(geom.order)  # TODO: nice for debugging
 
     if data["status"] != Status.SUCCESS:
         return geom
@@ -104,16 +100,16 @@ def _process_output(
     except LineNotFoundError:
         # TODO: find out what went wrong
         data = {"status": Status.FAILED}
-    data |= {
-        "stdout": Path(inputs[0]).name,
-        "stderr": Path(inputs[1]).name,
-    }
+    data |= {"stdout": Path(inputs[0]), "stderr": Path(inputs[1])}
     return update_geometry(geom, data)
 
 
 @join_app
 def evaluate(reference: Reference, geom: Geometry) -> AppFuture[Geometry]:
     """"""
+    if geom == NullState:
+        warnings.warn("Skipping NullState..")
+        return copy_app_future(geom)
     execute, *files = reference.app_pre(geom=geom)
     if not execute:  # TODO: should we reset geom?
         return copy_app_future(geom)
@@ -126,7 +122,7 @@ def evaluate(reference: Reference, geom: Geometry) -> AppFuture[Geometry]:
 
 @psiflow.serializable
 class Reference(Computable):
-    outputs: tuple[str, ...]
+    outputs: Union[list[str], tuple[str, ...]]
     batch_size: ClassVar[int] = 1  # TODO: not really used
     executor: str
     app_pre: ClassVar[Callable]  # TODO: fix serialisation

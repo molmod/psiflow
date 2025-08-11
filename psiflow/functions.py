@@ -347,6 +347,7 @@ def function_from_json(path: Union[str, Path], **kwargs) -> Function:
         HarmonicFunction,
         MACEFunction,
         PlumedFunction,
+        DispersionFunction,
         None,
     ]
     with open(path, "r") as f:
