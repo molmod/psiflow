@@ -75,7 +75,7 @@ log_cli = 0
 addopts = [
     "--basetemp=pytest-tmp", # /tmp/ may be different for each worker!
     "--import-mode=append",
-    "--psiflow-config=configs/threadpool.yaml",
+    "--psiflow-config=configs/local_test.yaml",
     "-W ignore::DeprecationWarning",
     "--log-cli-level=WARNING",
 ]

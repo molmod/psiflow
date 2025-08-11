@@ -579,7 +579,8 @@ class ExecutionContext:
         )
         reference_evaluations = []  # reference evaluations might be class specific
         for key in list(kwargs.keys()):
-            if key[:4] in REFERENCE_SPECS:  # allow for e.g., CP2K_small
+            key = key[:4]  # allow for e.g., CP2K_small
+            if key in REFERENCE_SPECS:
                 config = kwargs.pop(key)
                 reference_evaluation = ReferenceEvaluation.from_config(
                     spec=init_spec(REFERENCE_SPECS[key], config),
