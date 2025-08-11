@@ -2,19 +2,15 @@ from __future__ import annotations  # necessary for type-guarding class methods
 
 import copy
 import io
-import logging
 import warnings
-from functools import partial
 from typing import Optional, Union
-from pathlib import Path
 
 import numpy as np
-import parsl
 from ase.data import chemical_symbols
 from ase.units import Bohr, Ha
 from cp2k_input_tools.generator import CP2KInputGenerator
 from cp2k_input_tools.parser import CP2KInputParserSimplified
-from parsl import bash_app, python_app, join_app, File
+from parsl import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
@@ -27,10 +23,7 @@ from psiflow.reference.utils import (
     Status,
     copy_data_to_geometry,
 )
-from psiflow.utils.apps import copy_app_future
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
-
-logger = logging.getLogger(__name__)  # logging per module
 
 
 # costly to initialise
@@ -109,87 +102,9 @@ def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.nda
     return data | {"forces": forces * Ha / Bohr}
 
 
-def _create_input(
-    geom: Geometry,
-    input_dict: dict,
-    outputs: (),
-):
-    # insert_geometry
-    section = input_dict["force_eval"]["subsys"]
-    section.pop("topology", None)  # remove topology section
-
-    symbols = np.array(chemical_symbols)[geom.per_atom.numbers]
-    coord = [
-        f"{s:5} {p[0]:<15.8f} {p[1]:<15.8f} {p[2]:<15.8f}"
-        for s, p in zip(symbols, geom.per_atom.positions)
-    ]
-    section["coord"] = {"*": coord}
-
-    cell = {}
-    for i, vector in enumerate(["A", "B", "C"]):
-        cell[vector] = "{} {} {}".format(*geom.cell[i])
-    section["cell"] = cell
-
-    with open(outputs[0], "w") as f:
-        f.write(dict_to_str(input_dict))
-
-
-def _execute(
-    file_in: File,
-    command: str = "",
-    parsl_resource_specification: Optional[dict] = None,
-    stdout: str = parsl.AUTO_LOGNAME,
-    stderr: str = parsl.AUTO_LOGNAME,
-    label: str = "cp2k_singlepoint",
-) -> str:
-    cp_command = f"cp {file_in.filepath} cp2k.inp"
-    command_list = [TMP_COMMAND, CD_COMMAND, cp_command, command]
-    return "\n".join(command_list)
-
-
-def _process_output(
-    geom: Geometry,
-    properties: tuple[str, ...],
-    inputs: tuple[str] = (),
-) -> Geometry:
-    """"""
-    with open(inputs[0], "r") as f:
-        stdout = f.read()
-    try:
-        data = parse_output(stdout, properties)
-    except TypeError:
-        # TODO: find out what went wrong
-        data = {"status": Status.FAILED}
-    data |= {"stdout": Path(inputs[0]).name, "stderr": Path(inputs[1]).name}
-    return copy_data_to_geometry(geom, data)
-
-
-@join_app
-def evaluate(cp2k: CP2K, geom: Geometry) -> AppFuture[Geometry]:
-    """"""
-    if not geom.periodic:
-        msg = "CP2K expects periodic boundary conditions, skipping geometry"
-        warnings.warn(msg)
-        return copy_app_future(geom)
-
-    future = cp2k.app_pre(
-        input_dict=copy.deepcopy(cp2k.input_dict),
-        geom=geom,
-        outputs=[psiflow.context().new_file("cp2k_", ".inp")],
-    )
-    future = cp2k.app_execute(file_in=future.outputs[0])
-    future = cp2k.app_post(
-        geom=geom,
-        inputs=[future.stdout, future.stderr, future],  # wait for future
-    )
-    return future
-
-
 @psiflow.serializable
 class CP2K(Reference):
-    outputs: tuple[str, ...]
-    executor: str
-    input_dict: dict
+    _execute_label = "cp2k_singlepoint"
 
     def __init__(
         self,
@@ -202,24 +117,6 @@ class CP2K(Reference):
         self.input_dict = str_to_dict(input_str)
         modify_input(self.input_dict, outputs)
         self._create_apps()
-
-    def _create_apps(self):
-        definition = psiflow.context().definitions[self.executor]
-        command = definition.command()
-        wq_resources = definition.wq_resources()
-        self.app_pre = python_app(_create_input, executors=["default_threads"])
-        self.app_execute = partial(
-            bash_app(_execute, executors=[self.executor]),
-            command=command,
-            parsl_resource_specification=wq_resources,
-        )
-        self.app_post = partial(
-            python_app(_process_output, executors=["default_threads"]),
-            properties=self.outputs,
-        )
-
-    def evaluate(self, geometry: Geometry | AppFuture) -> AppFuture:
-        return evaluate(self, geometry)
 
     def compute_atomic_energy(self, element, box_size=None) -> AppFuture[float]:
         assert box_size, "CP2K expects a periodic box."
@@ -249,3 +146,43 @@ class CP2K(Reference):
                 executor=self.executor,
             )
         return references
+
+    def get_shell_command(self, inputs: list[File]) -> str:
+        command_list = [
+            TMP_COMMAND,
+            CD_COMMAND,
+            f"cp {inputs[0].filepath} cp2k.inp",
+            self.execute_command,
+        ]
+        return "\n".join(command_list)
+
+    def parse_output(self, stdout: str) -> dict:
+        return parse_output(stdout, self.outputs)
+
+    def create_input(self, geom: Geometry) -> tuple[bool, Optional[File]]:
+        if not geom.periodic:
+            msg = "CP2K expects periodic boundary conditions, skipping geometry"
+            warnings.warn(msg)
+            return False, None
+
+        section = self.input_dict["force_eval"]["subsys"]
+        section_copy = copy.deepcopy(section)
+        section.pop("topology", None)  # remove topology section
+
+        # insert geometry and cell
+        symbols = np.array(chemical_symbols)[geom.per_atom.numbers]
+        coord = [
+            f"{s:5} {p[0]:<15.8f} {p[1]:<15.8f} {p[2]:<15.8f}"
+            for s, p in zip(symbols, geom.per_atom.positions)
+        ]
+        section["coord"] = {"*": coord}
+        cell = {}
+        for i, vector in enumerate(["A", "B", "C"]):
+            cell[vector] = "{} {} {}".format(*geom.cell[i])
+        section["cell"] = cell
+
+        with open(file := psiflow.context().new_file("cp2k_", ".inp"), "w") as f:
+            f.write(dict_to_str(self.input_dict))
+
+        self.input_dict["force_eval"]["subsys"] = section_copy  # revert changes
+        return True, File(file)
