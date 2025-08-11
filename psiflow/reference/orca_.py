@@ -1,17 +1,14 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import logging
 import warnings
 import re
 from functools import partial
 from typing import Optional, Union
-from pathlib import Path
 
 import ase.symbols
 import numpy as np
-import parsl
 from ase.units import Bohr, Ha
-from parsl import bash_app, python_app, join_app, File
+from parsl import File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
@@ -22,16 +19,9 @@ from psiflow.reference.utils import (
     find_line,
     Status,
     lines_to_array,
-    copy_data_to_geometry,
     get_spin_multiplicities,
+    string_to_timedelta,
 )
-from psiflow.utils.apps import copy_app_future
-
-
-logger = logging.getLogger(__name__)  # logging per module
-
-# TODO: tests
-# TODO: single_atom_reference
 
 
 KEY_GHOST = "ghost"
@@ -113,7 +103,7 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     if status == Status.SUCCESS:
         # total runtime
         idx = find_line(lines, "TOTAL RUN TIME", reverse=True, max_lines=5)
-        data["runtime"] = lines[idx][16:]  # TODO: convert to number
+        data["runtime"] = string_to_timedelta(lines[idx][16:])
 
     # read coordinates
     idx_start = idx = find_line(lines, "CARTESIAN COORDINATES (ANGSTROEM)") + 2
@@ -138,76 +128,9 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     return data
 
 
-def _create_input(
-    input_template: str, geom: Geometry, input_kwargs: dict, outputs: ()
-) -> None:
-    """"""
-    input_str = input_template.format(coord=format_coord(geom), **input_kwargs)
-    with open(outputs[0], "w") as f:
-        f.write(input_str)
-
-
-def _execute(
-    file_in: File,
-    command: str = "",
-    parsl_resource_specification: dict = None,
-    stdout: str = parsl.AUTO_LOGNAME,
-    stderr: str = parsl.AUTO_LOGNAME,
-    label: str = "orca_singlepoint",
-) -> str:
-    """"""
-    cp_command = f"cp {file_in.filepath} orca.inp"
-    command_list = [TMP_COMMAND, CD_COMMAND, cp_command, command]
-    return "\n".join(command_list)
-
-
-def _process_output(
-    geom: Geometry,
-    properties: tuple[str, ...],
-    inputs: tuple[str] = (),
-) -> Geometry:
-    """"""
-    # TODO: this one might be general for all Reference implementations
-    # TODO: do we need properties?
-    with open(inputs[0], "r") as f:
-        stdout = f.read()
-    try:
-        data = parse_output(stdout, properties)
-    except TypeError:
-        # TODO: find out what went wrong
-        data = {"status": Status.FAILED}
-    data |= {"stdout": Path(inputs[0]).name, "stderr": Path(inputs[1]).name}
-    return copy_data_to_geometry(geom, data)
-
-
-@join_app
-def evaluate(orca: ORCA, geom: Geometry) -> AppFuture[Geometry]:
-    """"""
-    if geom.periodic:
-        msg = "ORCA does not support periodic boundary conditions, skipping geometry"
-        warnings.warn(msg)
-        return copy_app_future(geom)
-
-    future = orca.app_pre(
-        input_template=orca.input_template,
-        geom=geom,
-        input_kwargs=orca.input_kwargs,
-        outputs=[psiflow.context().new_file("orca_", ".inp")],
-    )
-    future = orca.app_execute(file_in=future.outputs[0])
-    future = orca.app_post(
-        geom=geom,
-        inputs=[future.stdout, future.stderr, future],  # wait for future
-    )
-    return future
-
-
 @psiflow.serializable
 class ORCA(Reference):
-    outputs: tuple[str, ...]
-    executor: str
-    input_template: str
-    input_kwargs: dict
+    _execute_label = "orca_singlepoint"
 
     def __init__(
         self,
@@ -222,31 +145,19 @@ class ORCA(Reference):
         self._create_apps()
 
     def _create_apps(self):
+        super()._create_apps()
         definition = psiflow.context().definitions[self.executor]
-        command = definition.command()
         wq_resources = definition.wq_resources()
-        self.app_pre = python_app(_create_input, executors=["default_threads"])
-        self.app_execute = partial(
-            bash_app(_execute, executors=[self.executor]),
-            command=command,
-            parsl_resource_specification=wq_resources,
-        )
-        self.app_post = partial(
-            python_app(_process_output, executors=["default_threads"]),
-            properties=self.outputs,
-        )
         cores, memory = wq_resources["cores"], wq_resources["memory"]
         self.input_kwargs |= {"cores": cores, "memory": memory // cores}  # in MB
-
-    def evaluate(self, geometry: Geometry | AppFuture) -> AppFuture:
-        return evaluate(self, geometry)
 
     def compute_atomic_energy(self, element, box_size=None) -> AppFuture[float]:
         assert box_size is None, "ORCA does not do PBC"
         return super().compute_atomic_energy(element)
 
     def get_single_atom_references(self, element: str) -> dict[int, Reference]:
-        # TODO: this is not properly tested
+        # TODO: this is not properly tested - special options?
+        # ORCA automatically switches to UHF/UKS
         references = {}
         for mult in get_spin_multiplicities(element):
             ref = ORCA(
@@ -255,3 +166,28 @@ class ORCA(Reference):
             ref.input_kwargs["multiplicity"] = mult
             references[mult] = ref
         return references
+
+    def get_shell_command(self, inputs: list[File]) -> str:
+        command_list = [
+            TMP_COMMAND,
+            CD_COMMAND,
+            f"cp {inputs[0].filepath} orca.inp",
+            self.execute_command,
+        ]
+        return "\n".join(command_list)
+
+    def parse_output(self, stdout: str) -> dict:
+        return parse_output(stdout, self.outputs)
+
+    def create_input(self, geom: Geometry) -> tuple[bool, Optional[File]]:
+        if geom.periodic:
+            msg = "ORCA does not support periodic boundary conditions"
+            warnings.warn(msg)
+            return False, None
+
+        input_str = self.input_template.format(
+            coord=format_coord(geom), **self.input_kwargs
+        )
+        with open(file := psiflow.context().new_file("orca_", ".inp"), "w") as f:
+            f.write(input_str)
+        return True, File(file)
