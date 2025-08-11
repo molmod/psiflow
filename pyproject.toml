@@ -77,7 +77,7 @@ addopts = [
     "--import-mode=append",
     "--psiflow-config=configs/local_test.yaml",
     "-W ignore::DeprecationWarning",
-    "--log-level WARNING",
+    "--log-cli-level WARNING",
     "--show-capture=stdout"
 ]
 testpaths = ["tests"]
