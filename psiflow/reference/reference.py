@@ -35,7 +35,7 @@ def update_geometry(geom: Geometry, data: dict) -> Geometry:
     geom = geom.copy()
     geom.reset()
     geom.order |= {k: data[k] for k in ("status", "stdout", "stderr")}
-    print(geom.order)  # TODO: nice for debugging
+    # print(geom.order)  # TODO: nice for debugging
 
     if data["status"] != Status.SUCCESS:
         return geom

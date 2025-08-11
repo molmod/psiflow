@@ -64,6 +64,7 @@ wait = ExecutionContextLoader.wait
 #  - commands ends with 'exit 0' - what if we do not want to exit yet?
 #  - some actual logging?
 #  - safe_compute_dataset functionality?
+#  - ReferenceDummy is a bit sloppy
 #  -
 # TODO: MISC
 #  - think about test efficiency
