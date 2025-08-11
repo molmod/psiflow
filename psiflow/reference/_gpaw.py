@@ -1,25 +1,22 @@
-# TODO: remove psiflow deps
 import json
+import io
 
 import numpy as np
+import ase.io
 from ase import Atoms
 from ase.calculators.mixing import SumCalculator
 from ase.parallel import world
-try:
-    from dftd3.ase import DFTD3
-    from gpaw import GPAW as GPAWCalculator
-except ModuleNotFoundError:
-    # module is imported from the main Psiflow process
-    pass
 
-from psiflow.geometry import Geometry
+FILEPATH = __file__
+DEFAULTS = dict(d3={}, h=0.2, minimal_box_border=2, minimal_box_multiple=4)
+STDOUT_KEY = "CALCULATION SUCCESSFUL"
 
 
 def minimal_box(
     atoms: Atoms,
-    border: float = 0.0,
-    h: float = 0.2,
-    multiple: int = 4,
+    h: float,
+    border: float,
+    multiple: int,
 ) -> None:
     # inspired by gpaw.cluster.Cluster
     if len(atoms) == 0:
@@ -45,22 +42,17 @@ def minimal_box(
 
 
 if __name__ == "__main__":
+    from dftd3.ase import DFTD3
+    from gpaw import GPAW as GPAWCalculator
 
     with open("input.json", "r") as f:
         input_dict = json.loads(f.read())
 
-    geometry = Geometry.from_string(input_dict["geometry"])
-    gpaw_parameters = input_dict["gpaw_parameters"]
-    properties = input_dict["properties"]
-    d3 = gpaw_parameters.pop("d3", {})
+    atoms_str = io.StringIO(input_dict["geometry"])
+    atoms = ase.io.read(atoms_str, format="extxyz")
 
-    atoms = Atoms(
-        numbers=np.copy(geometry.per_atom.numbers),
-        positions=np.copy(geometry.per_atom.positions),
-        cell=np.copy(geometry.cell),
-        pbc=geometry.periodic,
-    )
-    if not geometry.periodic:
+    gpaw_parameters = input_dict["gpaw_parameters"]
+    if not all(atoms.pbc):
         minimal_box(
             atoms,
             gpaw_parameters.get("h", 0.2),
@@ -68,17 +60,17 @@ if __name__ == "__main__":
             gpaw_parameters.pop("minimal_box_multiple", 4),
         )
 
+    d3 = gpaw_parameters.pop("d3", {})
     calculator = GPAWCalculator(**gpaw_parameters)
     if len(d3) > 0:
         calculator = SumCalculator([calculator, DFTD3(**d3)])
+
     atoms.calc = calculator
+    if "forces" in input_dict["properties"]:
+        atoms.get_forces()
+    atoms.get_potential_energy()
 
-    if "forces" in properties:
-        geometry.per_atom.forces[:] = atoms.get_forces()
-    if "energy" in properties:
-        geometry.energy = atoms.get_potential_energy()
-
-    output_str = geometry.to_string()
     if world.rank == 0:
-        print("CALCULATION SUCCESSFUL")
-        print(output_str)
+        print(STDOUT_KEY)
+        ase.io.write("-", atoms, format="extxyz")
+        print(STDOUT_KEY)
