@@ -8,15 +8,20 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
-from psiflow.reference import CP2K, D3, GPAW, evaluate
-from psiflow.reference.cp2k_ import dict_to_str, parse_cp2k_output, str_to_dict
+from psiflow.reference import CP2K, GPAW, ORCA, create_orca_input
+from psiflow.reference.reference import Status
+from psiflow.reference.cp2k_ import (
+    dict_to_str,
+    str_to_dict,
+    parse_output as parse_cp2k_output,
+)
 
 
 @pytest.fixture
 def simple_cp2k_input():
     return """
 &GLOBAL
-    PRINT_LEVEL LOW
+    PRINT_LEVEL MEDIUM
 &END GLOBAL
 &FORCE_EVAL
    METHOD Quickstep
@@ -80,19 +85,19 @@ def test_cp2k_check_input(simple_cp2k_input):
 
 def test_cp2k_parse_output():
     cp2k_output_str = """
+### CP2K OUTPUT SNIPPETS ###
+    
      TOTAL NUMBERS AND MAXIMUM NUMBERS
 
       Total number of            - Atomic kinds:                                   1
                                  - Atoms:                                          1
       
-      ### SKIPPED A BIT ###
+### SKIPPED A BIT ###
           
      MODULE QUICKSTEP: ATOMIC COORDINATES IN ANGSTROM
 
    Atom Kind Element         X             Y             Z       Z(eff)     Mass
       1    1 O     8      0.000000      0.000000      0.000000   6.0000  15.9994
-
-
 
  SCF PARAMETERS         Density guess:                                   RESTART
                         --------------------------------------------------------
@@ -104,8 +109,8 @@ def test_cp2k_parse_output():
                         eps_scf_history:                                0.00E+00
                         eps_diis:                                       1.00E-01
                         eps_eigval:                                     1.00E-05
-    18 OT LS       0.38E+00    0.1                      -14.2029934070
-    19 OT CG       0.38E+00    0.2     0.00000062       -14.2029934070 -3.99E-11
+
+### SKIPPED A BIT ###
 
   *** SCF run converged in    19 steps ***
 
@@ -130,24 +135,8 @@ def test_cp2k_parse_output():
 
   Integrated absolute spin density  :                               5.9999999997
   Ideal and single determinant S**2 :                   12.000000      12.000000
-
- !-----------------------------------------------------------------------------!
-                     Mulliken Population Analysis
-
- #  Atom  Element  Kind  Atomic population (alpha,beta) Net charge  Spin moment
-       1     O        1         6.000000     0.000000     0.000000     6.000000
- # Total charge and spin        6.000000     0.000000     0.000000     6.000000
-
- !-----------------------------------------------------------------------------!
-
- !-----------------------------------------------------------------------------!
-                           Hirshfeld Charges
-
-  #Atom  Element  Kind  Ref Charge     Population       Spin moment  Net charge
-      1       O      1       6.000    5.984   0.000            5.984      0.016
-
-  Total Charge                                                            0.016
- !-----------------------------------------------------------------------------!
+  
+### SKIPPED A BIT ###
 
  ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]:              -14.202993407031412
 
@@ -171,38 +160,35 @@ def test_cp2k_parse_output():
  STRESS|      x           0.577844347143      0.756273914341     -0.306831675291
  STRESS|      y          -0.577518702860      0.644541601612      0.501037195863
  STRESS|      z           0.576687140764     -0.112320480227      0.809207051007
+ 
+### SKIPPED A BIT ###
+ 
+  -------------------------------------------------------------------------------
+ -                                                                             -
+ -                                T I M I N G                                  -
+ -                                                                             -
+ -------------------------------------------------------------------------------
+ SUBROUTINE                       CALLS  ASD         SELF TIME        TOTAL TIME
+                                MAXIMUM       AVERAGE  MAXIMUM  AVERAGE  MAXIMUM
+ CP2K                                 1  1.0    0.036    0.042  520.335  520.336
+ qs_forces                            1  2.0    0.001    0.001  519.254  519.255
+ qs_energies                          1  3.0    0.005    0.006  507.372  507.376
+ 
+### SKIPPED A BIT ###
+
+  **** **** ******  **  PROGRAM ENDED AT                 2025-07-31 13:45:43.191
+ ***** ** ***  *** **   PROGRAM RAN ON                         node3594.doduo.os
+ **    ****   ******    PROGRAM RAN BY                                 <unknown>
+ ***** **    ** ** **   PROGRAM PROCESS ID                               1183304
+  **** **  *******  **  PROGRAM STOPPED IN              /tmp/mytmpdir.2RsSPreAda
 
     """
-    geometry = Geometry.from_data(
-        numbers=np.array([8]),
-        positions=np.zeros((1, 3)),
-        cell=np.zeros((3, 3)),
-    )
-    geometry = parse_cp2k_output(cp2k_output_str, ("energy", "forces"), geometry)
-    assert geometry.energy == -14.202993407031412 * Ha
+    data_out = parse_cp2k_output(cp2k_output_str, ("energy", "forces"))
+    print(data_out)
+    assert data_out["energy"] == -14.202993407031412 * Ha
+    assert data_out["runtime"] == 520.336
+    assert data_out["status"] == Status.SUCCESS
 
-
-def test_reference_d3(context, dataset, tmp_path):
-    reference = D3(method="pbe", damping="d3bj")
-    state = evaluate(dataset[-1], reference).result()
-    assert state.energy is not None
-    assert state.energy < 0.0  # dispersion is attractive
-
-    subset = dataset[:3]
-    data = subset.evaluate(reference)
-    energy = reference.compute(subset, "energy")
-    forces = reference.compute(subset, "forces")
-
-    assert np.allclose(
-        data.get("energy").result(),
-        energy.result(),
-    )
-    assert np.allclose(
-        reference.compute_atomic_energy("H").result(),
-        0.0,
-    )
-
-    assert len(forces.result().shape) == 3
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_success(context, simple_cp2k_input):
@@ -213,43 +199,31 @@ def test_cp2k_success(context, simple_cp2k_input):
         cell=5 * np.eye(3),
     )
 
-    evaluated = evaluate(geometry, reference)
+    evaluated = reference.evaluate(geometry)
     assert isinstance(evaluated, AppFuture)
-
     geometry = evaluated.result()
     assert geometry != NullState
-
-    assert Path(geometry.stdout).is_file()
     assert geometry.energy is not None
     assert not np.any(np.isnan(geometry.per_atom.forces))
-    assert np.allclose(
-        -1.167407360449355 * Ha,
-        geometry.energy,
-    )
+    assert np.allclose(-1.167407360449355 * Ha, geometry.energy)
     forces_reference = np.array([[-0.00968014, 0.0, 0.0], [0.00967947, 0.0, 0.0]])
-    forces_reference *= Ha
-    forces_reference /= Bohr
-    assert np.allclose(
-        forces_reference,
-        geometry.per_atom.forces,
-        atol=1e-5,
-    )
+    forces_reference *= Ha / Bohr
+    assert np.allclose(forces_reference, geometry.per_atom.forces, atol=1e-5)
 
     # check whether NullState evaluates to NullState
-    state = evaluate(NullState, reference)
+    state = reference.evaluate(NullState)
     assert state.result() == NullState
 
     # check number of mpi processes
-    with open(geometry.stdout, "r") as f:
-        content = f.read()
-    definition = psiflow.context().definitions["CP2K"]
-    ncores = definition.cores_per_worker
-    lines = content.split("\n")
+    stdout = geometry.order["stdout"]
+    lines = stdout.read_text().split("\n")
     for line in lines:
         if "Total number of message passing processes" in line:
             nprocesses = int(line.split()[-1])
         if "Number of threads for this process" in line:
             nthreads = int(line.split()[-1])
+    definition = psiflow.context().definitions["CP2K"]
+    ncores = definition.cores_per_worker
     assert ncores == nprocesses
     assert 1 == nthreads
 
@@ -327,17 +301,17 @@ def test_cp2k_failure(context, tmp_path):
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
         cell=5 * np.eye(3),
     )
-    evaluated = evaluate(geometry, reference)
+    evaluated = reference.evaluate(geometry)
     assert isinstance(evaluated, AppFuture)
     state = evaluated.result()
     assert state.energy is None
     assert np.all(np.isnan(state.per_atom.forces))
-    with open(state.stdout, "r") as f:
-        log = f.read()
+    log = state.order["stdout"].read_text()
     assert "ABORT" in log  # verify error is captured
 
 
 def test_cp2k_memory(context, simple_cp2k_input):
+    # TODO: test_cp2k_memory == test_cp2k_timeout
     reference = CP2K(simple_cp2k_input)
     geometry = Geometry.from_data(
         numbers=np.ones(4000),
@@ -370,9 +344,8 @@ def test_cp2k_energy(context, simple_cp2k_input):
         positions=np.array([[0, 0, 0], [3, 0, 0]]),
         cell=5 * np.eye(3),  # box way too large
     )
-    state = evaluate(geometry, reference).result()
+    state = reference.evaluate(geometry).result()
     assert state.energy is not None
-    assert state.stdout is not None
     assert np.all(np.isnan(state.per_atom.forces))
 
 
@@ -390,8 +363,7 @@ def test_cp2k_serialize(dataset, simple_cp2k_input):
     element = "H"
     reference = CP2K(simple_cp2k_input, outputs=("energy",))
     assert "outputs" in reference._attrs
-    assert "cp2k_input_dict" in reference._attrs
-    assert "cp2k_input_str" in reference._attrs
+    assert "input_dict" in reference._attrs
     energy = reference.compute_atomic_energy(element, box_size=4)
 
     data = psiflow.serialize(reference).result()
@@ -437,37 +409,45 @@ def test_cp2k_posthf(context):
         positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
         cell=5 * np.eye(3),
     )
-    assert evaluate(geometry, reference).result().energy is not None
+    assert reference.evaluate(geometry).result().energy is not None
 
 
 def test_gpaw_single(dataset, dataset_h2):
-    gpaw = GPAW(
-        mode="fd",
-        nbands=0,
-        xc="LDA",
-        h=0.1,
-        minimal_box_multiple=2,
-    )
-    state = evaluate(dataset_h2[0], gpaw).result()
+    parameters = dict(mode="fd", nbands=0, xc="LDA", h=0.1, minimal_box_multiple=2)
+    gpaw = GPAW(parameters)
 
-    print(state.energy)
+    future_in = dataset_h2[0]
+    future_out = gpaw.evaluate(future_in)
+    future_energy = gpaw.compute(dataset_h2[:1])[0]
+    future_energy_zr = gpaw.compute_atomic_energy("Zr", box_size=9)
 
-    assert state.energy is not None
-    assert state.energy < 0.0
-    assert np.allclose(
-        state.per_atom.positions,
-        dataset_h2[0].result().per_atom.positions,
-    )
-    gpaw = GPAW(
-        mode="fd",
-        nbands=0,
-        xc="LDA",
-        h=0.1,
-        minimal_box_multiple=2,
-    )
-    energy = gpaw.compute(dataset_h2[:1])[0].result()
-    assert np.allclose(state.energy, energy)
-    assert gpaw.compute_atomic_energy("Zr", box_size=9).result() == 0.0
+    geom_in, geom_out = future_in.result(), future_out.result()
+    energy, energy_zr = future_energy.result(), future_energy_zr.result()
 
-    gpaw = GPAW(askdfj="asdfk")  # invalid input
-    assert evaluate(dataset_h2[1], gpaw).result().energy is None
+    assert geom_out.energy is not None and geom_out.energy < 0.0
+    assert np.allclose(geom_out.per_atom.positions, geom_in.per_atom.positions)
+    assert np.allclose(geom_out.energy, energy)
+    assert energy_zr == 0.0
+
+    gpaw = GPAW({"askdfj": "asdfk"})  # invalid input
+    assert gpaw.evaluate(future_in).result().energy is None
+
+
+# TODO: enable once we have an ORCA container
+# def test_orca_single(dataset, dataset_h2):
+#     input_str = create_orca_input()
+#     orca = ORCA(input_str)
+#     future_in = dataset_h2[0]
+#     future_out = orca.evaluate(future_in)
+#     future_energy = orca.compute(dataset_h2[:1])[0]
+#     future_energy_h = orca.compute_atomic_energy("H")
+#
+#     geom_in, geom_out = future_in.result(), future_out.result()
+#     energy, energy_h = future_energy.result(), future_energy_h.result()
+#
+#     assert geom_out.energy is not None and geom_out.energy < 0.0
+#     assert np.allclose(geom_out.per_atom.positions, geom_in.per_atom.positions)
+#     assert np.allclose(geom_out.energy, energy)
+
+    # print(energy, energy_h)
+    # assert np.isclose(energy_h, -13.6)
