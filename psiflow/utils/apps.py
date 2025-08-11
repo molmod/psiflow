@@ -113,7 +113,7 @@ log_message = python_app(_log_message, executors=["default_threads"])
 
 
 def _pack(*args):
-    return args
+    return args  # TODO: _combine_futures?
 
 
 pack = python_app(_pack, executors=["default_threads"])

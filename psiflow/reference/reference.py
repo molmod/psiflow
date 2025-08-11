@@ -4,6 +4,7 @@ import logging
 from typing import ClassVar, Optional, Union, Callable
 from pathlib import Path
 from functools import partial
+from enum import Enum
 
 import numpy as np
 import parsl
@@ -16,28 +17,44 @@ from psiflow.data import Computable, Dataset
 from psiflow.data.utils import extract_quantities
 from psiflow.geometry import Geometry
 from psiflow.utils.apps import copy_app_future
-from psiflow.reference.utils import (
-    Status,
-    copy_data_to_geometry,
-)
+from psiflow.utils.parse import LineNotFoundError
+
 
 logger = logging.getLogger(__name__)  # logging per module
 
-# TODO: cleanup flow of apps
-# TODO: remove typeguard
-# TODO: we compute geoms -> extract data -> insert data again.. this is a bit stupid
-# TODO: use 'geom' consistently
-# TODO: _process_output might be general for all
-# TODO: error handling
 # TODO: fix tests + orca test
-# TODO: task naming is no longer descriptive
 # TODO: some actual logging?
-# TODO: stuff some init things into base class
-# TODO: make every reference subclass have its own 'execute command' + extract _execute
-# TODO: safe_compute dataset functionality?
-# TODO: fix GPAW path import issues..?
-# TODO: GPAW make overview of acceptable params
-# TODO: raise error in find_line
+# TODO: safe_compute_dataset functionality?
+
+
+class Status(Enum):
+    SUCCESS = 0
+    FAILED = 1
+    INCONSISTENT = 2
+
+
+def update_geometry(geom: Geometry, data: dict) -> Geometry:
+    """"""
+    geom = geom.copy()
+    geom.reset()
+    metadata = {k: data[k] for k in ("status", "stdout", "stderr", "exitcode")}
+    geom.order |= metadata
+    print(metadata)  # TODO: nice for debugging
+
+    if data["status"] != Status.SUCCESS:
+        return geom
+    geom.order["runtime"] = data.get("runtime")
+
+    shift = data["positions"][0] - geom.per_atom.positions[0]
+    if not np.allclose(data["positions"], geom.per_atom.positions + shift, atol=1e-6):
+        # output does not match geometry up to a translation
+        geom.order["status"] = Status.INCONSISTENT
+        return geom
+
+    geom.energy = data["energy"]
+    if "forces" in data:
+        geom.per_atom.forces[:] = data["forces"]
+    return geom
 
 
 @join_app
@@ -81,19 +98,17 @@ def _process_output(
     inputs: tuple[str | int] = (),
 ) -> Geometry:
     """"""
-    with open(inputs[0], "r") as f:
-        stdout = f.read()
+    stdout = Path(inputs[0]).read_text()
     try:
         data = reference.parse_output(stdout)
-    except TypeError:
+    except LineNotFoundError:
         # TODO: find out what went wrong
         data = {"status": Status.FAILED}
     data |= {
         "stdout": Path(inputs[0]).name,
         "stderr": Path(inputs[1]).name,
-        "exitcode": inputs[2],  # TODO: will we reach this point if bash app failed?
     }
-    return copy_data_to_geometry(geom, data)
+    return update_geometry(geom, data)
 
 
 @join_app
@@ -117,7 +132,7 @@ class Reference(Computable):
     app_pre: ClassVar[Callable]  # TODO: fix serialisation
     app_execute: ClassVar[Callable]
     app_post: ClassVar[Callable]
-    _execute_label: ClassVar[str]  # TODO: hhmm?
+    _execute_label: ClassVar[str]
     execute_command: str
 
     def compute(
@@ -196,3 +211,17 @@ class Reference(Computable):
 
     def create_input(self, geom: Geometry) -> tuple[bool, File, ...]:
         raise NotImplementedError
+
+
+def get_spin_multiplicities(element: str) -> list[int]:
+    """TODO: rethink this"""
+    # max S = N * 1/2, max mult = 2 * S + 1
+    from ase.symbols import atomic_numbers
+
+    mults = []
+    number = atomic_numbers[element]
+    for mult in range(1, min(number + 2, 16)):
+        if number % 2 == 0 and mult % 2 == 0:
+            continue  # S always whole, mult never even
+        mults.append(mult)
+    return mults

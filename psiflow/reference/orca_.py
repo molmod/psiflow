@@ -13,15 +13,9 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.reference.reference import Reference
+from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
-from psiflow.reference.utils import (
-    find_line,
-    Status,
-    lines_to_array,
-    get_spin_multiplicities,
-    string_to_timedelta,
-)
+from psiflow.utils.parse import find_line, lines_to_array, string_to_timedelta
 
 
 KEY_GHOST = "ghost"
@@ -56,7 +50,7 @@ def create_input_template(
 
 def format_coord(geom: Geometry) -> str:
     """"""
-    # TODO: merge functionality? ghost atoms?
+    # TODO: ghost atoms?
     symbols = SYMBOLS[geom.per_atom.numbers]
     # if KEY_GHOST in atoms.arrays:
     #     for idx in np.flatnonzero(atoms.arrays[KEY_GHOST]):

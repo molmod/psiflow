@@ -15,14 +15,8 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.reference.reference import Reference
-from psiflow.reference.utils import (
-    find_line,
-    get_spin_multiplicities,
-    lines_to_array,
-    Status,
-    copy_data_to_geometry,
-)
+from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
+from psiflow.utils.parse import find_line, lines_to_array
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 

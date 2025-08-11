@@ -8,10 +8,10 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.geometry import Geometry
-from psiflow.reference.reference import Reference
+from psiflow.reference.reference import Reference, Status
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
-from psiflow.reference.utils import Status, find_line
 from psiflow.utils.apps import copy_app_future
+from psiflow.utils.parse import find_line
 from psiflow.reference._gpaw import FILEPATH, DEFAULTS, STDOUT_KEY
 
 
@@ -41,13 +41,13 @@ class GPAW(Reference):
     def __init__(
         self,
         parameters: dict,
-        executable: str = FILEPATH,
+        script: str = FILEPATH,
         outputs: Union[tuple, list] = ("energy", "forces"),
         executor: str = "GPAW",
     ):
         self.outputs = tuple(outputs)
         self.parameters = parameters
-        self.executable = executable
+        self.script = script
         self.executor = executor
         self._create_apps()
 
@@ -59,7 +59,7 @@ class GPAW(Reference):
             TMP_COMMAND,
             CD_COMMAND,
             f"cp {inputs[0].filepath} input.json",
-            f"cp {self.executable} script_gpaw.py",
+            f"cp {self.script} script_gpaw.py",
             self.execute_command,
         ]
         return "\n".join(command_list)
