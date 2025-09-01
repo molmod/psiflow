@@ -1,6 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import json
+from pathlib import Path
 from typing import Optional, Union
 
 from parsl import File
@@ -43,13 +44,14 @@ class GPAW(Reference):
     def __init__(
         self,
         parameters: dict,
-        script: str = FILEPATH,
+        script: str | Path = FILEPATH,
         outputs: Union[tuple, list] = ("energy", "forces"),
         executor: str = "GPAW",
     ):
         self.outputs = tuple(outputs)
         self.parameters = parameters
-        self.script = script
+        assert (script := Path(script)).is_file()
+        self.script = str(script.resolve())  # absolute path
         self.executor = executor
         self._create_apps()
 

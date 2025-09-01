@@ -17,11 +17,11 @@ import psiflow
 from psiflow.data import Computable, Dataset
 from psiflow.data.utils import extract_quantities
 from psiflow.geometry import Geometry, NullState
-from psiflow.utils.apps import copy_app_future
+from psiflow.utils.apps import copy_app_future, setup_logger
 from psiflow.utils.parse import LineNotFoundError
 
 
-logger = logging.getLogger(__name__)  # logging per module
+logger = setup_logger(__name__)  # logging per module
 
 
 class Status(Enum):
@@ -32,11 +32,12 @@ class Status(Enum):
 
 def update_geometry(geom: Geometry, data: dict) -> Geometry:
     """"""
+    _, task_id, task_name = data["stdout"].stem.split("_", maxsplit=2)
+    logger.info(f'Task "{task_name}" (ID {task_id}): {data["status"].name}')
+
     geom = geom.copy()
     geom.reset()
     geom.order |= {k: data[k] for k in ("status", "stdout", "stderr")}
-    # print(geom.order)  # TODO: nice for debugging
-
     if data["status"] != Status.SUCCESS:
         return geom
     geom.order["runtime"] = data.get("runtime")

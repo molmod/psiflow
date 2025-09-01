@@ -14,6 +14,7 @@ import psiflow
 from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models.model import Model
 
+# TODO: not used
 logger = logging.getLogger(__name__)  # logging per module
 
 
