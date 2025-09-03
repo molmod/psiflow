@@ -1,156 +1,236 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import logging
-from typing import ClassVar, Optional, Union
+import warnings
+from typing import ClassVar, Optional, Union, Callable, Sequence
+from pathlib import Path
+from functools import partial
+from enum import Enum
 
 import numpy as np
 import parsl
-import typeguard
 from ase.data import atomic_numbers
-from parsl.app.app import join_app, python_app
+from parsl import python_app, join_app, bash_app, File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Computable, Dataset
+from psiflow.data.utils import extract_quantities
 from psiflow.geometry import Geometry, NullState
-from psiflow.utils.apps import copy_app_future, unpack_i
-
-logger = logging.getLogger(__name__)  # logging per module
-
-
-@typeguard.typechecked
-def _extract_energy(state: Geometry):
-    if state.energy is None:
-        return 1e10
-    else:
-        return state.energy
+from psiflow.utils.apps import copy_app_future, setup_logger
+from psiflow.utils.parse import LineNotFoundError
 
 
-extract_energy = python_app(_extract_energy, executors=["default_threads"])
+logger = setup_logger(__name__)  # logging per module
+
+
+class Status(Enum):
+    SUCCESS = 0
+    FAILED = 1
+    INCONSISTENT = 2
+
+
+class SinglePointResult:
+    """All dict keys update_geometry understands"""
+
+    status: Status
+    natoms: int  # optional
+    positions: np.ndarray
+    energy: float
+    forces: np.ndarray  # optional
+    stdout: Path
+    stderr: Path  # optional
+    runtime: float  # optional
+
+
+def update_geometry(geom: Geometry, data: dict) -> Geometry:
+    """"""
+    _, task_id, task_name = data["stdout"].stem.split("_", maxsplit=2)
+    logger.info(f'Task "{task_name}" (ID {task_id}): {data["status"].name}')
+
+    geom = geom.copy()
+    geom.reset()
+    geom.order["status"], geom.order["task_id"] = data["status"].name, task_id
+    if data["status"] != Status.SUCCESS:
+        return geom
+    geom.order["runtime"] = data.get("runtime")
+
+    shift = data["positions"][0] - geom.per_atom.positions[0]
+    if not np.allclose(data["positions"], geom.per_atom.positions + shift, atol=1e-6):
+        # output does not match geometry up to a translation
+        geom.order["status"] = Status.INCONSISTENT
+        return geom
+
+    geom.energy = data["energy"]
+    if "forces" in data:
+        geom.per_atom.forces[:] = data["forces"]
+    return geom
 
 
 @join_app
-@typeguard.typechecked
-def get_minimum_energy(element, configs, *energies):
-    logger.info("atomic energies for element {}:".format(element))
-    for config, energy in zip(configs, energies):
-        logger.info("\t{} eV;  ".format(energy) + str(config))
-    energy = min(energies)
-    assert not energy == 1e10, "atomic energy calculation of {} failed".format(element)
+def get_minimum_energy(element: str, **kwargs) -> AppFuture[float]:
+    energies = {m: state.energy or np.inf for m, state in kwargs.items()}
+    energy = min(energies.values())
+
+    logger.info(f"Atomic energies for element {element}")
+    for m, energy in energies.items():
+        logger.info(f"\tMultiplicity {m}:{energy:>10.4f} eV")
+    assert not np.isinf(energy), f"Atomic energy calculation of '{element}' failed"
     return copy_app_future(energy)
 
 
-@typeguard.typechecked
-def _nan_if_unsuccessful(
-    geometry: Geometry,
-    result: Geometry,
-) -> Geometry:
-    if result == NullState:
-        geometry.energy = None
-        geometry.per_atom.forces[:] = np.nan
-        geometry.per_atom.stress = None
-        geometry.stdout = result.stdout
-        return geometry
-    else:
-        return result
-
-
-nan_if_unsuccessful = python_app(_nan_if_unsuccessful, executors=["default_threads"])
-
-
 @join_app
-@typeguard.typechecked
-def evaluate(
-    geometry: Geometry,
-    reference: Reference,
-) -> AppFuture:
-    if geometry == NullState:
-        return copy_app_future(NullState)
-    else:
-        future = reference.app_pre(
-            geometry,
-            stdout=parsl.AUTO_LOGNAME,
-            stderr=parsl.AUTO_LOGNAME,
-        )
-        result = reference.app_post(
-            geometry=geometry.copy(),
-            inputs=[future.stdout, future.stderr, future],
-        )
-        return nan_if_unsuccessful(geometry, result)
-
-
-@join_app
-@typeguard.typechecked
 def compute_dataset(
     dataset: Dataset,
     length: int,
     reference: Reference,
-) -> AppFuture:
-    from psiflow.data.utils import extract_quantities
-
+) -> list[AppFuture[Geometry]]:
+    logger.info(f"Performing {length} {reference.__class__.__name__} calculations.")
     geometries = dataset.geometries()  # read it once
-    evaluated = [evaluate(unpack_i(geometries, i), reference) for i in range(length)]
-    future = extract_quantities(
-        tuple(reference.outputs),
-        None,
-        None,
-        *evaluated,
+    evaluated = [reference.evaluate(geometries[i]) for i in range(length)]
+    return evaluated
+
+
+def _execute(
+    reference: Reference,
+    inputs: list[File],
+    parsl_resource_specification: Optional[dict] = None,
+    stdout: str = parsl.AUTO_LOGNAME,
+    stderr: str = parsl.AUTO_LOGNAME,
+    label: str = "singlepoint",
+) -> str:
+    return reference.get_shell_command(inputs)
+
+
+def _process_output(
+    reference: Reference,
+    geom: Geometry,
+    inputs: tuple[str | int] = (),
+) -> Geometry:
+    """"""
+    stdout = Path(inputs[0]).read_text()
+    try:
+        data = reference.parse_output(stdout)
+    except LineNotFoundError:
+        # TODO: find out what went wrong
+        data = {"status": Status.FAILED}
+    data |= {"stdout": Path(inputs[0]), "stderr": Path(inputs[1])}
+    return update_geometry(geom, data)
+
+
+@join_app
+def evaluate(reference: Reference, geom: Geometry) -> AppFuture[Geometry]:
+    """"""
+    if geom == NullState:
+        warnings.warn("Skipping NullState..")
+        return copy_app_future(geom)
+    execute, *files = reference.app_pre(geom=geom)
+    if not execute:  # TODO: should we reset geom?
+        return copy_app_future(geom)
+    future = reference.app_execute(inputs=files)
+    future = reference.app_post(
+        geom=geom, inputs=[future.stdout, future.stderr, future]  # wait for future
     )
     return future
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class Reference(Computable):
-    outputs: tuple
-    batch_size: ClassVar[int] = 1  # not really used
+    outputs: Union[list[str], tuple[str, ...]]
+    batch_size: ClassVar[int] = 1  # TODO: not really used
+    executor: str
+    app_pre: ClassVar[Callable]  # TODO: fix serialisation
+    app_execute: ClassVar[Callable]
+    app_post: ClassVar[Callable]
+    _execute_label: ClassVar[str]
+    execute_command: str
 
     def compute(
         self,
         arg: Union[Dataset, Geometry, AppFuture, list],
         *outputs: Optional[Union[str, tuple]],
     ):
+        for output in outputs:
+            if output not in self.outputs:
+                raise ValueError("output {} not in {}".format(output, self.outputs))
+
+        # TODO: convert_to_dataset util?
         if isinstance(arg, Dataset):
             dataset = arg
         elif isinstance(arg, list):
             dataset = Dataset(arg)
         elif isinstance(arg, AppFuture) or isinstance(arg, Geometry):
             dataset = Dataset([arg])
-        compute_outputs = compute_dataset(dataset, dataset.length(), self)
-        if len(outputs) == 0:
-            outputs_ = tuple(self.outputs)
         else:
-            outputs_ = outputs
-        to_return = []
-        for output in outputs_:
-            if output not in self.outputs:
-                raise ValueError("output {} not in {}".format(output, self.outputs))
-            index = self.outputs.index(output)
-            to_return.append(compute_outputs[index])
-        if len(outputs_) == 1:
-            return to_return[0]
-        else:
-            return to_return
+            raise TypeError
 
-    def compute_atomic_energy(self, element, box_size=None):
-        energies = []
+        # TODO: writing to dataset first is wasted overhead,
+        #  but extract_quantities does not accept AppFuture[list[Geometry]] (yet?)
+        future_dataset = self.compute_dataset(dataset)
+        outputs = outputs or self.outputs
+        future_data = extract_quantities(
+            tuple(outputs), None, None, inputs=[future_dataset.extxyz]
+        )
+        if len(outputs) == 1:
+            return future_data[0]
+        return [future_data[_] for _ in range(len(outputs))]
+
+    def compute_dataset(self, dataset: Dataset) -> Dataset:
+        future = compute_dataset(dataset, dataset.length(), self)
+        return Dataset(future)
+
+    def _create_apps(self):
+        definition = psiflow.context().definitions[self.executor]
+        self.execute_command = definition.command()
+        wq_resources = definition.wq_resources()
+        self.app_pre = self.create_input
+        self.app_execute = partial(
+            bash_app(_execute, executors=[self.executor]),
+            reference=self,
+            parsl_resource_specification=wq_resources,
+            label=self._execute_label,
+        )
+        self.app_post = partial(
+            python_app(_process_output, executors=["default_threads"]),
+            reference=self,
+        )
+
+    def evaluate(self, geometry: Geometry | AppFuture) -> AppFuture:
+        return evaluate(self, geometry)
+
+    def compute_atomic_energy(self, element, box_size=None) -> AppFuture[float]:
         references = self.get_single_atom_references(element)
-        configs = [c for c, _ in references]
-        if box_size is not None:
-            state = Geometry.from_data(
-                numbers=np.array([atomic_numbers[element]]),
-                positions=np.array([[0, 0, 0]]),
-                cell=np.eye(3) * box_size,
-            )
-        else:
-            state = Geometry(
-                numbers=np.array([atomic_numbers[element]]),
-                positions=np.array([[0, 0, 0]]),
-                cell=np.zeros((3, 3)),
-            )
-        for _, reference in references:
-            energies.append(extract_energy(evaluate(state, reference)))
-        return get_minimum_energy(element, configs, *energies)
+        state = Geometry.from_data(
+            numbers=np.array([atomic_numbers[element]]),
+            positions=np.array([[0, 0, 0]]),
+            cell=np.eye(3) * (box_size or 0),
+        )
+        futures = {}
+        for mult, reference in references.items():
+            futures[str(mult)] = reference.evaluate(state)
+        return get_minimum_energy(element, **futures)
 
-    def get_single_atom_references(self, element):
-        return [(None, self)]
+    def get_single_atom_references(self, element: str) -> dict[int, Reference]:
+        raise NotImplementedError
+
+    def get_shell_command(self, inputs: list[File]) -> str:
+        raise NotImplementedError
+
+    def parse_output(self, stdout: str):
+        raise NotImplementedError
+
+    def create_input(self, geom: Geometry) -> tuple[bool, File, ...]:
+        raise NotImplementedError
+
+
+def get_spin_multiplicities(element: str) -> list[int]:
+    """TODO: rethink this"""
+    # max S = N * 1/2, max mult = 2 * S + 1
+    from ase.symbols import atomic_numbers
+
+    mults = []
+    number = atomic_numbers[element]
+    for mult in range(1, min(number + 2, 16)):
+        if number % 2 == 0 and mult % 2 == 0:
+            continue  # S always whole, mult never even
+        mults.append(mult)
+    return mults

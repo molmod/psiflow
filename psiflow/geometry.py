@@ -423,7 +423,7 @@ class Geometry:
         per_atom = np.recarray(len(atoms), dtype=per_atom_dtype)
         per_atom.numbers[:] = atoms.numbers.astype(np.uint8)
         per_atom.positions[:] = atoms.get_positions()
-        per_atom.forces[:] = atoms.arrays.get("forces", np.nan)
+        per_atom.forces[:] = atoms.arrays.get("forces", np.nan)  # TODO: ASE stores forces in calc now
         if np.any(atoms.pbc):
             cell = np.array(atoms.cell)
         else:

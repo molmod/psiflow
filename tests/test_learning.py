@@ -7,7 +7,7 @@ from psiflow.geometry import new_nullstate
 from psiflow.hamiltonians import EinsteinCrystal
 from psiflow.learning import Learning, evaluate_outputs
 from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
-from psiflow.reference import D3
+from psiflow.reference import ReferenceDummy
 from psiflow.sampling import SimulationOutput, Walker
 from psiflow.utils.apps import combine_futures
 from psiflow.utils.io import _load_metrics, _save_metrics, load_metrics, save_metrics
@@ -162,7 +162,7 @@ def test_evaluate_outputs(dataset):
     identifier, data, resets = evaluate_outputs(
         outputs,
         einstein,
-        D3(method="pbe", damping="d3bj"),
+        ReferenceDummy(),
         identifier=identifier,
         error_thresholds_for_reset=[None, None],  # never reset
         error_thresholds_for_discard=[None, None],
@@ -177,7 +177,7 @@ def test_evaluate_outputs(dataset):
     identifier, data, resets = evaluate_outputs(
         outputs,
         einstein,
-        D3(method="pbe", damping="d3bj"),
+        ReferenceDummy(),
         identifier=identifier,
         error_thresholds_for_reset=[0.0, 0.0],
         error_thresholds_for_discard=[0.0, 0.0],
@@ -224,7 +224,7 @@ def test_wandb():
 
 def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
     learning = Learning(
-        D3(method="pbe", damping="d3bj"),
+        ReferenceDummy(),
         tmp_path / "output",
         error_thresholds_for_reset=[None, None],
         error_thresholds_for_discard=[None, None],

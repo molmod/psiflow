@@ -33,7 +33,7 @@ multiply = python_app(_multiply, executors=["default_threads"])
 
 
 @typeguard.typechecked
-def setup_logger(module_name):
+def setup_logger(module_name: str, level=logging.INFO) -> logging.Logger:
     # Create logger instance for the module
     module_logger = logging.getLogger(module_name)
 
@@ -48,7 +48,7 @@ def setup_logger(module_name):
     module_logger.addHandler(stdout_handler)
 
     # Set the logging level for the logger
-    module_logger.setLevel(logging.INFO)
+    module_logger.setLevel(level)
 
     return module_logger
 
@@ -113,7 +113,7 @@ log_message = python_app(_log_message, executors=["default_threads"])
 
 
 def _pack(*args):
-    return args
+    return args  # TODO: _combine_futures?
 
 
 pack = python_app(_pack, executors=["default_threads"])

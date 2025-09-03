@@ -14,6 +14,7 @@ import psiflow
 from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models.model import Model
 
+# TODO: not used
 logger = logging.getLogger(__name__)  # logging per module
 
 
@@ -225,7 +226,8 @@ class MACE(Model):
 
         app_initialize = bash_app(initialize, executors=[evaluation.name])
         resources_init = evaluation.wq_resources(1)
-        if resources_init is not None:
+        # TODO: find a better way for model init
+        if not evaluation.use_threadpool:
             resources_init["running_time_min"] = 30  # at least 30 mins for init?
         app_train = bash_app(train, executors=[training.name])
         resources_train = training.wq_resources()
