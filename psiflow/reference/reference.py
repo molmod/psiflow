@@ -37,7 +37,7 @@ def update_geometry(geom: Geometry, data: dict) -> Geometry:
 
     geom = geom.copy()
     geom.reset()
-    geom.order |= {k: data[k] for k in ("status", "stdout", "stderr")}
+    geom.order['status'], geom.order['task_id'] = data["status"].name, task_id
     if data["status"] != Status.SUCCESS:
         return geom
     geom.order["runtime"] = data.get("runtime")
