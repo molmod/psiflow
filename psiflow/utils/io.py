@@ -82,6 +82,7 @@ save_txt = python_app(_save_txt, executors=["default_threads"])
 
 @typeguard.typechecked
 def _load_metrics(inputs: list = []) -> np.recarray:
+    # TODO: stop using recarrays
     return np.load(inputs[0], allow_pickle=True)
 
 
@@ -90,6 +91,7 @@ load_metrics = python_app(_load_metrics, executors=["default_threads"])
 
 @typeguard.typechecked
 def _save_metrics(data: np.recarray, outputs: list = []) -> None:
+    # TODO: stop using recarrays
     with open(outputs[0], "wb") as f:
         data.dump(f)
 

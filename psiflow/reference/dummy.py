@@ -42,7 +42,6 @@ class ReferenceDummy(Reference):
         geom = Geometry.from_string(stdout)
         data = {
             "status": Status.SUCCESS,
-            "runtime": np.nan,
             "positions": geom.per_atom.positions,
             "natoms": len(geom),
             "energy": np.random.uniform(),

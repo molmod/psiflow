@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 from ase.units import Bohr, Ha
@@ -15,10 +13,11 @@ from psiflow.reference.cp2k_ import (
     str_to_dict,
     parse_output as parse_cp2k_output,
 )
+from psiflow.utils.parse import get_task_logs
 
 
 @pytest.fixture
-def simple_cp2k_input():
+def simple_cp2k_input() -> str:
     return """
 &GLOBAL
     PRINT_LEVEL MEDIUM
@@ -66,6 +65,13 @@ def simple_cp2k_input():
     &END SUBSYS
 &END FORCE_EVAL
 """
+
+
+@pytest.fixture
+def geom_h2_p() -> Geometry:
+    # periodic H2 at ~optimized interatomic distance
+    pos = np.array([[0, 0, 0], [0.74, 0, 0]])
+    return Geometry.from_data(numbers=np.ones(2), positions=pos, cell=5 * np.eye(3))
 
 
 def test_cp2k_check_input(simple_cp2k_input):
@@ -184,38 +190,32 @@ def test_cp2k_parse_output():
 
     """
     data_out = parse_cp2k_output(cp2k_output_str, ("energy", "forces"))
-    print(data_out)
     assert data_out["energy"] == -14.202993407031412 * Ha
     assert data_out["runtime"] == 520.336
     assert data_out["status"] == Status.SUCCESS
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
-def test_cp2k_success(context, simple_cp2k_input):
+def test_cp2k_success(simple_cp2k_input, geom_h2_p):
     reference = CP2K(simple_cp2k_input)
-    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
-        numbers=np.ones(2),
-        positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-        cell=5 * np.eye(3),
-    )
 
-    evaluated = reference.evaluate(geometry)
-    assert isinstance(evaluated, AppFuture)
-    geometry = evaluated.result()
-    assert geometry != NullState
-    assert geometry.energy is not None
-    assert not np.any(np.isnan(geometry.per_atom.forces))
-    assert np.allclose(-1.167407360449355 * Ha, geometry.energy)
-    forces_reference = np.array([[-0.00968014, 0.0, 0.0], [0.00967947, 0.0, 0.0]])
-    forces_reference *= Ha / Bohr
-    assert np.allclose(forces_reference, geometry.per_atom.forces, atol=1e-5)
+    future = reference.evaluate(geom_h2_p)
+    future_null = reference.evaluate(NullState)
+    assert isinstance(future, AppFuture)
+    geom_out = future.result()
+    geom_null = future_null.result()
 
-    # check whether NullState evaluates to NullState
-    state = reference.evaluate(NullState)
-    assert state.result() == NullState
+    ref_energy = -1.167407360449355 * Ha
+    ref_forces = np.array([[-0.00968014, 0.0, 0.0], [0.00967947, 0.0, 0.0]]) * Ha / Bohr
+    assert geom_out != NullState
+    assert geom_out.energy is not None
+    assert not np.any(np.isnan(geom_out.per_atom.forces))
+    assert np.allclose(ref_energy, geom_out.energy)
+    assert np.allclose(ref_forces, geom_out.per_atom.forces, atol=1e-5)
+    assert geom_null == NullState  # check whether NullState evaluates to NullState
 
     # check number of mpi processes
-    stdout = geometry.order["stdout"]
+    stdout, _ = get_task_logs(geom_out.order["task_id"])
     lines = stdout.read_text().split("\n")
     for line in lines:
         if "Total number of message passing processes" in line:
@@ -229,7 +229,7 @@ def test_cp2k_success(context, simple_cp2k_input):
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
-def test_cp2k_failure(context, tmp_path):
+def test_cp2k_failure(geom_h2_p):
     cp2k_input = """
 &FORCE_EVAL
    METHOD Quickstep
@@ -296,22 +296,17 @@ def test_cp2k_failure(context, tmp_path):
 &END FORCE_EVAL
 """  # incorrect input file
     reference = CP2K(cp2k_input)
-    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
-        numbers=np.ones(2),
-        positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-        cell=5 * np.eye(3),
-    )
-    evaluated = reference.evaluate(geometry)
-    assert isinstance(evaluated, AppFuture)
-    state = evaluated.result()
-    assert state.energy is None
-    assert np.all(np.isnan(state.per_atom.forces))
-    log = state.order["stdout"].read_text()
-    assert "ABORT" in log  # verify error is captured
+    future = reference.evaluate(geom_h2_p)
+    assert isinstance(future, AppFuture)
+    geom_out = future.result()
+    assert geom_out.energy is None
+    assert np.all(np.isnan(geom_out.per_atom.forces))
+    stdout, _ = get_task_logs(geom_out.order["task_id"])
+    assert "ABORT" in stdout.read_text()  # verify error is captured
 
 
-def test_cp2k_memory(context, simple_cp2k_input):
-    # TODO: test_cp2k_memory == test_cp2k_timeout
+def test_cp2k_memory(simple_cp2k_input):
+    # TODO: test_cp2k_memory == test_cp2k_timeout until memory constraints work
     reference = CP2K(simple_cp2k_input)
     geometry = Geometry.from_data(
         numbers=np.ones(4000),
@@ -324,58 +319,45 @@ def test_cp2k_memory(context, simple_cp2k_input):
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
-def test_cp2k_timeout(context, simple_cp2k_input):
+def test_cp2k_timeout(simple_cp2k_input, geom_h2_p):
     reference = CP2K(simple_cp2k_input)
-    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
-        numbers=np.ones(2),
-        positions=np.array([[0, 0, 0], [3, 0, 0]]),
-        cell=20 * np.eye(3),  # box way too large
-    )
-    energy, forces = reference.compute(Dataset([geometry]))
+    geom_h2_p.cell = 20 * np.eye(3)  # box way too large
+    energy, forces = reference.compute(Dataset([geom_h2_p]))
     energy, forces = energy.result(), forces.result()
     assert np.all(np.isnan(energy))
-    print(energy.shape, forces.shape)
 
 
-def test_cp2k_energy(context, simple_cp2k_input):
+def test_cp2k_energy(simple_cp2k_input, geom_h2_p):
     reference = CP2K(simple_cp2k_input, outputs=("energy",))
-    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
-        numbers=np.ones(2),
-        positions=np.array([[0, 0, 0], [3, 0, 0]]),
-        cell=5 * np.eye(3),  # box way too large
-    )
-    state = reference.evaluate(geometry).result()
-    assert state.energy is not None
-    assert np.all(np.isnan(state.per_atom.forces))
+    geom_out = reference.evaluate(geom_h2_p).result()
+    assert geom_out.energy is not None
+    assert np.all(np.isnan(geom_out.per_atom.forces))
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
-def test_cp2k_atomic_energies(
-    dataset, simple_cp2k_input
-):  # use energy-only because why not
+def test_cp2k_atomic_energies(simple_cp2k_input):
+    # use energy-only because why not
     reference = CP2K(simple_cp2k_input, outputs=("energy",))
-    element = "H"
-    energy = reference.compute_atomic_energy(element, box_size=4)
+    energy = reference.compute_atomic_energy("H", box_size=4)
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
 
 
-def test_cp2k_serialize(dataset, simple_cp2k_input):
+def test_cp2k_serialize(simple_cp2k_input):
     element = "H"
     reference = CP2K(simple_cp2k_input, outputs=("energy",))
     assert "outputs" in reference._attrs
     assert "input_dict" in reference._attrs
-    energy = reference.compute_atomic_energy(element, box_size=4)
 
     data = psiflow.serialize(reference).result()
-    reference = psiflow.deserialize(data)
-    assert type(reference.outputs) is list
-    assert np.allclose(
-        energy.result(),
-        reference.compute_atomic_energy(element, box_size=4).result(),
-    )
+    reference2 = psiflow.deserialize(data)
+    future = reference.compute_atomic_energy(element, box_size=4)
+    future2 = reference2.compute_atomic_energy(element, box_size=4)
+
+    assert type(reference2.outputs) is list
+    assert np.allclose(future.result(), future2.result())
 
 
-def test_cp2k_posthf(context):
+def test_cp2k_posthf(geom_h2_p):
     cp2k_input_str = """
 &FORCE_EVAL
    METHOD Quickstep
@@ -404,22 +386,18 @@ def test_cp2k_posthf(context):
 &END FORCE_EVAL
 """
     reference = CP2K(cp2k_input_str, outputs=("energy",))
-    geometry = Geometry.from_data(  # simple H2 at ~optimized interatomic distance
-        numbers=np.ones(2),
-        positions=np.array([[0, 0, 0], [0.74, 0, 0]]),
-        cell=5 * np.eye(3),
-    )
-    assert reference.evaluate(geometry).result().energy is not None
+    assert reference.evaluate(geom_h2_p).result().energy is not None
 
 
-def test_gpaw_single(dataset, dataset_h2):
-    parameters = dict(mode="fd", nbands=0, xc="LDA", h=0.1, minimal_box_multiple=2)
+def test_gpaw_single(dataset_h2):
+    parameters = dict(mode="fd", nbands=0, xc="LDA", h=0.3, minimal_box_multiple=2)
     gpaw = GPAW(parameters)
-
     future_in = dataset_h2[0]
     future_out = gpaw.evaluate(future_in)
     future_energy = gpaw.compute(dataset_h2[:1])[0]
     future_energy_zr = gpaw.compute_atomic_energy("Zr", box_size=9)
+    gpaw = GPAW({"askdfj": "asdfk"})  # invalid input
+    future_fail = gpaw.evaluate(future_in)
 
     geom_in, geom_out = future_in.result(), future_out.result()
     energy, energy_zr = future_energy.result(), future_energy_zr.result()
@@ -428,13 +406,11 @@ def test_gpaw_single(dataset, dataset_h2):
     assert np.allclose(geom_out.per_atom.positions, geom_in.per_atom.positions)
     assert np.allclose(geom_out.energy, energy)
     assert energy_zr == 0.0
-
-    gpaw = GPAW({"askdfj": "asdfk"})  # invalid input
-    assert gpaw.evaluate(future_in).result().energy is None
+    assert future_fail.result().energy is None
 
 
 # TODO: enable once we have an ORCA container
-# def test_orca_single(dataset, dataset_h2):
+# def test_orca_single(dataset_h2):
 #     input_str = create_orca_input()
 #     orca = ORCA(input_str)
 #     future_in = dataset_h2[0]
@@ -448,6 +424,5 @@ def test_gpaw_single(dataset, dataset_h2):
 #     assert geom_out.energy is not None and geom_out.energy < 0.0
 #     assert np.allclose(geom_out.per_atom.positions, geom_in.per_atom.positions)
 #     assert np.allclose(geom_out.energy, energy)
-
-    # print(energy, energy_h)
-    # assert np.isclose(energy_h, -13.6)
+#     print(energy, energy_h)
+#     assert np.isclose(energy_h, -13.6)

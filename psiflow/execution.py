@@ -35,6 +35,8 @@ import psiflow
 logger = logging.getLogger(__name__)  # logging per module
 
 
+PSIFLOW_INTERNAL = "psiflow_internal"
+
 EXECUTION_KWARGS = (
     "container_uri",
     "container_engine",
@@ -552,10 +554,10 @@ class ExecutionContext:
         default_threads: int = 4,
         htex_address: str = "127.0.0.1",
         zip_staging: Optional[bool] = None,
-        make_symlinks: bool = True,
+        make_symlinks: bool = False,
         **kwargs,
     ) -> ExecutionContext:
-        path = Path.cwd().resolve() / "psiflow_internal"
+        path = Path.cwd().resolve() / PSIFLOW_INTERNAL
         psiflow.resolve_and_check(path)
         if path.exists():
             shutil.rmtree(path)

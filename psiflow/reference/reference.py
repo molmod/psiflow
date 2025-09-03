@@ -1,6 +1,5 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
-import logging
 import warnings
 from typing import ClassVar, Optional, Union, Callable, Sequence
 from pathlib import Path
@@ -30,6 +29,19 @@ class Status(Enum):
     INCONSISTENT = 2
 
 
+class SinglePointResult:
+    """All dict keys update_geometry understands"""
+
+    status: Status
+    natoms: int  # optional
+    positions: np.ndarray
+    energy: float
+    forces: np.ndarray  # optional
+    stdout: Path
+    stderr: Path  # optional
+    runtime: float  # optional
+
+
 def update_geometry(geom: Geometry, data: dict) -> Geometry:
     """"""
     _, task_id, task_name = data["stdout"].stem.split("_", maxsplit=2)
@@ -37,7 +49,7 @@ def update_geometry(geom: Geometry, data: dict) -> Geometry:
 
     geom = geom.copy()
     geom.reset()
-    geom.order['status'], geom.order['task_id'] = data["status"].name, task_id
+    geom.order["status"], geom.order["task_id"] = data["status"].name, task_id
     if data["status"] != Status.SUCCESS:
         return geom
     geom.order["runtime"] = data.get("runtime")

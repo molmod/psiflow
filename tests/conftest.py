@@ -128,9 +128,7 @@ def dataset_h2(context):
     )
     data = [h2.copy() for i in range(20)]
     for atoms in data:
-        atoms.set_positions(
-            atoms.get_positions() + np.random.uniform(-0.05, 0.05, size=(2, 3))
-        )
+        atoms.positions += np.random.uniform(-0.05, 0.05, size=(2, 3))
     return Dataset([Geometry.from_atoms(a) for a in data])
 
 

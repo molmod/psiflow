@@ -56,6 +56,7 @@ wait = ExecutionContextLoader.wait
 #  - see chatgpt convo for process memory limits and such
 #  - make /tmp for app workdirs an option?
 #  - what is scaling_cores_per_worker in WQ
+#  - can we clean up psiflow_internal slightly?
 #  -
 # TODO: REFERENCE
 #  - reference MPI args not really checked
