@@ -1,5 +1,3 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 from typing import Optional, Union
 from functools import partial
 

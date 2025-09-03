@@ -1,5 +1,3 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import json
 from pathlib import Path
 from typing import Optional, Union

@@ -1,5 +1,3 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import warnings
 import re
 from functools import partial

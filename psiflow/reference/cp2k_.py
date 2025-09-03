@@ -1,5 +1,3 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import copy
 import io
 import warnings
