@@ -116,8 +116,8 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     # read forces
     idx_start = idx = find_line(lines, "CARTESIAN GRADIENT", idx) + 3
     idx_stop = find_line(lines, "Difference", idx) - 1
-    forces = lines_to_array(lines[idx_start:idx_stop], start=3, stop=6)
-    data["forces"] = forces * Ha / Bohr
+    gradients = lines_to_array(lines[idx_start:idx_stop], start=3, stop=6)
+    data["forces"] = - gradients * Ha / Bohr
 
     return data
 
