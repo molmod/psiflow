@@ -155,7 +155,7 @@ class ExecutionDefinition:
 
             # only ModelEvaluation / ModelTraining / default_htex run in containers
             if not isinstance(self, ReferenceEvaluation) and self.container:
-                prepend = self.container.launch_command()
+                prepend = self.container.launch_command(self.gpu)
                 worker_executable = f"{prepend} work_queue_worker"
             else:
                 worker_executable = "work_queue_worker"
