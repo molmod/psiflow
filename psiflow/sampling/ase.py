@@ -1,10 +1,7 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 from typing import Optional, Union
 
 import parsl
-import typeguard
-from parsl.app.app import bash_app, join_app
+from parsl import bash_app, join_app, python_app, File
 from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
@@ -12,12 +9,38 @@ from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.utils.io import dump_json
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
+from psiflow.utils.apps import setup_logger
+from psiflow.utils.io import _dump_json
+from psiflow.utils import TMP_COMMAND, CD_COMMAND, export_env_command
+from psiflow.utils.parse import get_task_name_id
 
-from ._ase import ALLOWED_MODES
+from ._ase import ALLOWED_MODES, __file__ as file_ase
 
-EXECUTABLE = 'psiflow-ase-opt'      # not stored in ModelEvaluation (yet?)
+DEFAULT_EXECUTABLE = 'script.py'
+logger = setup_logger(__name__)  # logging per module
+
+
+class OptimisationFailedError(Exception):
+    pass
+
+
+@python_app(executors=["default_threads"])
+def check_task_output(
+    file: DataFuture, file_stdout: str, file_stderr: str
+) -> AppFuture:
+    # TODO: find actual reason for fail?
+    task_name, task_id = get_task_name_id(file_stdout)
+    try:
+        geom = Geometry.load(file.filepath)
+        status = "SUCCESS"
+    except Exception as e:
+        # output file is empty because the optimisation failed
+        status = "FAILED"
+
+    logger.info(f'Task "{task_name}" (ID {task_id}): {status}')
+    if status == "SUCCESS":
+        return geom
+    raise OptimisationFailedError(f"Task {task_id}")
 
 
 def _execute_ase(
@@ -25,26 +48,27 @@ def _execute_ase(
     inputs: list[DataFuture],
     outputs: list[DataFuture],
     env_vars: dict = {},
-    stdout: str = "",
-    stderr: str = "",
+    stdout: str = parsl.AUTO_LOGNAME,
+    stderr: str = parsl.AUTO_LOGNAME,
     parsl_resource_specification: Optional[dict] = None,
 ) -> str:
-    env_command = 'export ' + ' '.join([f"{name}={value}" for name, value in env_vars.items()])
-    command_start = ' '.join([
-        f'{command_launch} run --input_config={inputs[0].filepath} --start_xyz={inputs[1].filepath}',
-        *[f'--path_hamiltonian={future.filepath}' for future in inputs[2:]], '&'
-    ])
-    command_end = f'{command_launch} clean --output_xyz={outputs[0].filepath}'
+    command_opt_args = [
+        command_launch,
+        f"--input_config={inputs[1].filepath}",
+        f"--start_xyz={inputs[2].filepath}",
+        *[f"--path_hamiltonian={future.filepath}" for future in inputs[3:]],
+        f"--output_xyz={outputs[0].filepath}",
+    ]
     if len(outputs) == 2:
-        command_end += f' --output_traj={outputs[1].filepath}'
+        command_opt_args.append(f"--output_traj={outputs[1].filepath}")
 
     command_list = [
         TMP_COMMAND,
         CD_COMMAND,
-        env_command,
-        command_start,
-        "wait",
-        command_end,
+        export_env_command(env_vars),
+        f"cp {inputs[0].filepath} {DEFAULT_EXECUTABLE}",
+        " ".join(command_opt_args),
+        "exit 0",  # ignore timeout exitcode
     ]
     return "\n".join(command_list)
 
@@ -52,15 +76,15 @@ def _execute_ase(
 execute_ase = bash_app(_execute_ase, executors=["ModelEvaluation"])
 
 
-@typeguard.typechecked
 def optimize(
     state: Union[Geometry, AppFuture],
     hamiltonian: Hamiltonian,
-    mode: str = 'full',
+    mode: str = "full",
     steps: int = int(1e12),
     keep_trajectory: bool = False,
     pressure: float = 0,
     f_max: float = 1e-3,
+    script: str = file_ase,
 ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
 
     assert mode in ALLOWED_MODES
@@ -70,22 +94,22 @@ def optimize(
     context = psiflow.context()
     definition = context.definitions["ModelEvaluation"]
 
-    command_list = [EXECUTABLE]
+    command_list = [f"python -u {DEFAULT_EXECUTABLE}"]
     if definition.max_simulation_time is not None:
         max_time = 0.9 * (60 * definition.max_simulation_time)
         command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
     command_launch = " ".join(command_list)
 
-    input_geometry = Dataset([state]).extxyz
+    input_geometry = Dataset([state]).extxyz  # state can be future
     hamiltonian = 1.0 * hamiltonian  # convert to mixture
     names, coeffs = hamiltonian.get_named_components(), hamiltonian.coefficients
-    input_forces = hamiltonian.serialize(dtype="float64")                   # double precision for MLPs
+    input_forces = hamiltonian.serialize(dtype="float64")  # double precision for MLPs
     forces = [
-        dict(forcefield=n, weight=str(c), file=f.filename) for n, c, f in zip(names, coeffs, input_forces)
+        dict(forcefield=n, weight=str(c), file=f.filename)
+        for n, c, f in zip(names, coeffs, input_forces)
     ]
-
     config = dict(
-        task='ASE optimisation',
+        task="ASE optimisation",
         forces=forces,
         mode=mode,
         f_max=f_max,
@@ -93,12 +117,10 @@ def optimize(
         max_steps=steps,
         keep_trajectory=keep_trajectory,
     )
-    input_future = dump_json(
-        outputs=[context.new_file("input_", ".json")],
-        **config,
-    ).outputs[0]
-    inputs = [input_future, input_geometry, *input_forces]
+    file_config = context.new_file("input_", ".json")
+    _dump_json(outputs=[file_config], **config)
 
+    inputs = [File(script), file_config, input_geometry, *input_forces]
     outputs = [context.new_file("data_", ".xyz")]
     if keep_trajectory:
         outputs.append(context.new_file("opt_", ".xyz"))
@@ -108,32 +130,27 @@ def optimize(
         env_vars=definition.env_vars,
         inputs=inputs,
         outputs=outputs,
-        stdout=parsl.AUTO_LOGNAME,
-        stderr=parsl.AUTO_LOGNAME,
         parsl_resource_specification=definition.wq_resources(1),
     )
 
-    final = Dataset(None, result.outputs[0])[-1]
+    geom = check_task_output(result.outputs[0], result.stdout, result.stderr)
     if keep_trajectory:
         trajectory = Dataset(None, result.outputs[1])
-        return final, trajectory
+        return geom, trajectory
     else:
-        return final
+        return geom
 
 
 @join_app
-@typeguard.typechecked
 def _optimize_dataset(
     geometries: list[Geometry], *args, outputs: list = [], **kwargs
 ) -> AppFuture:
     assert not kwargs.get("keep_trajectory", False)
-    optimized = []
-    for geometry in geometries:
-        optimized.append(optimize(geometry, *args, **kwargs))
+    logger.info(f"Performing {len(geometries)} structure optimisations.")
+    optimized = [optimize(geometry, *args, **kwargs) for geometry in geometries]
     return write_frames(*optimized, outputs=[outputs[0]])
 
 
-@typeguard.typechecked
 def optimize_dataset(dataset: Dataset, *args, **kwargs) -> Dataset:
     extxyz = _optimize_dataset(
         dataset.geometries(),

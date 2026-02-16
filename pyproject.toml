@@ -17,6 +17,7 @@ dependencies = [
     "prettytable",
     "psutil",
     "cp2k-input-tools @ git+https://github.com/cp2k/cp2k-input-tools.git@3b9929735dcb3c8c0620a548b1fe20efecbad077",  # need 2024.1
+    "ipi @ git+https://github.com/i-pi/i-pi.git@v3.1.7",
     "pytimeparse",
     ]
 
@@ -25,7 +26,6 @@ dependencies = [
 psiflow-client = "psiflow.sampling.client:main"
 psiflow-server = "psiflow.sampling.server:main"
 psiflow-mace-train = "psiflow.models.mace_utils:main"
-psiflow-ase-opt = "psiflow.sampling._ase:main"
 
 
 [project.optional-dependencies]

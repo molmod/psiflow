@@ -277,7 +277,7 @@ class EinsteinCrystal(Hamiltonian):
 @typeguard.typechecked
 @psiflow.serializable
 class PlumedHamiltonian(Hamiltonian):
-    plumed_input: str
+    plumed_input: str  # TODO: or future?
     external: Optional[psiflow._DataFuture]
     function_name: ClassVar[str] = "PlumedFunction"
 
@@ -449,6 +449,7 @@ class MACEHamiltonian(Hamiltonian):
         )
 
     def parameters(self) -> dict:
+        # TODO: Why is the future copy needed? Can we not pass the File/DataFuture directly?
         model_path = copy_app_future(self.external.filepath, inputs=[self.external])
         evaluation = psiflow.context().definitions["ModelEvaluation"]
         return {

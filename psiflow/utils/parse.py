@@ -56,3 +56,8 @@ def get_task_logs(task_id: int) -> tuple[Path, Path]:
     stdout = next(path.rglob(f"task_{task_id}_*.stdout"))
     stderr = next(path.rglob(f"task_{task_id}_*.stderr"))
     return stdout, stderr
+
+
+def get_task_name_id(logfile: str) -> tuple[str, str]:
+    _, task_id, task_name = Path(logfile).stem.split("_", maxsplit=2)
+    return task_name, task_id
