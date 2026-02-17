@@ -75,8 +75,13 @@ def serializable(cls):
                         if issubclass(arg, Serializable):  # weird
                             kind = "serial"
         else:
-            if get_origin(type_hint) is ClassVar:
+            # TODO: temporary hotfix
+            origin = get_origin(type_hint)
+            if origin is ClassVar:
                 continue  # do nothing for classvars
+            elif origin == dict:
+                continue
+
             if not inspect.isclass(type_hint):
                 raise ValueError(
                     "{} is formally not a class ({})".format(type_hint, name)

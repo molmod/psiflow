@@ -17,7 +17,7 @@ from psiflow.data import Computable, Dataset
 from psiflow.data.utils import extract_quantities
 from psiflow.geometry import Geometry, NullState
 from psiflow.utils.apps import copy_app_future, setup_logger
-from psiflow.utils.parse import LineNotFoundError
+from psiflow.utils.parse import LineNotFoundError, get_task_name_id
 
 
 logger = setup_logger(__name__)  # logging per module
@@ -44,7 +44,7 @@ class SinglePointResult:
 
 def update_geometry(geom: Geometry, data: dict) -> Geometry:
     """"""
-    _, task_id, task_name = data["stdout"].stem.split("_", maxsplit=2)
+    task_name, task_id = get_task_name_id(data["stdout"])
     logger.info(f'Task "{task_name}" (ID {task_id}): {data["status"].name}')
 
     geom = geom.copy()
