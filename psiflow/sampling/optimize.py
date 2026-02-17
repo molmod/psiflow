@@ -1,10 +1,8 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
+import warnings
 import xml.etree.ElementTree as ET
 from typing import Optional, Union
 
 import parsl
-import typeguard
 from ase.units import Bohr, Ha
 from parsl.app.app import bash_app, join_app
 from parsl.dataflow.futures import AppFuture
@@ -13,31 +11,42 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
-from psiflow.hamiltonians import Hamiltonian
-from psiflow.sampling.sampling import setup_sockets, make_start_command, make_client_command
+from psiflow.hamiltonians import Hamiltonian, MACEHamiltonian
+from psiflow.sampling.sampling import (
+    setup_sockets,
+    make_server_command,
+    make_driver_commands,
+    make_wait_for_sockets_command,
+)
+from psiflow.sampling.output import HamiltonianComponent
 from psiflow.utils.io import save_xml
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
+from psiflow.utils import TMP_COMMAND, CD_COMMAND, export_env_command
 
 
-@typeguard.typechecked
-def setup_forces(hamiltonian: Hamiltonian) -> tuple[dict[str, Hamiltonian], ET.Element]:
+warnings.warn(
+    "The 'optimize' module will likely be removed in a future release. "
+    "Consider using the 'ase' module for structure optimisations instead.",
+    FutureWarning,
+)
+
+
+def setup_forces(
+    hamiltonian: Hamiltonian,
+) -> tuple[list[HamiltonianComponent], ET.Element]:
     hamiltonian = 1.0 * hamiltonian  # convert to mixture
-    counts = {}
-    hamiltonians_map = {}
     forces = ET.Element("forces")
-    for h, c in zip(hamiltonian.hamiltonians, hamiltonian.coefficients):
-        name = h.__class__.__name__
-        if name not in counts:
-            counts[name] = 0
-        count = counts.get(name)
-        counts[name] += 1
-        force = ET.Element("force", forcefield=name + str(count), weight=str(c))
+    components = []
+    for n, h, c in zip(
+        hamiltonian.get_named_components(),
+        hamiltonian.hamiltonians,
+        hamiltonian.coefficients,
+    ):
+        components.append(comp := HamiltonianComponent(n, h, True))
+        force = ET.Element("force", forcefield=comp.name, weight=str(c))
         forces.append(force)
-        hamiltonians_map[name + str(count)] = h
-    return hamiltonians_map, forces
+    return components, forces
 
 
-@typeguard.typechecked
 def setup_motion(
     mode: str,
     etol: float,
@@ -62,7 +71,6 @@ def setup_motion(
     return motion
 
 
-@typeguard.typechecked
 def setup_output(keep_trajectory: bool) -> ET.Element:
     output = ET.Element("output", prefix="output")
     checkpoint = ET.Element(
@@ -86,38 +94,32 @@ def setup_output(keep_trajectory: bool) -> ET.Element:
 
 
 def _execute_ipi(
-    hamiltonian_names: list[str],
-    client_args: list[list[str]],
-    keep_trajectory: bool,
+    driver_kwargs: list[dict],
     command_server: str,
-    command_client: str,
     env_vars: dict = {},
-    stdout: str = "",
-    stderr: str = "",
+    stdout: str = parsl.AUTO_LOGNAME,
+    stderr: str = parsl.AUTO_LOGNAME,
     inputs: list = [],
     outputs: list = [],
     parsl_resource_specification: Optional[dict] = None,
 ) -> str:
-    env_command = 'export ' + ' '.join([f"{name}={value}" for name, value in env_vars.items()])
-    command_start = make_start_command(command_server, inputs[0], inputs[1])
-    commands_client = []
-    for i, name in enumerate(hamiltonian_names):
-        args = client_args[i]
-        assert len(args) == 1  # only have one client per hamiltonian
-        for arg in args:
-            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg),
+    file_xml, file_xyz_in, *files_in = inputs
+    command_start = make_server_command(
+        command_server, file_xml, file_xyz_in, outputs[0], [], outputs[1:]
+    )
+    command_wait = make_wait_for_sockets_command(
+        set(d["address"] for d in driver_kwargs)
+    )
+    commands_driver = make_driver_commands(driver_kwargs, file_xyz_in, files_in)
 
-    command_end = f'{command_server} --cleanup --output_xyz={outputs[0].filepath}'
-    command_copy = f'cp walker-0_output.trajectory_0.ase {outputs[1].filepath}' if keep_trajectory else ''
     command_list = [
         TMP_COMMAND,
         CD_COMMAND,
-        env_command,
+        export_env_command(env_vars),
         command_start,
-        *commands_client,
+        command_wait,
+        *commands_driver,
         "wait",
-        command_end,
-        command_copy,
     ]
     return "\n".join(command_list)
 
@@ -125,7 +127,6 @@ def _execute_ipi(
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 
 
-@typeguard.typechecked
 def optimize(
     state: Union[Geometry, AppFuture],
     hamiltonian: Hamiltonian,
@@ -136,8 +137,8 @@ def optimize(
     ptol: float = 1e-5,
     ftol: float = 1e-3,
 ) -> Union[AppFuture, tuple[AppFuture, Dataset]]:
-    hamiltonians_map, forces = setup_forces(hamiltonian)
-    sockets = setup_sockets(hamiltonians_map)
+    hamiltonian_components, forces = setup_forces(hamiltonian)
+    sockets = setup_sockets(hamiltonian_components)
 
     initialize = ET.Element("initialize", nbeads="1")
     start = ET.Element("file", mode="ase", cell_units="angstrom")
@@ -171,33 +172,25 @@ def optimize(
         input_future,
         Dataset([state]).extxyz,
     ]
-    inputs += [h.serialize_function(dtype="float64") for h in hamiltonians_map.values()]
-
-    hamiltonian_names = list(hamiltonians_map.keys())
-    client_args = []
-    for name in hamiltonian_names:
-        args = definition.get_client_args(name, 1, "minimize")
-        client_args.append(args)
     outputs = [context.new_file("data_", ".xyz")]
     if keep_trajectory:
         outputs.append(context.new_file("opt_", ".xyz"))
 
-    command_server = definition.server_command()
-    command_client = definition.client_command()
-    resources = definition.wq_resources(1)
+    driver_kwargs = []
+    for i, comp in enumerate(hamiltonian_components):
+        inputs.append(comp.hamiltonian.serialize_function(dtype="float64"))
+        kwargs = {"idx": i, "address": comp.address}
+        if isinstance(comp.hamiltonian, MACEHamiltonian):
+            kwargs |= definition.get_driver_devices(1)
+        driver_kwargs.append(kwargs)
 
     result = execute_ipi(
-        hamiltonian_names,
-        client_args,
-        keep_trajectory,
-        command_server,
-        command_client,
+        driver_kwargs,
+        definition.server_command(),
         env_vars=definition.env_vars,
-        stdout=parsl.AUTO_LOGNAME,
-        stderr=parsl.AUTO_LOGNAME,
         inputs=inputs,
         outputs=outputs,
-        parsl_resource_specification=resources,
+        parsl_resource_specification=definition.wq_resources(1),
     )
 
     final = Dataset(None, result.outputs[0]).evaluate(hamiltonian)[-1]
@@ -209,7 +202,6 @@ def optimize(
 
 
 @join_app
-@typeguard.typechecked
 def _optimize_dataset(
     geometries: list[Geometry], *args, outputs: list = [], **kwargs
 ) -> AppFuture:
@@ -220,7 +212,6 @@ def _optimize_dataset(
     return write_frames(*optimized, outputs=[outputs[0]])
 
 
-@typeguard.typechecked
 def optimize_dataset(dataset: Dataset, *args, **kwargs) -> Dataset:
     extxyz = _optimize_dataset(
         dataset.geometries(),
