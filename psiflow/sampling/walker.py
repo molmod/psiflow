@@ -1,10 +1,8 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import xml.etree.ElementTree as ET
 from typing import Optional, Union
+from enum import Enum
 
 import numpy as np
-import typeguard
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -19,12 +17,17 @@ from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils.apps import copy_app_future
 
 
-@typeguard.typechecked
 class Coupling:
     pass
 
 
-@typeguard.typechecked
+class Ensemble(Enum):
+    NVE = "NVE"
+    NVT = "NVT"
+    NPT = "NPT"
+    NVST = "(N, V, sigma=0, T)"
+
+
 def _conditioned_reset(
     condition: bool,
     state: Geometry,
@@ -41,7 +44,6 @@ def _conditioned_reset(
 conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"])
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class Walker:
     start: Union[Geometry, AppFuture]
@@ -49,6 +51,7 @@ class Walker:
     state: Union[Geometry, AppFuture, None]
     temperature: Optional[float]
     pressure: Optional[float]
+    volume_constrained: bool
     masses: Union[np.ndarray, float, None]
     nbeads: int
     timestep: float
@@ -63,6 +66,7 @@ class Walker:
         state: Union[Geometry, AppFuture, None] = None,
         temperature: Optional[float] = 300,
         pressure: Optional[float] = None,
+        volume_constrained: bool = False,
         masses: Union[np.ndarray, float, None] = None,
         nbeads: int = 1,
         timestep: float = 0.5,
@@ -70,39 +74,40 @@ class Walker:
         order_parameter: Optional[OrderParameter] = None,
     ):
         self.start = start
-        if hamiltonian is None:
-            hamiltonian = Zero()
-        self.hamiltonian = hamiltonian
-        if state is None:
-            state = copy_app_future(self.start)
-        self.state = state
-
-        if order_parameter is not None:
-            self.start = order_parameter.evaluate(self.start)
-
+        self.hamiltonian = hamiltonian or Zero()
+        self.state = state or copy_app_future(self.start)
         self.temperature = temperature
         self.pressure = pressure
-
-        if isinstance(masses, (float, int)):
-            masses *= self.start.atomic_masses
-        self.masses = masses
-        if self.masses is not None:
-            assert len(self.masses) == len(self.start), "Masses do not match number of atoms"
-
+        self.volume_constrained = volume_constrained
         self.nbeads = nbeads
         self.timestep = timestep
-
         self.metadynamics = metadynamics
         self.order_parameter = order_parameter
         self.coupling = None
 
-    def reset(self, condition: Union[AppFuture, bool] = True):
-        self.state = conditioned_reset(condition, self.state, self.start)
+        if temperature is None:
+            assert pressure is None and not volume_constrained
+        if self.volume_constrained:
+            # TODO: warning?
+            self.pressure = 0
 
-    def is_reset(self) -> AppFuture:
-        return check_equality(self.start, self.state)
+        if order_parameter is not None:
+            # TODO: order_parameter out of commission
+            self.start = order_parameter.evaluate(self.start)
 
-    def multiply(self, nreplicas: int) -> list[Walker]:
+        if isinstance(masses, (float, int)):
+            masses *= self.start.atomic_masses
+        elif isinstance(masses, np.ndarray) and len(masses) != len(self.start):
+            raise ValueError("Supplied masses do not match number of atoms")
+        self.masses = masses
+
+    # def reset(self, condition: Union[AppFuture, bool] = True):
+    #     self.state = conditioned_reset(condition, self.state, self.start)
+
+    # def is_reset(self) -> AppFuture:
+    #     return check_equality(self.start, self.state)
+
+    def multiply(self, nreplicas: int) -> list["Walker"]:
         if self.coupling is not None:
             raise ValueError("Cannot multiply walkers after they are coupled")
         walkers = []
@@ -126,23 +131,21 @@ class Walker:
         return walkers
 
     @property
-    def pimd(self):
+    def pimd(self) -> bool:
         return self.nbeads != 1
 
     @property
-    def nve(self):
-        return (self.temperature is None) and (self.pressure is None)
+    def ensemble(self) -> Ensemble:
+        if self.temperature is None:
+            return Ensemble.NVE
+        elif self.pressure is None:
+            return Ensemble.NVT
+        elif self.volume_constrained:
+            return Ensemble.NVST
+        else:
+            return Ensemble.NPT
 
-    @property
-    def nvt(self):
-        return (self.temperature is not None) and (self.pressure is None)
 
-    @property
-    def npt(self):
-        return (self.temperature is not None) and (self.pressure is not None)
-
-
-@typeguard.typechecked
 def partition(walkers: list[Walker]) -> list[list[int]]:
     indices = []
     for i, walker in enumerate(walkers):
@@ -158,7 +161,6 @@ def partition(walkers: list[Walker]) -> list[list[int]]:
     return indices
 
 
-# typeguarding incompatible with * expansion
 def _get_minimum_energy_states(
     coefficients: np.ndarray,
     *energies: np.ndarray,
@@ -183,7 +185,6 @@ get_minimum_energy_states = python_app(
 )
 
 
-@typeguard.typechecked
 def quench(walkers: list[Walker], dataset: Dataset) -> None:
     all_hamiltonians = sum([w.hamiltonian for w in walkers], start=Zero())
     energies = [h.compute(dataset, "energy") for h in all_hamiltonians.hamiltonians]
@@ -213,7 +214,6 @@ def _random_indices(nindices: int, nstates: int) -> list[int]:
 random_indices = python_app(_random_indices, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def randomize(walkers: list[Walker], dataset: Dataset) -> None:
     indices = random_indices(len(walkers), dataset.length())
     data = dataset[indices]
@@ -222,7 +222,6 @@ def randomize(walkers: list[Walker], dataset: Dataset) -> None:
         walker.reset()
 
 
-@typeguard.typechecked
 def validate_coupling(walkers: list[Walker]):
     couplings = []
     counts = []
@@ -240,7 +239,6 @@ def validate_coupling(walkers: list[Walker]):
         assert coupling.nwalkers == counts[i]
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class ReplicaExchange(Coupling):
     trial_frequency: int
@@ -259,7 +257,7 @@ class ReplicaExchange(Coupling):
         self.swapfile = psiflow.context().new_file("swap_", ".txt")
         self.nwalkers = nwalkers
 
-    def __eq__(self, other: Optional[ReplicaExchange]) -> bool:
+    def __eq__(self, other: Optional["ReplicaExchange"]) -> bool:
         if other is None:
             return False
         trial = self.trial_frequency == other.trial_frequency

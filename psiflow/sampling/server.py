@@ -1,8 +1,8 @@
 import argparse
 import signal
 import xml.etree.ElementTree as ET
-import warnings
 import subprocess
+import time
 from pathlib import Path
 
 import ase
@@ -63,14 +63,14 @@ def insert_addresses(input_xml: ET.Element) -> None:
             address.text = str(Path.cwd() / address.text.strip())
 
 
-def insert_data_start(input_xml: ET.Element) -> None:
-    # TODO: does this do anything?
-    for child in input_xml:
-        if child.tag == "system":
-            initialize = ET.Element("initialize", nbeads="1")
-            initialize.text = "start_INDEX.xyz"
-
-            warnings.warn('"insert_data_start" did something -- investigate')
+# def insert_data_start(input_xml: ET.Element) -> None:
+#     # TODO: does this do anything?
+#     for child in input_xml:
+#         if child.tag == "system":
+#             initialize = ET.Element("initialize", nbeads="1")
+#             initialize.text = "start_INDEX.xyz"
+#
+#             warnings.warn('"insert_data_start" did something -- investigate')
 
 
 def anisotropic_barostat_h0(input_xml: ET.Element, data_start: list[ase.Atoms]) -> None:
@@ -93,6 +93,34 @@ def anisotropic_barostat_h0(input_xml: ET.Element, data_start: list[ase.Atoms]) 
             stress.text = " [ PRESSURE, 0, 0, 0, PRESSURE, 0, 0, 0, PRESSURE ] "  # TODO: anisotropic?
 
 
+def wait_for_clients(input_xml, timeout: int = 60) -> None:
+    """Make sure clients have initialised successfully"""
+
+    # find sockets opened by server
+    sockets = []
+    xml_str = ET.tostring(input_xml, encoding="unicode")
+    for line in xml_str.splitlines():
+        if 'address' in line:
+            sockets.append(line.split(">")[1].split("<")[0])
+
+    for _ in range(timeout):
+        # check socket status
+        out = subprocess.check_output("ss -xpl | grep psiflow", shell=True).decode()
+        connections = {}
+        for line in out.strip().split("\n"):
+            data = line.split()
+            connections[data[4]] = (data[1], int(data[2]))
+
+        # does every socket have a pending handshake
+        pending = [connections.get(s, [None, 0])[1] for s in sockets]
+        if all([i > 0 for i in pending]):
+            return
+        time.sleep(1)
+
+    msg = f"Timed out waiting for clients to initialise. Sockets: {connections}"
+    raise RuntimeError(msg)
+
+
 def run(start_xyz: str, input_xml: str):
     # prepare starting geometries from context_dir
     data_start = read(start_xyz, index=":")
@@ -105,22 +133,27 @@ def run(start_xyz: str, input_xml: str):
     with open(input_xml, "r") as f:
         input_xml = ET.fromstring(f.read())
 
-    insert_data_start(input_xml)
+    # print('pre')
+    # print(ET.tostring(input_xml, encoding="utf-8"))
+    # insert_data_start(input_xml)
+    # print('post')
+    # print(ET.tostring(input_xml, encoding="utf-8"))
+
     insert_addresses(input_xml)
     anisotropic_barostat_h0(input_xml, data_start)
     with open(INPUT_XML, "wb") as f:
         f.write(ET.tostring(input_xml, encoding="utf-8"))
 
     simulation = Simulation.load_from_xml(open(INPUT_XML), sockets_prefix="")
+    wait_for_clients(input_xml)
     simulation.run()
+    return
 
 
-def cleanup(
-    output_xyz: str, output_props: list[str], output_trajs: list[str] | None = None
-) -> None:
+def cleanup(output_xyz: str, output_props: list[str], output_trajs: list[str]) -> None:
     from psiflow.data.utils import _write_frames
 
-    print("STARTING CLEANUP")
+    print("Starting cleanup")
     with open(INPUT_XML, "r") as f:
         content = f.read()
     if "vibrations" in content:
@@ -133,7 +166,7 @@ def cleanup(
         if np.allclose(state.cell, NONPERIODIC_CELL):
             state.cell[:] = 0.0
     _write_frames(*states, outputs=[output_xyz])
-    print("MOVED CHECKPOINT GEOMETRIES")
+    print("Moved checkpoint geometries")
 
     prefix = ""
     if "remd" in content:
@@ -146,13 +179,14 @@ def cleanup(
         print("REMDSORT")
 
     # move recorded simulation observables
-    assert len(states) == len(output_props)
-    for idx, file in enumerate(output_props):
-        file_src = next(Path.cwd().glob(f"{prefix}*{idx}*.properties"))
-        Path(file).write_text(file_src.read_text())
-    print("MOVED SIMULATION OBSERVABLES")
+    if len(output_props):
+        assert len(states) == len(output_props)
+        for idx, file in enumerate(output_props):
+            file_src = next(Path.cwd().glob(f"{prefix}*{idx}*.properties"))
+            Path(file).write_text(file_src.read_text())
+        print("Moved simulation observables")
 
-    if output_trajs is None:
+    if len(output_trajs) == 0:
         return
 
     # move trajectories
@@ -166,7 +200,7 @@ def cleanup(
                 at.pbc, at.cell = False, None
             at.info.pop("ipi_comment", None)
         write(file, atoms)
-    print("MOVED SIMULATION TRAJECTORIES")
+    print("Moved simulation trajectories")
 
     return
 
@@ -177,10 +211,11 @@ def main():
     parser.add_argument("--input_xml", required=True)
     parser.add_argument("--start_xyz", required=True)
     parser.add_argument("--output_xyz", required=True)
-    parser.add_argument("--output_props", required=True)
+    parser.add_argument("--output_props", default="")
     parser.add_argument("--output_trajs", default="")
     args = parser.parse_args()
 
+    time_start = time.time()
     try:
         run(args.start_xyz, args.input_xml)
         softexit.trigger(status="success", message="@PSIFLOW: We are done here.")
@@ -188,6 +223,10 @@ def main():
         softexit.trigger(message="@PSIFLOW: Timeout. Saving intermediate progress.")
     except SystemExit:
         # i-Pi merges all threads and calls sys.exit() before we can clean up
-        output_props = args.output_props.split(",")
-        output_trajs = args.output_trajs.split(",")
+        output_props = _.split(",") if (_ := args.output_props) else []
+        output_trajs = _.split(",") if (_ := args.output_trajs) else []
         cleanup(args.output_xyz, output_props, output_trajs)
+    time_stop = time.time()
+
+    print("|- Done -|")
+    print(f"Total simulation time: {time_stop - time_start:.0f} seconds")

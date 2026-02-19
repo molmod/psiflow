@@ -1,19 +1,28 @@
 import copy
 import re
+from enum import Enum
 from pathlib import Path
+from dataclasses import dataclass, field, InitVar
 from typing import Optional, Union
 
 import numpy as np
-import typeguard
+from ipi.utils.parsing import read_output
 from parsl.app.app import python_app
-from parsl.app.futures import DataFuture
+from parsl.app.futures import DataFuture, File
 from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
-from psiflow.utils.apps import unpack_i
+from psiflow.sampling.walker import Walker
+from psiflow.utils.io import save_npz
+from psiflow.utils.apps import setup_logger
+from psiflow.utils.parse import get_task_name_id
+
+
+logger = setup_logger(__name__)  # logging per module
+
 
 DEFAULT_OBSERVABLES = [
     "time{picosecond}",
@@ -23,281 +32,227 @@ DEFAULT_OBSERVABLES = [
 ]
 
 
-@typeguard.typechecked
-def potential_component_names(n: int):
-    return [f'pot_component_raw({i}){{electronvolt}}' for i in range(n)]
+class Status(Enum):
+    UNKNOWN = -1
+    DONE = 0
+    TIMEOUT = 1
+    FORCE_EXCEEDED = 2
+    OOM = 3
+    BROKEN_PIPE = 4
 
 
-@typeguard.typechecked
-def _get_final_temperature(temperatures: np.ndarray) -> float:
-    if not len(temperatures) > 0:
-        return np.nan
-    return temperatures[-1]
+@dataclass
+class HamiltonianComponent:
+    name: str
+    hamiltonian: Hamiltonian
+    shared: bool
+
+    def __post_init__(self):
+        self.address = f"psiflow_{self.name.lower()}"
 
 
-get_final_temperature = python_app(
-    _get_final_temperature, executors=["default_threads"]
+def split_units(key: str) -> tuple[str, str]:
+    name, unit = key.split("{")
+    return name, unit[:-1]
+
+
+def potential_component_name(n: int) -> str:
+    return f"pot_component_raw({n}){{electronvolt}}"
+
+
+def get_simulation_status(stdout: str, stderr: str) -> Status:
+    content = Path(stdout).read_text()
+    if "@PSIFLOW: Timeout." in content:
+        return Status.TIMEOUT
+    elif "@PSIFLOW: We are done here" in content:
+        return Status.DONE
+
+    content = Path(stderr).read_text()
+    if "force exceeded" in content:
+        return Status.FORCE_EXCEEDED
+    elif "BrokenPipeError: [Errno 32] Broken pipe" in content:
+        return Status.BROKEN_PIPE
+    elif "Killed" in content:
+        return Status.OOM
+    return Status.UNKNOWN
+
+
+def _parse_simulation_data(
+    state: Geometry,
+    observables: list[str],
+    start: int,
+    file_props: File,
+    simulation_stdout: str,
+    simulation_stderr: str,
+) -> tuple[Status, dict, float, float]:
+    """"""
+    status = get_simulation_status(simulation_stdout, simulation_stderr)
+    try:
+        # read_output strips unit information from keys
+        values, _ = read_output(file_props.filepath)
+        data = {k: values[split_units(k)[0]][start:] for k in observables}
+        temperature = data["temperature{kelvin}"][-1]
+    except IndexError as e:
+        # nothing was written
+        data = {k: np.array([]) for k in observables}
+        temperature = np.nan
+
+    task_id = get_task_name_id(simulation_stdout)[-1]
+    logger.info(f"Simulation [ID {task_id}]: {status}")
+    return status, data, temperature, state.order.pop("time")
+
+
+parse_simulation_data = python_app(
+    _parse_simulation_data, executors=["default_threads"]
 )
 
 
-@typeguard.typechecked
-def read_output(filename):  # from i-PI
-    # Regex pattern to match header lines and capture relevant parts
-    header_pattern = re.compile(
-        r"#\s*(column|cols\.)\s+(\d+)(?:-(\d+))?\s*-->\s*([^\s\{]+)(?:\{([^\}]+)\})?\s*:\s*(.*)"
-    )
-
-    # Reading the file
-    with open(filename, "r") as file:
-        lines = file.readlines()
-
-    header_lines = [line for line in lines if line.startswith("#")]
-    data_lines = [line for line in lines if not line.startswith("#") and line.strip()]
-
-    # Interprets properties
-    properties = {}
-    for line in header_lines:
-        match = header_pattern.match(line)
-        if match:
-            # Extracting matched groups
-            (
-                col_type,
-                start_col,
-                end_col,
-                property_name,
-                units,
-                description,
-            ) = match.groups()
-            col_info = f"{start_col}-{end_col}" if end_col else start_col
-            properties[col_info] = {
-                "name": property_name,
-                "units": units,
-                "description": description,
-            }
-
-    # Parse data
-    values_dict = {}
-    info_dict = {}
-    for prop_info in properties.values():
-        # Initialize list to hold values for each property
-        values_dict[prop_info["name"]] = []
-        # Save units and description
-        info_dict[prop_info["name"]] = (prop_info["units"], prop_info["description"])
-
-    for line in data_lines:
-        values = line.split()
-        for column_info, prop_info in properties.items():
-            if "-" in column_info:  # Multi-column property
-                start_col, end_col = map(
-                    int, column_info.split("-")
-                )  # 1-based indexing
-                prop_values = values[
-                    start_col - 1 : end_col
-                ]  # Adjust to 0-based indexing
-            else:  # Single column property
-                col_index = int(column_info) - 1  # Adjust to 0-based indexing
-                prop_values = [values[col_index]]
-
-            values_dict[prop_info["name"]].append([float(val) for val in prop_values])
-
-    for prop_name, prop_values in values_dict.items():
-        values_dict[prop_name] = np.array(
-            prop_values
-        ).squeeze()  # make 1-col into a flat array
-
-    return values_dict, info_dict
+def _log_status(
+    task_id: str,
+    status: Status,
+    observables: list[str],
+    time: float,
+    temperature: float,
+    component_map: dict[str, HamiltonianComponent],
+    bias_components: list[HamiltonianComponent],
+) -> None:
+    """Print out some simulation stats"""
+    info = [
+        f"Simulation [ID {task_id}]",
+        f"Status: {status.name}",
+        f"Elapsed time: {time*1000:.1f} fs",
+        f"Final temperature: {temperature:.1f} K",
+        f"Observables: {observables}",
+        f"Force components: {[f'{c.name} -> {k}' for k, c in component_map.items()]}",
+        f"Bias components: {[c.name for c in bias_components]}",
+    ]
+    print(*info, sep="\n")
 
 
-@typeguard.typechecked
-def _parse_data(
-    status: int,
-    start: int,
-    keys: list[str],
-    inputs: list = [],
-) -> list[np.ndarray]:
-    from psiflow.sampling.output import read_output
-
-    bare_keys = []
-    for key in keys:
-        if "{" in key:
-            bare_key = key.split("{")[0]
-        else:
-            bare_key = key
-        bare_keys.append(bare_key)
-    if status not in [0, 1]:
-        return [np.zeros(0) for key in bare_keys]  # read_output might fail
-    values, _ = read_output(inputs[0].filepath)
-    return [values[key][start:] for key in bare_keys]
+log_status = python_app(_log_status, executors=["default_threads"])
 
 
-parse_data = python_app(_parse_data, executors=["default_threads"])
-
-
-@typeguard.typechecked
 def _add_contributions(
     coefficients: tuple[float, ...],
     *values: np.ndarray,
 ) -> np.ndarray:
-    assert len(coefficients) == len(values)
+    assert len(coefficients) == len(values) and values[0] is not None
     total = np.zeros(len(values[0]))
-    for i, c in enumerate(coefficients):
-        total += c * values[i]
+    for c, v in zip(coefficients, values):
+        total += c * v
     return total
 
 
 add_contributions = python_app(_add_contributions, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _parse(
-    state: Geometry,
-    inputs: list = [],
-) -> tuple[float, int]:
-    time = state.order.pop("time")
-
-    # determine status based on stdout
-    with open(inputs[0], "r") as f:
-        content = f.read()
-    if "force exceeded" in content:
-        status = 2  # max_force exception
-    elif "@SOFTEXIT: Kill signal received" in content:
-        status = 1  # timeout
-    elif "@ SIMULATION: Exiting cleanly" in content:
-        status = 0  # everything OK
-    else:
-        status = -1
-    return time, status
-
-
-parse = python_app(_parse, executors=["default_threads"])
-
-
-@typeguard.typechecked
-def _update_walker(
-    status: int,
-    state: Geometry,
-    start: Geometry,
-) -> Geometry:
-    from psiflow.geometry import NullState
-
-    if (status in [0, 1]) and state != NullState:
-        return state
-    else:
-        return copy.deepcopy(start)
-
-
-update_walker = python_app(_update_walker, executors=["default_threads"])
-
-
-@typeguard.typechecked
-def _get_state(
-    geometry: Geometry,
-    status: int,
-) -> Geometry:
-    if status in [0, 1]:
-        return geometry
-    else:
-        return NullState
-
-
-get_state = python_app(_get_state, executors=["default_threads"])
-
-
-@typeguard.typechecked
 @psiflow.serializable
+@dataclass
 class SimulationOutput:
-    """Gathers simulation output
-
-    status is an integer which represents an exit code of the run:
-
-    -1: unknown error
-     0: run completed successfully
-     1: run terminated early due to time limit
-     2: run terminated early due to max force exception
-
-    """
-
-    _data: dict[str, Optional[AppFuture]]
-    state: Union[Geometry, AppFuture, None]
-    stdout: Optional[str]
-    status: Union[int, AppFuture, None]
-    time: Union[float, AppFuture, None]
-    temperature: Union[float, AppFuture, None]
+    task_id: str
+    walker: Walker
+    status: Union[Status, AppFuture]
+    state: Union[Geometry, AppFuture]
+    data: AppFuture
+    time: Union[float, AppFuture]
+    temperature: Union[float, AppFuture]
     trajectory: Optional[Dataset]
+    observables: list[str]
 
-    def __init__(self, fields: list[str]):
-        self._data = {key: None for key in fields}
+    hamiltonian_components: InitVar[list[HamiltonianComponent]]
+    component_map: dict[str, HamiltonianComponent] = field(init=False)
+    force_comps: list[HamiltonianComponent] = field(init=False)
+    bias_comps: list[HamiltonianComponent] = field(init=False)
+    _data: dict[str, AppFuture] = field(init=False)
 
-        self.state = None
-        self.stdout = None
-        self.status = None
-        self.time = None
-        self.temperature = None
-        self.trajectory = None
-        self.hamiltonians = None
+    def __post_init__(self, hamiltonian_components):
+        self._data = {}  # to cache deferred_getitem calls
+        self.force_comps = [comp for comp in hamiltonian_components if comp.shared]
+        self.bias_comps = [comp for comp in hamiltonian_components if not comp.shared]
+
+        # map generic i-Pi keys to hamiltonian force components
+        self.component_map = {
+            potential_component_name(i): comp for i, comp in enumerate(self.force_comps)
+        }
 
     def __getitem__(self, key: str) -> AppFuture:
-        if self._data.get(key, None) is None:
-            raise ValueError("output {} not available".format(key))
+        assert key in self.observables
+        if key not in self._data:
+            self._data[key] = self.data[key]
         return self._data[key]
 
-    def parse(
-        self,
-        result: AppFuture,  # result from ipi execution
-        state: AppFuture,
-    ):
-        self.state = state
-        self.stdout = result.stdout
-        parsed = parse(state, inputs=[result.stdout, result.stderr])
-        self.time = unpack_i(parsed, 0)
-        self.status = unpack_i(parsed, 1)
+    def update_walker(self):
+        # TODO: when do we want to reset?
+        self.walker.state = self.state
 
-    def parse_data(
-        self,
-        start: int,
-        data_future: DataFuture,
-        hamiltonians: list[Hamiltonian],
-    ):
-        data = parse_data(
+    def log_status(self):
+        log_status(
+            self.task_id,
             self.status,
-            start,
-            list(self._data.keys()),
-            inputs=[data_future],
-        )
-        for i, key in enumerate(self._data.keys()):
-            self._data[key] = unpack_i(data, i)
-        self.hamiltonians = hamiltonians
-        assert "temperature{kelvin}" in self._data.keys()
-        self.temperature = get_final_temperature(self._data["temperature{kelvin}"])
-
-    def update_walker(self, walker):
-        walker.state = update_walker(
-            self.status,
-            self.state,
-            walker.start,
+            self.observables,
+            self.time,
+            self.temperature,
+            self.component_map,
+            self.bias_comps,
         )
 
     def get_energy(self, hamiltonian: Hamiltonian) -> AppFuture:
-        all_h = MixtureHamiltonian(
-            list(self.hamiltonians),
-            [1.0 for h in self.hamiltonians],
-        )
+        """Use stored energy contributions from i-Pi to evaluate a custom (Mixture)Hamiltonian."""
         if hamiltonian == Zero():
-            name = potential_component_names(1)[0]
-            return add_contributions((0.0,), self._data[name])
-        coefficients = all_h.get_coefficients(1.0 * hamiltonian)
-        names = potential_component_names(len(self.hamiltonians))
-        values = [self._data[name] for name in names]
+            # future because array length not known
+            return add_contributions((0.0,), self.data[DEFAULT_OBSERVABLES[0]])
+
+        f_comps = self.force_comps
+        f_hamiltonian = MixtureHamiltonian(
+            [comp.hamiltonian for comp in f_comps], [1] * len(f_comps)
+        )
+        coefficients = f_hamiltonian.get_coefficients(1.0 * hamiltonian)
+        if coefficients is None:
+            raise ValueError(
+                f"Provided hamiltonian is not fully in i-Pi forces. "
+                f"Make sure you do not ask for bias contributions."
+            )
         return add_contributions(
-            coefficients,
-            *values,
+            coefficients, *[self[name] for name in self.component_map]
         )
 
-    def get_state(self):
-        return get_state(self.state, self.status)
+    def save_data(self, path: Union[str, Path], **kwargs: np.ndarray) -> DataFuture:
+        component_map = {c.name: k for k, c in self.component_map.items()}
+        future = save_npz(self.data, outputs=[File(path)], **component_map, **kwargs)
+        return future.outputs[0]
 
-    def save(self, path: Union[str, Path]):
-        if type(path) is str:
-            path = Path(path)
-        assert not path.exists()
-        raise NotImplementedError
+    @classmethod
+    def from_md(
+        cls,
+        walker: Walker,
+        state: AppFuture[Geometry],
+        observables: list[str],
+        hamiltonian_components: list[HamiltonianComponent],
+        start: int,
+        file_props: DataFuture,
+        file_traj: Optional[DataFuture],
+        output_log: str,
+        error_log: str,
+    ) -> "SimulationOutput":
+        """"""
+        future = parse_simulation_data(
+            state, observables, start, file_props, output_log, error_log
+        )
+        status, data, temperature, time = future[0], future[1], future[2], future[3]
+        trajectory = None
+        if file_traj:
+            trajectory = Dataset(None, file_traj)
+            if start > 0:
+                trajectory = trajectory[start:]
+        return cls(
+            get_task_name_id(output_log)[-1],
+            walker,
+            status,
+            state,
+            data,
+            time,
+            temperature,
+            trajectory,
+            observables,
+            hamiltonian_components,
+        )

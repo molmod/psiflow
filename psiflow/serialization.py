@@ -4,6 +4,7 @@ import inspect
 import json
 from pathlib import Path
 from typing import ClassVar, Optional, Union, get_args, get_origin, get_type_hints
+from dataclasses import InitVar
 
 import typeguard
 from parsl.app.app import python_app
@@ -75,11 +76,15 @@ def serializable(cls):
                         if issubclass(arg, Serializable):  # weird
                             kind = "serial"
         else:
-            # TODO: temporary hotfix
+            # TODO: temporary hotfixes all around
             origin = get_origin(type_hint)
             if origin is ClassVar:
                 continue  # do nothing for classvars
             elif origin == dict:
+                continue
+            elif isinstance(type_hint, str) and type_hint.startswith("dataclasses"):
+                continue
+            elif isinstance(type_hint, InitVar):
                 continue
 
             if not inspect.isclass(type_hint):
