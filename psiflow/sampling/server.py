@@ -1,5 +1,5 @@
 import argparse
-import signal
+import traceback
 import xml.etree.ElementTree as ET
 import subprocess
 import time
@@ -75,9 +75,12 @@ def insert_addresses(input_xml: ET.Element) -> None:
 
 def anisotropic_barostat_h0(input_xml: ET.Element, data_start: list[ase.Atoms]) -> None:
     """Insert cell reference into barostat"""
+    # TODO: current psiflow versions only use the 'flexible' barostat..?
     path = "system_template/template/system/motion/dynamics/barostat"
     barostat = input_xml.find(path)
+    print("HEY I AM DOING SOMETHING A")
     if barostat is not None and (barostat.attrib["mode"] == "anisotropic"):
+        print("HEY I AM DOING SOMETHING B")
         h0 = ET.SubElement(barostat, "h0", shape="(3, 3)", units="angstrom")
         # TODO: what if cells are different?
         cell = np.array(data_start[0].cell).flatten(order="F")
@@ -123,8 +126,9 @@ def wait_for_clients(input_xml, timeout: int = 60) -> None:
 
 def run(start_xyz: str, input_xml: str):
     # prepare starting geometries from context_dir
-    data_start = read(start_xyz, index=":")
+    data_start: list[ase.Atoms] = read(start_xyz, index=":")
     for i, at in enumerate(data_start):
+        print(at.pbc)
         if not any(at.pbc):  # set fake large cell for i-PI
             at.pbc = True
             at.cell = Cell(NONPERIODIC_CELL)
@@ -150,7 +154,7 @@ def run(start_xyz: str, input_xml: str):
     return
 
 
-def cleanup(output_xyz: str, output_props: list[str], output_trajs: list[str]) -> None:
+def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
     from psiflow.data.utils import _write_frames
 
     print("Starting cleanup")
@@ -177,6 +181,9 @@ def cleanup(output_xyz: str, output_props: list[str], output_trajs: list[str]) -
         )
         assert out.returncode == 0  # TODO: what if it isn't?
         print("REMDSORT")
+
+    output_props = _.split(",") if (_ := output_props) else []
+    output_trajs = _.split(",") if (_ := output_trajs) else []
 
     # move recorded simulation observables
     if len(output_props):
@@ -218,13 +225,16 @@ def main():
     try:
         run(args.start_xyz, args.input_xml)
         softexit.trigger(status="success", message="@PSIFLOW: We are done here.")
+    except np.linalg.LinAlgError:
+        # some NaN / INF value appeared
+        traceback.print_exc()
+        softexit.trigger(status="bad", message="@PSIFLOW: Simulation went boom.")
     except SystemExit:
         # i-Pi intercepts SIG_INT and SIG_TERM by default,
         # merges all threads and calls sys.exit() before we can clean up
-        output_props = _.split(",") if (_ := args.output_props) else []
-        output_trajs = _.split(",") if (_ := args.output_trajs) else []
-        cleanup(args.output_xyz, output_props, output_trajs)
-    time_stop = time.time()
-
-    print("|- Done -|")
-    print(f"Total simulation time: {time_stop - time_start:.0f} seconds")
+        pass
+    finally:
+        cleanup(args.output_xyz, args.output_props, args.output_trajs)
+        time_stop = time.time()
+        print("|- Done -|")
+        print(f"Total simulation time: {time_stop - time_start:.0f} seconds")

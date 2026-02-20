@@ -39,6 +39,7 @@ class Status(Enum):
     FORCE_EXCEEDED = 2
     OOM = 3
     BROKEN_PIPE = 4
+    EXPLODED = 5
 
 
 @dataclass
@@ -62,10 +63,12 @@ def potential_component_name(n: int) -> str:
 
 def get_simulation_status(stdout: str, stderr: str) -> Status:
     content = Path(stdout).read_text()
-    if "@SOFTEXIT: Kill signal received" in content:
-        return Status.TIMEOUT  # i-Pi intercepts SIG_INT and SIG_TERM by default
-    elif "@PSIFLOW: We are done here" in content:
+    if "@PSIFLOW: We are done here" in content:
         return Status.DONE
+    elif "@SOFTEXIT: Kill signal received" in content:
+        return Status.TIMEOUT  # i-Pi intercepts SIG_INT and SIG_TERM by default
+    elif "@PSIFLOW: Simulation went boom" in content:
+        return Status.EXPLODED
 
     content = Path(stderr).read_text()
     if "force exceeded" in content:
