@@ -137,18 +137,18 @@ def setup_motion(walker: Walker, fix_com: bool) -> ET.Element:
     dynamics.append(timestep_element)
 
     # thermostat
-    tau = ET.Element("tau", units="femtosecond")
-    tau.text = "100"  # TODO: hardcoded
-    thermostat = ET.Element("thermostat", mode="langevin")
-    thermostat.append(tau)
-    if ensemble != Ensemble.NVE and walker.pimd:
-        thermostat_pimd = ET.Element("thermostat", mode="pile_g")
-        thermostat_pimd.append(tau)
-        dynamics.append(thermostat_pimd)
-    elif ensemble != Ensemble.NVE and not walker.pimd:
-        dynamics.append(thermostat)
+    if ensemble != Ensemble.NVE:
+        xml_thermo = """
+        <thermostat mode="{mode}">
+            <tau units="femtosecond">{tau_thermo}</tau>
+        </thermostat>
+        """.format(
+            mode=("pile_g" if walker.pimd else "langevin"),
+            tau_thermo=walker.tau_thermostat,
+        )
+        dynamics.append(ET.fromstring(xml_thermo))
 
-    # barostat - never use thermostat_pimd here!
+    # barostat - never use pile_g here!
     if ensemble in (Ensemble.NPT, Ensemble.NVST):
         xml_baro = """
         <barostat mode="flexible">
@@ -159,7 +159,9 @@ def setup_motion(walker: Walker, fix_com: bool) -> ET.Element:
             </thermostat>
         </barostat>
         """.format(
-            tau_baro=200, tau_thermo=100, vol_constraint=(ensemble == Ensemble.NVST)
+            tau_baro=walker.tau_barostat,
+            tau_thermo=walker.tau_thermostat,
+            vol_constraint=(ensemble == Ensemble.NVST),
         )
         dynamics.append(ET.fromstring(xml_baro))
 
