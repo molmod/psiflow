@@ -88,9 +88,13 @@ def template(
             ]
     plumed_list = [mtd.input() for mtd in metad_objects]
 
-    weights_ensemble = np.array([*weights_dict.values()]).T
     weights_name = tuple(names + list(weights_dict.keys()))
-    weights_table = np.concatenate([weights_h, weights_ensemble], axis=-1)
+    if len(weights_dict) == 0:  # NVE without metadynamics
+        weights_table = weights_h
+    else:
+        weights_ensemble = np.array([*weights_dict.values()]).T
+        weights_table = np.concatenate([weights_h, weights_ensemble], axis=-1)
+    ensemble_table = EnsembleTable(weights_name, weights_table)
 
     # make list of all (shared) hamiltonian components
     components = [
@@ -98,7 +102,7 @@ def template(
         for idx, (n, h) in enumerate(zip(names, total_hamiltonian.hamiltonians))
     ]
 
-    return components, EnsembleTable(weights_name, weights_table), plumed_list
+    return components, ensemble_table, plumed_list
 
 
 def setup_sockets(components: list[HamiltonianComponent]) -> list[ET.Element]:
@@ -144,18 +148,20 @@ def setup_motion(walker: Walker, fix_com: bool) -> ET.Element:
     elif ensemble != Ensemble.NVE and not walker.pimd:
         dynamics.append(thermostat)
 
-    # barostat
+    # barostat - never use thermostat_pimd here!
     if ensemble in (Ensemble.NPT, Ensemble.NVST):
-        barostat = ET.Element("barostat", mode="flexible")
-        tau = ET.Element("tau", units="femtosecond")
-        tau.text = "200"  # TODO: hardcoded
-        barostat.append(tau)
-        barostat.append(thermostat)  # never use thermostat_pimd here!
-        if ensemble == Ensemble.NVST:
-            vol_constraint = ET.Element("vol_constraint")
-            vol_constraint.text = "True"
-            barostat.append(vol_constraint)
-        dynamics.append(barostat)
+        xml_baro = """
+        <barostat mode="flexible">
+            <tau units="femtosecond">{tau_baro}</tau>
+            <vol_constraint> {vol_constraint} </vol_constraint>
+            <thermostat mode="langevin">
+                <tau units="femtosecond">{tau_thermo}</tau>
+            </thermostat>
+        </barostat>
+        """.format(
+            tau_baro=200, tau_thermo=100, vol_constraint=(ensemble == Ensemble.NVST)
+        )
+        dynamics.append(ET.fromstring(xml_baro))
 
     motion = ET.Element("motion", mode="dynamics")
     motion.append(dynamics)

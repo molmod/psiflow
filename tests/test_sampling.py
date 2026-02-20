@@ -8,8 +8,15 @@ import psiflow
 from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
 from psiflow.models import MACE
-from psiflow.sampling.optimize import optimize as optimize_ipi, optimize_dataset as optimize_dataset_ipi
-from psiflow.sampling.ase import optimize as optimize_ase, optimize_dataset as optimize_dataset_ase
+from psiflow.sampling.optimize import (
+    optimize as optimize_ipi,
+    optimize_dataset as optimize_dataset_ipi,
+)
+from psiflow.sampling.ase import (
+    optimize as optimize_ase,
+    optimize_dataset as optimize_dataset_ase,
+    file_ase as file_script_ase,
+)
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.sampling.sampling import sample, template, EnsembleTable
 from psiflow.sampling.server import parse_checkpoint
@@ -20,6 +27,7 @@ from psiflow.sampling.walker import (
     randomize,
     replica_exchange,
 )
+from psiflow.sampling.output import Status
 
 
 def test_walkers(dataset):
@@ -77,7 +85,13 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
     assert _walkers[0].pimd
     assert len(hamiltonian_components) == 3
-    keys_ref = ("TEMP", "EinsteinCrystal0", "EinsteinCrystal1", "PlumedHamiltonian0", "METAD0")
+    keys_ref = (
+        "TEMP",
+        "EinsteinCrystal0",
+        "EinsteinCrystal1",
+        "PlumedHamiltonian0",
+        "METAD0",
+    )
     weights_ref = np.array([[300, 0.0, 0.5, 0.0, 1.0], [300, 1.0, 0.0, 1.0, 0.0]])
     assert ensemble_table == EnsembleTable(keys_ref, weights_ref)
 
@@ -89,8 +103,17 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
     assert _walkers[0].npt
     assert len(hamiltonian_components) == 2
-    keys_ref = ("TEMP", "PRESSURE", "EinsteinCrystal0", "EinsteinCrystal1", "METAD0", "METAD1")
-    weights_ref = np.array([[300, 0, 0.0, 1.0, 1.0, 0.0], [600, 100, 1.0, 0.0, 0.0, 1.0]])
+    keys_ref = (
+        "TEMP",
+        "PRESSURE",
+        "EinsteinCrystal0",
+        "EinsteinCrystal1",
+        "METAD0",
+        "METAD1",
+    )
+    weights_ref = np.array(
+        [[300, 0, 0.0, 1.0, 1.0, 0.0], [600, 100, 1.0, 0.0, 0.0, 1.0]]
+    )
     assert ensemble_table == EnsembleTable(keys_ref, weights_ref)
 
 
@@ -270,18 +293,60 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     assert np.allclose(T0, T1)
 
 
-def test_npt(dataset):
-    einstein = EinsteinCrystal(dataset[0], force_constant=1e-4)
-    walker = Walker(dataset[0], einstein, temperature=600, pressure=0, nbeads=2)
-    output = sample([walker], steps=30)[0]
-    assert output.status.result() == 0
-    assert output.trajectory is None
+def test_ensembles(dataset):
+    einstein = EinsteinCrystal(dataset[0], force_constant=1e-2)
+    walker_nve = Walker(dataset[0], einstein, temperature=None)
+    walker_nvt = Walker(dataset[0], einstein, temperature=300)
+    walker_npt = Walker(dataset[0], einstein, temperature=300, pressure=0)
+    walker_nvst = Walker(dataset[0], einstein, temperature=300, volume_constrained=True)
+    walkers = [walker_nve, walker_nvt, walker_npt, walker_nvst]
 
-    # cell should have changed during NPT
-    assert not np.allclose(
-        walker.start.result().cell,
-        output.state.result().cell,
+    outputs = sample(walkers, steps=20, observables=["kinetic_md{electronvolt}"])
+    for output in outputs:
+        assert output.status.result() == Status.DONE
+        assert output.trajectory is None
+    output_nve, output_nvt, output_npt, output_nvst = outputs
+
+    # NVE
+    energy_pot = output_nve["potential{electronvolt}"].result()
+    energy_kin = output_nve["kinetic_md{electronvolt}"].result()
+    energy = energy_pot + energy_kin
+    assert np.allclose(energy, energy[0])
+
+    # NVT
+    volume = output_nvt["volume{angstrom3}"].result()
+    assert np.allclose(volume, volume[0])
+
+    # NPT
+    volume = output_npt["volume{angstrom3}"].result()
+    cell_start = walker_npt.start.result().cell
+    cell_stop = output_npt.state.result().cell
+    assert not np.allclose(volume, volume[0])
+    assert not np.allclose(cell_start, cell_stop)
+
+    # NVST
+    volume = output_nvst["volume{angstrom3}"].result()
+    cell_start = walker_nvst.start.result().cell
+    cell_stop = output_nvst.state.result().cell
+    print(volume[0], volume - volume[0])
+    assert np.allclose(volume, volume[0])
+    assert not np.allclose(cell_start, cell_stop)
+
+    return
+
+
+def test_output_status(dataset, mace_config):
+    """"""
+    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
+    walker = Walker(
+        start=dataset[0], temperature=300, pressure=None, hamiltonian=einstein
     )
+    outputs = sample([walker], steps=100, step=10, max_force=1e-4)
+    assert outputs[0].status == Status.FORCE_EXCEEDED
+
+    # TODO: Status.DONE, Status.TIMEOUT
+
+    pass
 
 
 def test_reset(dataset):
@@ -456,18 +521,21 @@ FLUSH STRIDE=1
 
 def test_optimize_ipi(dataset):
     einstein = EinsteinCrystal(dataset[2], force_constant=10)
-    final = optimize_ipi(dataset[0], einstein, steps=1000000).result()
 
+    # i-PI optimizer's curvature guess fails in optimum --> don't start in dataset[2]
+    future, future_traj = optimize_ipi(
+        dataset[0], einstein, steps=1000000, keep_trajectory=True
+    )
+    future_dataset = optimize_dataset_ipi(dataset[3:5], einstein, steps=1000000)
+
+    final = future.result()
     assert np.allclose(
         final.per_atom.positions,
         dataset[2].result().per_atom.positions,
         atol=1e-4,
     )
     assert np.allclose(final.energy, 0.0)  # einstein energy >= 0
-
-    # i-PI optimizer's curvature guess fails in optimum --> don't start in dataset[2]
-    optimized = optimize_dataset_ipi(dataset[3:5], einstein, steps=1000000)
-    for g in optimized.geometries().result():
+    for g in future_dataset.geometries().result():
         assert np.allclose(g.energy, 0.0)
 
 
@@ -475,16 +543,18 @@ def test_optimize_ase(dataset):
     # TODO: test applied_pressure?
 
     einstein = EinsteinCrystal(dataset[2], force_constant=10)
-    final = optimize_ase(dataset[0], einstein, mode='fix_cell', f_max=1e-4).result()
+    future = optimize_ase(dataset[0], einstein, mode="fix_cell", f_max=1e-4)
+    optimized = optimize_dataset_ase(
+        dataset[3:5], einstein, mode="fix_cell", f_max=1e-4
+    )
 
+    final = future.result()
     assert np.allclose(
         final.per_atom.positions,
         dataset[2].result().per_atom.positions,
         atol=1e-4,
     )
     assert np.allclose(final.energy, 0.0)  # einstein energy >= 0
-
-    optimized = optimize_dataset_ase(dataset[3:5], einstein, mode='fix_cell', f_max=1e-4)
     for g in optimized.geometries().result():
         assert np.allclose(g.energy, 0.0)
 
@@ -506,17 +576,25 @@ def test_optimize_ase(dataset):
     RESTRAINT ARG=cell.az AT=.1 KAPPA=1
     """
     plumed_c = PlumedHamiltonian(plumed_input)
-    final = optimize_ase(geom, plumed_c, mode='fix_shape', f_max=1e-8).result()
-    ratio = geom.cell / final.cell
-    assert np.allclose(final.cell[0], [3, 0, 0])
-    assert np.allclose(ratio[ratio != 0], ratio[0, 0])          # check isotropic scaling (for nonzero components)
+    future1 = optimize_ase(geom, plumed_c, mode="fix_shape", f_max=1e-8)
+    future2 = optimize_ase(geom, plumed_c, mode="fix_volume", f_max=1e-8)
+    future3 = optimize_ase(geom, plumed_v + plumed_c, f_max=1e-8)
+    final1, final2, final3 = future1.result(), future2.result(), future3.result()
 
-    final = optimize_ase(geom, plumed_c, mode='fix_volume', f_max=1e-8).result()
-    assert np.allclose(final.cell[0], [3, .2, .1], atol=1e-4)
-    assert np.allclose(geom.volume, final.volume)
+    ratio = geom.cell / final1.cell
+    assert np.allclose(final1.cell[0], [3, 0, 0])
+    assert np.allclose(
+        ratio[ratio != 0], ratio[0, 0]
+    )  # check isotropic scaling (for nonzero components)
 
-    final = optimize_ase(geom, plumed_v + plumed_c, f_max=1e-8).result()
-    assert np.allclose(final.cell[0], [3, .2, .1], atol=1e-4)
-    assert np.allclose(final.volume, 75)
+    assert np.allclose(final2.cell[0], [3, 0.2, 0.1], atol=1e-4)
+    assert np.allclose(geom.volume, final2.volume)
 
+    assert np.allclose(final3.cell[0], [3, 0.2, 0.1], atol=1e-4)
+    assert np.allclose(final3.volume, 75)
 
+    # check 'custom' optimisation script
+    final = optimize_ase(
+        dataset[0], einstein, mode="fix_cell", f_max=1e-4, script=file_script_ase
+    ).result()
+    assert np.allclose(final.energy, 0.0)
