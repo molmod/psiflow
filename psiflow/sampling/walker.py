@@ -73,6 +73,10 @@ class Walker:
         if self.volume_constrained:
             self.pressure = 0  # TODO: warning?
 
+        if isinstance(self.start, Geometry) and not self.start.periodic:
+            # we cannot check this for futures
+            assert self.pressure is None, "Pressure requires PBC"
+
         if self.order_parameter is not None:
             # TODO: order_parameter out of commission
             self.start = self.order_parameter.evaluate(self.start)

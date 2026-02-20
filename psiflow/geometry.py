@@ -304,9 +304,12 @@ class Geometry:
             if key.startswith("order_"):
                 order[key.replace("order_", "")] = value
 
+        # TODO: this needs a better solution
+        cell = comment_dict.pop("Lattice", np.zeros((3, 3))).T # transposed!
+        pbc = sum(comment_dict.pop("pbc", None)) == 3
         geometry = cls(
             per_atom=per_atom,
-            cell=comment_dict.pop("Lattice", np.zeros((3, 3))).T,  # transposed!
+            cell=cell if pbc else np.zeros((3, 3)),
             energy=comment_dict.pop("energy", None),
             stress=comment_dict.pop("stress", None),
             delta=comment_dict.pop("delta", None),
