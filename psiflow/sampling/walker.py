@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 from typing import Optional, Union
 from enum import Enum
+from dataclasses import dataclass, field
 
 import numpy as np
 from parsl.app.app import python_app
@@ -45,61 +46,43 @@ conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"]
 
 
 @psiflow.serializable
+@dataclass
 class Walker:
     start: Union[Geometry, AppFuture]
-    hamiltonian: Optional[Hamiltonian]
-    state: Union[Geometry, AppFuture, None]
-    temperature: Optional[float]
-    pressure: Optional[float]
-    volume_constrained: bool
-    masses: Union[np.ndarray, float, None]
-    nbeads: int
-    timestep: float
-    coupling: Optional[Coupling]
-    metadynamics: Optional[Metadynamics]
-    order_parameter: Optional[OrderParameter]
+    hamiltonian: Hamiltonian = Zero()
+    timestep: float = 0.5
+    temperature: Optional[float] = 300
+    pressure: Optional[float] = None
+    tau_thermostat: float = 100
+    tau_barostat: float = 300
+    volume_constrained: bool = False
+    masses: Union[np.ndarray, float, None] = None
+    nbeads: int = 1
+    metadynamics: Optional[Metadynamics] = None
+    order_parameter: Optional[OrderParameter] = None
 
-    def __init__(
-        self,
-        start: Union[Geometry, AppFuture],
-        hamiltonian: Optional[Hamiltonian] = None,
-        state: Union[Geometry, AppFuture, None] = None,
-        temperature: Optional[float] = 300,
-        pressure: Optional[float] = None,
-        volume_constrained: bool = False,
-        masses: Union[np.ndarray, float, None] = None,
-        nbeads: int = 1,
-        timestep: float = 0.5,
-        metadynamics: Optional[Metadynamics] = None,
-        order_parameter: Optional[OrderParameter] = None,
-    ):
-        self.start = start
-        self.hamiltonian = hamiltonian or Zero()
-        self.state = state or copy_app_future(self.start)
-        self.temperature = temperature
-        self.pressure = pressure
-        self.volume_constrained = volume_constrained
-        self.nbeads = nbeads
-        self.timestep = timestep
-        self.metadynamics = metadynamics
-        self.order_parameter = order_parameter
+    state: Union[Geometry, AppFuture] = field(init=False)
+    coupling: Optional[Coupling] = field(init=False)
+
+    def __post_init__(self):
+        self.state = copy_app_future(self.start)
         self.coupling = None
 
-        if temperature is None:
-            assert pressure is None and not volume_constrained
+        if self.temperature is None:  # NVE
+            assert self.pressure is None and not self.volume_constrained
         if self.volume_constrained:
-            # TODO: warning?
-            self.pressure = 0
+            self.pressure = 0  # TODO: warning?
 
-        if order_parameter is not None:
+        if self.order_parameter is not None:
             # TODO: order_parameter out of commission
-            self.start = order_parameter.evaluate(self.start)
+            self.start = self.order_parameter.evaluate(self.start)
 
-        if isinstance(masses, (float, int)):
-            masses *= self.start.atomic_masses
-        elif isinstance(masses, np.ndarray) and len(masses) != len(self.start):
+        if (m := self.masses) is None:
+            pass  # do nothing
+        elif isinstance(m, (float, int)):
+            self.masses = self.start.atomic_masses * m
+        elif isinstance(m, np.ndarray) and len(m) != len(self.start):
             raise ValueError("Supplied masses do not match number of atoms")
-        self.masses = masses
 
     # def reset(self, condition: Union[AppFuture, bool] = True):
     #     self.state = conditioned_reset(condition, self.state, self.start)
