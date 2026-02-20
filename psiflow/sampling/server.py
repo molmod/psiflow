@@ -15,7 +15,7 @@ from ipi.engine.simulation import Simulation
 from ipi.utils.softexit import softexit
 
 from psiflow.geometry import Geometry
-from psiflow.sampling.utils import TimeoutException, timeout_handler, create_xml_list
+from psiflow.sampling.utils import create_xml_list
 
 INPUT_XML = "input.xml"
 NONPERIODIC_CELL = 1000 * np.eye(3)
@@ -206,7 +206,6 @@ def cleanup(output_xyz: str, output_props: list[str], output_trajs: list[str]) -
 
 
 def main():
-    signal.signal(signal.SIGTERM, timeout_handler)
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_xml", required=True)
     parser.add_argument("--start_xyz", required=True)
@@ -219,10 +218,9 @@ def main():
     try:
         run(args.start_xyz, args.input_xml)
         softexit.trigger(status="success", message="@PSIFLOW: We are done here.")
-    except TimeoutException:
-        softexit.trigger(message="@PSIFLOW: Timeout. Saving intermediate progress.")
     except SystemExit:
-        # i-Pi merges all threads and calls sys.exit() before we can clean up
+        # i-Pi intercepts SIG_INT and SIG_TERM by default,
+        # merges all threads and calls sys.exit() before we can clean up
         output_props = _.split(",") if (_ := args.output_props) else []
         output_trajs = _.split(",") if (_ := args.output_trajs) else []
         cleanup(args.output_xyz, output_props, output_trajs)

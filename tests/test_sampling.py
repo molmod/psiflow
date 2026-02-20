@@ -335,18 +335,22 @@ def test_ensembles(dataset):
     return
 
 
-def test_output_status(dataset, mace_config):
+def test_output_status(dataset):
     """"""
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    walker = Walker(
-        start=dataset[0], temperature=300, pressure=None, hamiltonian=einstein
-    )
-    outputs = sample([walker], steps=100, step=10, max_force=1e-4)
-    assert outputs[0].status == Status.FORCE_EXCEEDED
+    walker = Walker(start=dataset[0], hamiltonian=einstein)
 
-    # TODO: Status.DONE, Status.TIMEOUT
+    # max force
+    outputs = sample([walker], steps=100, max_force=1e-4)
+    assert outputs[0].status.result() == Status.FORCE_EXCEEDED
 
-    pass
+    # walltime
+    definition = psiflow.context().definitions["ModelEvaluation"]
+    definition.max_simulation_time = 5 / 60  # 5 seconds
+    outputs = sample([walker], steps=10000)
+    assert outputs[0].status.result() == Status.TIMEOUT
+
+    return
 
 
 def test_reset(dataset):

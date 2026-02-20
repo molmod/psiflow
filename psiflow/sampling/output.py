@@ -62,8 +62,8 @@ def potential_component_name(n: int) -> str:
 
 def get_simulation_status(stdout: str, stderr: str) -> Status:
     content = Path(stdout).read_text()
-    if "@PSIFLOW: Timeout." in content:
-        return Status.TIMEOUT
+    if "@SOFTEXIT: Kill signal received" in content:
+        return Status.TIMEOUT  # i-Pi intercepts SIG_INT and SIG_TERM by default
     elif "@PSIFLOW: We are done here" in content:
         return Status.DONE
 
