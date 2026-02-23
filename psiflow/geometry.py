@@ -305,7 +305,11 @@ class Geometry:
                 order[key.replace("order_", "")] = value
 
         # TODO: this needs a better solution
-        cell = comment_dict.pop("Lattice", np.zeros((3, 3))).T # transposed!
+        cell = comment_dict.pop("Lattice", np.zeros((3, 3)))
+        if isinstance(cell, str):
+            # most likely an array of NaNs
+            cell = np.array(cell.split()).reshape((3, 3))
+        cell = cell.T # transposed!
         pbc = sum(comment_dict.pop("pbc", None)) == 3
         geometry = cls(
             per_atom=per_atom,
