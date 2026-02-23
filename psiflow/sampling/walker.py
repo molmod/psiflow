@@ -8,6 +8,7 @@ from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
+from sympy.physics.units import temperature
 
 import psiflow
 from psiflow.data import Dataset
@@ -43,6 +44,22 @@ def _conditioned_reset(
 
 
 conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"])
+
+
+def get_ensemble_kwargs(walker: "Walker") -> dict:
+    """Extract all walker properties that define the MD sampling ensemble."""
+    return dict(
+        hamiltonian=walker.hamiltonian,
+        timestep=walker.timestep,
+        temperature=walker.temperature,
+        pressure=walker.pressure,
+        tau_thermostat=walker.tau_thermostat,
+        tau_barostat=walker.tau_barostat,
+        volume_constrained=walker.volume_constrained,
+        masses=walker.masses,
+        nbeads=walker.nbeads,
+        metadynamics=walker.metadynamics,
+    )
 
 
 @psiflow.serializable
@@ -98,22 +115,12 @@ class Walker:
         if self.coupling is not None:
             raise ValueError("Cannot multiply walkers after they are coupled")
         walkers = []
+        kwargs = get_ensemble_kwargs(self)
         for _i in range(nreplicas):
-            if self.metadynamics is not None:
-                metadynamics = self.metadynamics.copy()
-            else:
-                metadynamics = None
-            walker = Walker(
-                start=self.start,
-                hamiltonian=self.hamiltonian,
-                state=self.state,
-                temperature=self.temperature,
-                pressure=self.pressure,
-                masses=self.masses,
-                nbeads=self.nbeads,
-                timestep=self.timestep,
-                metadynamics=metadynamics,
-            )  # no coupling
+            if kwargs['metadynamics'] is not None:
+                kwargs["metadynamics"] = kwargs["metadynamics"].copy()
+            walker = Walker(start=self.start, **kwargs)  # no coupling
+            walker.state = self.state
             walkers.append(walker)
         return walkers
 
