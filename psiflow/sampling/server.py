@@ -63,37 +63,6 @@ def insert_addresses(input_xml: ET.Element) -> None:
             address.text = str(Path.cwd() / address.text.strip())
 
 
-# def insert_data_start(input_xml: ET.Element) -> None:
-#     # TODO: does this do anything?
-#     for child in input_xml:
-#         if child.tag == "system":
-#             initialize = ET.Element("initialize", nbeads="1")
-#             initialize.text = "start_INDEX.xyz"
-#
-#             warnings.warn('"insert_data_start" did something -- investigate')
-
-
-def anisotropic_barostat_h0(input_xml: ET.Element, data_start: list[ase.Atoms]) -> None:
-    """Insert cell reference into barostat"""
-    # TODO: current psiflow versions only use the 'flexible' barostat..?
-    path = "system_template/template/system/motion/dynamics/barostat"
-    barostat = input_xml.find(path)
-    print("HEY I AM DOING SOMETHING A")
-    if barostat is not None and (barostat.attrib["mode"] == "anisotropic"):
-        print("HEY I AM DOING SOMETHING B")
-        h0 = ET.SubElement(barostat, "h0", shape="(3, 3)", units="angstrom")
-        # TODO: what if cells are different?
-        cell = np.array(data_start[0].cell).flatten(order="F")
-        h0.text = create_xml_list([str(a) for a in cell])
-
-        path = "system_template/template/system/ensemble"
-        ensemble = input_xml.find(path)
-        assert ensemble is not None
-        pressure = ensemble.find("pressure")
-        if pressure is not None:
-            ensemble.remove(pressure)
-            stress = ET.SubElement(ensemble, "stress", units="megapascal")
-            stress.text = " [ PRESSURE, 0, 0, 0, PRESSURE, 0, 0, 0, PRESSURE ] "  # TODO: anisotropic?
 
 
 def wait_for_clients(input_xml, timeout: int = 60) -> None:
@@ -121,7 +90,7 @@ def wait_for_clients(input_xml, timeout: int = 60) -> None:
         time.sleep(1)
 
     msg = f"Timed out waiting for clients to initialise. Sockets: {connections}"
-    raise RuntimeError(msg)
+    raise ConnectionError(msg)
 
 
 def run(start_xyz: str, input_xml: str):
@@ -137,14 +106,7 @@ def run(start_xyz: str, input_xml: str):
     with open(input_xml, "r") as f:
         input_xml = ET.fromstring(f.read())
 
-    # print('pre')
-    # print(ET.tostring(input_xml, encoding="utf-8"))
-    # insert_data_start(input_xml)
-    # print('post')
-    # print(ET.tostring(input_xml, encoding="utf-8"))
-
     insert_addresses(input_xml)
-    anisotropic_barostat_h0(input_xml, data_start)
     with open(INPUT_XML, "wb") as f:
         f.write(ET.tostring(input_xml, encoding="utf-8"))
 
@@ -225,6 +187,10 @@ def main():
     try:
         run(args.start_xyz, args.input_xml)
         softexit.trigger(status="success", message="@PSIFLOW: We are done here.")
+    except ConnectionError:
+        # TODO: in this case, no output files are generated..
+        traceback.print_exc()
+        softexit.trigger(status="bad", message="@PSIFLOW: Clients failed to connect.")
     except np.linalg.LinAlgError:
         # some NaN / INF value appeared
         traceback.print_exc()
