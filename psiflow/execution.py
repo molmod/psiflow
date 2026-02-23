@@ -284,7 +284,7 @@ class ModelEvaluation(ExecutionDefinition):
     #     else:
     #         return [""]
 
-    def get_driver_devices(self, nwalkers: int):
+    def get_driver_devices(self, nwalkers: int) -> list[dict]:
         # assumes driver is GPU capable
         # TODO: what if only 1 gpu is available?
         nclients = min(nwalkers, self.max_workers)

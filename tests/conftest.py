@@ -133,8 +133,8 @@ def dataset_h2(context):
 
 
 @pytest.fixture
-def checkpoint():
-    checkpoint_str = """
+def checkpoint() -> str:
+    return """
 <simulation>
    <output prefix='output'>
       <checkpoint filename='checkpoint' stride='10'>1</checkpoint>
@@ -233,4 +233,3 @@ def checkpoint():
    </system>
 </simulation>
 """
-    return ET.ElementTree(element=ET.fromstring(checkpoint_str))

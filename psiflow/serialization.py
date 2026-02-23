@@ -47,7 +47,7 @@ def create_setter(name, kind, type_hint):
     return setter
 
 
-def update_init(init_func):             # TODO: why not have a Mixin class instead?
+def update_init(init_func):  # TODO: why not have a Mixin class instead?
     def wrapper(self, *args, **kwargs):
         self._geoms = {}
         self._files = {}
@@ -62,6 +62,7 @@ def serializable(cls):
     """decorator to make class serializable"""
     class_dict = dict(cls.__dict__)
     for name, type_hint in get_type_hints(cls).items():
+        kind = None
         if get_origin(type_hint) in [Union, Optional, list, tuple]:
             args = get_args(type_hint)
             if (File in args) or (DataFuture in args):
@@ -81,13 +82,13 @@ def serializable(cls):
             if origin is ClassVar:
                 continue  # do nothing for classvars
             elif origin == dict:
-                continue
+                kind = "attrs"
             elif isinstance(type_hint, str) and type_hint.startswith("dataclasses"):
                 continue
             elif isinstance(type_hint, InitVar):
                 continue
 
-            if not inspect.isclass(type_hint):
+            if kind is None and not inspect.isclass(type_hint):
                 raise ValueError(
                     "{} is formally not a class ({})".format(type_hint, name)
                 )
@@ -279,7 +280,7 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
     from psiflow.metrics import Metrics
     from psiflow.models import MACE
     from psiflow.order_parameters import OrderParameter
-    from psiflow.reference import CP2K, GPAW, ORCA
+    from psiflow.reference import CP2K, GPAW, ORCA, ReferenceDummy
     from psiflow.sampling import Metadynamics, ReplicaExchange, SimulationOutput, Walker
 
     SERIALIZABLES = {}
@@ -291,6 +292,7 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         CP2K,
         GPAW,
         ORCA,
+        ReferenceDummy,
         Zero,
         MACEHamiltonian,
         EinsteinCrystal,

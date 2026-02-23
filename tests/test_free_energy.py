@@ -18,7 +18,7 @@ def test_integration_simple(dataset):
     geometry = optimize(
         dataset[3],
         einstein,
-        mode='fix_cell',
+        mode="fix_cell",
         f_max=1e-4,
     )
     hessian = compute_harmonic(
@@ -124,17 +124,12 @@ def test_dihydrogen(dataset_h2):
     optimized = optimize(
         geometry,
         hamiltonian,
-        mode='fix_cell',
+        mode="fix_cell",
         f_max=1e-4,
     ).result()
     assert optimized.energy is not None
     assert np.linalg.norm(optimized.per_atom.forces) < 1e-2
-    hessian = compute_harmonic(
-        optimized,
-        hamiltonian,
-        asr="crystal",
-        pos_shift=0.001,
-    )
+    hessian = compute_harmonic(optimized, hamiltonian, asr="crystal", pos_shift=0.001)
     frequencies = compute_frequencies(hessian, geometry).result()
     # check that highest frequency in inv cm corresponds to 3500 - 4000
     frequencies_invcm = (frequencies * second) / (_c * 1e2)  # in invcm

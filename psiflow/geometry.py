@@ -310,7 +310,7 @@ class Geometry:
             # most likely an array of NaNs
             cell = np.array(cell.split()).reshape((3, 3))
         cell = cell.T # transposed!
-        pbc = sum(comment_dict.pop("pbc", None)) == 3
+        pbc = sum(comment_dict.pop("pbc", [])) == 3
         geometry = cls(
             per_atom=per_atom,
             cell=cell if pbc else np.zeros((3, 3)),

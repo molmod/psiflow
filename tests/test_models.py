@@ -46,22 +46,13 @@ def test_mace_init(mace_config, dataset):
     assert not np.any(np.allclose(energies, 0.0))
     energy_Cu = 3
     energy_H = 7
-    atomic_energies = {
-        "Cu": energy_Cu,
-        "H": energy_H,
-    }
-    hamiltonian = MACEHamiltonian(
-        hamiltonian.external,
-        atomic_energies=atomic_energies,
-    )
+    atomic_energies = {"Cu": energy_Cu, "H": energy_H}
+    hamiltonian = MACEHamiltonian(hamiltonian.external, atomic_energies=atomic_energies)
     assert hamiltonian != model.create_hamiltonian()  # atomic energies
 
-    evaluated = dataset.evaluate(hamiltonian)
+    evaluated = dataset.evaluate(hamiltonian).subtract_offset(Cu=energy_Cu, H=energy_H).geometries().result()
     for i in range(nstates):
-        assert np.allclose(
-            energies[i],
-            evaluated.subtract_offset(Cu=energy_Cu, H=energy_H)[i].result().energy,
-        )
+        assert np.allclose(energies[i], evaluated[i].energy)
 
     energies = hamiltonian.compute(dataset, "energy").result()
     second = psiflow.deserialize(psiflow.serialize(hamiltonian).result())
