@@ -9,7 +9,7 @@ import typeguard
 from parsl.app.app import join_app, python_app
 from parsl.app.python import PythonApp
 from parsl.data_provider.files import File
-from parsl.dataflow.futures import AppFuture
+from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
 from psiflow.geometry import QUANTITIES, Geometry
@@ -127,7 +127,7 @@ class Dataset:
             ).outputs[0]
             return Dataset(None, extxyz)
 
-    def save(self, path: Union[Path, str]) -> AppFuture:
+    def save(self, path: Union[Path, str]) -> DataFuture:
         """
         Save the dataset to a file.
 
@@ -135,13 +135,14 @@ class Dataset:
             path: Path to save the dataset.
 
         Returns:
-            AppFuture: Future representing the completion of the save operation.
+            DataFuture: Future representing the file to which will be saved.
         """
         path = psiflow.resolve_and_check(Path(path))
-        _ = copy_data_future(
+        future = copy_data_future(
             inputs=[self.extxyz],
             outputs=[File(str(path))],
         )
+        return future.outputs[0]
 
     def geometries(self) -> AppFuture:
         """
