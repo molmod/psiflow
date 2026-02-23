@@ -1,19 +1,19 @@
 import xml.etree.ElementTree as ET
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 from enum import Enum
 from dataclasses import dataclass, field
+from copy import deepcopy
 
 import numpy as np
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
-from sympy.physics.units import temperature
 
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, check_equality
-from psiflow.hamiltonians import Hamiltonian, Zero
+from psiflow.hamiltonians import Hamiltonian, Zero, combine_hamiltonians
 from psiflow.order_parameters import OrderParameter
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils.apps import copy_app_future
@@ -30,20 +30,22 @@ class Ensemble(Enum):
     NVST = "(N, V, sigma=0, T)"
 
 
-def _conditioned_reset(
-    condition: bool,
+def _conditional_reset(
     state: Geometry,
     start: Geometry,
+    flag: bool | None,
+    condition: Callable | None,
+    *args,
 ) -> Geometry:
-    from copy import deepcopy  # copy necessary!
+    """Reset geometry based on a flag or boolean condition function."""
+    if condition is not None:
+        flag = condition(args)
 
-    if condition:
-        return deepcopy(start)
-    else:
-        return state
+    # copy necessary!
+    return deepcopy(start) if flag else state
 
 
-conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"])
+conditional_reset = python_app(_conditional_reset, executors=["default_threads"])
 
 
 def get_ensemble_kwargs(walker: "Walker") -> dict:
@@ -105,11 +107,17 @@ class Walker:
         elif isinstance(m, np.ndarray) and len(m) != len(self.start):
             raise ValueError("Supplied masses do not match number of atoms")
 
-    # def reset(self, condition: Union[AppFuture, bool] = True):
-    #     self.state = conditioned_reset(condition, self.state, self.start)
+    def reset(self):
+        self.state = conditional_reset(self.state, self.start, True, None)
 
-    # def is_reset(self) -> AppFuture:
-    #     return check_equality(self.start, self.state)
+    def conditional_reset(
+        self, flag: bool | None = None, condition: Callable | None = None, *args
+    ):
+        assert (flag is None) != (condition is None)  # xor
+        self.state = conditional_reset(self.state, self.start, flag, condition, *args)
+
+    def is_reset(self) -> AppFuture:
+        return check_equality(self.start, self.state)
 
     def multiply(self, nreplicas: int) -> list["Walker"]:
         if self.coupling is not None:
@@ -117,7 +125,7 @@ class Walker:
         walkers = []
         kwargs = get_ensemble_kwargs(self)
         for _i in range(nreplicas):
-            if kwargs['metadynamics'] is not None:
+            if kwargs["metadynamics"] is not None:
                 kwargs["metadynamics"] = kwargs["metadynamics"].copy()
             walker = Walker(start=self.start, **kwargs)  # no coupling
             walker.state = self.state
@@ -156,47 +164,35 @@ def partition(walkers: list[Walker]) -> list[list[int]]:
 
 
 def _get_minimum_energy_states(
-    coefficients: np.ndarray,
-    *energies: np.ndarray,
+    coefficients: np.ndarray, *energies: np.ndarray
 ) -> list[int]:
-    import numpy
-
     assert len(coefficients.shape) == 2
     assert len(energies) == coefficients.shape[1]
 
-    energies = numpy.array(energies)
-
     indices = []
-    for c in coefficients:
-        energy = numpy.sum(c.reshape(-1, 1) * energies, axis=0)
-        indices.append(int(numpy.argmin(energy)))
+    energies = np.array(energies)
+    for c in coefficients:  # every c corresponds to a Walker hamiltonian
+        energy = np.sum(c.reshape(-1, 1) * energies, axis=0)
+        indices.append(int(np.argmin(energy)))
     return indices
 
 
 get_minimum_energy_states = python_app(
-    _get_minimum_energy_states,
-    executors=["default_threads"],
+    _get_minimum_energy_states, executors=["default_threads"]
 )
 
 
 def quench(walkers: list[Walker], dataset: Dataset) -> None:
-    all_hamiltonians = sum([w.hamiltonian for w in walkers], start=Zero())
-    energies = [h.compute(dataset, "energy") for h in all_hamiltonians.hamiltonians]
-
-    coefficients = []
-    for walker in walkers:
-        c = all_hamiltonians.get_coefficients(1.0 * walker.hamiltonian)
-        assert c is not None
-        coefficients.append(c)
-    coefficients = np.array(coefficients)
-
-    indices = get_minimum_energy_states(
-        coefficients,
-        *energies,
-    )
-    data = dataset[indices]
-    for i, walker in enumerate(walkers):
-        walker.start = data[i]
+    """Assign the lowest energy geometry in dataset to every walker"""
+    hamiltonians = combine_hamiltonians([w.hamiltonian for w in walkers])
+    energies = [h.compute(dataset, "energy") for h in hamiltonians.hamiltonians]
+    coefficients = [
+        hamiltonians.get_coefficients(walker.hamiltonian * 1.0) for walker in walkers
+    ]
+    indices = get_minimum_energy_states(np.array(coefficients), *energies)
+    geometries = dataset.geometries()
+    for walker, idx in zip(walkers, indices):
+        walker.start = geometries[idx]
         walker.reset()
 
 
@@ -209,10 +205,11 @@ random_indices = python_app(_random_indices, executors=["default_threads"])
 
 
 def randomize(walkers: list[Walker], dataset: Dataset) -> None:
+    """Randomly assign geometries from dataset to walkers"""
     indices = random_indices(len(walkers), dataset.length())
-    data = dataset[indices]
-    for i, walker in enumerate(walkers):
-        walker.start = data[i]
+    geometries = dataset.geometries()
+    for walker, idx in zip(walkers, indices):
+        walker.start = geometries[idx]
         walker.reset()
 
 
