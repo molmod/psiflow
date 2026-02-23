@@ -434,6 +434,8 @@ def _execute_ipi(
     file_xml, file_xyz_in, *files_in = inputs
     file_xyz_out, files_props = outputs[0], outputs[1 : 1 + nwalkers]
     files_traj = outputs[1 + nwalkers : 1 + 2 * nwalkers] if keep_trajectory else []
+    if coupling_command:
+        files_in = files_in[:-1]  # exclude REX swapfile
 
     write_command_args = [
         f'echo "{plumed_str}" > metad_input{i}.txt'
@@ -588,6 +590,7 @@ def _sample(
     else:
         coupling_copy_command = None
 
+    # TODO: an app to check for valid input? (e.g., PBC + barostat)
     result = execute_ipi(
         len(walkers),
         driver_kwargs,
