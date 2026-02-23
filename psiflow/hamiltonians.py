@@ -1,12 +1,9 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import urllib
 from functools import partial
 from pathlib import Path
-from typing import ClassVar, Optional, Union, Callable
+from typing import ClassVar, Optional, Union, Callable, Sequence
 
 import numpy as np
-import typeguard
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -29,7 +26,6 @@ from psiflow.utils.apps import copy_app_future, get_attribute
 from psiflow.utils.io import dump_json
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class Hamiltonian(Computable):
     # TODO: app is actually an instance variable, but serialization complains..
@@ -55,24 +51,24 @@ class Hamiltonian(Computable):
             batch_size=batch_size,
         )
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+    def __eq__(self, hamiltonian: "Hamiltonian") -> bool:
         raise NotImplementedError
 
-    def __mul__(self, a: float) -> MixtureHamiltonian:
+    def __mul__(self, a: float) -> "MixtureHamiltonian":
         return MixtureHamiltonian([self], [a])
 
-    def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+    def __add__(self, hamiltonian: "Hamiltonian") -> "MixtureHamiltonian | Hamiltonian":
         if type(hamiltonian) is Zero:
             return self
         mixture = MixtureHamiltonian([self], [1.0])
         return mixture.__add__(hamiltonian)
 
-    def __sub__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
-        return self + (-1.0) * hamiltonian
+    def __sub__(self, hamiltonian: "Hamiltonian") -> "MixtureHamiltonian":
+        return self + hamiltonian * (-1.0)
 
     __rmul__ = __mul__  # handle float * Hamiltonian
 
-    def serialize_function(self, **kwargs):
+    def serialize_function(self, **kwargs) -> DataFuture:
         parameters = self.parameters()
         for key, value in kwargs.items():
             if key in parameters:
@@ -87,7 +83,6 @@ class Hamiltonian(Computable):
         return {}
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class Zero(Hamiltonian):
 
@@ -100,7 +95,7 @@ class Zero(Hamiltonian):
             return True
         return False
 
-    def __mul__(self, a: float) -> Hamiltonian:
+    def __mul__(self, a: float) -> "Zero":
         return Zero()
 
     def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
@@ -110,7 +105,6 @@ class Zero(Hamiltonian):
     __rmul__ = __mul__  # handle float * Zero
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class MixtureHamiltonian(Hamiltonian):
     hamiltonians: list[Hamiltonian]
@@ -118,8 +112,8 @@ class MixtureHamiltonian(Hamiltonian):
 
     def __init__(
         self,
-        hamiltonians: Union[tuple, list][Hamiltonian],
-        coefficients: Union[tuple, list][float],
+        hamiltonians: Sequence[Hamiltonian],
+        coefficients: Sequence[float],
     ) -> None:
         assert len(hamiltonians) == len(coefficients)
         self.hamiltonians = list(hamiltonians)
@@ -146,9 +140,10 @@ class MixtureHamiltonian(Hamiltonian):
             batch_size=batch_size,
         )
 
-    def __eq__(self, hamiltonian: Hamiltonian | MixtureHamiltonian) -> bool:
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not MixtureHamiltonian:
             return False
+        hamiltonian: MixtureHamiltonian
         if len(self.coefficients) != len(hamiltonian.coefficients):
             return False
         for c, h in zip(self.coefficients, self.hamiltonians):
@@ -158,7 +153,7 @@ class MixtureHamiltonian(Hamiltonian):
                 return False
         return True
 
-    def __mul__(self, a: float) -> MixtureHamiltonian:
+    def __mul__(self, a: float) -> "MixtureHamiltonian":
         return MixtureHamiltonian(
             self.hamiltonians,
             [c * a for c in self.coefficients],
@@ -169,7 +164,7 @@ class MixtureHamiltonian(Hamiltonian):
     def __len__(self) -> int:
         return len(self.coefficients)
 
-    def __add__(self, hamiltonian: Hamiltonian) -> MixtureHamiltonian:
+    def __add__(self, hamiltonian: Hamiltonian) -> "MixtureHamiltonian":
         if type(hamiltonian) is Zero:
             return self
         if type(hamiltonian) is not MixtureHamiltonian:
@@ -192,7 +187,7 @@ class MixtureHamiltonian(Hamiltonian):
         except ValueError:
             return None
 
-    def get_indices(self, mixture: MixtureHamiltonian) -> Optional[tuple[int, ...]]:
+    def get_indices(self, mixture: "MixtureHamiltonian") -> Optional[tuple[int, ...]]:
         # TODO: why do we not just return None for the missing components?
         assert type(mixture) is MixtureHamiltonian
         indices = []
@@ -209,7 +204,7 @@ class MixtureHamiltonian(Hamiltonian):
         return self.coefficients[idx]
 
     def get_coefficients(
-        self, mixture: MixtureHamiltonian
+        self, mixture: "MixtureHamiltonian"
     ) -> Optional[tuple[float, ...]]:
         assert type(mixture) is MixtureHamiltonian
         for h in mixture.hamiltonians:
@@ -223,6 +218,7 @@ class MixtureHamiltonian(Hamiltonian):
 
     def get_named_components(self) -> list[str]:
         """Create unique string name for every hamiltonian component to be used in i-Pi sampling"""
+        # TODO: iter_named_components?
         names, counts = [], {}
         for h in self.hamiltonians:
             name = h.__class__.__name__
@@ -235,7 +231,6 @@ class MixtureHamiltonian(Hamiltonian):
         return [h.serialize_function(**kwargs) for h in self.hamiltonians]
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class EinsteinCrystal(Hamiltonian):
     reference_geometry: Union[Geometry, AppFuture]
@@ -264,7 +259,7 @@ class EinsteinCrystal(Hamiltonian):
             "volume": get_attribute(self.reference_geometry, "volume"),
         }
 
-    def __eq__(self, hamiltonian: Hamiltonian | EinsteinCrystal) -> bool:
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if (
             not isinstance(hamiltonian, EinsteinCrystal)
             or not np.allclose(self.force_constant, hamiltonian.force_constant)
@@ -274,7 +269,6 @@ class EinsteinCrystal(Hamiltonian):
         return True
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class PlumedHamiltonian(Hamiltonian):
     plumed_input: str  # TODO: or future?
@@ -311,7 +305,7 @@ class PlumedHamiltonian(Hamiltonian):
             external = None
         return {"plumed_input": self.plumed_input, "external": external}
 
-    def __eq__(self, other: Hamiltonian | PlumedHamiltonian) -> bool:
+    def __eq__(self, other: Hamiltonian) -> bool:
         if (
             not isinstance(other, PlumedHamiltonian)
             or self.plumed_input != other.plumed_input
@@ -320,7 +314,6 @@ class PlumedHamiltonian(Hamiltonian):
         return True
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class Harmonic(Hamiltonian):
     reference_geometry: Union[Geometry, AppFuture[Geometry]]
@@ -354,9 +347,10 @@ class Harmonic(Hamiltonian):
             "hessian": self.hessian,
         }
 
-    def __eq__(self, hamiltonian: Hamiltonian | Harmonic) -> bool:
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not Harmonic:
             return False
+        hamiltonian: Harmonic
         if hamiltonian.reference_geometry != self.reference_geometry:
             return False
 
@@ -365,10 +359,7 @@ class Harmonic(Hamiltonian):
         is_array0 = type(hamiltonian.hessian) is np.ndarray
         is_array1 = type(self.hessian) is np.ndarray
         if is_array0 and is_array1:
-            equal = np.allclose(
-                hamiltonian.hessian,
-                self.hessian,
-            )
+            equal = np.allclose(hamiltonian.hessian, self.hessian)
         else:
             equal = hamiltonian.hessian == self.hessian
         if not equal:
@@ -376,7 +367,6 @@ class Harmonic(Hamiltonian):
         return True
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class D3Hamiltonian(Hamiltonian):
     method: str
@@ -406,7 +396,7 @@ class D3Hamiltonian(Hamiltonian):
     def parameters(self) -> dict:
         return {"method": self.method, "damping": self.damping}
 
-    def __eq__(self, hamiltonian: Hamiltonian | D3Hamiltonian) -> bool:
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if (
             not isinstance(hamiltonian, D3Hamiltonian)
             or self.method != hamiltonian.method
@@ -416,7 +406,6 @@ class D3Hamiltonian(Hamiltonian):
         return True
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
@@ -461,9 +450,10 @@ class MACEHamiltonian(Hamiltonian):
             "env_vars": evaluation.env_vars,
         }
 
-    def __eq__(self, hamiltonian: Hamiltonian | MACEHamiltonian) -> bool:
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not MACEHamiltonian:
             return False
+        hamiltonian: MACEHamiltonian
         if self.external.filepath != hamiltonian.external.filepath:
             return False
         if len(self.atomic_energies) != len(hamiltonian.atomic_energies):
@@ -479,7 +469,7 @@ class MACEHamiltonian(Hamiltonian):
     # TODO: the methods below are outdated..
 
     @classmethod
-    def mace_mp0(cls, size: str = "small") -> MACEHamiltonian:
+    def mace_mp0(cls, size: str = "small") -> 'MACEHamiltonian':
         urls = dict(
             small="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
             large="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model",
@@ -493,7 +483,7 @@ class MACEHamiltonian(Hamiltonian):
         return cls(parsl_file, {})
 
     @classmethod
-    def mace_cc(cls) -> MACEHamiltonian:
+    def mace_cc(cls) -> 'MACEHamiltonian':
         url = "https://github.com/molmod/psiflow/raw/main/examples/data/ani500k_cc_cpu.model"
         parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
         urllib.request.urlretrieve(
@@ -501,3 +491,7 @@ class MACEHamiltonian(Hamiltonian):
             parsl_file.filepath,
         )
         return cls(parsl_file, {})
+
+
+def combine_hamiltonians(hamiltonians: list[Hamiltonian]) -> MixtureHamiltonian:
+    return sum(hamiltonians, start=Zero())  # mostly for type hinting
