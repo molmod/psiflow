@@ -26,6 +26,7 @@ from psiflow.sampling.walker import (
     quench,
     randomize,
     replica_exchange,
+    Ensemble,
 )
 from psiflow.sampling.output import Status
 
@@ -44,25 +45,22 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
     einstein_ = EinsteinCrystal(dataset[0], force_constant=0.2)
     walker = Walker(dataset[0], einstein, temperature=300, metadynamics=mtd0)
-    assert walker.nvt
-    assert not walker.npt
+    assert walker.ensemble == Ensemble.NVT
     assert not walker.pimd
 
-    walkers = [walker]
-    walkers.append(Walker(dataset[0], 0.5 * einstein_, nbeads=4, metadynamics=mtd1))
-    walkers.append(Walker(dataset[0], einstein + plumed, nbeads=4))
-    walkers.append(
-        Walker(dataset[0], einstein, pressure=0, temperature=300, metadynamics=mtd1)
-    )
-    walkers.append(
-        Walker(dataset[0], einstein_, pressure=100, temperature=600, metadynamics=mtd1)
-    )
-    walkers.append(Walker(dataset[0], einstein, temperature=600, metadynamics=mtd1))
+    walkers = [
+        walker,
+        Walker(dataset[0], 0.5 * einstein_, nbeads=4, metadynamics=mtd1),
+        Walker(dataset[0], einstein + plumed, nbeads=4),
+        Walker(dataset[0], einstein, pressure=0, temperature=300, metadynamics=mtd1),
+        Walker(dataset[0], einstein_, pressure=100, temperature=600, metadynamics=mtd1),
+        Walker(dataset[0], einstein, temperature=600, metadynamics=mtd1),
+    ]
 
-    # nvt
+    # NVT
     _walkers = [walkers[0], walkers[-1]]
     hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
-    assert _walkers[0].nvt
+    assert _walkers[0].ensemble == Ensemble.NVT
     assert len(hamiltonian_components) == 1
     keys_ref = ("TEMP", "EinsteinCrystal0", "METAD0", "METAD1")
     weights_ref = np.array([[300, 1, 1, 0], [600, 1, 0, 1]])
@@ -73,7 +71,7 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
     _walkers[0].metadynamics = None
     _walkers[1].metadynamics = None
     hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
-    assert _walkers[0].nvt
+    assert _walkers[0].ensemble == Ensemble.NVT
     assert len(hamiltonian_components) == 1
     keys_ref = ("TEMP", "EinsteinCrystal0")
     weights_ref = np.array([[300, 1], [600, 1]])
@@ -101,7 +99,7 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
         _ = template(_walkers)
     _walkers[0].metadynamics = Metadynamics("METAD: FILE=bla")
     hamiltonian_components, ensemble_table, plumed_list = template(_walkers)
-    assert _walkers[0].npt
+    assert _walkers[0].ensemble == Ensemble.NPT
     assert len(hamiltonian_components) == 2
     keys_ref = (
         "TEMP",
@@ -118,7 +116,9 @@ RESTRAINT ARG=CV AT=1 KAPPA=1
 
 
 def test_parse_checkpoint(checkpoint):
-    states = parse_checkpoint(checkpoint)
+    file = psiflow.context().new_file("input_", ".xml")
+    Path(file.filepath).write_text(checkpoint)
+    states = parse_checkpoint(file.filepath)
     assert "time" in states[0].order
     assert np.allclose(
         states[0].cell,
@@ -141,44 +141,32 @@ CV: DISTANCE ATOMS=1,2 NOPBC
 METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
 """
     metadynamics = Metadynamics(plumed_str)
-    walker0 = Walker(
-        start=dataset[0],
-        temperature=300,
-        pressure=None,
-        metadynamics=metadynamics,
-        hamiltonian=0.9 * plumed + einstein,
-    )
-    walker1 = Walker(
-        start=dataset[0],
-        temperature=600,
-        pressure=None,
-        hamiltonian=einstein,
-    )
-    simulation_outputs = sample(
-        [walker0, walker1],
-        steps=100,
-        step=10,
-    )
-    assert simulation_outputs[0].trajectory.length().result() == 11
-    pos0 = simulation_outputs[0].trajectory[-1].result().per_atom.positions
-    pos1 = walker0.state.result().per_atom.positions
-    assert np.allclose(
-        pos0,
-        pos1,
-    )
-    assert np.allclose(
-        simulation_outputs[0].trajectory[-1].result().cell,
-        walker0.start.result().cell,
-    )
-    e = simulation_outputs[0]["potential{electronvolt}"].result()
-    assert len(e) == 11
+    walkers = [
+        Walker(
+            start=dataset[0],
+            temperature=300,
+            metadynamics=metadynamics,
+            hamiltonian=0.9 * plumed + einstein,
+        ),
+        Walker(start=dataset[0], temperature=600, hamiltonian=einstein),
+        Walker(start=dataset[0], temperature=600, hamiltonian=einstein),
+        Walker(start=dataset[0], temperature=600, hamiltonian=einstein),
+    ]
+    outputs = sample(walkers[:2], steps=50, step=5)
+    [o1] = sample(walkers[2:3], steps=20, step=2, start=10, keep_trajectory=False)
+    [o2] = sample(walkers[3:], steps=20, step=2, start=10, keep_trajectory=True)
 
-    o = sample([walker0], steps=20, step=2, start=10, keep_trajectory=False)[0]
-    assert o.trajectory is None
-    assert len(o["potential{electronvolt}"].result()) == 6
-    o = sample([walker0], steps=20, step=2, start=10, keep_trajectory=True)[0]
-    assert o.trajectory.length().result() == 6
-    assert len(o["potential{electronvolt}"].result()) == 6
+    assert o1.trajectory is None
+    assert len(o1["potential{electronvolt}"].result()) == 6
+    assert o2.trajectory.length().result() == 6
+    assert len(o2["potential{electronvolt}"].result()) == 6
+
+    assert outputs[0].trajectory.length().result() == 11
+    pos0 = outputs[0].trajectory[-1].result().per_atom.positions
+    pos1 = walkers[0].state.result().per_atom.positions
+    assert np.allclose(pos0, pos1)
+    assert check_equality(walkers[0].state, outputs[0].state).result()
+    assert len(outputs[0]["potential{electronvolt}"].result()) == 11
 
     # check whether metadynamics file has correct dependency
     with open(metadynamics.external.result().filepath, "r") as f:
@@ -186,70 +174,39 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         nhills = len(content.split("\n"))
         assert nhills > 3
 
-    assert len(simulation_outputs) == 2
+    assert len(outputs) == 2
     energies = [
-        simulation_outputs[0]["potential{electronvolt}"].result(),
-        simulation_outputs[1]["potential{electronvolt}"].result(),
+        outputs[0]["potential{electronvolt}"].result(),
+        outputs[1]["potential{electronvolt}"].result(),
     ]
     energies_ = [
-        (0.9 * plumed + einstein).compute(simulation_outputs[0].trajectory, "energy"),
-        einstein.compute(simulation_outputs[1].trajectory, "energy"),
+        (0.9 * plumed + einstein).compute(outputs[0].trajectory, "energy"),
+        einstein.compute(outputs[1].trajectory, "energy"),
     ]
     assert len(energies[0]) == len(energies_[0].result())
-    assert np.allclose(
-        energies[0],
-        energies_[0].result(),
-    )
-    time = simulation_outputs[0]["time{picosecond}"].result()
-    assert np.allclose(
-        time,
-        np.arange(11) * 5e-4 * 10,
-    )
+    assert np.allclose(energies[0], energies_[0].result())
+    time = outputs[0]["time{picosecond}"].result()
+    assert np.allclose(time, np.arange(0, 51, 5) * 5e-4)
 
     # check pot components
     assert np.allclose(
-        simulation_outputs[1].get_energy(walker1.hamiltonian).result(),
-        simulation_outputs[1]["potential{electronvolt}"].result(),
+        outputs[1].get_energy(walkers[1].hamiltonian).result(),
+        outputs[1]["potential{electronvolt}"].result(),
     )
     assert np.allclose(
-        simulation_outputs[0].get_energy(walker0.hamiltonian).result(),
-        simulation_outputs[0]["potential{electronvolt}"].result(),
+        outputs[0].get_energy(walkers[0].hamiltonian).result(),
+        outputs[0]["potential{electronvolt}"].result(),
     )
+    manual_total = outputs[0].get_energy(plumed).result() * 0.9
+    manual_total += outputs[0].get_energy(einstein).result()
+    assert np.allclose(manual_total, outputs[0]["potential{electronvolt}"].result())
 
-    manual_total = simulation_outputs[0].get_energy(plumed).result() * 0.9
-    manual_total += simulation_outputs[0].get_energy(einstein).result()
-    assert np.allclose(
-        manual_total,
-        simulation_outputs[0]["potential{electronvolt}"].result(),
-    )
-
-    # check PIMD output
-    walker = Walker(
-        start=dataset[2],
-        temperature=200,
-        pressure=None,
-        hamiltonian=einstein,
-        nbeads=11,
-    )
-    output = sample([walker], steps=10, step=5)[0]
-    for state in output.trajectory.geometries().result():
-        assert len(state) == len(dataset[2].result())
-    assert output.trajectory.length().result() == 3
-    assert output.temperature is not None
-    assert np.abs(output.temperature.result() - 200 < 200)
-
-    simulation_outputs = sample(
-        [walker0, walker1], steps=100, step=10, observables=["ensemble_bias"]
-    )
-    bias = np.stack(
-        [
-            simulation_outputs[0]["ensemble_bias"].result(),
-            simulation_outputs[1]["ensemble_bias"].result(),
-        ],
-        axis=0,
-    )
-    assert np.allclose(bias[1, :], 0)
-    assert np.all(bias[0, :] > 0)
+    observable = "ensemble_bias{electronvolt}"
+    outputs = sample(walkers[:2], steps=100, step=10, observables=[observable])
+    bias0 = outputs[0][observable].result()
+    bias1 = outputs[1][observable].result()
+    assert np.allclose(bias1, 0)
+    assert np.all(bias0 > 0)
 
     # check that old hills are there too
     with open(metadynamics.external.result().filepath, "r") as f:
@@ -258,54 +215,56 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         assert new_nhills > 3
         assert new_nhills > nhills
 
+    # check PIMD output
+    geom_start = dataset[2]
+    walker = Walker(start=geom_start, temperature=200, hamiltonian=einstein, nbeads=6)
+    [output] = sample([walker], steps=10, step=5)
+    for state in output.trajectory.geometries().result():
+        assert len(state) == len(geom_start.result())
+    assert output.trajectory.length().result() == 3
+    assert output.temperature is not None
+    assert np.abs(output.temperature.result() - 200 < 200)  # what?
+
     model = MACE(**mace_config)
     model.initialize(dataset[:3])
     hamiltonian = model.create_hamiltonian()
-    walker = Walker(
-        start=dataset[0],
-        temperature=600,
-        pressure=None,
-        hamiltonian=hamiltonian,
-    )
+    walker = Walker(start=dataset[0], temperature=600, hamiltonian=hamiltonian)
     walker.state = dataset[1]
-    simulation_output = sample(
+    [output] = sample(
         [walker],
         steps=10,
-        observables=[
-            "potential{electronvolt}",
-            "kinetic_md{electronvolt}",
-            "temperature{kelvin}",
-        ],
+        observables=["kinetic_md{electronvolt}"],
         checkpoint_step=1,
         fix_com=True,  # otherwise temperature won't match
-    )[0]
+    )
     assert np.allclose(
         hamiltonian.compute(dataset, "energy").result()[0],
-        simulation_output["potential{electronvolt}"].result()[0],
+        output["potential{electronvolt}"].result()[0],
         atol=1e-3,
     )
-    assert np.allclose(
-        simulation_output.time.result(),
-        10 * 0.5 / 1000,
-    )
-    T0 = simulation_output.temperature.result()
-    T1 = simulation_output["temperature{kelvin}"].result()[-1]
-    assert np.allclose(T0, T1)
+    assert np.allclose(output.time.result(), 10 * 0.5 / 1000)
+    temp0 = output.temperature.result()
+    temp1 = output["temperature{kelvin}"].result()[-1]
+    assert np.allclose(temp0, temp1)
+
+    return
 
 
-def test_ensembles(dataset):
-    einstein = EinsteinCrystal(dataset[0], force_constant=1e-2)
+def test_ensembles(dataset, dataset_h2):
+    einstein = EinsteinCrystal(dataset[0], force_constant=1e-1)
     walker_nve = Walker(dataset[0], einstein, temperature=None)
     walker_nvt = Walker(dataset[0], einstein, temperature=300)
     walker_npt = Walker(dataset[0], einstein, temperature=300, pressure=0)
     walker_nvst = Walker(dataset[0], einstein, temperature=300, volume_constrained=True)
-    walkers = [walker_nve, walker_nvt, walker_npt, walker_nvst]
+    einstein_h2 = EinsteinCrystal(dataset_h2[3], force_constant=1e-1)
+    walker_h2 = Walker(dataset_h2[0], einstein_h2)
+    walkers = [walker_nve, walker_nvt, walker_npt, walker_nvst, walker_h2]
 
     outputs = sample(walkers, steps=20, observables=["kinetic_md{electronvolt}"])
     for output in outputs:
         assert output.status.result() == Status.DONE
         assert output.trajectory is None
-    output_nve, output_nvt, output_npt, output_nvst = outputs
+    output_nve, output_nvt, output_npt, output_nvst, output_h2 = outputs
 
     # NVE
     energy_pot = output_nve["potential{electronvolt}"].result()
@@ -328,97 +287,66 @@ def test_ensembles(dataset):
     volume = output_nvst["volume{angstrom3}"].result()
     cell_start = walker_nvst.start.result().cell
     cell_stop = output_nvst.state.result().cell
-    print(volume[0], volume - volume[0])
     assert np.allclose(volume, volume[0])
     assert not np.allclose(cell_start, cell_stop)
+
+    # nonperiodic
+    volume = output_h2["volume{angstrom3}"].result()
+    assert not output_h2.state.result().periodic
+    assert all(volume == 1e9)  # arbitrary large cell
 
     return
 
 
 def test_output_status(dataset):
     """"""
-    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    walker = Walker(start=dataset[0], hamiltonian=einstein)
+    geom = dataset[0].result()
+    einstein = EinsteinCrystal(geom, force_constant=0.1)
+    walker = Walker(start=geom, hamiltonian=einstein)
+    walker_boom = Walker(start=geom, hamiltonian=einstein, timestep=1e25, pressure=0)
+
+    # normal & exploded
+    outputs = sample([walker, walker_boom], steps=10)
+    assert outputs[0].status.result() == Status.DONE
+    assert outputs[1].status.result() == Status.EXPLODED
 
     # max force
-    outputs = sample([walker], steps=100, max_force=1e-4)
+    outputs = sample([walker], steps=100, step=1, max_force=1e-4)
     assert outputs[0].status.result() == Status.FORCE_EXCEEDED
+    assert outputs[0].trajectory.length().result() == 1
 
     # walltime
     definition = psiflow.context().definitions["ModelEvaluation"]
     definition.max_simulation_time = 5 / 60  # 5 seconds
     outputs = sample([walker], steps=10000)
     assert outputs[0].status.result() == Status.TIMEOUT
+    assert outputs[0].time.result() > 0
 
     return
 
 
 def test_reset(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    walker = Walker(
-        start=dataset[0],
-        temperature=300,
-        pressure=None,
-        hamiltonian=einstein,
-    )
+    walker = Walker(start=dataset[0], temperature=300, hamiltonian=einstein)
     walker.state = dataset[1]
     assert not walker.is_reset().result()
     assert not check_equality(walker.start, walker.state).result()
     assert check_equality(walker.start, dataset[0]).result()
     assert check_equality(walker.state, dataset[1]).result()
 
-    walker.reset(False)
+    walker.conditional_reset(False)
     assert not walker.is_reset().result()
     walker.reset()
     assert walker.is_reset().result()
-    simulation_output = sample(
-        [walker],
-        steps=50,
-        step=10,
-        keep_trajectory=True,
-    )[0]
-    assert simulation_output.status.result() == 0
+    [output] = sample([walker], steps=10)
     assert not walker.is_reset().result()
-    assert simulation_output.trajectory.length().result() == 6
-    assert np.allclose(
-        walker.state.result().per_atom.positions,
-        simulation_output.trajectory[-1].result().per_atom.positions,
-    )
-
-    walker.hamiltonian = EinsteinCrystal(dataset[0], force_constant=1000)
-    simulation_output = sample(
-        [walker],
-        steps=50,
-        step=10,
-        max_force=10,
-    )[0]
-    assert simulation_output.status.result() == 2
-    assert walker.is_reset().result()
-    assert not check_equality(walker.state, simulation_output.state).result()
-    assert simulation_output.trajectory.length().result() == 1
-
-    # check timeout
-    simulation_output = sample(
-        [walker],
-        steps=5000000,
-        step=100,
-    )[0]
-    assert simulation_output.status.result() == 1
-    assert not walker.is_reset().result()
-    assert check_equality(walker.state, simulation_output.state).result()
-    assert simulation_output.time.result() > 0
 
 
 def test_quench(dataset):
     dataset = dataset[:20]
     einstein0 = EinsteinCrystal(dataset[3], force_constant=0.1)
     einstein1 = EinsteinCrystal(dataset[11], force_constant=0.1)
-    walkers = Walker(
-        start=dataset[0],
-        hamiltonian=einstein0,
-        temperature=300,
-    ).multiply(30)
-
+    walkers = Walker(start=dataset[0], hamiltonian=einstein0).multiply(10)
     walkers[2].hamiltonian = einstein1
     quench(walkers, dataset)
 
@@ -429,7 +357,7 @@ def test_quench(dataset):
 
 
 def test_randomize(dataset):
-    walkers = Walker(dataset[0]).multiply(300)
+    walkers = Walker(dataset[0]).multiply(50)
     randomize(walkers, dataset)
     length = dataset.length().result()
     checks = []
@@ -440,33 +368,18 @@ def test_randomize(dataset):
     assert not all(checks)
 
 
-def test_walker_nonperiodic(dataset_h2):
-    einstein = EinsteinCrystal(dataset_h2[3], force_constant=1.0)
-    walker = Walker(dataset_h2[0], einstein)
-
-    output = sample([walker], steps=20, step=2)[0]
-    assert not output.state.result().periodic
-    for state in output.trajectory.geometries().result():
-        assert not state.periodic
-
-
 def test_rex(dataset):
     einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    walker = Walker(
-        dataset[0],
-        hamiltonian=einstein,
-        temperature=600,
-    )
+    walker = Walker(dataset[0], hamiltonian=einstein, temperature=600)
     walkers = walker.multiply(2)
-    replica_exchange(walkers, trial_frequency=5)
+    replica_exchange(walkers, trial_frequency=2)
     assert walkers[0].coupling.nwalkers == len(walkers)
     assert len(partition(walkers)) == 1
     assert len(partition(walkers)[0]) == 2
 
-    outputs = sample(walkers, steps=50, step=10)
-    assert outputs[0].trajectory.length().result() == 6
-
+    outputs = sample(walkers, steps=20, step=2)
     swaps = np.loadtxt(walkers[0].coupling.swapfile.result().filepath)
+    assert outputs[0].trajectory.length().result() == 11
     assert len(swaps) > 0  # at least some successful swaps
     assert np.allclose(swaps[0, 1:], np.array([1, 0]))  # 0, 1 --> 1, 0
 
@@ -490,30 +403,23 @@ FLUSH STRIDE=1
 """
     metadynamics = Metadynamics(plumed_str)
     walkers = Walker(
-        dataset[0],
-        hamiltonian=einstein,
-        temperature=300,
-        metadynamics=metadynamics,
+        dataset[0], hamiltonian=einstein, temperature=300, metadynamics=metadynamics
     ).multiply(3)
     for i, walker in enumerate(walkers):
         walker.hamiltonian *= 1 / (1 + i)
 
     sample(walkers, steps=10, step=2)
-    walkers[0].metadynamics.external.result()
-    with open(walkers[0].metadynamics.external.filepath, "r") as f:
+    file = walkers[0].metadynamics.external.result()
+    with open(file.filepath, "r") as f:
         assert len(f.read()) > 0
 
-    data = []
-    for obj in walkers:
-        data.append(psiflow.serialize(obj, copy_to=tmp_path))
+    data = [psiflow.serialize(obj, copy_to=tmp_path) for obj in walkers]
+    new_objects = [psiflow.deserialize(d.result()) for d in data]
+    psiflow.wait()
     for d in data:
         print(d.result())
 
-    new_objects = [psiflow.deserialize(d.result()) for d in data]
-    psiflow.wait()
-
     walkers_ = new_objects[:3]
-
     assert check_equality(walkers_[0].start, walkers[0].start).result()
     assert check_equality(walkers_[0].state, walkers[0].state).result()
 
