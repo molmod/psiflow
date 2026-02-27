@@ -28,16 +28,11 @@ from parsl.launchers.base import Launcher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-import psiflow
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
-PSIFLOW_INTERNAL = "psiflow_internal"
-DEFAULT_CONFIG = {  # TODO: remove
-    "ModelEvaluation": {"gpu": False, "use_threadpool": True},
-    "ModelTraining": {"gpu": True, "use_threadpool": True},
-}
+PSIFLOW_INTERNAL = "psiflow_internal"  # TODO: move configuration files somewhere
 
 
 @dataclass
@@ -220,8 +215,22 @@ class ExecutionDefinition:
             if resources["gpus"] == 0:
                 msg = "GPU usage requested but no GPUs available"
             elif container is not None and container.gpu_flavour is None:
-                msg = "Provide 'gpu_flavour' to choose between CUDA and ROCM"
+                msg = "Provide container 'gpu_flavour' to choose between CUDA and ROCM"
             if msg:
+                raise ValueError(msg)
+
+        if self.executor_type == "workqueue":
+            # WQ-specific checks TODO: check that WQ kwargs do not exceed resources?
+            msg = ""
+            if self.kwargs["gpus_per_task"] > resources["gpus"]:
+                msg = "GPUs"
+            if self.kwargs["cores_per_task"] > resources["cores"]:
+                msg = "cores"
+            if self.kwargs["mem_per_task"] > (resources["memory"] or float("inf")):
+                # TODO: do we need memory=None anywhere? otherwise default to inf?
+                msg = "memory"
+            if msg:
+                msg = f"Apps will request more {msg} than available per Parsl block"
                 raise ValueError(msg)
 
         # how long can individual tasks run (in seconds)
@@ -231,13 +240,24 @@ class ExecutionDefinition:
         else:
             max_runtime = str_to_timedelta(max_runtime).seconds
         if max_runtime != float("inf") and max_runtime >= self.lifetime:
-            warnings.warn(
-                "Allowed task runtime exceeds provider walltime. Tasks might get killed by the scheduler."
-            )
+            msg = "Allowed task runtime exceeds provider walltime. Tasks might get killed by the scheduler."
+            warnings.warn(msg)
         self.max_runtime = max_runtime
 
-        # TODO: check that WQ kwargs do not exceed resources?
+        # set default WQ resource specs  TODO: type_hint
+        self.spec = None
+        if self.executor_type == "workqueue":
+            self.spec = {
+                "cores": self.kwargs["cores_per_task"],
+                "memory": int(self.kwargs["mem_per_task"] * 1000),  # in MB
+                "gpus": self.kwargs["gpus_per_task"],
+                "disk": 0,  # not implemented
+                "running_time_min": self.kwargs["min_runtime"],
+            }
+        register_definition(definition=self)
+
         # TODO: how to handle env variables?
+
         pass
 
     @property
@@ -251,7 +271,7 @@ class ExecutionDefinition:
 
     @property
     def use_gpu(self) -> bool:
-        return self.kwargs.get("use_gpu") or self.kwargs.get("gpus_per_task") > 0
+        return self.kwargs.get("use_gpu") or self.kwargs.get("gpus_per_task", 0) > 0
 
     def wrap_in_timeout(self, command: str) -> str:
         if self.max_runtime == float("inf"):
@@ -315,28 +335,13 @@ class ExecutionDefinition:
         return self._create_workqueue(path)
 
     def wq_resources(self, *args, **kwargs) -> dict:
-        if self.executor_type == "threadpool":
-            return {}
-
-        # TODO: why recreate every call?
-        # TODO: priority
-        spec = {
-            "cores": self.kwargs["cores_per_task"],
-            "memory": int(self.kwargs["mem_per_task"] * 1000),  # in MB
-            "gpus": self.kwargs["gpus_per_task"],
-            "disk": 0,  # not implemented
-            "running_time_min": self.kwargs["min_runtime"],
-        }
-        return self._modify_wq_resources(spec, *args, **kwargs)
-
-    def _modify_wq_resources(self, spec: dict, *args, **kwargs) -> dict:
         raise NotImplementedError
 
     @classmethod
     def from_config(
         cls,
-        executor: str = "workqueue",
-        container: Optional[ContainerSpec] = None,
+        executor: str,
+        container: Optional[ContainerSpec],
         **kwargs,
     ):
         if executor == "threadpool":
@@ -394,6 +399,8 @@ class ModelEvaluation(ExecutionDefinition):
         # TODO: temporary
         self.cores_per_worker = self.kwargs.get("cores_per_task", 1)
         self.gpu = False
+        self.max_simulation_time = self.max_runtime
+        self.env_vars = {"OMP_NUM_THREADS": "1"}
 
         # TODO: what with env vars?
         # default_env_vars = {
@@ -418,8 +425,11 @@ class ModelEvaluation(ExecutionDefinition):
         else:
             return [{"device": "cpu"} for _ in range(nclients)]
 
-    def _modify_wq_resources(self, spec: dict, *args, **kwargs) -> dict:
-        pass
+    def wq_resources(self, nwalkers: int) -> dict:
+        if self.spec is None:
+            return {}  # threadpool
+
+        return self.spec
 
     # def wq_resources(self, nwalkers):
     #     if self.use_threadpool:
@@ -471,8 +481,11 @@ class ModelTraining(ExecutionDefinition):
         command = "psiflow-mace-train"
         return self.wrap_in_timeout(command)
 
-    def _modify_wq_resources(self, spec: dict, *args, **kwargs) -> dict:
-        pass
+    def wq_resources(self, *args, **kwargs) -> dict:
+        if self.spec is None:
+            return {}  # threadpool
+
+        return self.spec
 
     # def wq_resources(self):
     #     if self.use_threadpool:
@@ -624,7 +637,9 @@ class ExecutionContext:
         )
         model_training = ModelTraining.from_config(
             container=base_container,
-            **kwargs.pop("ModelTraining", {"gpu": True}),  # avoid triggering assertion
+            **kwargs.pop(
+                "ModelTraining", {"gpu": True}
+            ),  # avoid triggering assertion  TODO: change into warning
         )
 
         # TODO: remove this and check below
@@ -719,19 +734,23 @@ class ExecutionContextLoader:
     ) -> ExecutionContext:
         if cls._context is not None:
             raise RuntimeError("ExecutionContext has already been loaded")
-        if config is None:
-            if len(sys.argv) == 1:  # no yaml config passed, use threadpools:
-                config = DEFAULT_CONFIG
-            else:
-                assert len(sys.argv) == 2
-                path_config = psiflow.resolve_and_check(Path(sys.argv[1]))
-                assert path_config.exists()
-                assert path_config.suffix in [".yaml", ".yml"], (
-                    f"the execution configuration needs to be specified"
-                    f" as a YAML file, but got {path_config}"
-                )
-                with open(path_config, "r") as f:
-                    config = yaml.safe_load(f)
+        if config is not None:
+            pass
+        elif len(sys.argv) == 1:
+            config = {}
+        else:
+            assert len(sys.argv) <= 2  # only accept a single argument
+            path_config = Path(sys.argv[1])
+            assert path_config.exists()
+            assert path_config.suffix in [".yaml", ".yml"], (
+                f"the execution configuration needs to be specified"
+                f" as a YAML file, but got {path_config}"
+            )
+            with open(path_config, "r") as f:
+                config = yaml.safe_load(f)
+
+        # set the context so it can be retrieved later
+        config = yaml.safe_load(DEFAULT_CONFIG) | config
         cls._context = ExecutionContext.from_config(**config)
         return cls._context
 
@@ -797,3 +816,57 @@ class MyWorkQueueExecutor(WorkQueueExecutor):
 #     else:
 #         dest.touch(exist_ok=True)
 #     src.symlink_to(dest, target_is_directory=is_dir)
+
+
+# TODO: attempt at managing priority through global state
+WQ_RESOURCES_REGISTRY = {}
+
+
+def register_definition(definition: ExecutionDefinition) -> None:
+    """"""
+    if (spec := definition.spec) is None:
+        return  # threadpool does not have priority
+
+    WQ_RESOURCES_REGISTRY[definition.name] = spec
+    spec["priority"] = SetWQPriority.default
+
+
+class SetWQPriority:
+    """Manage the WQ priority tag as context manager"""
+
+    # TODO: this probably does not work in a nested way
+    # TODO: log to parsl.log?
+    default = 0
+
+    def __init__(self, value: int, verbose: bool = False) -> None:
+        self.value = value
+        self.verbose = verbose
+
+    def __enter__(self):
+        if self.verbose:
+            print(f'SetWQPriority setting priority:\t{self.value}')
+        for n, spec in WQ_RESOURCES_REGISTRY.items():
+            spec["priority"] = self.value
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.verbose:
+            print(f'SetWQPriority unsetting {self.value}')
+        for n, spec in WQ_RESOURCES_REGISTRY.items():
+            spec["priority"] = SetWQPriority.default
+
+
+# This is the default psiflow config which is always passed into the ExecutionContext
+# TODO: find a place for this
+DEFAULT_CONFIG = """
+parsl_log_level: WARNING
+usage_tracking: 3
+
+ModelEvaluation:
+  executor: threadpool
+  max_threads: 2
+
+ModelTraining:
+  executor: threadpool
+  max_threads: 2
+"""
