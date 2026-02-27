@@ -624,6 +624,7 @@ class ExecutionContext:
         if path.exists():
             shutil.rmtree(path)
         path.mkdir(parents=True)
+        patch_parsl_dirtree()
 
         log_file = str(path / "parsl.log")
         log_level = getattr(logging, parsl_log_level)
@@ -708,20 +709,7 @@ class ExecutionContext:
             internal_tasks_max_threads=internal_tasks_max_threads,
             # std_autopath=std_autopath,
         )
-        context = ExecutionContext(config, definitions, path / "context_dir")
-
-        # if make_symlinks:
-        #     src, dest = Path.cwd() / "psiflow_log", path / "parsl.log"
-        #     _create_symlink(src, dest)
-        #     src, dest = (
-        #         Path.cwd() / "psiflow_submit_scripts",
-        #         path / "000" / "submit_scripts",
-        #     )
-        #     _create_symlink(src, dest, is_dir=True)
-        #     src, dest = Path.cwd() / "psiflow_task_logs", path / "000" / "task_logs"
-        #     _create_symlink(src, dest, is_dir=True)
-
-        return context
+        return ExecutionContext(config, definitions, path / "context_dir")
 
 
 class ExecutionContextLoader:
@@ -807,17 +795,6 @@ class MyWorkQueueExecutor(WorkQueueExecutor):
         return self.worker_command
 
 
-# def _create_symlink(src: Path, dest: Path, is_dir: bool = False) -> None:
-#     """Create or replace symbolic link"""
-#     if src.is_symlink():
-#         src.unlink()
-#     if is_dir:
-#         dest.mkdir(parents=True, exist_ok=True)
-#     else:
-#         dest.touch(exist_ok=True)
-#     src.symlink_to(dest, target_is_directory=is_dir)
-
-
 # TODO: attempt at managing priority through global state
 WQ_RESOURCES_REGISTRY = {}
 
@@ -844,14 +821,14 @@ class SetWQPriority:
 
     def __enter__(self):
         if self.verbose:
-            print(f'SetWQPriority setting priority:\t{self.value}')
+            print(f"SetWQPriority setting priority:\t{self.value}")
         for n, spec in WQ_RESOURCES_REGISTRY.items():
             spec["priority"] = self.value
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.verbose:
-            print(f'SetWQPriority unsetting {self.value}')
+            print(f"SetWQPriority unsetting {self.value}")
         for n, spec in WQ_RESOURCES_REGISTRY.items():
             spec["priority"] = SetWQPriority.default
 
@@ -870,3 +847,12 @@ ModelTraining:
   executor: threadpool
   max_threads: 2
 """
+
+
+def patch_parsl_dirtree() -> None:
+    """By default, Parsl will put Executor logs etc. under numbered directories.
+    We do not need this level of nesting, as psiflow_internal is refreshed every run"""
+    import parsl.dataflow.dflow
+
+    # replace with noop, which needs to happen after parsl.dataflow.dflow initialises
+    parsl.dataflow.dflow.make_rundir = lambda x: x
