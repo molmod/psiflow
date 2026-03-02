@@ -4,13 +4,14 @@ import shutil
 import sys
 import warnings
 import subprocess
+import textwrap
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
 
 # see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
-from typing import Any, Optional, Union, ClassVar, Protocol, Iterable
+from typing import Any, Optional, Union, ClassVar, Protocol, Iterable, Sequence
 
 import parsl
 import psutil
@@ -71,9 +72,9 @@ class ReferenceSpec(Protocol):
     """Defines default options for Reference implementations"""
 
     name: ClassVar[str]
-    reference_args: ClassVar[tuple[str, ...]]
+    reference_args: ClassVar[tuple[str, ...]]  # TODO: update 'cores_per_worker'
     mpi_command: str
-    mpi_args: Iterable[str]
+    mpi_args: Sequence[str]
     executable: str
 
     def launch_command(self) -> str:
@@ -90,7 +91,7 @@ class CP2KReferenceSpec(ReferenceSpec):
     name = "CP2K"
     reference_args = ("cores_per_worker",)
     mpi_command: str = "mpirun -np {cores_per_worker}"
-    mpi_args: tuple[str, ...] = (
+    mpi_args: Sequence[str] = (
         "-ENV OMP_NUM_THREADS=1",
         "--bind-to core",
         "--map-by core",
@@ -106,7 +107,7 @@ class GPAWReferenceSpec(ReferenceSpec):
     name = "GPAW"
     reference_args = ("cores_per_worker",)
     mpi_command: str = "mpirun -np {cores_per_worker}"
-    mpi_args: tuple[str, ...] = (
+    mpi_args: Sequence[str] = (
         "-x OMP_NUM_THREADS=1",
         "--bind-to core",
         "--map-by core",
@@ -122,7 +123,7 @@ class ORCAReferenceSpec(ReferenceSpec):
     name = "ORCA"
     reference_args = ()
     mpi_command: str = ""
-    mpi_args: tuple[str, ...] = (
+    mpi_args: Sequence[str] = (
         "-x OMP_NUM_THREADS=1",
         "--bind-to core",
         "--map-by core",
@@ -139,12 +140,6 @@ REFERENCE_SPECS = {
     "GPAW": GPAWReferenceSpec,
     "ORCA": ORCAReferenceSpec,
 }
-
-
-def str_to_timedelta(s: str) -> timedelta:
-    # TODO: move to utils
-    t = datetime.strptime(s, "%H:%M:%S")
-    return timedelta(hours=t.hour, minutes=t.minute, seconds=t.second)
 
 
 def make_slurm_provider(kwargs: dict) -> tuple[SlurmProvider, dict]:
@@ -166,7 +161,7 @@ def make_slurm_provider(kwargs: dict) -> tuple[SlurmProvider, dict]:
 def make_local_provider(kwargs: dict) -> tuple[LocalProvider, dict]:
     resources = {
         "nodes": 1,
-        "cores": kwargs.get("cores", psutil.cpu_count()),
+        "cores": kwargs.get("cores", psutil.cpu_count(logical=False)),
         "memory": kwargs.get(
             "memory", psutil.virtual_memory().available / 1e9
         ),  # TODO: available?
@@ -190,8 +185,31 @@ def make_local_provider(kwargs: dict) -> tuple[LocalProvider, dict]:
     return provider, resources
 
 
+def make_default_executors(
+    max_workers: int, path: Path, container: ContainerSpec
+) -> tuple[HighThroughputExecutor, ThreadPoolExecutor]:
+    """Construct executors for internal app handling"""
+    launcher = SimpleLauncher()
+    if container is not None:
+        launcher = WrappedLauncher(prepend=container.launch_command())
+
+    htex = HighThroughputExecutor(
+        label="default_htex",
+        working_dir=str(path / "default_htex"),
+        cores_per_worker=1,
+        max_workers_per_node=max_workers,
+        cpu_affinity="none",
+        provider=LocalProvider(launcher=launcher, init_blocks=0),
+    )
+    threadpool = ThreadPoolExecutor(
+        label="default_threads",
+        max_threads=max_workers,
+        working_dir=str(path),
+    )
+    return htex, threadpool
+
+
 class ExecutionDefinition:
-    # TODO: do not like defining some kwargs in class method and other kwargs in init...
     def __init__(
         self,
         provider: ExecutionProvider | None,
@@ -257,6 +275,7 @@ class ExecutionDefinition:
         register_definition(definition=self)
 
         # TODO: how to handle env variables?
+        # TODO: check between min_runtime and max_runtime?
 
         pass
 
@@ -271,7 +290,16 @@ class ExecutionDefinition:
 
     @property
     def use_gpu(self) -> bool:
-        return self.kwargs.get("use_gpu") or self.kwargs.get("gpus_per_task", 0) > 0
+        if self.executor_type == "threadpool":
+            return self.kwargs["use_gpu"]
+        return self.kwargs["gpus_per_task"] > 0
+
+    @property
+    def cores_per_task(self) -> int:
+        if self.executor_type == "workqueue":
+            return self.kwargs["cores_per_task"]
+        # assumes all threads are working
+        return int(self.resources["cores"] / self.kwargs["max_threads"])
 
     def wrap_in_timeout(self, command: str) -> str:
         if self.max_runtime == float("inf"):
@@ -313,8 +341,9 @@ class ExecutionDefinition:
             prepend = self.container.launch_command()
             worker_executable = f"{prepend} {worker_executable}"
 
-        # TODO: why the custom WQ?
-        executor = MyWorkQueueExecutor(
+        # TODO: why the custom WQ? -- does not seem necessary (anymore)
+        # executor = MyWorkQueueExecutor(
+        executor = WorkQueueExecutor(
             label=self.name,
             working_dir=str(path / self.name),
             provider=self.provider,
@@ -340,7 +369,7 @@ class ExecutionDefinition:
     @classmethod
     def from_config(
         cls,
-        executor: str,
+        executor: str,  # TODO: no default value?
         container: Optional[ContainerSpec],
         **kwargs,
     ):
@@ -390,26 +419,24 @@ class ExecutionDefinition:
 class ModelEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        timeout: float = 5,  # TODO: units?
+        timeout: float = 5.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.timeout = timeout
 
-        # TODO: temporary
-        self.cores_per_worker = self.kwargs.get("cores_per_task", 1)
-        self.gpu = False
-        self.max_simulation_time = self.max_runtime
-        self.env_vars = {"OMP_NUM_THREADS": "1"}
+        self.timeout = timeout  # i-Pi will kill client connections after no response for timeout seconds
 
-        # TODO: what with env vars?
-        # default_env_vars = {
-        #     "OMP_NUM_THREADS": str(self.cores_per_worker),
-        #     "KMP_AFFINITY": "granularity=fine,compact,1,0",
-        #     "KMP_BLOCKTIME": "1",
-        #     "OMP_PROC_BIND": "false",
-        #     "PYTHONUNBUFFERED": "TRUE",
-        # }
+        if self.executor_type == "threadpool":
+            # disable thread affinity and busy-idling
+            env_vars = {
+                "OMP_PROC_BIND": "FALSE",
+                "OMP_WAIT_POLICY": "PASSIVE",
+                "OMP_NUM_THREADS": f"{self.cores_per_task}",
+                # "OMP_DISPLAY_ENV": "VERBOSE",  # verbose OMP log
+            }
+        else:
+            assert False, "IMPLEMENT THIS"
+        self.env_vars = env_vars | self.env_vars
 
     def server_command(self) -> str:
         command = "psiflow-server"
@@ -420,7 +447,7 @@ class ModelEvaluation(ExecutionDefinition):
         # TODO: what if only 1 gpu is available? Redo this
         # nclients = min(nwalkers, self.max_workers)
         nclients = min(nwalkers, 2)
-        if self.gpu:
+        if self.use_gpu:
             return [{"device": f"cuda:{i}"} for i in range(nclients)]
         else:
             return [{"device": "cpu"} for _ in range(nclients)]
@@ -428,7 +455,7 @@ class ModelEvaluation(ExecutionDefinition):
     def wq_resources(self, nwalkers: int) -> dict:
         if self.spec is None:
             return {}  # threadpool
-
+        # TODO: reimplement this
         return self.spec
 
     # def wq_resources(self, nwalkers):
@@ -464,6 +491,11 @@ class ModelTraining(ExecutionDefinition):
             )
             assert self.max_runtime is None, message
 
+        if not self.use_gpu:
+            warnings.warn(
+                "ModelTraining is configured for CPU operation. Is this what you want?"
+            )
+
         # default_env_vars = {
         #     "OMP_NUM_THREADS": str(self.cores_per_worker),
         #     "KMP_AFFINITY": "granularity=fine,compact,1,0",
@@ -484,7 +516,7 @@ class ModelTraining(ExecutionDefinition):
     def wq_resources(self, *args, **kwargs) -> dict:
         if self.spec is None:
             return {}  # threadpool
-
+        # TODO: reimplement this
         return self.spec
 
     # def wq_resources(self):
@@ -511,13 +543,14 @@ class ModelTraining(ExecutionDefinition):
 class ReferenceEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        spec: "ReferenceSpec",
+        reference: "ReferenceSpec",
         memory_limit: Optional[str] = None,  # TODO: how does this work?
         **kwargs,
     ) -> None:
         # TODO: how to know which code?
+        # before super().__init__ because 'name' attribute needed
+        self.reference = reference
         super().__init__(**kwargs)
-        self.spec = spec
         self.memory_limit = memory_limit
 
     def command(self):
@@ -548,12 +581,14 @@ class ReferenceEvaluation(ExecutionDefinition):
         # exit code 0 so parsl always thinks bash app succeeded
         return "\n".join([*commands, launch_command, "exit 0"])
 
-    def _modify_wq_resources(self, spec: dict, *args, **kwargs) -> dict:
-        return spec
+    def wq_resources(self, *args, **kwargs) -> dict:
+        if self.spec is None:
+            return {}  # threadpool
+        return self.spec
 
     @property
     def name(self) -> str:
-        return self.spec.name
+        return self.reference.name
 
 
 class ExecutionContext:
@@ -574,12 +609,21 @@ class ExecutionContext:
         config: Config,
         definitions: list[ExecutionDefinition],
         path: Union[Path, str],
+        tmpdir_root: str,
+        keep_tmpdirs: bool,
+        **kwargs,
     ) -> None:
         self.config = config
         self.path = Path(path).resolve()
         self.path.mkdir(parents=True, exist_ok=True)
+
         self.definitions = {d.name: d for d in definitions}
         assert len(self.definitions) == len(definitions)
+
+        # make sure task tmpdirs can be made
+        Path(tmpdir_root).mkdir(parents=True, exist_ok=True)
+        self.bash_template = create_bash_template(tmpdir_root, keep_tmpdirs)
+
         self.file_index = {}
         self.lock = Lock()
         parsl.load(config)
@@ -608,16 +652,8 @@ class ExecutionContext:
     @classmethod
     def from_config(
         cls,
-        parsl_log_level: str = "WARNING",
-        usage_tracking: int = 3,
-        retries: int = 2,
-        strategy: str = "simple",
-        max_idletime: float = 20,
-        internal_tasks_max_threads: int = 10,
-        default_threads: int = 4,
-        # htex_address: str = "127.0.0.1",
-        zip_staging: Optional[bool] = None,
-        make_symlinks: bool = False,
+        parsl_log_level: str,
+        default_threads: int,
         **kwargs,
     ) -> "ExecutionContext":
         path = Path.cwd().resolve() / PSIFLOW_INTERNAL
@@ -633,28 +669,18 @@ class ExecutionContext:
         # create definitions
         base_container = ContainerSpec.from_kwargs(kwargs)
         model_evaluation = ModelEvaluation.from_config(
-            container=base_container,
-            **kwargs.pop("ModelEvaluation", {}),
+            container=base_container, **kwargs["ModelEvaluation"]
         )
         model_training = ModelTraining.from_config(
-            container=base_container,
-            **kwargs.pop(
-                "ModelTraining", {"gpu": True}
-            ),  # avoid triggering assertion  TODO: change into warning
+            container=base_container, **kwargs["ModelTraining"]
         )
-
-        # TODO: remove this and check below
-        model_evaluation.wq_resources(0)
-        model_evaluation.server_command()
-        model_training.wq_resources()
 
         reference_evaluations = []  # reference evaluations might be class specific
         for key in list(kwargs.keys()):
             if key[:4] in REFERENCE_SPECS:  # allow for e.g., CP2K_small
-                config = kwargs.pop(key)
+                config = kwargs[key]
                 reference_evaluation = ReferenceEvaluation.from_config(
-                    # spec=init_spec(REFERENCE_SPECS[key[:4]], config),
-                    spec=REFERENCE_SPECS[key[:4]].from_kwargs(**config),
+                    reference=REFERENCE_SPECS[key[:4]].from_kwargs(**config),
                     container=ContainerSpec.from_kwargs(kwargs | config),
                     **config,
                 )
@@ -663,53 +689,13 @@ class ExecutionContext:
 
         # create main parsl executors
         executors = [d.create_executor(path=path) for d in definitions]
+        internal = make_default_executors(default_threads, path, base_container)
+        executors.extend(internal)
 
-        # create default executors
-        # TODO: extract this into function
-        if base_container is not None:
-            launcher = WrappedLauncher(prepend=base_container.launch_command())
-        else:
-            launcher = SimpleLauncher()
-        htex = HighThroughputExecutor(
-            label="default_htex",
-            # address=htex_address,
-            working_dir=str(path / "default_htex"),
-            cores_per_worker=1,
-            max_workers_per_node=default_threads,
-            cpu_affinity="none",
-            provider=LocalProvider(launcher=launcher, init_blocks=0),  # noqa: F405
-        )
-        threadpool = ThreadPoolExecutor(
-            label="default_threads",
-            max_threads=default_threads,
-            working_dir=str(path),
-        )
-        executors.extend([htex, threadpool])
-
-        # remove additional kwargs
-        # if zip_staging:
-
-        #    def zip_uri(base, task_record, err_or_out):
-        #        zip_path = base / "base.zip"
-        #        file = f"{task_record['func_name']}.{task_record['id']}.{task_record['try_id']}.{err_or_out}"
-        #        return File(f"zip:{zip_path}/{file}")
-
-        #    std_autopath = partial(zip_uri, path)
-        # else:
-        #    std_autopath = None
         config = Config(
-            executors=executors,
-            run_dir=str(path),
-            initialize_logging=False,
-            # app_cache=False,
-            usage_tracking=usage_tracking,
-            retries=retries,
-            strategy=strategy,
-            max_idletime=max_idletime,
-            internal_tasks_max_threads=internal_tasks_max_threads,
-            # std_autopath=std_autopath,
+            executors=executors, run_dir=str(path), initialize_logging=False
         )
-        return ExecutionContext(config, definitions, path / "context_dir")
+        return ExecutionContext(config, definitions, path / "context_dir", **kwargs)
 
 
 class ExecutionContextLoader:
@@ -789,11 +775,13 @@ wait
         return x
 
 
-class MyWorkQueueExecutor(WorkQueueExecutor):
-    # TODO: what does this do?
-    def _get_launch_command(self, block_id):
-        return self.worker_command
+# class MyWorkQueueExecutor(WorkQueueExecutor):
+#     # TODO: what does this do?
+#     def _get_launch_command(self, block_id):
+#         return self.worker_command
 
+
+# TODO: move everything below to appropriate files
 
 # TODO: attempt at managing priority through global state
 WQ_RESOURCES_REGISTRY = {}
@@ -838,6 +826,11 @@ class SetWQPriority:
 DEFAULT_CONFIG = """
 parsl_log_level: WARNING
 usage_tracking: 3
+default_threads: 4
+max_idletime: 20
+tmpdir_root: /tmp
+keep_tmpdirs: false
+gpu_flavour: nvidia
 
 ModelEvaluation:
   executor: threadpool
@@ -856,3 +849,34 @@ def patch_parsl_dirtree() -> None:
 
     # replace with noop, which needs to happen after parsl.dataflow.dflow initialises
     parsl.dataflow.dflow.make_rundir = lambda x: x
+
+
+# TODO: arguments that need documenting: retries, strategy?, timeout, garbage_collect (Config)
+
+
+def create_bash_template(tmpdir_root: str, keep_tmpdirs: bool) -> str:
+    """Create general wrapper for all bash apps. The exitcode ensures that every app completes successfully."""
+    template = f"""
+    # Create and move into new tmpdir for app execution
+    tmpdir=$(mktemp -d -p {tmpdir_root} "psiflow-tmp.XXXXXXXXXX")
+    cd $tmpdir; echo "tmpdir: $PWD"
+    export {{env}}
+    printenv
+
+    # Actual app definition goes here
+    {{commands}}
+
+    # Cleanup
+    {'cd ../.. && rm -r $tmpdir' if not keep_tmpdirs else ''}
+    exit 0
+    """
+    return textwrap.dedent(template)
+
+
+def format_env_vars(env_vars: dict) -> str:
+    return " ".join([f"{k}={v}" for k, v in env_vars.items()])
+
+
+def str_to_timedelta(s: str) -> timedelta:
+    t = datetime.strptime(s, "%H:%M:%S")
+    return timedelta(hours=t.hour, minutes=t.minute, seconds=t.second)

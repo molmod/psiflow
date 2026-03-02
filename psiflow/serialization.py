@@ -279,7 +279,7 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
     from psiflow.learning import Learning
     from psiflow.metrics import Metrics
     from psiflow.models import MACE
-    from psiflow.order_parameters import OrderParameter
+    # from psiflow.order_parameters import OrderParameter
     from psiflow.reference import CP2K, GPAW, ORCA, ReferenceDummy
     from psiflow.sampling import Metadynamics, ReplicaExchange, SimulationOutput, Walker
 
@@ -300,7 +300,7 @@ def deserialize(data_str: str, custom_cls: Optional[list] = None):
         Harmonic,
         MixtureHamiltonian,
         Metadynamics,
-        OrderParameter,
+        # OrderParameter,
         ReplicaExchange,
         SimulationOutput,
         Walker,

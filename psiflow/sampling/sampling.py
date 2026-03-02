@@ -19,10 +19,10 @@ from psiflow.sampling.output import (
     potential_component_name,
     HamiltonianComponent,
 )
+from psiflow.execution import format_env_vars
 from psiflow.sampling.utils import create_xml_list
 from psiflow.sampling.walker import Coupling, Walker, partition, Ensemble
 from psiflow.utils.io import _save_xml
-from psiflow.utils import TMP_COMMAND, CD_COMMAND, export_env_command
 from psiflow.sampling.driver import __file__ as PATH_DRIVER
 
 
@@ -113,7 +113,7 @@ def setup_sockets(components: list[HamiltonianComponent]) -> list[ET.Element]:
         <address>{address}</address>
     </ffsocket>
     """
-    timeout = 60 * psiflow.context().definitions["ModelEvaluation"].timeout
+    timeout = psiflow.context().definitions["ModelEvaluation"].timeout
 
     sockets = []
     for comp in components:
@@ -450,10 +450,7 @@ def _execute_ipi(
     commands_driver = make_driver_commands(driver_kwargs, file_xyz_in, files_in)
 
     command_list = [
-        TMP_COMMAND,
-        CD_COMMAND,
-        "\n".join(write_command_args),
-        export_env_command(env_vars),
+        *write_command_args,
         command_start,
         command_wait,
         *commands_driver,
@@ -461,7 +458,10 @@ def _execute_ipi(
     ]
     if coupling_command:
         command_list.append(coupling_command)
-    return "\n".join(command_list)
+
+    template = psiflow.context().bash_template
+    commands, env = "\n".join(command_list), format_env_vars(env_vars)
+    return template.format(commands=commands, env=env)
 
 
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])

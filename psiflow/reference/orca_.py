@@ -12,7 +12,6 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
 from psiflow.utils.parse import find_line, lines_to_array, string_to_timedelta
 
 
@@ -162,12 +161,7 @@ class ORCA(Reference):
         return references
 
     def get_shell_command(self, inputs: list[File]) -> str:
-        command_list = [
-            TMP_COMMAND,
-            CD_COMMAND,
-            f"cp {inputs[0].filepath} orca.inp",
-            self.execute_command,
-        ]
+        command_list = [f"cp {inputs[0].filepath} orca.inp", self.execute_command]
         return "\n".join(command_list)
 
     def parse_output(self, stdout: str) -> dict:

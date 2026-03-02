@@ -98,7 +98,10 @@ def _execute(
     stderr: str = parsl.AUTO_LOGNAME,
     label: str = "singlepoint",
 ) -> str:
-    return reference.get_shell_command(inputs)
+    # TODO: we do not set env_vars here?
+    command = reference.get_shell_command(inputs)
+    template = psiflow.context().bash_template
+    return template.format(commands=command, env='>/dev/null')
 
 
 def _process_output(

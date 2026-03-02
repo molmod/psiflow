@@ -15,8 +15,6 @@ import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
 from psiflow.utils.parse import find_line, lines_to_array
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
-
 
 # costly to initialise
 input_parser = CP2KInputParserSimplified(
@@ -141,12 +139,7 @@ class CP2K(Reference):
         return references
 
     def get_shell_command(self, inputs: list[File]) -> str:
-        command_list = [
-            TMP_COMMAND,
-            CD_COMMAND,
-            f"cp {inputs[0].filepath} cp2k.inp",
-            self.execute_command,
-        ]
+        command_list = [f"cp {inputs[0].filepath} cp2k.inp", self.execute_command]
         return "\n".join(command_list)
 
     def parse_output(self, stdout: str) -> dict:

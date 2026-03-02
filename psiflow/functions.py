@@ -296,6 +296,7 @@ class DispersionFunction(EnergyFunction):
     def __post_init__(self):
         # OMP_NUM_THREADS for parallel evaluation does not work..
         # https://github.com/dftd3/simple-dftd3/issues/49
+        # TODO: check whether this is still the case
         os.environ["OMP_NUM_THREADS"] = str(self.num_threads * 10)
 
         from dftd3.ase import DFTD3

@@ -444,9 +444,9 @@ class MACEHamiltonian(Hamiltonian):
         return {
             "model_path": model_path,
             "atomic_energies": self.atomic_energies,
-            "ncores": evaluation.cores_per_worker,
+            "ncores": evaluation.cores_per_task,
             "dtype": "float32",
-            "device": "gpu" if evaluation.gpu else "cpu",
+            "device": "gpu" if evaluation.use_gpu else "cpu",
             "env_vars": evaluation.env_vars,
         }
 

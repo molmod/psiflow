@@ -8,7 +8,6 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
 from psiflow.utils.apps import copy_app_future
 from psiflow.utils.parse import find_line
 from psiflow.reference._gpaw import FILEPATH, DEFAULTS, STDOUT_KEY
@@ -58,8 +57,6 @@ class GPAW(Reference):
 
     def get_shell_command(self, inputs: list[File]) -> str:
         command_list = [
-            TMP_COMMAND,
-            CD_COMMAND,
             f"cp {inputs[0].filepath} input.json",
             f"cp {self.script} script_gpaw.py",
             self.execute_command,
