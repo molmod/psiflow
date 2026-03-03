@@ -2,6 +2,7 @@
 Updated version of the Psiflow driver included in i-Pi
 """
 
+import json
 import numpy as np
 
 from ipi.pes.dummy import Dummy_driver
@@ -78,6 +79,10 @@ class Psiflow_driver(Dummy_driver):
         vir_ipi = np.array(
             unit_to_internal("energy", "electronvolt", vir_calc.T), dtype=np.float64
         )
-        extras = ""
+        extras = outputs["extras"]
+        if extras == {}:
+            extras = ""
+        else:
+            extras = json.dumps(extras)
 
         return pot_ipi, force_ipi, vir_ipi, extras

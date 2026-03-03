@@ -13,6 +13,7 @@ from ase.io import read, write
 from ase.units import Bohr, Ha, _e, _hbar
 from ipi.engine.simulation import Simulation
 from ipi.utils.softexit import softexit
+from ipi.utils.parsing import read_output
 
 from psiflow.geometry import Geometry
 from psiflow.sampling.utils import create_xml_list
@@ -93,11 +94,34 @@ def wait_for_clients(input_xml, timeout: int = 60) -> None:
     raise ConnectionError(msg)
 
 
+def add_extras(noutputs: int) -> None:
+    # property headers
+    file_props = next(Path.cwd().glob(f"*0*.properties"))   # properties should be the same for all coupled walkers?
+    _, info_dict = read_output(file_props)
+    props_headers = ["# column   {}     --> {}{} : {}".format(i, key, "{" + info_dict[key][0] + "}", info_dict[key][1]) for i, key in enumerate(info_dict)]
+    # extras headers
+    file_extras = next(Path.cwd().glob(f"*0*.extras*"))   # extras should be the same for all coupled walkers?
+    assert file_extras is not None, "No extras file found."
+    with open(file_extras, "r") as f:
+        line = f.readline()
+        start = line.find("(") + 1
+        end = line.find(")")
+        extra_names = line[start:end].split(",")
+    extras_headers = ["# column   {}     --> {}{} : {}".format(i + len(props_headers), name, "{au}", "PLUMED variable") for i, name in enumerate(extra_names)]
+    # add extras values to properties files
+    for idx in range(noutputs):
+        file_props = next(Path.cwd().glob(f"*{idx}*.properties"))
+        file_extras = next(Path.cwd().glob(f"*{idx}*.extras*"))
+        np.savetxt(file_props, np.hstack((np.loadtxt(file_props), np.loadtxt(file_extras))), fmt='%10.8e', delimiter='     ', header="\n".join(props_headers) + "\n" + "\n".join(extras_headers), comments="")
+        # granted i-Pi properties file has some weird indentations so the files do not perfectly match
+        # but output parser still works so who cares
+
+
 def run(start_xyz: str, input_xml: str):
     # prepare starting geometries from context_dir
     data_start: list[ase.Atoms] = read(start_xyz, index=":")
     for i, at in enumerate(data_start):
-        print(at.pbc)
+        print(at.pbc)   # TODO: why print?
         if not any(at.pbc):  # set fake large cell for i-PI
             at.pbc = True
             at.cell = Cell(NONPERIODIC_CELL)
@@ -134,6 +158,14 @@ def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
     _write_frames(*states, outputs=[output_xyz])
     print("Moved checkpoint geometries")
 
+    output_props = _.split(",") if (_ := output_props) else []
+    output_trajs = _.split(",") if (_ := output_trajs) else []
+
+    # Add collective variables to simulation properties, if they exist
+    if output_props:
+        add_extras(len(output_props))
+        print("Added i-Pi extras output to properties files")
+
     prefix = ""
     if "remd" in content:
         # unshuffle simulation output according to ensemble
@@ -143,9 +175,6 @@ def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
         )
         assert out.returncode == 0  # TODO: what if it isn't?
         print("REMDSORT")
-
-    output_props = _.split(",") if (_ := output_props) else []
-    output_trajs = _.split(",") if (_ := output_trajs) else []
 
     # move recorded simulation observables
     if len(output_props):

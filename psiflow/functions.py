@@ -22,6 +22,7 @@ def format_output(
     energy: float,
     forces: np.ndarray | None = None,
     stress: np.ndarray | None = None,
+    extras: dict | None = None,
     **kwargs,
 ) -> dict:
     """"""
@@ -29,7 +30,8 @@ def format_output(
     stress = np.zeros(shape=(3, 3)) if stress is None else stress
     if stress.size == 6:
         stress = voigt_6_to_full_3x3_stress(stress)
-    return {"energy": energy, "forces": forces, "stress": stress}
+    extras = {} if extras is None else extras
+    return {"energy": energy, "forces": forces, "stress": stress, 'extras': extras}
 
 
 @typeguard.typechecked
@@ -92,6 +94,7 @@ class EinsteinCrystalFunction(EnergyFunction):
 @dataclass
 class PlumedFunction(EnergyFunction):
     plumed_input: str
+    plumed_extras: list[str]
     external: Optional[Union[str, Path]] = None
 
     def __post_init__(self):
@@ -126,6 +129,20 @@ class PlumedFunction(EnergyFunction):
             plumed_.cmd("init")
             for line in plumed_input.split("\n"):
                 plumed_.cmd("readInputLine", line)
+
+            self.plumed_data = {}
+            plumed_extras = self.plumed_extras
+            for x in plumed_extras:
+                rank = np.zeros(1, dtype=np.int_)
+                plumed_.cmd(f"getDataRank {x}", rank)
+                if rank[0] > 1:
+                    raise ValueError("Cannot retrieve variables with rank > 1")
+                shape = np.zeros(rank[0], dtype=np.int_)
+                plumed_.cmd(f"getDataShape {x}", shape)
+                if shape[0] > 1:
+                    raise ValueError("Cannot retrieve variables with size > 1")
+                self.plumed_data[x] = np.zeros(shape, dtype=np.double)
+                plumed_.cmd(f"setMemoryForData {x}", self.plumed_data[x])   # internal PLUMED variables are piped to arrays
             os.remove(tmp.name)  # remove whatever plumed has created
             self.plumed_instances[key] = plumed_
 
@@ -147,12 +164,19 @@ class PlumedFunction(EnergyFunction):
         plumed_.cmd("setForces", forces)
         plumed_.cmd("setVirial", virial)
         plumed_.cmd("prepareCalc")
-        plumed_.cmd("performCalcNoUpdate")
+        if "METAD" in self.plumed_input:
+            plumed_.cmd("performCalcNoUpdate")
+        else:
+            plumed_.cmd("performCalc")  # TODO: why update? i-PI does not do this
         plumed_.cmd("getBias", energy)
         stress = None
         if geometry.periodic:
             stress = virial / np.linalg.det(geometry.cell)
-        return format_output(geometry, float(energy.item()), forces, stress)
+
+        extras = {}
+        for x in self.plumed_data:
+            extras[str(x)] = self.plumed_data[x].copy()[0]
+        return format_output(geometry, float(energy.item()), forces, stress, extras)
 
     @staticmethod
     def _geometry_to_key(geometry: Geometry) -> tuple:
