@@ -48,6 +48,7 @@ def _execute_ase(
     inputs: list[DataFuture],
     outputs: list[DataFuture],
     env_vars: dict = {},
+    bash_template: str = "",
     stdout: str = parsl.AUTO_LOGNAME,
     stderr: str = parsl.AUTO_LOGNAME,
     parsl_resource_specification: Optional[dict] = None,
@@ -65,11 +66,9 @@ def _execute_ase(
     command_list = [
         f"cp {inputs[0].filepath} {DEFAULT_EXECUTABLE}",
         " ".join(command_opt_args),
-        "exit 0",  # ignore timeout exitcode
     ]
-    template = psiflow.context().bash_template
     commands, env = "\n".join(command_list), format_env_vars(env_vars)
-    return template.format(commands=commands, env=env)
+    return bash_template.format(commands=commands, env=env)
 
 
 execute_ase = bash_app(_execute_ase, executors=["ModelEvaluation"])
@@ -123,6 +122,7 @@ def optimize(
     result = execute_ase(
         command_launch=command_launch,
         env_vars=definition.env_vars,
+        bash_template=context.bash_template,
         inputs=inputs,
         outputs=outputs,
         parsl_resource_specification=definition.wq_resources(1),

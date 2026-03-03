@@ -424,6 +424,7 @@ def _execute_ipi(
     command_server: str,
     *plumed_list: str,
     env_vars: dict = {},
+    bash_template: str = "",
     stdout: str = parsl.AUTO_LOGNAME,
     stderr: str = parsl.AUTO_LOGNAME,
     inputs: list = [],
@@ -459,9 +460,8 @@ def _execute_ipi(
     if coupling_command:
         command_list.append(coupling_command)
 
-    template = psiflow.context().bash_template
     commands, env = "\n".join(command_list), format_env_vars(env_vars)
-    return template.format(commands=commands, env=env)
+    return bash_template.format(commands=commands, env=env)
 
 
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
@@ -599,6 +599,7 @@ def _sample(
         definition.server_command(),
         *plumed_list,  # futures
         env_vars=dict(definition.env_vars),
+        bash_template=context.bash_template,
         inputs=inputs,
         outputs=outputs,
         parsl_resource_specification=definition.wq_resources(max_nclients),

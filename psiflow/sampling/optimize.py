@@ -97,6 +97,7 @@ def _execute_ipi(
     driver_kwargs: list[dict],
     command_server: str,
     env_vars: dict = {},
+    bash_template: str = "",
     stdout: str = parsl.AUTO_LOGNAME,
     stderr: str = parsl.AUTO_LOGNAME,
     inputs: list = [],
@@ -117,9 +118,8 @@ def _execute_ipi(
         *commands_driver,
         "wait",
     ]
-    template = psiflow.context().bash_template
     commands, env = "\n".join(command_list), format_env_vars(env_vars)
-    return template.format(commands=commands, env=env)
+    return bash_template.format(commands=commands, env=env)
 
 
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
@@ -186,6 +186,7 @@ def optimize(
         driver_kwargs,
         definition.server_command(),
         env_vars=definition.env_vars,
+        bash_template=context.bash_template,
         inputs=inputs,
         outputs=outputs,
         parsl_resource_specification=definition.wq_resources(1),
