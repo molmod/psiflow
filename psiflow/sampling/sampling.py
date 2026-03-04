@@ -1,6 +1,7 @@
 import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from itertools import cycle
 from typing import Optional, Union, Iterable
 
 import parsl
@@ -8,6 +9,7 @@ import numpy as np
 from parsl.app.app import bash_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture, DataFuture
+from sympy import print_glsl
 
 import psiflow
 from psiflow.data import Dataset
@@ -362,6 +364,42 @@ def setup_smotion(
     return smotion
 
 
+def define_clients_n_kwargs(
+    walkers: list[Walker],
+    components: list[HamiltonianComponent],
+    definition: "ModelEvaluation",
+    defaults: dict,
+) -> tuple[list[dict], int]:
+    """Figure out i-Pi MD driver (force evaluator) configuration.
+    How many clients with which arguments on which resources?"""
+
+    # separate hamiltonian components by computational cost
+    cheap, expensive = {}, {}
+    for i, comp in enumerate(components):
+        # the "idx" key corresponds with a serialized function in app inputs
+        if isinstance(comp.hamiltonian, MACEHamiltonian):
+            expensive[i] = comp
+        else:
+            cheap[i] = comp
+
+    # cheap drivers only get a single client
+    cheap_kwargs = []
+    for i, comp in cheap.items():
+        cheap_kwargs.append(defaults | {"idx": i, "address": comp.address})
+
+    # expensive drivers are assigned to clients by ModelEvaluation
+    # TODO: currently there is no distinction between global MLPs (for every system) and
+    #  bias MLPs (for a few systems in the total simulation), possibly leading to load balancing problems
+    n_systems = int(sum([w.nbeads for w in walkers]))
+    expensive_kwargs = definition.get_driver_resources(n_systems, len(expensive))
+    driver_iterator = cycle(expensive.items())
+    for kwargs, (i, comp) in zip(expensive_kwargs, driver_iterator):
+        # TODO: should dtype be configurable?
+        kwargs |= defaults | {"idx": i, "address": comp.address, "dtype": "float32"}
+
+    return cheap_kwargs + expensive_kwargs, len(expensive_kwargs)
+
+
 def make_server_command(
     command: str,
     input_xml: File,
@@ -392,6 +430,7 @@ def make_driver_commands(
     driver_kwargs: list[dict], file_xyz: File, files_hamiltonian: list[File]
 ) -> list[str]:
     """"""
+    # TODO: what if 'file_xyz' contains multiple geometries of different size?
     assert len(driver_kwargs) >= len(files_hamiltonian)
     default = f'i-pi-driver-py -u -S "" -m custom -P {PATH_DRIVER} -a {{address}} -o {{options}} &'
 
@@ -548,28 +587,13 @@ def _sample(
 
     # app setup and IO
     context = psiflow.context()
-    definition = context.definitions["ModelEvaluation"]
     input_file = context.new_file("input_", ".xml")
     _save_xml(simulation, outputs=[input_file])
     inputs = [
         input_file,
         Dataset([w.state for w in walkers]).extxyz,
+        *[c.hamiltonian.serialize_function() for c in hamiltonian_components],
     ]
-
-    # figure out i-Pi MD driver configuration
-    # how many drivers (force evaluators) with which arguments?
-    # remove any Harmonic instances because they are not implemented with sockets     -- TODO: why?
-    max_nclients = int(sum([w.nbeads for w in walkers]))
-    driver_kwargs = []
-    for i, comp in enumerate(hamiltonian_components):
-        inputs.append(comp.hamiltonian.serialize_function())
-        kwargs = {"idx": i, "address": comp.address, "max_force": max_force}
-        if isinstance(comp.hamiltonian, MACEHamiltonian):
-            kwargs["dtype"] = "float32"  # TODO: should this be configurable?
-            for instance_kwargs in definition.get_driver_devices(max_nclients):
-                driver_kwargs.append(kwargs | instance_kwargs)
-        else:
-            driver_kwargs.append(kwargs)
 
     outputs = [context.new_file("data_", ".xyz")]
     outputs += [context.new_file("simulation_", ".txt") for _ in walkers]
@@ -590,6 +614,11 @@ def _sample(
     else:
         coupling_copy_command = None
 
+    definition = context.definitions["ModelEvaluation"]
+    driver_kwargs, n_clients = define_clients_n_kwargs(
+        walkers, hamiltonian_components, definition, {"max_force": max_force}
+    )
+
     # TODO: an app to check for valid input? (e.g., PBC + barostat)
     result = execute_ipi(
         len(walkers),
@@ -602,7 +631,7 @@ def _sample(
         bash_template=context.bash_template,
         inputs=inputs,
         outputs=outputs,
-        parsl_resource_specification=definition.wq_resources(max_nclients),
+        parsl_resource_specification=definition.wq_resources(n_clients),
     )
 
     # process MD output

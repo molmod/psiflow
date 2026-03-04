@@ -41,9 +41,9 @@ class ContainerSpec:
     """Controls container configuration"""
 
     uri: str
-    engine: str = "apptainer"
+    engine: str
     addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs"
-    gpu_flavour: str | None = None  # TODO: add yaml argument
+    gpu_flavour: str | None = None
 
     def __post_init__(self):
         assert self.engine in ("apptainer", "singularity")
@@ -63,9 +63,9 @@ class ContainerSpec:
     def from_kwargs(kwargs: dict) -> Optional["ContainerSpec"]:
         if "container_uri" not in kwargs:
             return None
-        keys = ("container_uri", "container_engine", "container_addopts")
-        args = [kwargs[key] for key in keys if key in kwargs]
-        return ContainerSpec(*args)
+        keys = ("uri", "engine", "addopts", "gpu_flavour")
+        kwargs = {k: kwargs[k2] for k in keys if (k2 := f"container_{k}") in kwargs}
+        return ContainerSpec(**kwargs)
 
 
 class ReferenceSpec(Protocol):
@@ -226,7 +226,6 @@ class ExecutionDefinition:
         self.kwargs = executor_kwargs
         self.resources = resources  # compute per node
         self.container = container
-        self.env_vars = env_vars or {}
 
         if self.use_gpu:
             msg = ""
@@ -253,7 +252,7 @@ class ExecutionDefinition:
 
         # how long can individual tasks run (in seconds)
         if max_runtime is None:
-            # allow some margin for task cleanup  TODO: pretty random
+            # allow some margin for task cleanup
             max_runtime = max(0.9 * self.lifetime, self.lifetime - 60)
         else:
             max_runtime = str_to_timedelta(max_runtime).seconds
@@ -262,8 +261,8 @@ class ExecutionDefinition:
             warnings.warn(msg)
         self.max_runtime = max_runtime
 
-        # set default WQ resource specs  TODO: type_hint
-        self.spec = None
+        # set default WQ resource specs
+        self.spec: dict | None = None
         if self.executor_type == "workqueue":
             self.spec = {
                 "cores": self.kwargs["cores_per_task"],
@@ -274,7 +273,21 @@ class ExecutionDefinition:
             }
         register_definition(definition=self)
 
+        # handle task environment variables
         # TODO: how to handle env variables?
+        if self.executor_type == "threadpool":
+            # disable thread affinity and busy-idling
+            default_env_vars = {
+                "OMP_PROC_BIND": "FALSE",
+                "OMP_WAIT_POLICY": "PASSIVE",
+                "OMP_NUM_THREADS": f"{self.cores_per_task}",
+                # "OMP_DISPLAY_ENV": "VERBOSE",  # verbose OMP log
+            }
+        else:
+            # assert False, "IMPLEMENT THIS"
+            default_env_vars = {}
+        self.env_vars = default_env_vars | (env_vars or {})
+
         # TODO: check between min_runtime and max_runtime?
 
         pass
@@ -300,6 +313,19 @@ class ExecutionDefinition:
             return self.kwargs["cores_per_task"]
         # assumes all threads are working
         return int(self.resources["cores"] / self.kwargs["max_threads"])
+
+    @property
+    def task_slots(self) -> int:
+        if self.executor_type == "threadpool":
+            return self.kwargs["max_threads"]
+
+        slots = self.resources["cores"] // self.cores_per_task
+        gpu_slots, memory_slots = float("inf"), float("inf")
+        if self.use_gpu:
+            gpu_slots = self.resources["gpus"] // self.kwargs["gpus_per_task"]
+        if (mem_per_task := self.kwargs["mem_per_task"]) > 0:
+            memory_slots = self.resources["memory"] // mem_per_task
+        return min(slots, gpu_slots, memory_slots)
 
     def wrap_in_timeout(self, command: str) -> str:
         if self.max_runtime == float("inf"):
@@ -337,19 +363,18 @@ class ExecutionDefinition:
         worker_executable = "work_queue_worker"
         if not isinstance(self, ReferenceEvaluation) and self.container:
             # ModelEvaluation / ModelTraining run in container themselves
-            # Reference instances launch tasks in container
+            # Reference launches tasks in container
             prepend = self.container.launch_command()
             worker_executable = f"{prepend} {worker_executable}"
 
         # TODO: why the custom WQ? -- does not seem necessary (anymore)
-        # executor = MyWorkQueueExecutor(
         executor = WorkQueueExecutor(
             label=self.name,
             working_dir=str(path / self.name),
             provider=self.provider,
             shared_fs=True,
             # autocategory=False,
-            # port=0,
+            port=0,  # avoid multiple executors trying to use the same port
             # max_retries=1,
             # coprocess=False,
             worker_options=" ".join(worker_options),
@@ -420,57 +445,79 @@ class ModelEvaluation(ExecutionDefinition):
     def __init__(
         self,
         timeout: float = 5.0,
+        max_resource_multiplier: int | None = None,
+        allow_oversubscription: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
 
-        self.timeout = timeout  # i-Pi will kill client connections after no response for timeout seconds
+        if self.use_gpu and self.kwargs['gpus_per_task'] > 1:
+            # TODO: 'ConfigurationError' maybe?
+            raise ValueError("No Hamiltonian can do multi-GPU evaluation")
 
-        if self.executor_type == "threadpool":
-            # disable thread affinity and busy-idling
-            env_vars = {
-                "OMP_PROC_BIND": "FALSE",
-                "OMP_WAIT_POLICY": "PASSIVE",
-                "OMP_NUM_THREADS": f"{self.cores_per_task}",
-                # "OMP_DISPLAY_ENV": "VERBOSE",  # verbose OMP log
-            }
-        else:
-            assert False, "IMPLEMENT THIS"
-        self.env_vars = env_vars | self.env_vars
+        # i-Pi will kill client connections after no response for timeout seconds
+        self.timeout = timeout
+
+        # allow MD tasks to consume more computational resources based on walkers and hamiltonians
+        # but never more than available in a single resource block
+        if max_resource_multiplier is None:
+            max_resource_multiplier = self.task_slots
+        elif max_resource_multiplier > self.task_slots:
+            warnings.warn(
+                "Provided 'max_resource_multiplier' exceeds available task slots "
+                f"({max_resource_multiplier} -> {self.task_slots}). "
+                f"Limiting 'max_resource_multiplier'."
+            )
+            max_resource_multiplier = self.task_slots
+        self.max_resource_multiplier = max_resource_multiplier
+
+        # whether i-Pi clients are allowed to share cores/GPUs
+        self.allow_oversubscription = allow_oversubscription
 
     def server_command(self) -> str:
         command = "psiflow-server"
         return self.wrap_in_timeout(command)
 
-    def get_driver_devices(self, nwalkers: int) -> list[dict]:
-        # assumes driver is GPU capable
-        # TODO: what if only 1 gpu is available? Redo this
-        # nclients = min(nwalkers, self.max_workers)
-        nclients = min(nwalkers, 2)
-        if self.use_gpu:
-            return [{"device": f"cuda:{i}"} for i in range(nclients)]
-        else:
-            return [{"device": "cpu"} for _ in range(nclients)]
+    def get_driver_resources(self, n_walkers: int, n_drivers: int) -> list[dict]:
+        """Divide 'expensive' drivers over available resources."""
+        n_clients = n_walkers * n_drivers
+        m = self.max_resource_multiplier
 
-    def wq_resources(self, nwalkers: int) -> dict:
+        if n_drivers > m and not self.allow_oversubscription:
+            # the combination of drivers does not fit on available resources
+            raise ValueError(
+                f"Simulation with {n_drivers} independent drivers not possible. "
+                f"Either increase 'max_resource_multiplier' or enable resource oversubscription."
+            )
+        if n_clients > m and self.allow_oversubscription:
+            warnings.warn(
+                f"Simulation wants to employ {n_clients} clients, "
+                f"but can only use {m}x the per-client budget. "
+                f"Oversubscribing CPU/GPU resources."
+            )
+        elif n_clients > m and not self.allow_oversubscription:
+            # limit total numer of clients so they do not fight over resources
+            n_clients = m
+
+        # TODO: what if (n_clients % n_drivers != 0)
+        #  you will have more copies of some drivers and fewer of others..
+        # TODO: what if (n_clients % m != 0)
+        #  you will have more clients on some GPUs than others
+
+        if not self.use_gpu:
+            return [{"device": "cpu"} for _ in range(n_clients)]
+        return [{"device": f"cuda:{_ % m}"} for _ in range(n_clients)]
+
+    def wq_resources(self, n_clients: int) -> dict:
         if self.spec is None:
             return {}  # threadpool
-        # TODO: reimplement this
-        return self.spec
 
-    # def wq_resources(self, nwalkers):
-    #     if self.use_threadpool:
-    #         return {}
-    #     nclients = min(nwalkers, self.max_workers)
-    #     resource_specification = {}
-    #     resource_specification["cores"] = nclients * self.cores_per_worker
-    #     resource_specification["disk"] = 1000  # some random nontrivial amount?
-    #     memory = 2000 * self.cores_per_worker  # similarly rather random
-    #     resource_specification["memory"] = int(memory)
-    #     resource_specification["running_time_min"] = self.max_simulation_time
-    #     if self.gpu:
-    #         resource_specification["gpus"] = nclients
-    #     return resource_specification
+        spec = self.spec.copy()
+        multi = min(n_clients, self.max_resource_multiplier)
+        spec["cores"] *= multi
+        spec["gpus"] *= multi
+        spec["memory"] *= multi
+        return spec
 
 
 class ModelTraining(ExecutionDefinition):
@@ -654,6 +701,8 @@ class ExecutionContext:
         cls,
         parsl_log_level: str,
         default_threads: int,
+        garbage_collect: bool,
+        retries: int,
         **kwargs,
     ) -> "ExecutionContext":
         path = Path.cwd().resolve() / PSIFLOW_INTERNAL
@@ -693,7 +742,11 @@ class ExecutionContext:
         executors.extend(internal)
 
         config = Config(
-            executors=executors, run_dir=str(path), initialize_logging=False
+            executors=executors,
+            run_dir=str(path),
+            initialize_logging=False,
+            garbage_collect=garbage_collect,
+            retries=retries,
         )
         return ExecutionContext(config, definitions, path / "context_dir", **kwargs)
 
@@ -827,10 +880,11 @@ DEFAULT_CONFIG = """
 parsl_log_level: WARNING
 usage_tracking: 3
 default_threads: 4
-max_idletime: 20
 tmpdir_root: /tmp
 keep_tmpdirs: false
-gpu_flavour: nvidia
+container_engine: apptainer
+garbage_collect: true
+retries: 0
 
 ModelEvaluation:
   executor: threadpool
@@ -860,7 +914,7 @@ def create_bash_template(tmpdir_root: str, keep_tmpdirs: bool) -> str:
     # Create and move into new tmpdir for app execution
     tmpdir=$(mktemp -d -p {tmpdir_root} "psiflow-tmp.XXXXXXXXXX")
     cd $tmpdir; echo "tmpdir: $PWD"
-    export {{env}}
+    {{env}}
     printenv
 
     # Actual app definition goes here
@@ -874,9 +928,33 @@ def create_bash_template(tmpdir_root: str, keep_tmpdirs: bool) -> str:
 
 
 def format_env_vars(env_vars: dict) -> str:
-    return " ".join([f"{k}={v}" for k, v in env_vars.items()])
+    if len(env_vars) == 0:
+        return ""
+    return "export" + " ".join([f"{k}={v}" for k, v in env_vars.items()])
 
 
 def str_to_timedelta(s: str) -> timedelta:
     t = datetime.strptime(s, "%H:%M:%S")
     return timedelta(hours=t.hour, minutes=t.minute, seconds=t.second)
+
+
+def log_dfk_tasks(verbose: bool = False):
+    """Get an overview of all tasks stored in the parsl DFK. For debugging purposes."""
+    dfk = parsl.dfk()
+    parsl.wait_for_current_tasks()
+    log = ["- Parsl task overview -"]
+    if not verbose:
+        log += [f"{i}\t{d['func_name']}" for i, d in dfk.tasks.items()]
+        log.append("- Parsl task overview -")
+        print(*log, sep="\n")
+        return
+
+    for i, d in dfk.tasks.items():
+        args = [(_.split("/")[-1] if isinstance(_, str) else _) for _ in d["args"]]
+        if "inputs" in (kwargs := d["kwargs"]):
+            kwargs["inputs"] = [f.filename for f in kwargs["inputs"]]
+        if "outputs" in kwargs:
+            kwargs["outputs"] = [f.filename for f in kwargs["outputs"]]
+        log.append(f"\n{i}\t{d['func_name']:<30}\n{args}\n{kwargs}")
+    log.append("- Parsl task overview -")
+    print(*log, sep="\n")
