@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Union
 
 import parsl
@@ -9,7 +10,6 @@ from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.utils.apps import setup_logger
 from psiflow.utils.io import _dump_json
 from psiflow.utils.parse import get_task_name_id
 from psiflow.execution import format_env_vars
@@ -17,7 +17,7 @@ from psiflow.execution import format_env_vars
 from ._ase import ALLOWED_MODES, __file__ as file_ase
 
 DEFAULT_EXECUTABLE = "script.py"
-logger = setup_logger(__name__)  # logging per module
+logger = logging.getLogger(__name__)
 
 
 class OptimisationFailedError(Exception):

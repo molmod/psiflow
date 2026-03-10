@@ -1,25 +1,12 @@
 import logging
 import shutil
 import sys
-import warnings
 import subprocess
-import textwrap
 import inspect
-from datetime import datetime, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import (
-    Any,
-    Optional,
-    Union,
-    ClassVar,
-    Protocol,
-    Iterable,
-    Sequence,
-    Callable,
-    TypeVar,
-)
+from typing import Any, Optional, Union, ClassVar, Protocol, Sequence, TypeVar
 
 import parsl
 import psutil
@@ -37,13 +24,24 @@ from parsl.launchers.base import Launcher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
-from psiflow.utils.config import PSIFLOW_INTERNAL, PARSL_LOGFILE, PSIFLOW_LOGFILE
+from psiflow.utils.config import (
+    PSIFLOW_INTERNAL,
+    PARSL_LOGFILE,
+    PSIFLOW_LOGFILE,
+    DEFAULT_CONFIG,
+    CONTEXT_DIR,
+)
 from psiflow.utils.logging import setup_logging
+from psiflow.utils.wq import register_definition
+from psiflow.utils.apps import create_bash_template
+from psiflow.utils.parse import str_to_timedelta
 
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
+class ConfigurationError(ValueError):
+    pass  # some global psiflow configuration option does not make sense
 
 
 @dataclass
@@ -149,7 +147,7 @@ def make_slurm_provider(kwargs: dict) -> tuple[SlurmProvider, dict]:
     resources = {
         "nodes": provider.nodes_per_block,
         "cores": provider.cores_per_node,
-        "memory": provider.mem_per_node,
+        "memory": provider.mem_per_node or float("inf"),
         "gpus": provider.gpus_per_node,
         "lifetime": str_to_timedelta(provider.walltime).seconds,
     }
@@ -232,21 +230,20 @@ class ExecutionDefinition:
             elif container is not None and container.gpu_flavour is None:
                 msg = "Provide container 'gpu_flavour' to choose between CUDA and ROCM"
             if msg:
-                raise ValueError(msg)
+                raise ConfigurationError(msg)
 
         if self.executor_type == "workqueue":
-            # WQ-specific checks TODO: check that WQ kwargs do not exceed resources?
+            # WQ-specific checks
             msg = ""
             if self.kwargs["gpus_per_task"] > resources["gpus"]:
                 msg = "GPUs"
             if self.kwargs["cores_per_task"] > resources["cores"]:
                 msg = "cores"
-            if self.kwargs["mem_per_task"] > (resources["memory"] or float("inf")):
-                # TODO: do we need memory=None anywhere? otherwise default to inf?
+            if self.kwargs["mem_per_task"] > resources["memory"]:
                 msg = "memory"
             if msg:
                 msg = f"Apps will request more {msg} than available per Parsl block"
-                raise ValueError(msg)
+                raise ConfigurationError(msg)
 
         # how long can individual tasks run (in seconds)
         if max_runtime is None:
@@ -256,14 +253,14 @@ class ExecutionDefinition:
             max_runtime = str_to_timedelta(max_runtime).seconds
         if max_runtime != float("inf") and max_runtime >= self.lifetime:
             msg = "Allowed task runtime exceeds provider walltime. Tasks might get killed by the scheduler."
-            warnings.warn(msg)
+            logger.warning(msg)
         self.max_runtime = max_runtime
         if (
             self.executor_type == "workqueue"
             and self.kwargs["min_runtime"] >= self.max_runtime
         ):
             msg = "Minimum task runtime exceeds maximum runtime. WQ might not not start tasks."
-            warnings.warn(msg)
+            logger.warning(msg)
 
         # set default WQ resource specs
         self.spec: dict | None = None
@@ -338,10 +335,10 @@ class ExecutionDefinition:
         # send SIGTERM after max_runtime, follow with SIGKILL 30s later
         return f"timeout -k 30s {self.max_runtime}s {command}"
 
-    def wrap_in_srun(self, command: str) -> str:
-        # TODO: stub -- this does not work
-        if self.provider is None:
-            return command  # noop
+        # def wrap_in_srun(self, command: str) -> str:
+        #     # TODO: stub -- this does not work
+        #     if self.provider is None:
+        #         return command  # noop
 
         return f"srun -t 1 -c $CORES {command}"
 
@@ -397,8 +394,8 @@ class ExecutionDefinition:
     @classmethod
     def from_config(
         cls,
-        executor: str,  # TODO: no default value?
-        container: Optional[ContainerSpec],
+        executor: str = "workqueue",
+        container: Optional[ContainerSpec] = None,
         **kwargs,
     ):
         if executor == "threadpool":
@@ -423,7 +420,9 @@ class ExecutionDefinition:
             min_runtime = kwargs.get("min_runtime", "00:00:00")
             executor_kwargs["min_runtime"] = str_to_timedelta(min_runtime).seconds
         else:
-            raise ValueError("Key 'executor' must be 'threadpool' or 'workqueue'")
+            raise ConfigurationError(
+                "Key 'executor' must be 'threadpool' or 'workqueue'"
+            )
 
         # search for Parsl ExecutionProvider block, defaulting to "local"
         if "slurm" in kwargs:
@@ -457,8 +456,7 @@ class ModelEvaluation(ExecutionDefinition):
         super().__init__(**kwargs)
 
         if self.use_gpu and self.kwargs["gpus_per_task"] > 1:
-            # TODO: 'ConfigurationError' maybe?
-            raise ValueError("No Hamiltonian can do multi-GPU evaluation")
+            raise ConfigurationError("No Hamiltonian can do multi-GPU evaluation")
 
         # i-Pi will kill client connections after no response for timeout seconds
         self.timeout = timeout
@@ -468,7 +466,7 @@ class ModelEvaluation(ExecutionDefinition):
         if max_resource_multiplier is None:
             max_resource_multiplier = self.task_slots
         elif max_resource_multiplier > self.task_slots:
-            warnings.warn(
+            logger.warning(
                 "Provided 'max_resource_multiplier' exceeds available task slots "
                 f"({max_resource_multiplier} -> {self.task_slots}). "
                 f"Limiting 'max_resource_multiplier'."
@@ -490,12 +488,12 @@ class ModelEvaluation(ExecutionDefinition):
 
         if n_drivers > m and not self.allow_oversubscription:
             # the combination of drivers does not fit on available resources
-            raise ValueError(
+            raise ConfigurationError(
                 f"Simulation with {n_drivers} independent drivers not possible. "
                 f"Either increase 'max_resource_multiplier' or enable resource oversubscription."
             )
         if n_clients > m and self.allow_oversubscription:
-            warnings.warn(
+            logger.warning(
                 f"Simulation wants to employ {n_clients} clients, "
                 f"but can only use {m}x the per-client budget. "
                 f"Oversubscribing CPU/GPU resources."
@@ -530,7 +528,7 @@ class ModelTraining(ExecutionDefinition):
         super().__init__(**kwargs)
 
         if not self.use_gpu:
-            warnings.warn(
+            logger.warning(
                 "ModelTraining is configured for CPU operation. Is this what you want?"
             )
 
@@ -566,7 +564,7 @@ class ReferenceEvaluation(ExecutionDefinition):
         self.memory_limit = memory_limit  # in GB
 
         if self.use_gpu:
-            warnings.warn("Reference calculations do not support GPU computation yet.")
+            logger.warning("Reference calculations do not support GPU computation yet.")
 
     def command(self):
         command = self.reference.launch_command()
@@ -661,6 +659,7 @@ class ExecutionContext:
     def from_config(
         cls,
         parsl_log_level: str,
+        psiflow_log_level: str,
         default_threads: int,
         **kwargs,
     ) -> "ExecutionContext":
@@ -674,7 +673,7 @@ class ExecutionContext:
         log_file = str(path / PARSL_LOGFILE)
         log_level = getattr(logging, parsl_log_level)
         parsl.set_file_logger(filename=log_file, name="parsl", level=log_level)
-        setup_logging(file=path / PSIFLOW_LOGFILE)  # TODO
+        setup_logging(file=path / PSIFLOW_LOGFILE, level=psiflow_log_level)
 
         # default container for ModelEvaluation and ModelTraining
         base_container = None
@@ -716,7 +715,7 @@ class ExecutionContext:
             initialize_logging=False,
             **kwargs,
         )
-        return ExecutionContext(config, definitions, path / "context_dir", **kwargs)
+        return ExecutionContext(config, definitions, path / CONTEXT_DIR, **kwargs)
 
 
 class ExecutionContextLoader:
@@ -796,67 +795,6 @@ wait
         return x
 
 
-# TODO: move everything below to appropriate files
-
-# TODO: attempt at managing priority through global state
-WQ_RESOURCES_REGISTRY = []
-
-
-def register_definition(definition: ExecutionDefinition) -> None:
-    """"""
-    if (spec := definition.spec) is None:
-        return  # threadpool does not have priority
-
-    WQ_RESOURCES_REGISTRY.append((definition.name, spec))
-    spec["priority"] = SetWQPriority.default
-
-
-class SetWQPriority:
-    """Manage the WQ priority tag as context manager"""
-
-    # TODO: this probably does not work in a nested way
-    # TODO: log to parsl.log?
-    default = 0
-
-    def __init__(self, value: int, verbose: bool = False) -> None:
-        self.value = value
-        self.verbose = verbose
-
-    def __enter__(self):
-        if self.verbose:
-            print(f"SetWQPriority setting priority:\t{self.value}")
-        for n, spec in WQ_RESOURCES_REGISTRY:
-            spec["priority"] = self.value
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.verbose:
-            print(f"SetWQPriority unsetting {self.value}")
-        for n, spec in WQ_RESOURCES_REGISTRY:
-            spec["priority"] = SetWQPriority.default
-
-
-# This is the default psiflow config which is always passed into the ExecutionContext
-# TODO: find a place for this
-DEFAULT_CONFIG = """
-parsl_log_level: WARNING
-usage_tracking: 3
-default_threads: 4
-tmpdir_root: /tmp
-keep_tmpdirs: false
-garbage_collect: true
-retries: 0
-
-ModelEvaluation:
-  executor: threadpool
-  max_threads: 2
-
-ModelTraining:
-  executor: threadpool
-  max_threads: 2
-"""
-
-
 def patch_parsl_dirtree() -> None:
     """By default, Parsl will put Executor logs etc. under numbered directories.
     We do not need this level of nesting, as psiflow_internal is refreshed every run"""
@@ -864,61 +802,6 @@ def patch_parsl_dirtree() -> None:
 
     # replace with noop, which needs to happen after parsl.dataflow.dflow initialises
     parsl.dataflow.dflow.make_rundir = lambda x: x
-
-
-# TODO: arguments that need documenting: retries, strategy?, timeout, garbage_collect (Config)
-
-
-def create_bash_template(tmpdir_root: str, keep_tmpdirs: bool) -> str:
-    """Create general wrapper for all bash apps. The exitcode ensures that every app completes successfully."""
-    template = f"""
-    # Create and move into new tmpdir for app execution
-    tmpdir=$(mktemp -d -p {tmpdir_root} "psiflow-tmp.XXXXXXXXXX")
-    cd $tmpdir; echo "tmpdir: $PWD"
-    {{env}}
-    printenv
-
-    # Actual app definition goes here
-    {{commands}}
-
-    # Cleanup
-    {'cd ../.. && rm -r $tmpdir' if not keep_tmpdirs else ''}
-    exit 0
-    """
-    return textwrap.dedent(template)
-
-
-def format_env_vars(env_vars: dict) -> str:
-    if len(env_vars) == 0:
-        return ""
-    return "export" + " ".join([f"{k}={v}" for k, v in env_vars.items()])
-
-
-def str_to_timedelta(s: str) -> timedelta:
-    t = datetime.strptime(s, "%H:%M:%S")
-    return timedelta(hours=t.hour, minutes=t.minute, seconds=t.second)
-
-
-def log_dfk_tasks(verbose: bool = False):
-    """Get an overview of all tasks stored in the parsl DFK. For debugging purposes."""
-    dfk = parsl.dfk()
-    parsl.wait_for_current_tasks()
-    log = ["- Parsl task overview -"]
-    if not verbose:
-        log += [f"{i}\t{d['func_name']}" for i, d in dfk.tasks.items()]
-        log.append("- Parsl task overview -")
-        print(*log, sep="\n")
-        return
-
-    for i, d in dfk.tasks.items():
-        args = [(_.split("/")[-1] if isinstance(_, str) else _) for _ in d["args"]]
-        if "inputs" in (kwargs := d["kwargs"]):
-            kwargs["inputs"] = [f.filename for f in kwargs["inputs"]]
-        if "outputs" in kwargs:
-            kwargs["outputs"] = [f.filename for f in kwargs["outputs"]]
-        log.append(f"\n{i}\t{d['func_name']:<30}\n{args}\n{kwargs}")
-    log.append("- Parsl task overview -")
-    print(*log, sep="\n")
 
 
 # TODO: after 3.12, this is no longer needed

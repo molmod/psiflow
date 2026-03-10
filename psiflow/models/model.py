@@ -1,5 +1,6 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import logging
 from dataclasses import asdict
 from pathlib import Path
 from typing import Optional, Union
@@ -11,10 +12,11 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.utils.apps import copy_data_future, log_message, setup_logger
+from psiflow.utils.apps import copy_data_future, log_message
 from psiflow.utils.io import save_yaml
 
-logger = setup_logger(__name__)
+
+logger = logging.getLogger(__name__)
 
 
 @typeguard.typechecked

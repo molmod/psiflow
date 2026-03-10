@@ -146,11 +146,10 @@ def test_cp2k_parse_output():
 
  ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]:              -14.202993407031412
 
- ATOMIC FORCES in [a.u.]
-
- # Atom   Kind   Element          X              Y              Z
-      1      1      O           0.00000000     0.00000000     0.00000000
- SUM OF ATOMIC FORCES           0.00000000     0.00000000     0.00000000     0.00000000
+ FORCES| Atomic forces [hartree/bohr]
+ FORCES|   Atom     x               y               z               |f|
+ FORCES|      1  0  0  0  0
+ FORCES| Sum            0.00000000     0.00000000     0.00000000     0.00000000
 
  STRESS| Analytical stress tensor [GPa]
  STRESS|                        x                   y                   z
@@ -169,7 +168,7 @@ def test_cp2k_parse_output():
  
 ### SKIPPED A BIT ###
  
-  -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
  -                                                                             -
  -                                T I M I N G                                  -
  -                                                                             -
@@ -223,7 +222,7 @@ def test_cp2k_success(simple_cp2k_input, geom_h2_p):
         if "Number of threads for this process" in line:
             nthreads = int(line.split()[-1])
     definition = psiflow.context().definitions["CP2K"]
-    ncores = definition.cores_per_worker
+    ncores = definition.cores_per_task
     assert ncores == nprocesses
     assert 1 == nthreads
 
@@ -306,7 +305,6 @@ def test_cp2k_failure(geom_h2_p):
 
 
 def test_cp2k_memory(simple_cp2k_input):
-    # TODO: test_cp2k_memory == test_cp2k_timeout until memory constraints work
     reference = CP2K(simple_cp2k_input)
     geometry = Geometry.from_data(
         numbers=np.ones(4000),

@@ -3,12 +3,10 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 import numpy as np
-import typeguard
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
 
-@typeguard.typechecked
 def _save_yaml(
     input_dict: dict,
     outputs: list[File] = [],
@@ -39,7 +37,6 @@ def _save_yaml(
 save_yaml = python_app(_save_yaml, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _save_xml(
     element: ET.Element,
     outputs: list = [],
@@ -52,7 +49,6 @@ def _save_xml(
 save_xml = python_app(_save_xml, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _load_numpy(inputs: list[File] = [], **kwargs) -> np.ndarray:
     return np.loadtxt(inputs[0], **kwargs)
 
@@ -60,8 +56,7 @@ def _load_numpy(inputs: list[File] = [], **kwargs) -> np.ndarray:
 load_numpy = python_app(_load_numpy, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _read_yaml(inputs: list[File] = [], outputs: list[File] = []) -> dict:
+def _read_yaml(inputs: list[File] = []) -> dict:
     import yaml
 
     with open(inputs[0], "r") as f:
@@ -72,7 +67,6 @@ def _read_yaml(inputs: list[File] = [], outputs: list[File] = []) -> dict:
 read_yaml = python_app(_read_yaml, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _save_txt(data: str, outputs: list[File] = []) -> None:
     with open(outputs[0], "w") as f:
         f.write(data)
@@ -81,7 +75,6 @@ def _save_txt(data: str, outputs: list[File] = []) -> None:
 save_txt = python_app(_save_txt, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _load_metrics(inputs: list = []) -> np.recarray:
     # TODO: stop using recarrays
     return np.load(inputs[0], allow_pickle=True)
@@ -90,7 +83,6 @@ def _load_metrics(inputs: list = []) -> np.recarray:
 load_metrics = python_app(_load_metrics, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _save_metrics(data: np.recarray, outputs: list = []) -> None:
     # TODO: stop using recarrays
     with open(outputs[0], "wb") as f:
@@ -100,7 +92,6 @@ def _save_metrics(data: np.recarray, outputs: list = []) -> None:
 save_metrics = python_app(_save_metrics, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _dump_json(
     inputs: list = [],
     outputs: list = [],
