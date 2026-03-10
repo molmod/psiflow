@@ -20,7 +20,7 @@ from psiflow.sampling.sampling import (
 )
 from psiflow.sampling.output import HamiltonianComponent
 from psiflow.utils.io import save_xml
-from psiflow.execution import format_env_vars
+from psiflow.utils.parse import format_env_vars
 
 
 warnings.warn(

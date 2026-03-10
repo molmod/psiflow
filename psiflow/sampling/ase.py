@@ -11,8 +11,7 @@ from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.utils.io import _dump_json
-from psiflow.utils.parse import get_task_name_id
-from psiflow.execution import format_env_vars
+from psiflow.utils.parse import get_task_name_id, format_env_vars
 
 from ._ase import ALLOWED_MODES, __file__ as file_ase
 

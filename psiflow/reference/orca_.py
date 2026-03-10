@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
-from psiflow.utils.parse import find_line, lines_to_array, string_to_timedelta
+from psiflow.utils.parse import find_line, lines_to_array, str_to_timedelta
 
 
 KEY_GHOST = "ghost"
@@ -94,7 +94,7 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     if status == Status.SUCCESS:
         # total runtime
         idx = find_line(lines, "TOTAL RUN TIME", reverse=True, max_lines=5)
-        data["runtime"] = string_to_timedelta(lines[idx][16:])
+        data["runtime"] = str_to_timedelta(lines[idx][16:])
 
     # read coordinates
     idx_start = idx = find_line(lines, "CARTESIAN COORDINATES (ANGSTROEM)") + 2

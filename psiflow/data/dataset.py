@@ -13,7 +13,7 @@ from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
 from psiflow.geometry import QUANTITIES, Geometry
-from psiflow.utils.apps import combine_futures, copy_data_future, unpack_i
+from psiflow.utils.apps import copy_data_future, pack
 
 from .utils import (
     align_axes,
@@ -118,7 +118,7 @@ class Dataset:
                 inputs=[self.extxyz],
                 outputs=[],  # will return Geometry as Future
             )
-            return unpack_i(future, 0)
+            return future[0]
         else:  # slice, list, AppFuture
             extxyz = read_frames(
                 index,
@@ -266,9 +266,9 @@ class Dataset:
             inputs=[self.extxyz],
         )
         if len(quantities) == 1:
-            return unpack_i(result, 0)
+            return result[0]
         else:
-            return tuple([unpack_i(result, i) for i in range(len(quantities))])
+            return tuple([result[i] for i in range(len(quantities))])
 
     def evaluate(
         self,
@@ -301,7 +301,7 @@ class Dataset:
             outputs = [outputs]
         future = insert_quantities(
             quantities=tuple(computable.outputs),
-            arrays=combine_futures(inputs=list(outputs)),
+            arrays=pack(*outputs),
             inputs=[self.extxyz],
             outputs=[psiflow.context().new_file("data_", ".xyz")],
         )

@@ -21,7 +21,7 @@ from psiflow.sampling.output import (
     potential_component_name,
     HamiltonianComponent,
 )
-from psiflow.execution import format_env_vars
+from psiflow.utils.parse import format_env_vars
 from psiflow.sampling.utils import create_xml_list
 from psiflow.sampling.walker import Coupling, Walker, partition, Ensemble
 from psiflow.utils.io import _save_xml

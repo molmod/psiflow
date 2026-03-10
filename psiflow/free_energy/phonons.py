@@ -20,7 +20,7 @@ from psiflow.sampling.sampling import (
 from psiflow.sampling.optimize import setup_forces
 from psiflow.utils.apps import multiply
 from psiflow.utils.io import load_numpy, save_xml
-from psiflow.execution import format_env_vars
+from psiflow.utils.parse import format_env_vars
 
 
 def _compute_frequencies(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:

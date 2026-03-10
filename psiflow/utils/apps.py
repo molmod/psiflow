@@ -77,6 +77,7 @@ log_message = python_app(_log_message, executors=["default_threads"])
 
 @python_app(executors=["default_threads"])
 def pack(*args: Any) -> tuple[Any]:
+    """Combine passed futures into a single future."""
     return args
 
 
@@ -112,6 +113,3 @@ def create_bash_template(tmpdir_root: str, keep_tmpdirs: bool) -> str:
     """
     return textwrap.dedent(template)
 
-
-combine_futures = None
-unpack_i = None
