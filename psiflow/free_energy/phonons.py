@@ -162,7 +162,7 @@ def compute_harmonic(
         inputs.append(comp.hamiltonian.serialize_function(dtype="float64"))
         kwargs = {"idx": i, "address": comp.address}
         if isinstance(comp.hamiltonian, MACEHamiltonian):
-            kwargs |= definition.get_driver_devices(1)[0]
+            kwargs |= definition.get_driver_resources(1, 1)[0]
         driver_kwargs.append(kwargs)
 
     result = execute_ipi(

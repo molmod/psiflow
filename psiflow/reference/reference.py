@@ -93,6 +93,7 @@ def compute_dataset(
 def _execute(
     reference: Reference,
     inputs: list[File],
+    bash_template: str,
     parsl_resource_specification: Optional[dict] = None,
     stdout: str = parsl.AUTO_LOGNAME,
     stderr: str = parsl.AUTO_LOGNAME,
@@ -100,8 +101,7 @@ def _execute(
 ) -> str:
     # TODO: we do not set env_vars here?
     command = reference.get_shell_command(inputs)
-    template = psiflow.context().bash_template
-    return template.format(commands=command, env='>/dev/null')
+    return bash_template.format(commands=command, env=">/dev/null")
 
 
 def _process_output(
@@ -114,7 +114,7 @@ def _process_output(
     try:
         data = reference.parse_output(stdout)
     except LineNotFoundError:
-        # TODO: find out what went wrong
+        # TODO: find out what went wrong?
         data = {"status": Status.FAILED}
     data |= {"stdout": Path(inputs[0]), "stderr": Path(inputs[1])}
     return update_geometry(geom, data)
@@ -123,10 +123,10 @@ def _process_output(
 @join_app
 def evaluate(reference: Reference, geom: Geometry) -> AppFuture[Geometry]:
     """"""
-    if geom == NullState:
+    if geom == NullState:  # TODO: remove this
         warnings.warn("Skipping NullState..")
         return copy_app_future(geom)
-    execute, *files = reference.app_pre(geom=geom)
+    execute, *files = reference.create_input(geom=geom)
     if not execute:  # TODO: should we reset geom?
         return copy_app_future(geom)
     future = reference.app_execute(inputs=files)
@@ -138,14 +138,20 @@ def evaluate(reference: Reference, geom: Geometry) -> AppFuture[Geometry]:
 
 @psiflow.serializable
 class Reference(Computable):
-    outputs: Union[list[str], tuple[str, ...]]
+    outputs: Sequence[str]
     batch_size: ClassVar[int] = 1  # TODO: not really used
-    executor: str
-    app_pre: ClassVar[Callable]  # TODO: fix serialisation
-    app_execute: ClassVar[Callable]
+    app_execute: ClassVar[Callable]  # TODO: fix serialisation
     app_post: ClassVar[Callable]
     _execute_label: ClassVar[str]
     execute_command: str
+    executor: ClassVar[str]
+    n_cores: Optional[int]
+
+    def __init__(
+        self, outputs: Sequence[str] = ("energy", "forces"), n_cores: int | None = None
+    ):
+        self.outputs: tuple[str, ...] = tuple(outputs)
+        self.n_cores = n_cores
 
     def compute(
         self,
@@ -182,14 +188,16 @@ class Reference(Computable):
         return Dataset(future)
 
     def _create_apps(self):
-        definition = psiflow.context().definitions[self.executor]
+        context = psiflow.context()
+        definition = context.definitions[self.executor]
+        if (n := self.n_cores) is not None:
+            assert n <= definition.spec["cores"]
         self.execute_command = definition.command()
-        wq_resources = definition.wq_resources()
-        self.app_pre = self.create_input
         self.app_execute = partial(
             bash_app(_execute, executors=[self.executor]),
             reference=self,
-            parsl_resource_specification=wq_resources,
+            bash_template=context.bash_template,
+            parsl_resource_specification=definition.wq_resources(n),
             label=self._execute_label,
         )
         self.app_post = partial(

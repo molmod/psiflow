@@ -1,7 +1,7 @@
 import warnings
 import re
 from functools import partial
-from typing import Optional, Union
+from typing import Optional, Union, ClassVar
 
 import ase.symbols
 import numpy as np
@@ -121,20 +121,15 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
 
 @psiflow.serializable
 class ORCA(Reference):
+    executor: ClassVar[str] = "ORCA"
     _execute_label = "orca_singlepoint"
     input_template: str
     input_kwargs: dict
 
-    def __init__(
-        self,
-        input_template: str,
-        executor: str = "ORCA",
-        outputs: Union[tuple, list] = ("energy", "forces"),
-    ):
-        self.executor = executor
-        self.input_template = check_input(input_template, outputs)
+    def __init__(self, input_template: str, **kwargs):
+        super().__init__(**kwargs)
+        self.input_template = check_input(input_template, self.outputs)
         self.input_kwargs = DEFAULT_KWARGS.copy()  # TODO: user control?
-        self.outputs = tuple(outputs)
         self._create_apps()
 
     def _create_apps(self):

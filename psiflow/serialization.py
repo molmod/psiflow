@@ -4,6 +4,7 @@ import inspect
 import json
 from pathlib import Path
 from typing import ClassVar, Optional, Union, get_args, get_origin, get_type_hints
+from collections.abc import Sequence
 from dataclasses import InitVar
 
 import typeguard
@@ -81,18 +82,18 @@ def serializable(cls):
             origin = get_origin(type_hint)
             if origin is ClassVar:
                 continue  # do nothing for classvars
-            elif origin == dict:
+            elif origin in (dict, Sequence):
                 kind = "attrs"
             elif isinstance(type_hint, str) and type_hint.startswith("dataclasses"):
                 continue
             elif isinstance(type_hint, InitVar):
                 continue
 
-            if kind is None and not inspect.isclass(type_hint):
+            elif kind is not None and not inspect.isclass(type_hint):
                 raise ValueError(
                     "{} is formally not a class ({})".format(type_hint, name)
                 )
-            if issubclass(type_hint, Serializable):
+            elif issubclass(type_hint, Serializable):
                 kind = "serial"
             elif type_hint is Geometry:
                 kind = "geoms"

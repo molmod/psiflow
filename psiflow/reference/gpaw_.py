@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, ClassVar
 
 from parsl import File
 from parsl.dataflow.futures import AppFuture
@@ -34,22 +34,16 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
 
 @psiflow.serializable
 class GPAW(Reference):
+    executor: ClassVar[str] = "GPAW"
     _execute_label = "gpaw_singlepoint"
     parameters: dict
     script: str
 
-    def __init__(
-        self,
-        parameters: dict,
-        script: str | Path = FILEPATH,
-        outputs: Union[tuple, list] = ("energy", "forces"),
-        executor: str = "GPAW",
-    ):
-        self.outputs = tuple(outputs)
+    def __init__(self, parameters: dict, script: str | Path = FILEPATH, **kwargs):
+        super().__init__(**kwargs)
         self.parameters = parameters
         assert (script := Path(script)).is_file()
         self.script = str(script.resolve())  # absolute path
-        self.executor = executor
         self._create_apps()
 
     def compute_atomic_energy(self, element, box_size=None) -> AppFuture:

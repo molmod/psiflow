@@ -187,7 +187,7 @@ def main():
         run(args.start_xyz, args.input_xml)
         softexit.trigger(status="success", message="@PSIFLOW: We are done here.")
     except ConnectionError:
-        # TODO: in this case, no output files are generated..
+        # TODO: in this case, no output files are generated, so the task fails..
         traceback.print_exc()
         softexit.trigger(status="bad", message="@PSIFLOW: Clients failed to connect.")
     except np.linalg.LinAlgError:

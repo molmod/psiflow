@@ -12,16 +12,16 @@ from psiflow.reference.reference import _execute, _process_output
 
 @psiflow.serializable
 class ReferenceDummy(Reference):
+    executor = "HTEX"
     _execute_label = "dummy_singlepoint"
 
-    def __init__(self, outputs: Union[tuple, list] = ("energy", "forces")):
-        self.outputs = outputs
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self._create_apps()
 
     def _create_apps(self):
         # psiflow.context().definitions does not contain "default_htex"
         self.execute_command = ""
-        self.app_pre = self.create_input
         self.app_execute = partial(
             bash_app(_execute, executors=["default_htex"]),
             reference=self,

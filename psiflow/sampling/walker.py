@@ -14,6 +14,7 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, check_equality
 from psiflow.hamiltonians import Hamiltonian, Zero, combine_hamiltonians
+
 # from psiflow.order_parameters import OrderParameter
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils.apps import copy_app_future
@@ -68,7 +69,7 @@ def get_ensemble_kwargs(walker: "Walker") -> dict:
 @dataclass
 class Walker:
     start: Union[Geometry, AppFuture]
-    hamiltonian: Hamiltonian = Zero()
+    hamiltonian: Hamiltonian = field(default_factory=lambda: Zero())
     timestep: float = 0.5
     temperature: Optional[float] = 300
     pressure: Optional[float] = None
