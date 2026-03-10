@@ -1,17 +1,25 @@
 import logging
-import re
 import shutil
 import sys
 import warnings
 import subprocess
 import textwrap
+import inspect
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-
-# see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
-from typing import Any, Optional, Union, ClassVar, Protocol, Iterable, Sequence
+from typing import (
+    Any,
+    Optional,
+    Union,
+    ClassVar,
+    Protocol,
+    Iterable,
+    Sequence,
+    Callable,
+    TypeVar,
+)
 
 import parsl
 import psutil
@@ -29,11 +37,13 @@ from parsl.launchers.base import Launcher
 from parsl.providers import LocalProvider, SlurmProvider
 from parsl.providers.base import ExecutionProvider
 
+from psiflow.utils.config import PSIFLOW_INTERNAL, PARSL_LOGFILE, PSIFLOW_LOGFILE
+from psiflow.utils.logging import setup_logging
+
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
-PSIFLOW_INTERNAL = "psiflow_internal"  # TODO: move configuration files somewhere
 
 
 @dataclass
@@ -41,7 +51,7 @@ class ContainerSpec:
     """Controls container configuration"""
 
     uri: str
-    engine: str
+    engine: str = "apptainer"
     addopts: str = " --no-eval -e --no-mount home -W /tmp --writable-tmpfs"
     gpu_flavour: str | None = None
 
@@ -52,27 +62,20 @@ class ContainerSpec:
 
     def launch_command(self) -> str:
         pwd = Path.cwd().resolve()  # access to data / internal dir
-        args = [self.engine, "exec", self.addopts, f"--bind {pwd}"]
+        args = [self.engine, "run", self.addopts, f"--bind {pwd}"]
         if self.gpu_flavour == "cuda":
             args.append("--nv")
         elif self.gpu_flavour == "rocm":
             args.append("--rocm")
+        args.append(self.uri)
         return " ".join(args)
-
-    @staticmethod
-    def from_kwargs(kwargs: dict) -> Optional["ContainerSpec"]:
-        if "container_uri" not in kwargs:
-            return None
-        keys = ("uri", "engine", "addopts", "gpu_flavour")
-        kwargs = {k: kwargs[k2] for k in keys if (k2 := f"container_{k}") in kwargs}
-        return ContainerSpec(**kwargs)
 
 
 class ReferenceSpec(Protocol):
     """Defines default options for Reference implementations"""
 
     name: ClassVar[str]
-    reference_args: ClassVar[tuple[str, ...]]  # TODO: update 'cores_per_worker'
+    reference_args: ClassVar[tuple[str, ...]]
     mpi_command: str
     mpi_args: Sequence[str]
     executable: str
@@ -80,19 +83,14 @@ class ReferenceSpec(Protocol):
     def launch_command(self) -> str:
         raise NotImplementedError
 
-    @classmethod
-    def from_kwargs(cls, **kwargs):
-        keys = ("mpi_command", "mpi_args", "executable")
-        return cls(**{k: kwargs[k] for k in keys if k in kwargs})
-
 
 @dataclass
 class CP2KReferenceSpec(ReferenceSpec):
     name = "CP2K"
-    reference_args = ("cores_per_worker",)
-    mpi_command: str = "mpirun -np {cores_per_worker}"
+    reference_args = ("cores_per_task",)
+    mpi_command: str = "mpiexec -n {cores_per_task}"
     mpi_args: Sequence[str] = (
-        "-ENV OMP_NUM_THREADS=1",
+        "-genv OMP_NUM_THREADS=1",
         "--bind-to core",
         "--map-by core",
     )
@@ -105,8 +103,8 @@ class CP2KReferenceSpec(ReferenceSpec):
 @dataclass
 class GPAWReferenceSpec(ReferenceSpec):
     name = "GPAW"
-    reference_args = ("cores_per_worker",)
-    mpi_command: str = "mpirun -np {cores_per_worker}"
+    reference_args = ("cores_per_task",)
+    mpi_command: str = "mpirun -np {cores_per_task}"
     mpi_args: Sequence[str] = (
         "-x OMP_NUM_THREADS=1",
         "--bind-to core",
@@ -260,6 +258,12 @@ class ExecutionDefinition:
             msg = "Allowed task runtime exceeds provider walltime. Tasks might get killed by the scheduler."
             warnings.warn(msg)
         self.max_runtime = max_runtime
+        if (
+            self.executor_type == "workqueue"
+            and self.kwargs["min_runtime"] >= self.max_runtime
+        ):
+            msg = "Minimum task runtime exceeds maximum runtime. WQ might not not start tasks."
+            warnings.warn(msg)
 
         # set default WQ resource specs
         self.spec: dict | None = None
@@ -273,24 +277,24 @@ class ExecutionDefinition:
             }
         register_definition(definition=self)
 
-        # handle task environment variables
         # TODO: how to handle env variables?
+        # disable thread affinity and busy-idling until we can isolate task resources
+        default_env_vars = {
+            "OMP_PROC_BIND": "FALSE",
+            "OMP_WAIT_POLICY": "PASSIVE",
+            "OMP_DISPLAY_ENV": "VERBOSE",  # verbose OMP log
+        }
         if self.executor_type == "threadpool":
-            # disable thread affinity and busy-idling
-            default_env_vars = {
-                "OMP_PROC_BIND": "FALSE",
-                "OMP_WAIT_POLICY": "PASSIVE",
-                "OMP_NUM_THREADS": f"{self.cores_per_task}",
-                # "OMP_DISPLAY_ENV": "VERBOSE",  # verbose OMP log
-            }
+            default_env_vars |= {"OMP_NUM_THREADS": f"{self.cores_per_task}"}
         else:
-            # assert False, "IMPLEMENT THIS"
-            default_env_vars = {}
+            # WQ sets OMP_NUM_THREADS itself
+            pass
+
+        # yaml parsing might un-stringify some keys
+        env_vars = {k: str(v).upper() for k, v in (env_vars or {}).items()}
         self.env_vars = default_env_vars | (env_vars or {})
 
-        # TODO: check between min_runtime and max_runtime?
-
-        pass
+        return
 
     @property
     def name(self) -> str:
@@ -319,13 +323,13 @@ class ExecutionDefinition:
         if self.executor_type == "threadpool":
             return self.kwargs["max_threads"]
 
-        slots = self.resources["cores"] // self.cores_per_task
         gpu_slots, memory_slots = float("inf"), float("inf")
+        cpu_slots = self.resources["cores"] // self.cores_per_task
         if self.use_gpu:
             gpu_slots = self.resources["gpus"] // self.kwargs["gpus_per_task"]
         if (mem_per_task := self.kwargs["mem_per_task"]) > 0:
             memory_slots = self.resources["memory"] // mem_per_task
-        return min(slots, gpu_slots, memory_slots)
+        return min(cpu_slots, gpu_slots, memory_slots)
 
     def wrap_in_timeout(self, command: str) -> str:
         if self.max_runtime == float("inf"):
@@ -333,6 +337,13 @@ class ExecutionDefinition:
 
         # send SIGTERM after max_runtime, follow with SIGKILL 30s later
         return f"timeout -k 30s {self.max_runtime}s {command}"
+
+    def wrap_in_srun(self, command: str) -> str:
+        # TODO: stub -- this does not work
+        if self.provider is None:
+            return command  # noop
+
+        return f"srun -t 1 -c $CORES {command}"
 
     def _create_threadpool(self, path: Path) -> ThreadPoolExecutor:
         max_threads = self.kwargs["max_threads"]
@@ -345,11 +356,7 @@ class ExecutionDefinition:
         timeout = int(1e6) if self.resources["nodes"] > 1 else 20
         cores = self.resources["cores"]
 
-        worker_options = [
-            "--parent-death",
-            f"--cores={cores}",
-            f"--timeout={timeout}",
-        ]
+        worker_options = ["--parent-death", f"--cores={cores}", f"--timeout={timeout}"]
         if (memory := self.resources["memory"]) is not None:
             worker_options.append(f"--memory={memory * 1000}")  # in MB
         if (lifetime := self.lifetime) != float("inf"):
@@ -367,16 +374,12 @@ class ExecutionDefinition:
             prepend = self.container.launch_command()
             worker_executable = f"{prepend} {worker_executable}"
 
-        # TODO: why the custom WQ? -- does not seem necessary (anymore)
         executor = WorkQueueExecutor(
             label=self.name,
             working_dir=str(path / self.name),
             provider=self.provider,
             shared_fs=True,
-            # autocategory=False,
             port=0,  # avoid multiple executors trying to use the same port
-            # max_retries=1,
-            # coprocess=False,
             worker_options=" ".join(worker_options),
             worker_executable=worker_executable,
             scaling_cores_per_worker=cores,
@@ -410,11 +413,13 @@ class ExecutionDefinition:
             }
         elif executor == "workqueue":
             executor_kwargs = {
-                "cores_per_task": kwargs.get("cores_per_task", 0),
+                "cores_per_task": kwargs.get("cores_per_task", 1),
                 "gpus_per_task": kwargs.get("gpus_per_task", 0),
                 "mem_per_task": kwargs.get("mem_per_task", 0),
             }
-            assert any(v != 0 for v in executor_kwargs.values())
+            assert (
+                executor_kwargs["cores_per_task"] > 0
+            ), "WQ needs at least one core to launch tasks"
             min_runtime = kwargs.get("min_runtime", "00:00:00")
             executor_kwargs["min_runtime"] = str_to_timedelta(min_runtime).seconds
         else:
@@ -451,7 +456,7 @@ class ModelEvaluation(ExecutionDefinition):
     ):
         super().__init__(**kwargs)
 
-        if self.use_gpu and self.kwargs['gpus_per_task'] > 1:
+        if self.use_gpu and self.kwargs["gpus_per_task"] > 1:
             # TODO: 'ConfigurationError' maybe?
             raise ValueError("No Hamiltonian can do multi-GPU evaluation")
 
@@ -521,40 +526,23 @@ class ModelEvaluation(ExecutionDefinition):
 
 
 class ModelTraining(ExecutionDefinition):
-    def __init__(
-        self,
-        multigpu: bool = False,  # TODO: how to handle this?
-        **kwargs,
-    ) -> None:
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.multigpu = multigpu
-        if self.multigpu:
-            # TODO: why? Think this might be a multinode thing - which I do not care about
-            message = (
-                "the max_training_time keyword does not work "
-                "in combination with multi-gpu training. Adjust "
-                "the maximum number of epochs to control the "
-                "duration of training"
-            )
-            assert self.max_runtime is None, message
 
         if not self.use_gpu:
             warnings.warn(
                 "ModelTraining is configured for CPU operation. Is this what you want?"
             )
 
-        # default_env_vars = {
-        #     "OMP_NUM_THREADS": str(self.cores_per_worker),
-        #     "KMP_AFFINITY": "granularity=fine,compact,1,0",
-        #     "KMP_BLOCKTIME": "1",
-        #     "OMP_PROC_BIND": "spread",  # different from Model Eval
-        #     "PYTHONUNBUFFERED": "TRUE",
-        # }
-        # if env_vars is None:
-        #     env_vars = default_env_vars
-        # else:
-        #     default_env_vars.update(env_vars)
-        #     env_vars = default_env_vars
+        # if self.multigpu:
+        #     # TODO: why? Think this might be a multinode thing - which I do not care about
+        #     message = (
+        #         "the max_training_time keyword does not work "
+        #         "in combination with multi-gpu training. Adjust "
+        #         "the maximum number of epochs to control the "
+        #         "duration of training"
+        #     )
+        #     assert self.max_runtime is None, message
 
     def train_command(self, initialize: bool = False):
         command = "psiflow-mace-train"
@@ -563,78 +551,52 @@ class ModelTraining(ExecutionDefinition):
     def wq_resources(self, *args, **kwargs) -> dict:
         if self.spec is None:
             return {}  # threadpool
-        # TODO: reimplement this
-        return self.spec
-
-    # def wq_resources(self):
-    #     if self.use_threadpool:
-    #         return {}
-    #     resource_specification = {}
-    #
-    #     if self.multigpu:
-    #         nworkers = int(self.cores_available / self.cores_per_worker)
-    #     else:
-    #         nworkers = 1
-    #
-    #     resource_specification["gpus"] = nworkers  # one per GPU
-    #     resource_specification["cores"] = self.cores_available
-    #     resource_specification["disk"] = (
-    #         1000 * nworkers
-    #     )  # some random nontrivial amount?
-    #     memory = 1000 * self.cores_available  # similarly rather random
-    #     resource_specification["memory"] = int(memory)
-    #     resource_specification["running_time_min"] = self.max_training_time
-    #     return resource_specification
+        return self.spec.copy()
 
 
 class ReferenceEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        reference: "ReferenceSpec",
-        memory_limit: Optional[str] = None,  # TODO: how does this work?
+        reference: ReferenceSpec,
+        memory_limit: Optional[float] = None,
         **kwargs,
     ) -> None:
-        # TODO: how to know which code?
-        # before super().__init__ because 'name' attribute needed
-        self.reference = reference
         super().__init__(**kwargs)
-        self.memory_limit = memory_limit
+        self.reference = reference
+        self.memory_limit = memory_limit  # in GB
+
+        if self.use_gpu:
+            warnings.warn("Reference calculations do not support GPU computation yet.")
 
     def command(self):
-        # TODO: this does not work probably
-        launch_command = self.spec.launch_command()
-        kwargs = {k: getattr(self, k) for k in self.spec.reference_args}
-        launch_command = launch_command.format(**kwargs)
+        command = self.reference.launch_command()
+        kwargs = {k: getattr(self, k) for k in self.reference.reference_args}
+        command = command.format(**kwargs)
 
         if self.container is not None:
-            launch_command = f"{self.container.launch_command()} {launch_command}"
+            command = f"{self.container.launch_command()} {command}"
+        if (mem := self.memory_limit) is not None:
+            # set max RAM usage and disable swap storage - requires systemd-run
+            command = f"systemd-run --user --scope -p MemoryMax={mem}G -p MemorySwapMax=0 {command}"
 
-        launch_command = self.wrap_in_timeout(launch_command)
+        return self.wrap_in_timeout(command)
 
-        commands = []
-        if self.memory_limit is not None:
-            # based on https://stackoverflow.com/a/42865957/2002471
-            units = {"KB": 1, "MB": 2**10, "GB": 2**20, "TB": 2**30}
-
-            def parse_size(size):  # TODO: to utils?
-                size = size.upper()
-                if not re.match(r" ", size):
-                    size = re.sub(r"([KMGT]?B)", r" \1", size)
-                number, unit = [string.strip() for string in size.split()]
-                return int(float(number) * units[unit])
-
-            commands.append(f"ulimit -v {parse_size(self.memory_limit)}")
-
-        # exit code 0 so parsl always thinks bash app succeeded
-        return "\n".join([*commands, launch_command, "exit 0"])
-
-    def wq_resources(self, *args, **kwargs) -> dict:
+    def wq_resources(self, n_cores: int | None) -> dict:
         if self.spec is None:
             return {}  # threadpool
-        return self.spec
+
+        fraction = 1
+        if n_cores is not None:
+            fraction = n_cores / self.kwargs["cores_per_task"]
+        spec = self.spec.copy()
+        spec["cores"] = int(spec["cores"] * fraction)
+        spec["memory"] *= fraction
+        return spec
 
     @property
     def name(self) -> str:
+        if not hasattr(self, "reference"):
+            return super().name  # during init
         return self.reference.name
 
 
@@ -670,7 +632,6 @@ class ExecutionContext:
         # make sure task tmpdirs can be made
         Path(tmpdir_root).mkdir(parents=True, exist_ok=True)
         self.bash_template = create_bash_template(tmpdir_root, keep_tmpdirs)
-
         self.file_index = {}
         self.lock = Lock()
         parsl.load(config)
@@ -701,8 +662,6 @@ class ExecutionContext:
         cls,
         parsl_log_level: str,
         default_threads: int,
-        garbage_collect: bool,
-        retries: int,
         **kwargs,
     ) -> "ExecutionContext":
         path = Path.cwd().resolve() / PSIFLOW_INTERNAL
@@ -711,27 +670,36 @@ class ExecutionContext:
         path.mkdir(parents=True)
         patch_parsl_dirtree()
 
-        log_file = str(path / "parsl.log")
+        # setup logging
+        log_file = str(path / PARSL_LOGFILE)
         log_level = getattr(logging, parsl_log_level)
         parsl.set_file_logger(filename=log_file, name="parsl", level=log_level)
+        setup_logging(file=path / PSIFLOW_LOGFILE)  # TODO
+
+        # default container for ModelEvaluation and ModelTraining
+        base_container = None
+        if "container" in kwargs:
+            base_container = make_cls(ContainerSpec, **kwargs["container"])
 
         # create definitions
-        base_container = ContainerSpec.from_kwargs(kwargs)
         model_evaluation = ModelEvaluation.from_config(
             container=base_container, **kwargs["ModelEvaluation"]
         )
         model_training = ModelTraining.from_config(
             container=base_container, **kwargs["ModelTraining"]
         )
-
-        reference_evaluations = []  # reference evaluations might be class specific
-        for key in list(kwargs.keys()):
-            if key[:4] in REFERENCE_SPECS:  # allow for e.g., CP2K_small
+        reference_evaluations = []  # reference evaluations are class specific
+        for key, reference_cls in REFERENCE_SPECS.items():
+            if key in kwargs:
                 config = kwargs[key]
+                container = None
+                if "container" in config:
+                    container = make_cls(ContainerSpec, **config.pop("container"))
+                reference = make_cls(reference_cls, **config)
                 reference_evaluation = ReferenceEvaluation.from_config(
-                    reference=REFERENCE_SPECS[key[:4]].from_kwargs(**config),
-                    container=ContainerSpec.from_kwargs(kwargs | config),
-                    **config,
+                    reference=reference,
+                    container=container,
+                    **config,  # make sure the container key is removed
                 )
                 reference_evaluations.append(reference_evaluation)
         definitions = [model_evaluation, model_training, *reference_evaluations]
@@ -741,12 +709,12 @@ class ExecutionContext:
         internal = make_default_executors(default_threads, path, base_container)
         executors.extend(internal)
 
-        config = Config(
+        config = make_cls(
+            Config,
             executors=executors,
             run_dir=str(path),
             initialize_logging=False,
-            garbage_collect=garbage_collect,
-            retries=retries,
+            **kwargs,
         )
         return ExecutionContext(config, definitions, path / "context_dir", **kwargs)
 
@@ -828,16 +796,10 @@ wait
         return x
 
 
-# class MyWorkQueueExecutor(WorkQueueExecutor):
-#     # TODO: what does this do?
-#     def _get_launch_command(self, block_id):
-#         return self.worker_command
-
-
 # TODO: move everything below to appropriate files
 
 # TODO: attempt at managing priority through global state
-WQ_RESOURCES_REGISTRY = {}
+WQ_RESOURCES_REGISTRY = []
 
 
 def register_definition(definition: ExecutionDefinition) -> None:
@@ -845,7 +807,7 @@ def register_definition(definition: ExecutionDefinition) -> None:
     if (spec := definition.spec) is None:
         return  # threadpool does not have priority
 
-    WQ_RESOURCES_REGISTRY[definition.name] = spec
+    WQ_RESOURCES_REGISTRY.append((definition.name, spec))
     spec["priority"] = SetWQPriority.default
 
 
@@ -863,14 +825,14 @@ class SetWQPriority:
     def __enter__(self):
         if self.verbose:
             print(f"SetWQPriority setting priority:\t{self.value}")
-        for n, spec in WQ_RESOURCES_REGISTRY.items():
+        for n, spec in WQ_RESOURCES_REGISTRY:
             spec["priority"] = self.value
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.verbose:
             print(f"SetWQPriority unsetting {self.value}")
-        for n, spec in WQ_RESOURCES_REGISTRY.items():
+        for n, spec in WQ_RESOURCES_REGISTRY:
             spec["priority"] = SetWQPriority.default
 
 
@@ -882,7 +844,6 @@ usage_tracking: 3
 default_threads: 4
 tmpdir_root: /tmp
 keep_tmpdirs: false
-container_engine: apptainer
 garbage_collect: true
 retries: 0
 
@@ -958,3 +919,16 @@ def log_dfk_tasks(verbose: bool = False):
         log.append(f"\n{i}\t{d['func_name']:<30}\n{args}\n{kwargs}")
     log.append("- Parsl task overview -")
     print(*log, sep="\n")
+
+
+# TODO: after 3.12, this is no longer needed
+#  https://docs.python.org/3/library/typing.html
+T = TypeVar("T")
+
+
+def make_cls(cls: type[T], **kwargs: Any) -> T:
+    """Very simple class factory. Use introspection to filter args and kwargs."""
+    sign = inspect.signature(cls)
+    argument_names = list(sign.parameters.keys())
+    arguments = {k: kwargs[k] for k in argument_names if k in kwargs}
+    return cls(**arguments)
