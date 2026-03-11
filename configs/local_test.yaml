@@ -1,4 +1,6 @@
 ---
+psiflow_log_level: INFO
+
 ModelEvaluation:
     executor: threadpool
     max_threads: 4

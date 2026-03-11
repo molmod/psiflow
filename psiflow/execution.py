@@ -44,6 +44,21 @@ class ConfigurationError(ValueError):
     pass  # some global psiflow configuration option does not make sense
 
 
+def ensure(
+    *conditions: bool,
+    msg: str = "Whoopsie",
+    msgs: Sequence[str] = (),
+    template: str = "{}",
+) -> None:
+    """Small helper function to replace 'assert' statements"""
+    if all(conditions):
+        return
+    if len(msgs) == 0:
+        raise ConfigurationError(msg)
+    msg = msgs[conditions.index(False)]
+    raise ConfigurationError(template.format(msg))
+
+
 @dataclass
 class ContainerSpec:
     """Controls container configuration"""
@@ -54,19 +69,17 @@ class ContainerSpec:
     gpu_flavour: str | None = None
 
     def __post_init__(self):
-        assert self.engine in ("apptainer", "singularity")
-        assert len(self.uri) > 0
-        assert self.gpu_flavour in ("cuda", "rocm", None)
+        ensure(
+            self.engine in ("apptainer", "singularity"),
+            len(self.uri) > 0,
+            self.gpu_flavour in ("cuda", "rocm", None),
+            msg="Invalid container configuration",
+        )
 
     def launch_command(self) -> str:
         pwd = Path.cwd().resolve()  # access to data / internal dir
-        args = [self.engine, "run", self.addopts, f"--bind {pwd}"]
-        if self.gpu_flavour == "cuda":
-            args.append("--nv")
-        elif self.gpu_flavour == "rocm":
-            args.append("--rocm")
-        args.append(self.uri)
-        return " ".join(args)
+        gpu = {"cuda": "--nv", "rocm": "--rocm"}.get(self.gpu_flavour, "")
+        return f"{self.engine} run {self.addopts} {gpu} --bind {pwd} {self.uri}"
 
 
 class ReferenceSpec(Protocol):
@@ -140,15 +153,15 @@ REFERENCE_SPECS = {
 
 def make_slurm_provider(kwargs: dict) -> tuple[SlurmProvider, dict]:
     defaults = {"init_blocks": 0, "exclusive": False}
-    required = ("cores_per_node", "walltime", "gpus_per_node")
+    required = ("cores_per_node", "walltime")
     kwargs = defaults | kwargs
-    assert all(key in kwargs for key in required)
+    ensure(all(key in kwargs for key in required))
     provider = SlurmProvider(**kwargs)  # does not configure Launcher
     resources = {
         "nodes": provider.nodes_per_block,
         "cores": provider.cores_per_node,
         "memory": provider.mem_per_node or float("inf"),
-        "gpus": provider.gpus_per_node,
+        "gpus": provider.gpus_per_node or 0,
         "lifetime": str_to_timedelta(provider.walltime).seconds,
     }
     return provider, resources
@@ -224,26 +237,23 @@ class ExecutionDefinition:
         self.container = container
 
         if self.use_gpu:
-            msg = ""
-            if resources["gpus"] == 0:
-                msg = "GPU usage requested but no GPUs available"
-            elif container is not None and container.gpu_flavour is None:
-                msg = "Provide container 'gpu_flavour' to choose between CUDA and ROCM"
-            if msg:
-                raise ConfigurationError(msg)
+            ensure(
+                resources["gpus"] > 0, msg="GPU usage requested but no GPUs available"
+            )
+            ensure(
+                container is None or container.gpu_flavour is not None,
+                msg="Provide container 'gpu_flavour' to choose between CUDA and ROCM",
+            )
 
         if self.executor_type == "workqueue":
             # WQ-specific checks
-            msg = ""
-            if self.kwargs["gpus_per_task"] > resources["gpus"]:
-                msg = "GPUs"
-            if self.kwargs["cores_per_task"] > resources["cores"]:
-                msg = "cores"
-            if self.kwargs["mem_per_task"] > resources["memory"]:
-                msg = "memory"
-            if msg:
-                msg = f"Apps will request more {msg} than available per Parsl block"
-                raise ConfigurationError(msg)
+            ensure(
+                self.kwargs["gpus_per_task"] <= resources["gpus"],
+                self.kwargs["cores_per_task"] <= resources["cores"],
+                self.kwargs["mem_per_task"] <= resources["memory"],
+                msgs=["GPUs", "cores", "memory"],
+                template="Apps will request more {} than available per Parsl block",
+            )
 
         # how long can individual tasks run (in seconds)
         if max_runtime is None:
@@ -313,7 +323,8 @@ class ExecutionDefinition:
         if self.executor_type == "workqueue":
             return self.kwargs["cores_per_task"]
         # assumes all threads are working
-        return int(self.resources["cores"] / self.kwargs["max_threads"])
+        cores_per_thread = self.resources["cores"] / self.kwargs["max_threads"]
+        return max(int(cores_per_thread), 1)
 
     @property
     def task_slots(self) -> int:
@@ -335,12 +346,11 @@ class ExecutionDefinition:
         # send SIGTERM after max_runtime, follow with SIGKILL 30s later
         return f"timeout -k 30s {self.max_runtime}s {command}"
 
-        # def wrap_in_srun(self, command: str) -> str:
-        #     # TODO: stub -- this does not work
-        #     if self.provider is None:
-        #         return command  # noop
-
-        return f"srun -t 1 -c $CORES {command}"
+    # def wrap_in_srun(self, command: str) -> str:
+    #     # TODO: stub -- this does not work
+    #     if self.provider is None:
+    #         return command  # noop
+    # return f"srun -t 1 -c $CORES {command}"
 
     def _create_threadpool(self, path: Path) -> ThreadPoolExecutor:
         max_threads = self.kwargs["max_threads"]
@@ -399,11 +409,12 @@ class ExecutionDefinition:
         **kwargs,
     ):
         if executor == "threadpool":
-            assert container is None, "Threadpool not compatible with containers"
-            assert (
-                "slurm" not in kwargs
-            ), "Threadpool not compatible with remote execution"
-            assert "max_threads" in kwargs, "Specify 'max_threads' for parallelism"
+            ensure(container is None, msg="Threadpool not compatible with containers")
+            ensure("max_threads" in kwargs, msg="Specify 'max_threads' for parallelism")
+            ensure(
+                "slurm" not in kwargs,
+                msg="Threadpool not compatible with remote execution",
+            )
             executor_kwargs = {
                 "max_threads": kwargs["max_threads"],
                 "use_gpu": kwargs.get("use_gpu", False),
@@ -414,15 +425,12 @@ class ExecutionDefinition:
                 "gpus_per_task": kwargs.get("gpus_per_task", 0),
                 "mem_per_task": kwargs.get("mem_per_task", 0),
             }
-            assert (
-                executor_kwargs["cores_per_task"] > 0
-            ), "WQ needs at least one core to launch tasks"
+            if executor_kwargs["cores_per_task"] == 0:
+                raise ConfigurationError("WQ needs at least one core to launch tasks")
             min_runtime = kwargs.get("min_runtime", "00:00:00")
             executor_kwargs["min_runtime"] = str_to_timedelta(min_runtime).seconds
         else:
-            raise ConfigurationError(
-                "Key 'executor' must be 'threadpool' or 'workqueue'"
-            )
+            raise ConfigurationError("Invalid executor key")
 
         # search for Parsl ExecutionProvider block, defaulting to "local"
         if "slurm" in kwargs:
@@ -448,7 +456,7 @@ class ExecutionDefinition:
 class ModelEvaluation(ExecutionDefinition):
     def __init__(
         self,
-        timeout: float = 5.0,
+        timeout: float = 10.0,
         max_resource_multiplier: int | None = None,
         allow_oversubscription: bool = True,
         **kwargs,
@@ -625,7 +633,7 @@ class ExecutionContext:
         self.path.mkdir(parents=True, exist_ok=True)
 
         self.definitions = {d.name: d for d in definitions}
-        assert len(self.definitions) == len(definitions)
+        ensure(len(self.definitions) == len(definitions))
 
         # make sure task tmpdirs can be made
         Path(tmpdir_root).mkdir(parents=True, exist_ok=True)

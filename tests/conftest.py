@@ -1,4 +1,3 @@
-import xml.etree.ElementTree as ET
 from dataclasses import asdict
 from pathlib import Path
 
@@ -44,7 +43,6 @@ def context(request, tmp_path_factory):
         path_config = Path(request.config.getoption("--psiflow-config"))
         with open(path_config, "r") as f:
             psiflow_config = yaml.safe_load(f)
-        psiflow_config["path"] = tmp_path_factory.mktemp("psiflow_internal")
         psiflow.load(psiflow_config)
         context = psiflow.context()  # noqa: F841
         yield
