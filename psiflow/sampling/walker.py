@@ -1,10 +1,10 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import xml.etree.ElementTree as ET
-from typing import Optional, Union
+from typing import Optional, Union, Callable
+from enum import Enum
+from dataclasses import dataclass, field
+from copy import deepcopy
 
 import numpy as np
-import typeguard
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -13,136 +13,141 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, check_equality
-from psiflow.hamiltonians import Hamiltonian, Zero
+from psiflow.hamiltonians import Hamiltonian, Zero, combine_hamiltonians
 from psiflow.order_parameters import OrderParameter
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils.apps import copy_app_future
 
 
-@typeguard.typechecked
 class Coupling:
     pass
 
 
-@typeguard.typechecked
-def _conditioned_reset(
-    condition: bool,
+class Ensemble(Enum):
+    NVE = "NVE"
+    NVT = "NVT"
+    NPT = "NPT"
+    NVST = "(N, V, sigma=0, T)"
+
+
+def _conditional_reset(
     state: Geometry,
     start: Geometry,
+    flag: bool | None,
+    condition: Callable | None,
+    *args,
 ) -> Geometry:
-    from copy import deepcopy  # copy necessary!
+    """Reset geometry based on a flag or boolean condition function."""
+    if condition is not None:
+        flag = condition(args)
 
-    if condition:
-        return deepcopy(start)
-    else:
-        return state
-
-
-conditioned_reset = python_app(_conditioned_reset, executors=["default_threads"])
+    # copy necessary!
+    return deepcopy(start) if flag else state
 
 
-@typeguard.typechecked
+conditional_reset = python_app(_conditional_reset, executors=["default_threads"])
+
+
+def get_ensemble_kwargs(walker: "Walker") -> dict:
+    """Extract all walker properties that define the MD sampling ensemble."""
+    return dict(
+        hamiltonian=walker.hamiltonian,
+        timestep=walker.timestep,
+        temperature=walker.temperature,
+        pressure=walker.pressure,
+        tau_thermostat=walker.tau_thermostat,
+        tau_barostat=walker.tau_barostat,
+        volume_constrained=walker.volume_constrained,
+        masses=walker.masses,
+        nbeads=walker.nbeads,
+        metadynamics=walker.metadynamics,
+    )
+
+
 @psiflow.serializable
+@dataclass
 class Walker:
     start: Union[Geometry, AppFuture]
-    hamiltonian: Optional[Hamiltonian]
-    state: Union[Geometry, AppFuture, None]
-    temperature: Optional[float]
-    pressure: Optional[float]
-    masses: Union[np.ndarray, float, None]
-    nbeads: int
-    timestep: float
-    coupling: Optional[Coupling]
-    metadynamics: Optional[Metadynamics]
-    order_parameter: Optional[OrderParameter]
+    hamiltonian: Hamiltonian = Zero()
+    timestep: float = 0.5
+    temperature: Optional[float] = 300
+    pressure: Optional[float] = None
+    tau_thermostat: float = 100
+    tau_barostat: float = 300
+    volume_constrained: bool = False
+    masses: Union[np.ndarray, float, None] = None
+    nbeads: int = 1
+    metadynamics: Optional[Metadynamics] = None
+    order_parameter: Optional[OrderParameter] = None
 
-    def __init__(
-        self,
-        start: Union[Geometry, AppFuture],
-        hamiltonian: Optional[Hamiltonian] = None,
-        state: Union[Geometry, AppFuture, None] = None,
-        temperature: Optional[float] = 300,
-        pressure: Optional[float] = None,
-        masses: Union[np.ndarray, float, None] = None,
-        nbeads: int = 1,
-        timestep: float = 0.5,
-        metadynamics: Optional[Metadynamics] = None,
-        order_parameter: Optional[OrderParameter] = None,
-    ):
-        self.start = start
-        if hamiltonian is None:
-            hamiltonian = Zero()
-        self.hamiltonian = hamiltonian
-        if state is None:
-            state = copy_app_future(self.start)
-        self.state = state
+    state: Union[Geometry, AppFuture] = field(init=False)
+    coupling: Optional[Coupling] = field(init=False)
 
-        if order_parameter is not None:
-            self.start = order_parameter.evaluate(self.start)
-
-        self.temperature = temperature
-        self.pressure = pressure
-
-        if isinstance(masses, (float, int)):
-            masses *= self.start.atomic_masses
-        self.masses = masses
-        if self.masses is not None:
-            assert len(self.masses) == len(self.start), "Masses do not match number of atoms"
-
-        self.nbeads = nbeads
-        self.timestep = timestep
-
-        self.metadynamics = metadynamics
-        self.order_parameter = order_parameter
+    def __post_init__(self):
+        self.state = copy_app_future(self.start)
         self.coupling = None
 
-    def reset(self, condition: Union[AppFuture, bool] = True):
-        self.state = conditioned_reset(condition, self.state, self.start)
+        if self.temperature is None:  # NVE
+            assert self.pressure is None and not self.volume_constrained
+        if self.volume_constrained:
+            self.pressure = 0  # TODO: warning?
+
+        if isinstance(self.start, Geometry) and not self.start.periodic:
+            # we cannot check this for futures
+            assert self.pressure is None, "Pressure requires PBC"
+
+        if self.order_parameter is not None:
+            # TODO: order_parameter out of commission
+            self.start = self.order_parameter.evaluate(self.start)
+
+        if (m := self.masses) is None:
+            pass  # do nothing
+        elif isinstance(m, (float, int)):
+            self.masses = self.start.atomic_masses * m
+        elif isinstance(m, np.ndarray) and len(m) != len(self.start):
+            raise ValueError("Supplied masses do not match number of atoms")
+
+    def reset(self):
+        self.state = conditional_reset(self.state, self.start, True, None)
+
+    def conditional_reset(
+        self, flag: bool | None = None, condition: Callable | None = None, *args
+    ):
+        assert (flag is None) != (condition is None)  # xor
+        self.state = conditional_reset(self.state, self.start, flag, condition, *args)
 
     def is_reset(self) -> AppFuture:
         return check_equality(self.start, self.state)
 
-    def multiply(self, nreplicas: int) -> list[Walker]:
+    def multiply(self, nreplicas: int) -> list["Walker"]:
         if self.coupling is not None:
             raise ValueError("Cannot multiply walkers after they are coupled")
         walkers = []
+        kwargs = get_ensemble_kwargs(self)
         for _i in range(nreplicas):
-            if self.metadynamics is not None:
-                metadynamics = self.metadynamics.copy()
-            else:
-                metadynamics = None
-            walker = Walker(
-                start=self.start,
-                hamiltonian=self.hamiltonian,
-                state=self.state,
-                temperature=self.temperature,
-                pressure=self.pressure,
-                masses=self.masses,
-                nbeads=self.nbeads,
-                timestep=self.timestep,
-                metadynamics=metadynamics,
-            )  # no coupling
+            if kwargs["metadynamics"] is not None:
+                kwargs["metadynamics"] = kwargs["metadynamics"].copy()
+            walker = Walker(start=self.start, **kwargs)  # no coupling
+            walker.state = self.state
             walkers.append(walker)
         return walkers
 
     @property
-    def pimd(self):
+    def pimd(self) -> bool:
         return self.nbeads != 1
 
     @property
-    def nve(self):
-        return (self.temperature is None) and (self.pressure is None)
+    def ensemble(self) -> Ensemble:
+        if self.temperature is None:
+            return Ensemble.NVE
+        elif self.pressure is None:
+            return Ensemble.NVT
+        elif self.volume_constrained:
+            return Ensemble.NVST
+        else:
+            return Ensemble.NPT
 
-    @property
-    def nvt(self):
-        return (self.temperature is not None) and (self.pressure is None)
 
-    @property
-    def npt(self):
-        return (self.temperature is not None) and (self.pressure is not None)
-
-
-@typeguard.typechecked
 def partition(walkers: list[Walker]) -> list[list[int]]:
     indices = []
     for i, walker in enumerate(walkers):
@@ -158,50 +163,36 @@ def partition(walkers: list[Walker]) -> list[list[int]]:
     return indices
 
 
-# typeguarding incompatible with * expansion
 def _get_minimum_energy_states(
-    coefficients: np.ndarray,
-    *energies: np.ndarray,
+    coefficients: np.ndarray, *energies: np.ndarray
 ) -> list[int]:
-    import numpy
-
     assert len(coefficients.shape) == 2
     assert len(energies) == coefficients.shape[1]
 
-    energies = numpy.array(energies)
-
     indices = []
-    for c in coefficients:
-        energy = numpy.sum(c.reshape(-1, 1) * energies, axis=0)
-        indices.append(int(numpy.argmin(energy)))
+    energies = np.array(energies)
+    for c in coefficients:  # every c corresponds to a Walker hamiltonian
+        energy = np.sum(c.reshape(-1, 1) * energies, axis=0)
+        indices.append(int(np.argmin(energy)))
     return indices
 
 
 get_minimum_energy_states = python_app(
-    _get_minimum_energy_states,
-    executors=["default_threads"],
+    _get_minimum_energy_states, executors=["default_threads"]
 )
 
 
-@typeguard.typechecked
 def quench(walkers: list[Walker], dataset: Dataset) -> None:
-    all_hamiltonians = sum([w.hamiltonian for w in walkers], start=Zero())
-    energies = [h.compute(dataset, "energy") for h in all_hamiltonians.hamiltonians]
-
-    coefficients = []
-    for walker in walkers:
-        c = all_hamiltonians.get_coefficients(1.0 * walker.hamiltonian)
-        assert c is not None
-        coefficients.append(c)
-    coefficients = np.array(coefficients)
-
-    indices = get_minimum_energy_states(
-        coefficients,
-        *energies,
-    )
-    data = dataset[indices]
-    for i, walker in enumerate(walkers):
-        walker.start = data[i]
+    """Assign the lowest energy geometry in dataset to every walker"""
+    hamiltonians = combine_hamiltonians([w.hamiltonian for w in walkers])
+    energies = [h.compute(dataset, "energy") for h in hamiltonians.hamiltonians]
+    coefficients = [
+        hamiltonians.get_coefficients(walker.hamiltonian * 1.0) for walker in walkers
+    ]
+    indices = get_minimum_energy_states(np.array(coefficients), *energies)
+    geometries = dataset.geometries()
+    for walker, idx in zip(walkers, indices):
+        walker.start = geometries[idx]
         walker.reset()
 
 
@@ -213,16 +204,15 @@ def _random_indices(nindices: int, nstates: int) -> list[int]:
 random_indices = python_app(_random_indices, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def randomize(walkers: list[Walker], dataset: Dataset) -> None:
+    """Randomly assign geometries from dataset to walkers"""
     indices = random_indices(len(walkers), dataset.length())
-    data = dataset[indices]
-    for i, walker in enumerate(walkers):
-        walker.start = data[i]
+    geometries = dataset.geometries()
+    for walker, idx in zip(walkers, indices):
+        walker.start = geometries[idx]
         walker.reset()
 
 
-@typeguard.typechecked
 def validate_coupling(walkers: list[Walker]):
     couplings = []
     counts = []
@@ -240,7 +230,6 @@ def validate_coupling(walkers: list[Walker]):
         assert coupling.nwalkers == counts[i]
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class ReplicaExchange(Coupling):
     trial_frequency: int
@@ -259,7 +248,7 @@ class ReplicaExchange(Coupling):
         self.swapfile = psiflow.context().new_file("swap_", ".txt")
         self.nwalkers = nwalkers
 
-    def __eq__(self, other: Optional[ReplicaExchange]) -> bool:
+    def __eq__(self, other: Optional["ReplicaExchange"]) -> bool:
         if other is None:
             return False
         trial = self.trial_frequency == other.trial_frequency

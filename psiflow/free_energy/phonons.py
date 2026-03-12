@@ -1,11 +1,8 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import xml.etree.ElementTree as ET
 from typing import Optional, Union
 
 import numpy as np
 import parsl
-import typeguard
 from ase.units import Bohr, Ha, J, _c, _hplanck, _k, kB, second
 from parsl.app.app import bash_app, python_app
 from parsl.dataflow.futures import AppFuture
@@ -13,19 +10,19 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, mass_weight
-from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian
+from psiflow.hamiltonians import Hamiltonian, MACEHamiltonian
 from psiflow.sampling.sampling import (
     setup_sockets,
-    make_force_xml,
-    make_start_command,
-    make_client_command
+    make_server_command,
+    make_driver_commands,
+    make_wait_for_sockets_command,
 )
+from psiflow.sampling.optimize import setup_forces, export_env_command
 from psiflow.utils.apps import multiply
 from psiflow.utils.io import load_numpy, save_xml
 from psiflow.utils import TMP_COMMAND, CD_COMMAND
 
 
-@typeguard.typechecked
 def _compute_frequencies(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
     assert hessian.shape[0] == hessian.shape[1]
     assert len(geometry) * 3 == hessian.shape[0]
@@ -35,7 +32,6 @@ def _compute_frequencies(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
 compute_frequencies = python_app(_compute_frequencies, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _harmonic_free_energy(
     frequencies: Union[float, np.ndarray],
     temperature: float,
@@ -65,9 +61,7 @@ def _harmonic_free_energy(
 harmonic_free_energy = python_app(_harmonic_free_energy, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def setup_motion(
-    mode: str,
     asr: str,
     pos_shift: float,
     energy_shift: float,
@@ -91,35 +85,33 @@ def setup_motion(
 
 
 def _execute_ipi(
-    hamiltonian_names: list[str],
-    client_args: list[list[str]],
+    driver_kwargs: list[dict],
     command_server: str,
-    command_client: str,
-    stdout: str = "",
-    stderr: str = "",
+    env_vars: dict = {},
+    stdout: str = parsl.AUTO_LOGNAME,
+    stderr: str = parsl.AUTO_LOGNAME,
     inputs: list = [],
     outputs: list = [],
     parsl_resource_specification: Optional[dict] = None,
 ) -> str:
-    command_start = make_start_command(command_server, inputs[0], inputs[1])
-    commands_client = []
-    for i, name in enumerate(hamiltonian_names):
-        args = client_args[i]
-        assert len(args) == 1  # only have one client per hamiltonian
-        for arg in args:
-            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg),
-
-    command_end = f'{command_server} --cleanup'
-    command_copy = f'cp i-pi.output_full.hess {outputs[0]}'
+    file_xml, file_xyz_in, *files_in = inputs
+    command_start = make_server_command(
+        command_server, file_xml, file_xyz_in, outputs[0], [], []
+    )
+    command_wait = make_wait_for_sockets_command(
+        set(d["address"] for d in driver_kwargs)
+    )
+    commands_driver = make_driver_commands(driver_kwargs, file_xyz_in, files_in)
 
     command_list = [
         TMP_COMMAND,
         CD_COMMAND,
+        export_env_command(env_vars),
         command_start,
-        *commands_client,
+        command_wait,
+        *commands_driver,
         "wait",
-        command_end,
-        command_copy,
+        f"cp i-pi.output_full.hess {outputs[0]}",
     ]
     return "\n".join(command_list)
 
@@ -127,7 +119,6 @@ def _execute_ipi(
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 
 
-@typeguard.typechecked
 def compute_harmonic(
     state: Union[Geometry, AppFuture],
     hamiltonian: Hamiltonian,
@@ -136,26 +127,23 @@ def compute_harmonic(
     pos_shift: float = 0.01,
     energy_shift: float = 0.00095,
 ) -> AppFuture:
-    hamiltonian: MixtureHamiltonian = 1 * hamiltonian
-    names = hamiltonian.get_named_components()
-    sockets = setup_sockets(names)
-    forces = make_force_xml(hamiltonian, names)
+    components, force_xml = setup_forces(hamiltonian)
+    sockets = setup_sockets(components)
 
     initialize = ET.Element("initialize", nbeads="1")
     start = ET.Element("file", mode="ase", cell_units="angstrom")
     start.text = " start_0.xyz "
     initialize.append(start)
-    motion = setup_motion(mode, asr, pos_shift, energy_shift)
+    motion = setup_motion(asr, pos_shift, energy_shift)
+    if mode != "fd":
+        raise NotImplementedError
 
     system = ET.Element("system")
     system.append(initialize)
     system.append(motion)
-    system.append(forces)
-
-    # output = setup_output(keep_trajectory)
+    system.append(force_xml)
 
     simulation = ET.Element("simulation", mode="static")
-    # simulation.append(output)
     for socket in sockets:
         simulation.append(socket)
     simulation.append(system)
@@ -169,33 +157,22 @@ def compute_harmonic(
         simulation,
         outputs=[context.new_file("input_", ".xml")],
     ).outputs[0]
-    inputs = [
-        input_future,
-        Dataset([state]).extxyz,
-    ]
-    inputs += hamiltonian.serialize(dtype="float64")
+    inputs = [input_future, Dataset([state]).extxyz]
 
-    client_args = []
-    for name in names:
-        args = definition.get_client_args(name, 1, "vibrations")
-        client_args.append(args)
-    outputs = [
-        context.new_file("hess_", ".txt"),
-    ]
-
-    command_server = definition.server_command()
-    command_client = definition.client_command()
-    resources = definition.wq_resources(1)
+    driver_kwargs = []
+    for i, comp in enumerate(components):
+        inputs.append(comp.hamiltonian.serialize_function(dtype="float64"))
+        kwargs = {"idx": i, "address": comp.address}
+        if isinstance(comp.hamiltonian, MACEHamiltonian):
+            kwargs |= definition.get_driver_devices(1)[0]
+        driver_kwargs.append(kwargs)
 
     result = execute_ipi(
-        names,
-        client_args,
-        command_server,
-        command_client,
-        stdout=parsl.AUTO_LOGNAME,
-        stderr=parsl.AUTO_LOGNAME,
+        driver_kwargs,
+        definition.server_command(),
+        env_vars=definition.env_vars,
         inputs=inputs,
-        outputs=outputs,
-        parsl_resource_specification=resources,
+        outputs=[context.new_file("hess_", ".txt")],
+        parsl_resource_specification=definition.wq_resources(1),
     )
     return multiply(load_numpy(inputs=[result.outputs[0]]), Ha / Bohr**2)

@@ -10,7 +10,7 @@ from pathlib import Path
 from threading import Lock
 
 # see https://stackoverflow.com/questions/59904631/python-class-constants-in-dataclasses
-from typing import Any, Optional, Union, ClassVar, Protocol
+from typing import Any, Optional, Union, ClassVar, Protocol, Iterable
 
 import parsl
 import psutil
@@ -155,7 +155,7 @@ class ExecutionDefinition:
 
             # only ModelEvaluation / ModelTraining / default_htex run in containers
             if not isinstance(self, ReferenceEvaluation) and self.container:
-                prepend = self.container.launch_command()
+                prepend = self.container.launch_command(self.gpu)
                 worker_executable = f"{prepend} work_queue_worker"
             else:
                 worker_executable = "work_queue_worker"
@@ -261,27 +261,37 @@ class ModelEvaluation(ExecutionDefinition):
         command_list = ["psiflow-client"]
         return " ".join(command_list)
 
-    def get_client_args(
-        self,
-        hamiltonian_name: str,
-        nwalkers: int,
-        motion: str,
-    ) -> list[str]:
-        if "MACE" in hamiltonian_name:
-            if motion in ["minimize", "vibrations"]:
-                dtype = "float64"
-            else:
-                dtype = "float32"
-            nclients = min(nwalkers, self.max_workers)
-            if self.gpu:
-                template = "--dtype={} --device=cuda:{}"
-                args = [template.format(dtype, i) for i in range(nclients)]
-            else:
-                template = "--dtype={} --device=cpu"
-                args = [template.format(dtype) for i in range(nclients)]
-            return args
+    # def get_client_args(
+    #     self,
+    #     hamiltonian_name: str,
+    #     nwalkers: int,
+    #     motion: str,
+    # ) -> list[str]:
+    #     # TODO: redo this
+    #     if "MACE" in hamiltonian_name:
+    #         if motion in ["minimize", "vibrations"]:
+    #             dtype = "float64"
+    #         else:
+    #             dtype = "float32"
+    #         nclients = min(nwalkers, self.max_workers)
+    #         if self.gpu:
+    #             template = "--dtype={} --device=cuda:{}"
+    #             args = [template.format(dtype, i) for i in range(nclients)]
+    #         else:
+    #             template = "--dtype={} --device=cpu"
+    #             args = [template.format(dtype) for i in range(nclients)]
+    #         return args
+    #     else:
+    #         return [""]
+
+    def get_driver_devices(self, nwalkers: int) -> list[dict]:
+        # assumes driver is GPU capable
+        # TODO: what if only 1 gpu is available?
+        nclients = min(nwalkers, self.max_workers)
+        if self.gpu:
+            return [{'device': f'cuda:{i}'} for i in range(nclients)]
         else:
-            return [""]
+            return [{'device': 'cpu'} for _ in range(nclients)]
 
     def wq_resources(self, nwalkers):
         if self.use_threadpool:
@@ -433,7 +443,7 @@ class ReferenceSpec(Protocol):
     name: ClassVar[str]
     reference_args: ClassVar[tuple[str, ...]]
     mpi_command: str
-    mpi_args: tuple[str, ...]
+    mpi_args: Iterable[str]
     executable: str
 
     def launch_command(self) -> str:

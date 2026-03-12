@@ -1,12 +1,9 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Optional, Union, Iterable
 
 import parsl
-import typeguard
 import numpy as np
 from parsl.app.app import bash_app
 from parsl.data_provider.files import File
@@ -14,22 +11,19 @@ from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
+from psiflow.data.utils import read_frames
+from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero, MACEHamiltonian
 from psiflow.sampling.output import (
     DEFAULT_OBSERVABLES,
     SimulationOutput,
-    potential_component_names,
+    potential_component_name,
+    HamiltonianComponent,
 )
-from psiflow.sampling.walker import Coupling, Walker, partition
-from psiflow.utils.io import save_xml
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
-
-
-@dataclass
-class HamiltonianComponent:
-    name: str
-    hamiltonian: Hamiltonian
-    shared: bool
+from psiflow.sampling.utils import create_xml_list
+from psiflow.sampling.walker import Coupling, Walker, partition, Ensemble
+from psiflow.utils.io import _save_xml
+from psiflow.utils import TMP_COMMAND, CD_COMMAND, export_env_command
+from psiflow.sampling.driver import __file__ as PATH_DRIVER
 
 
 @dataclass
@@ -46,24 +40,18 @@ class EnsembleTable:
     def __len__(self) -> int:
         return self.weights.shape[0]
 
-    def __eq__(self, other: EnsembleTable) -> bool:
+    def __eq__(self, other: "EnsembleTable") -> bool:
         if (
-            not isinstance(other, EnsembleTable) or
-            len(self) != len(other) or
-            set(self.keys) != set(other.keys) or
-            self.weights.shape != other.weights.shape
+            not isinstance(other, EnsembleTable)
+            or len(self) != len(other)
+            or set(self.keys) != set(other.keys)
+            or self.weights.shape != other.weights.shape
         ):
             return False
         key_order = [other.keys.index(key) for key in self.keys]
         return np.all(self.weights == other.weights[:, key_order])
 
 
-def create_xml_list(items: list[str]) -> str:
-    """Pure helper"""
-    return ' [ {} ] '.format(', '.join(items))
-
-
-@typeguard.typechecked
 def template(
     walkers: list[Walker],
 ) -> tuple[list[HamiltonianComponent], EnsembleTable, list[AppFuture]]:
@@ -71,30 +59,17 @@ def template(
     total_hamiltonian = 1.0 * sum([w.hamiltonian for w in walkers], start=Zero())
     assert not total_hamiltonian == Zero()
 
-    # create string names for hamiltonians and sort     TODO: why sort?
-    # names = label_forces(total_hamiltonian)
-    # names, hamiltonians, coefficients = zip(
-    #     *sorted(zip(names, total_hamiltonian.hamiltonians, total_hamiltonian.coefficients))
-    # )
-    # assert MixtureHamiltonian(hamiltonians, coefficients) == total_hamiltonian
-    # total_hamiltonian = MixtureHamiltonian(hamiltonians, coefficients)
-
     # construct the table of potential / ensemble / bias weights for every system instance
     names = total_hamiltonian.get_named_components()
-    weights_hamiltonian = np.zeros(shape=(len(walkers), len(names)))
+    weights_h = np.zeros(shape=(len(walkers), len(names)))
     for idx, walker in enumerate(walkers):
-        weights_hamiltonian[idx] = total_hamiltonian.get_coefficients(walker.hamiltonian * 1)
-
-    components = []
-    for idx, (name, hamiltonian) in enumerate(zip(names, total_hamiltonian.hamiltonians)):
-        weights = weights_hamiltonian[:, idx]
-        components.append(HamiltonianComponent(name, hamiltonian, all(weights)))
+        weights_h[idx] = total_hamiltonian.get_coefficients(walker.hamiltonian * 1)
 
     weights_dict = {}
-    if walkers[0].nvt or walkers[0].npt:
-        weights_dict['TEMP'] = [w.temperature for w in walkers]
-    if walkers[0].npt:
-        weights_dict['PRESSURE'] = [w.pressure for w in walkers]
+    if walkers[0].ensemble != Ensemble.NVE:
+        weights_dict["TEMP"] = [w.temperature for w in walkers]
+    if walkers[0].ensemble in (Ensemble.NPT, Ensemble.NVST):
+        weights_dict["PRESSURE"] = [w.pressure for w in walkers]
 
     # inspect metadynamics attributes and allocate additional weights per MTD
     metad_objects = []
@@ -108,85 +83,87 @@ def template(
                 "psiflow.sampling.multiple_walker_metadynamics"
             )
             metad_objects.append(mtd)
-            weights_dict[f'METAD{len(metad_objects) - 1}'] = [(i == j) for j in range(len(walkers))]
+            weights_dict[f"METAD{len(metad_objects) - 1}"] = [
+                (i == j) for j in range(len(walkers))
+            ]
     plumed_list = [mtd.input() for mtd in metad_objects]
 
-    weights_ensemble = np.array([*weights_dict.values()]).T
     weights_name = tuple(names + list(weights_dict.keys()))
-    weights_table = np.concatenate([weights_hamiltonian, weights_ensemble], axis=-1)
+    if len(weights_dict) == 0:  # NVE without metadynamics
+        weights_table = weights_h
+    else:
+        weights_ensemble = np.array([*weights_dict.values()]).T
+        weights_table = np.concatenate([weights_h, weights_ensemble], axis=-1)
+    ensemble_table = EnsembleTable(weights_name, weights_table)
 
-    return components, EnsembleTable(weights_name, weights_table), plumed_list
+    # make list of all (shared) hamiltonian components
+    components = [
+        HamiltonianComponent(n, h, all(weights_h[:, idx]))
+        for idx, (n, h) in enumerate(zip(names, total_hamiltonian.hamiltonians))
+    ]
+
+    return components, ensemble_table, plumed_list
 
 
-def make_force_xml(hamiltonian: MixtureHamiltonian, names: list[str]) -> ET.Element:
-    # TODO: move to relevant module
-    forces = ET.Element("forces")
-    for n, c in zip(names, hamiltonian.coefficients):
-        forces.append(ET.Element("force", forcefield=n, weight=str(c)))
-    return forces
+def setup_sockets(components: list[HamiltonianComponent]) -> list[ET.Element]:
+    xml_str = """
+    <ffsocket mode="unix" name="{name}" pbc="False">
+        <timeout>{timeout}</timeout>
+        <exit_on_disconnect> TRUE </exit_on_disconnect>
+        <address>{address}</address>
+    </ffsocket>
+    """
+    timeout = 60 * psiflow.context().definitions["ModelEvaluation"].timeout
 
-
-@typeguard.typechecked
-def setup_sockets(
-    hamiltonian_labels: Iterable[str],
-) -> list[ET.Element]:
     sockets = []
-    for name in hamiltonian_labels:
-        ffsocket = ET.Element("ffsocket", mode="unix", name=name, pbc="False")
-        timeout = ET.Element("timeout")
-        timeout.text = str(
-            60 * psiflow.context().definitions["ModelEvaluation"].timeout
-        )
-        ffsocket.append(timeout)
-        exit_on = ET.Element("exit_on_disconnect")
-        exit_on.text = " TRUE "
-        ffsocket.append(exit_on)
-        address = ET.Element("address")  # placeholder
-        address.text = name.lower()
-        ffsocket.append(address)
-
-        sockets.append(ffsocket)
+    for comp in components:
+        xml = xml_str.format(name=comp.name, address=comp.address, timeout=str(timeout))
+        sockets.append(ET.fromstring(xml))
     return sockets
 
 
-@typeguard.typechecked
 def setup_motion(walker: Walker, fix_com: bool) -> ET.Element:
-    timestep_element = ET.Element("timestep", units="femtosecond")
-    timestep_element.text = str(walker.timestep)
-
-    tau = ET.Element("tau", units="femtosecond")
-    tau.text = "100"
-    thermostat_pimd = ET.Element("thermostat", mode="pile_g")
-    thermostat_pimd.append(tau)
-    thermostat = ET.Element("thermostat", mode="langevin")
-    thermostat.append(tau)
-    if walker.nve:
-        dynamics = ET.Element("dynamics", mode="nve")
-        dynamics.append(timestep_element)
-    elif walker.nvt:
-        dynamics = ET.Element("dynamics", mode="nvt")
-        dynamics.append(timestep_element)
-        if walker.pimd:
-            dynamics.append(thermostat_pimd)
-        else:
-            dynamics.append(thermostat)
-    elif walker.npt:
+    if (ensemble := walker.ensemble) == Ensemble.NVE:
+        mode = "nve"
+    elif ensemble == Ensemble.NVT:
+        mode = "nvt"
+    elif ensemble in (Ensemble.NPT, Ensemble.NVST):
         mode = "npt"
-        dynamics = ET.Element("dynamics", mode=mode)
-        dynamics.append(timestep_element)
-        if walker.pimd:
-            dynamics.append(thermostat_pimd)
-        else:
-            dynamics.append(thermostat)
-        mode = "flexible"
-        barostat = ET.Element("barostat", mode=mode)
-        tau = ET.Element("tau", units="femtosecond")
-        tau.text = "200"
-        barostat.append(tau)
-        barostat.append(thermostat)  # never use thermostat_pimd here!
-        dynamics.append(barostat)
     else:
         raise ValueError("invalid walker {}".format(walker))
+    dynamics = ET.Element("dynamics", mode=mode)
+    timestep_element = ET.Element("timestep", units="femtosecond")
+    timestep_element.text = str(walker.timestep)
+    dynamics.append(timestep_element)
+
+    # thermostat
+    if ensemble != Ensemble.NVE:
+        xml_thermo = """
+        <thermostat mode="{mode}">
+            <tau units="femtosecond">{tau_thermo}</tau>
+        </thermostat>
+        """.format(
+            mode=("pile_g" if walker.pimd else "langevin"),
+            tau_thermo=walker.tau_thermostat,
+        )
+        dynamics.append(ET.fromstring(xml_thermo))
+
+    # barostat - never use pile_g here!
+    if ensemble in (Ensemble.NPT, Ensemble.NVST):
+        xml_baro = """
+        <barostat mode="flexible">
+            <tau units="femtosecond">{tau_baro}</tau>
+            <vol_constraint> {vol_constraint} </vol_constraint>
+            <thermostat mode="langevin">
+                <tau units="femtosecond">{tau_thermo}</tau>
+            </thermostat>
+        </barostat>
+        """.format(
+            tau_baro=walker.tau_barostat,
+            tau_thermo=walker.tau_thermostat,
+            vol_constraint=(ensemble == Ensemble.NVST),
+        )
+        dynamics.append(ET.fromstring(xml_baro))
 
     motion = ET.Element("motion", mode="dynamics")
     motion.append(dynamics)
@@ -196,8 +173,9 @@ def setup_motion(walker: Walker, fix_com: bool) -> ET.Element:
     return motion
 
 
-@typeguard.typechecked
-def setup_ensemble(components: list[HamiltonianComponent], weights_header: tuple[str, ...]) -> ET.Element:
+def setup_ensemble(
+    components: list[HamiltonianComponent], weights_header: tuple[str, ...]
+) -> ET.Element:
     ensemble = ET.Element("ensemble")
 
     # set TEMP in any case to avoid i-PI from throwing weird errors
@@ -236,32 +214,29 @@ def setup_ensemble(components: list[HamiltonianComponent], weights_header: tuple
     return ensemble
 
 
-@typeguard.typechecked
-def setup_forces(hamiltonian_components: list[HamiltonianComponent]) -> ET.Element:
+def setup_forces(components: list[HamiltonianComponent]) -> ET.Element:
     forces = ET.Element("forces")
-    for comp in hamiltonian_components:
-        if comp.shared:                     # only add components shared across all walkers
+    for comp in components:
+        if comp.shared:  # only add components shared across all walkers
             force = ET.Element("force", forcefield=comp.name, weight=comp.name.upper())
             forces.append(force)
     return forces
 
 
-@typeguard.typechecked
 def setup_ffplumed(nplumed: int) -> list[ET.Element]:
     ffplumed = []
     for i in range(nplumed):
         input_file = ET.Element("file", mode="xyz", cell_units="angstrom")
         input_file.text = "start_0.xyz"  # always present
-        plumeddat = ET.Element("plumeddat")
-        plumeddat.text = "metad_input{}.txt".format(i)
+        plumed_dat = ET.Element("plumed_dat")
+        plumed_dat.text = "metad_input{}.txt".format(i)
         ff = ET.Element("ffplumed", name="metad{}".format(i), pbc="False")
         ff.append(input_file)
-        ff.append(plumeddat)
+        ff.append(plumed_dat)
         ffplumed.append(ff)
     return ffplumed
 
 
-@typeguard.typechecked
 def setup_system_template(
     walkers: list[Walker],
     ensemble_table: EnsembleTable,
@@ -271,12 +246,14 @@ def setup_system_template(
 ) -> ET.Element:
     system_template = ET.Element("system_template")
     labels = ET.Element("labels")
-    labels.text = create_xml_list(['INDEX'] + [w.upper() for w in ensemble_table.keys])
+    labels.text = create_xml_list(["INDEX"] + [w.upper() for w in ensemble_table.keys])
     system_template.append(labels)
 
     for i in range(len(ensemble_table)):
         instance = ET.Element("instance")
-        instance.text = create_xml_list([f'{i}'] + [str(w) for w in ensemble_table.get_index(i)])
+        instance.text = create_xml_list(
+            [f"{i}"] + [str(w) for w in ensemble_table.get_index(i)]
+        )
         system_template.append(instance)
 
     initialize = ET.Element("initialize", nbeads=str(walkers[0].nbeads))
@@ -284,10 +261,13 @@ def setup_system_template(
     start.text = " start_INDEX.xyz "
     initialize.append(start)
     velocities = ET.Element("velocities", mode="thermal", units="kelvin")
-    velocities.text = " TEMP " if "TEMP" in ensemble_table.keys else " 300 "        # valid template parameter
+    velocities.text = (
+        " TEMP " if "TEMP" in ensemble_table.keys else " 300 "
+    )  # valid template parameter
     initialize.append(velocities)
     if walkers[0].masses is not None:
         import ase.units
+
         AMU_TO_AU = ase.units._amu / ase.units._me
         masses = ET.Element("masses", mode="manual")
         masses.text = create_xml_list([str(i) for i in walkers[0].masses * AMU_TO_AU])
@@ -305,7 +285,6 @@ def setup_system_template(
     return system_template
 
 
-@typeguard.typechecked
 def setup_output(
     components: list[HamiltonianComponent],
     observables: Optional[list[str]],
@@ -319,13 +298,16 @@ def setup_output(
 
     n_forces = sum([comp.shared for comp in components], 0)
     full_list = (
-        DEFAULT_OBSERVABLES + potential_component_names(n_forces) + observables
+        DEFAULT_OBSERVABLES
+        + [potential_component_name(i) for i in range(n_forces)]
+        + observables
     )
-    if len(components) != n_forces:             # store bias force components
-        full_list.append('ensemble_bias{electronvolt}')
+    if len(components) != n_forces:  # store bias force components
+        full_list.append("ensemble_bias{electronvolt}")
     observables = list(set(full_list))
 
     if step is None:
+        # TODO: this logic should be elsewhere
         step = checkpoint_step
 
     output = ET.Element("output", prefix="output")
@@ -356,7 +338,6 @@ def setup_output(
     return output, observables
 
 
-@typeguard.typechecked
 def setup_smotion(
     coupling: Optional[Coupling], plumed_list: list[AppFuture]
 ) -> ET.Element:
@@ -381,76 +362,111 @@ def setup_smotion(
     return smotion
 
 
-def make_start_command(command: str, input_xml: File, start_xyz: File, nwalkers: int = 1) -> str:
+def make_server_command(
+    command: str,
+    input_xml: File,
+    start_xyz: File,
+    output_xyz: File,
+    output_props: list[File],
+    output_trajs: list[File],
+) -> str:
     """"""
-    return f'{command} --nwalkers={nwalkers} --input_xml={input_xml.filepath} --start_xyz={start_xyz.filepath} &'
+    args = [
+        f"{command}",
+        f"--input_xml={input_xml.filepath}",
+        f"--start_xyz={start_xyz.filepath}",
+        f"--output_xyz={output_xyz.filepath}",
+    ]
+    if output_props:
+        args.append(
+            "--output_props=" + ",".join([file.filepath for file in output_props])
+        )
+    if output_trajs:
+        args.append(
+            "--output_traj=" + ",".join([file.filepath for file in output_trajs])
+        )
+    return " ".join(args + ["&"])
 
 
-def make_client_command(command: str, address: str, hamiltonian: File,
-                        start: File, arg: str, max_force: float = None) -> str:
+def make_driver_commands(
+    driver_kwargs: list[dict], file_xyz: File, files_hamiltonian: list[File]
+) -> list[str]:
     """"""
-    return '{c} --address={a} --path_hamiltonian={p} --start={s} {m} {arg} &'.format(
-        c=command, a=address.lower(), p=hamiltonian.filepath, s=start.filepath, arg=arg,
-        m=(f'--max_force={max_force}' if max_force is not None else ''),
-    )
+    assert len(driver_kwargs) >= len(files_hamiltonian)
+    default = f'i-pi-driver-py -u -S "" -m custom -P {PATH_DRIVER} -a {{address}} -o {{options}} &'
+
+    commands = []
+    for kwargs in driver_kwargs:
+        # drivers know which hamiltonian to load by 'idx'
+        address, idx = kwargs.pop("address"), kwargs.pop("idx")
+        options = [
+            str(file_xyz),
+            str(files_hamiltonian[idx]),
+            *[f"{k}={v}" for k, v in kwargs.items() if v is not None],
+        ]
+        commands.append(default.format(address=address, options=",".join(options)))
+    return commands
+
+
+def make_wait_for_sockets_command(
+    addresses: Iterable[str], timeout: int = 10, interval: float = 0.1
+) -> str:
+    """"""
+    exist = " && ".join([f"[ -e {a} ]" for a in addresses])
+    return f"t=0; until {exist} || (( t++ >= {timeout} )); do sleep {interval}; done"
 
 
 def _execute_ipi(
     nwalkers: int,
-    hamiltonian_names: list[str],
-    client_args: list[str],
+    driver_kwargs: list[dict],
     keep_trajectory: bool,
-    max_force: Optional[float],
     coupling_command: Optional[str],
     command_server: str,
-    command_client: str,
     *plumed_list: str,
     env_vars: dict = {},
-    stdout: str = "",
-    stderr: str = "",
+    stdout: str = parsl.AUTO_LOGNAME,
+    stderr: str = parsl.AUTO_LOGNAME,
     inputs: list = [],
     outputs: list = [],
     parsl_resource_specification: Optional[dict] = {},
 ) -> str:
-    write_command = '\n'.join([
-        f'echo "{plumed_str}" > metad_input{i}.txt' for i, plumed_str in enumerate(plumed_list)
-    ])
-    env_command = 'export ' + ' '.join([f"{name}={value}" for name, value in env_vars.items()])
-    command_start = make_start_command(command_server, inputs[0], inputs[1], nwalkers)
-    commands_client = []
-    for i, name in enumerate(hamiltonian_names):
-        args = client_args[i]
-        for arg in args:
-            commands_client += make_client_command(command_client, name, inputs[2 + i], inputs[1], arg, max_force),
+    """"""
+    file_xml, file_xyz_in, *files_in = inputs
+    file_xyz_out, files_props = outputs[0], outputs[1 : 1 + nwalkers]
+    files_traj = outputs[1 + nwalkers : 1 + 2 * nwalkers] if keep_trajectory else []
+    if coupling_command:
+        files_in = files_in[:-1]  # exclude REX swapfile
 
-    command_end = f'{command_server} --cleanup --output_xyz={outputs[0].filepath}'
-    commands_copy = []
-    for i in range(nwalkers):
-        commands_copy += f'cp walker-{i}_output.properties {outputs[i + 1].filepath}',
-        if keep_trajectory:
-            commands_copy += f'cp walker-{i}_output.trajectory_0.extxyz {outputs[i + nwalkers + 1].filepath}',
-    if coupling_command is not None:
-        commands_copy += coupling_command,
-    command_copy = '; '.join(commands_copy)
+    write_command_args = [
+        f'echo "{plumed_str}" > metad_input{i}.txt'
+        for i, plumed_str in enumerate(plumed_list)
+    ]
+    command_start = make_server_command(
+        command_server, file_xml, file_xyz_in, file_xyz_out, files_props, files_traj
+    )
+    command_wait = make_wait_for_sockets_command(
+        set(d["address"] for d in driver_kwargs)
+    )
+    commands_driver = make_driver_commands(driver_kwargs, file_xyz_in, files_in)
 
     command_list = [
         TMP_COMMAND,
         CD_COMMAND,
-        write_command,
-        env_command,
+        "\n".join(write_command_args),
+        export_env_command(env_vars),
         command_start,
-        *commands_client,
+        command_wait,
+        *commands_driver,
         "wait",
-        command_end,
-        command_copy,
     ]
+    if coupling_command:
+        command_list.append(coupling_command)
     return "\n".join(command_list)
 
 
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
 
 
-@typeguard.typechecked
 def _sample(
     walkers: list[Walker],
     steps: int,
@@ -466,12 +482,12 @@ def _sample(
     verbosity: str = "medium",
 ) -> list[SimulationOutput]:
     assert len(walkers) > 0
-    hamiltonian_components, ensemble_table, plumed_list = template(walkers)
-    coupling = walkers[0].coupling
-
     if motion_defaults is not None:
         raise NotImplementedError
 
+    # generate i-Pi input XML
+    hamiltonian_components, ensemble_table, plumed_list = template(walkers)
+    coupling = walkers[0].coupling
     motion = setup_motion(walkers[0], fix_com)
     ensemble = setup_ensemble(hamiltonian_components, ensemble_table.keys)
     forces = setup_forces(hamiltonian_components)
@@ -510,7 +526,7 @@ def _sample(
         verbosity=str(verbosity),
         safe_stride=str(checkpoint_step),
     )
-    sockets = setup_sockets([comp.name for comp in hamiltonian_components])
+    sockets = setup_sockets(hamiltonian_components)
     for socket in sockets:
         simulation.append(socket)
     ffplumed = setup_ffplumed(len(plumed_list))
@@ -530,24 +546,31 @@ def _sample(
     prng.append(seed)
     simulation.append(prng)
 
+    # app setup and IO
     context = psiflow.context()
     definition = context.definitions["ModelEvaluation"]
-    input_future = save_xml(
-        simulation,
-        outputs=[context.new_file("input_", ".xml")],
-    ).outputs[0]
+    input_file = context.new_file("input_", ".xml")
+    _save_xml(simulation, outputs=[input_file])
     inputs = [
-        input_future,
+        input_file,
         Dataset([w.state for w in walkers]).extxyz,
     ]
 
-    # remove any Harmonic instances because they are not implemented with sockets       -- TODO: why?
+    # figure out i-Pi MD driver configuration
+    # how many drivers (force evaluators) with which arguments?
+    # remove any Harmonic instances because they are not implemented with sockets     -- TODO: why?
     max_nclients = int(sum([w.nbeads for w in walkers]))
-    client_args = []
-    for comp in hamiltonian_components:
+    driver_kwargs = []
+    for i, comp in enumerate(hamiltonian_components):
         inputs.append(comp.hamiltonian.serialize_function())
-        args = definition.get_client_args(comp.name, max_nclients, motion="dynamics")
-        client_args.append(args)
+        kwargs = {"idx": i, "address": comp.address, "max_force": max_force}
+        if isinstance(comp.hamiltonian, MACEHamiltonian):
+            kwargs["dtype"] = "float32"  # TODO: should this be configurable?
+            for instance_kwargs in definition.get_driver_devices(max_nclients):
+                driver_kwargs.append(kwargs | instance_kwargs)
+        else:
+            driver_kwargs.append(kwargs)
+
     outputs = [context.new_file("data_", ".xyz")]
     outputs += [context.new_file("simulation_", ".txt") for _ in walkers]
     if keep_trajectory:
@@ -567,48 +590,42 @@ def _sample(
     else:
         coupling_copy_command = None
 
-    command_server = definition.server_command()
-    command_client = definition.client_command()
-    resources = definition.wq_resources(max_nclients)
+    # TODO: an app to check for valid input? (e.g., PBC + barostat)
     result = execute_ipi(
         len(walkers),
-        [comp.name for comp in hamiltonian_components],
-        client_args,
+        driver_kwargs,
         keep_trajectory,
-        max_force,
         coupling_copy_command,
-        command_server,
-        command_client,
-        *plumed_list,
+        definition.server_command(),
+        *plumed_list,  # futures
         env_vars=dict(definition.env_vars),
-        stdout=parsl.AUTO_LOGNAME,
-        stderr=parsl.AUTO_LOGNAME,
         inputs=inputs,
         outputs=outputs,
-        parsl_resource_specification=resources,
+        parsl_resource_specification=definition.wq_resources(max_nclients),
     )
 
-    final_states = Dataset(None, result.outputs[0])
-    simulation_outputs = [SimulationOutput(observables) for _ in range(len(walkers))]
-    for i, simulation_output in enumerate(simulation_outputs):
-        state = final_states[i]
-        if walkers[i].order_parameter is not None:
-            state = walkers[i].order_parameter.evaluate(state)
-        simulation_output.parse(result, state)
-        simulation_output.parse_data(
+    # process MD output
+    simulation_outputs = []
+    final_states = read_frames(inputs=result.outputs[:1])
+    for idx, walker in enumerate(walkers):
+        # TODO: order_parameter out of commission
+        # if walker.order_parameter is not None:
+        #     state = walker.order_parameter.evaluate(state)
+        if walker.metadynamics is not None:
+            walker.metadynamics.wait_for(result)
+        output = SimulationOutput.from_md(
+            walker,
+            final_states[idx],
+            observables,
+            hamiltonian_components,  # order is important
             start,
-            result.outputs[i + 1],
-            hamiltonians=[comp.hamiltonian for comp in hamiltonian_components],
+            result.outputs[idx + 1],
+            result.outputs[len(walkers) + 1 + idx] if keep_trajectory else None,
+            result.stdout,
+            result.stderr,
         )
-        if keep_trajectory:
-            j = len(walkers) + 1 + i
-            trajectory = Dataset(None, result.outputs[j])
-            if start > 0:
-                trajectory = trajectory[start:]
-            simulation_output.trajectory = trajectory
-        if walkers[i].metadynamics is not None:
-            walkers[i].metadynamics.wait_for(result)
-        simulation_output.update_walker(walkers[i])
+        output.update_walker()
+        simulation_outputs.append(output)
 
     if coupling is not None:
         coupling.update(result)
@@ -616,7 +633,6 @@ def _sample(
     return simulation_outputs
 
 
-@typeguard.typechecked
 def sample(
     walkers: list[Walker],
     steps: int,

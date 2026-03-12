@@ -1,9 +1,6 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 from pathlib import Path
 from typing import Optional, Union
 
-import typeguard
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture
 
@@ -12,7 +9,6 @@ from psiflow.utils._plumed import remove_comments_printflush, set_path_in_plumed
 from psiflow.utils.apps import copy_app_future, copy_data_future
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class Metadynamics:
     _plumed_input: str
@@ -33,13 +29,11 @@ class Metadynamics:
         # PLUMED + WQ cannot deal with nonexisting hills files!
         if type(external) in [str, Path]:
             external = File(str(external))
-            Path(external).touch()
         if external is None:
             external = psiflow.context().new_file("hills_", ".txt")
-            Path(external.filepath).touch()
         else:
             assert external.filepath in _plumed_input
-            Path(external.filepath).touch()
+        Path(external.filepath).touch()
         _plumed_input = set_path_in_plumed(
             _plumed_input,
             "METAD",
@@ -49,14 +43,13 @@ class Metadynamics:
         self.external = external
 
     def plumed_input(self):
-        plumed_input = self._plumed_input
-        plumed_input = plumed_input.replace("PLACEHOLDER", self.external.filepath)
-        return plumed_input
+        return self._plumed_input.replace("PLACEHOLDER", self.external.filepath)
 
     def input(self) -> AppFuture:
         return copy_app_future(self.plumed_input(), inputs=[self.external])
 
     def wait_for(self, result: AppFuture) -> None:
+        # TODO: what does this do?
         self.external = copy_app_future(
             0,
             inputs=[result, self.external],
@@ -71,7 +64,7 @@ class Metadynamics:
             return False
         return self.plumed_input() == other.plumed_input()
 
-    def copy(self) -> Metadynamics:
+    def copy(self) -> "Metadynamics":
         new_external = copy_data_future(
             inputs=[self.external],
             outputs=[psiflow.context().new_file("hills_", ".txt")],

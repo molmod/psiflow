@@ -1,15 +1,20 @@
 """
 TODO: these imports are outdated.. Is this module still used?
 """
-from __future__ import annotations  # necessary for type-guarding class methods
 
+import warnings
 from functools import partial
 from typing import Optional, Union
 
-import typeguard
 from ase.units import kJ, mol
 from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
+
+warnings.warn(
+    "The 'order' module is severely outdated and no longer works. "
+    "Please reach out on GitHub if you require this functionality.",
+)
+
 
 import psiflow
 from psiflow.data import Dataset, batch_apply
@@ -18,7 +23,6 @@ from psiflow.hamiltonians._plumed import PlumedHamiltonian
 from psiflow.hamiltonians.hamiltonian import Hamiltonian
 
 
-@typeguard.typechecked
 def insert_in_state(
     state: Geometry,
     name: str,
@@ -29,7 +33,6 @@ def insert_in_state(
     return state
 
 
-@typeguard.typechecked
 def _insert(
     state_or_states: Union[Geometry, list[Geometry]],
     name: str,
@@ -45,7 +48,6 @@ def _insert(
 insert = python_app(_insert, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def insert_in_dataset(
     data: Dataset,
     name: str,
@@ -57,7 +59,6 @@ def insert_in_dataset(
     return Dataset(geometries)
 
 
-@typeguard.typechecked
 class OrderParameter:
     # TODO: batched evaluation
 
@@ -71,7 +72,6 @@ class OrderParameter:
         raise NotImplementedError
 
 
-@typeguard.typechecked
 @psiflow.serializable
 class HamiltonianOrderParameter(OrderParameter):
     name: str
@@ -113,7 +113,7 @@ class HamiltonianOrderParameter(OrderParameter):
     @classmethod
     def from_plumed(
         cls, name: str, hamiltonian: PlumedHamiltonian
-    ) -> HamiltonianOrderParameter:
+    ) -> "HamiltonianOrderParameter":
         assert name in hamiltonian.plumed_input()
         action_prefixes = [
             "ABMD",

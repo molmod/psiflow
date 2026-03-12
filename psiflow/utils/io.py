@@ -1,3 +1,4 @@
+import json
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -105,10 +106,6 @@ def _dump_json(
     outputs: list = [],
     **kwargs,
 ) -> None:
-    import json
-
-    import numpy as np
-
     def convert_to_list(array):
         if not type(array) is np.ndarray:
             if type(array) is np.floating:
@@ -119,6 +116,7 @@ def _dump_json(
             as_list.append(convert_to_list(item))
         return as_list
 
+    assert len(outputs) == 1
     for name in list(kwargs.keys()):
         value = kwargs[name]
         if type(value) is np.ndarray:
@@ -131,3 +129,26 @@ def _dump_json(
 
 
 dump_json = python_app(_dump_json, executors=["default_threads"])
+
+
+def _save_npz(
+    data: dict[str, np.ndarray], outputs: list[File], **kwargs: np.ndarray
+) -> None:
+    """"""
+    assert len(outputs) == 1
+    np.savez(outputs[0].filepath, **(data | kwargs))
+
+
+save_npz = python_app(_save_npz, executors=["default_threads"])
+
+
+def _load_npz(file_in: File) -> dict[str, Any]:
+    """"""
+    data: dict[str, np.ndarray] = dict(np.load(file_in))
+    for k, v in data.items():
+        if v.size == 1:
+            data[k] = v.item()  # convert to native python type
+    return data
+
+
+load_npz = python_app(_load_npz, executors=["default_threads"])
