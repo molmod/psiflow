@@ -96,12 +96,11 @@ def wait_for_clients(input_xml, timeout: int = 60) -> None:
 
 def add_extras(noutputs: int) -> None:
     # property headers
-    file_props = next(Path.cwd().glob(f"*0*.properties"))   # properties should be the same for all coupled walkers?
+    file_props = next(Path.cwd().glob("*0*.properties"))   # properties should be the same for all coupled walkers?
     _, info_dict = read_output(file_props)
     props_headers = ["# column   {}     --> {}{} : {}".format(i, key, "{" + info_dict[key][0] + "}", info_dict[key][1]) for i, key in enumerate(info_dict)]
     # extras headers
-    file_extras = next(Path.cwd().glob(f"*0*.extras*"))   # extras should be the same for all coupled walkers?
-    assert file_extras is not None, "No extras file found."
+    file_extras = next(Path.cwd().glob("*0*.extras*"))   # extras should be the same for all coupled walkers?
     with open(file_extras, "r") as f:
         line = f.readline()
         start = line.find("(") + 1
@@ -161,8 +160,8 @@ def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
     output_props = _.split(",") if (_ := output_props) else []
     output_trajs = _.split(",") if (_ := output_trajs) else []
 
-    # Add collective variables to simulation properties, if they exist
-    if output_props:
+    # Add extras to simulation properties, if they exist
+    if len(output_props) and any(Path.cwd().glob("*.extras*")):
         add_extras(len(output_props))
         print("Added i-Pi extras output to properties files")
 

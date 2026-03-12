@@ -340,16 +340,17 @@ def setup_output(
         if comp.name.startswith("Plumed"):  # technically other hamiltonians could also have extras
             extras_list += comp.hamiltonian.plumed_extras    # maybe extras should be a general property of the Hamiltonian class?
     observables += [extra + "{au}" for extra in extras_list]   # for SimulationOutput  TODO: what to do with units?
-    extras = ",".join(list(set(extras_list)))
-    extras_element = ET.Element(
-        "trajectory",
-        filename=f"extras",
-        stride=str(step),
-        extra_type=extras,
-        bead="0",
-    )
-    extras_element.text = f" extras "
-    output.append(extras_element)
+    if extras_list:
+        extras = ",".join(list(set(extras_list)))
+        extras_element = ET.Element(
+            "trajectory",
+            filename=f"extras",
+            stride=str(step),
+            extra_type=extras,
+            bead="0",
+        )
+        extras_element.text = f" extras "
+        output.append(extras_element)
     return output, observables
 
 
