@@ -1,5 +1,3 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import inspect
 import json
 from pathlib import Path
@@ -7,7 +5,6 @@ from typing import ClassVar, Optional, Union, get_args, get_origin, get_type_hin
 from collections.abc import Sequence
 from dataclasses import InitVar
 
-import typeguard
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
@@ -16,8 +13,6 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 
-
-# TODO: this is only used in the Learning class currently
 
 
 _DataFuture = Union[File, DataFuture]
@@ -32,7 +27,6 @@ def dummy(*args, **kwargs):
 
 
 def create_getter(name, kind, type_hint):
-    @typeguard.typechecked
     def getter(self) -> type_hint:
         return getattr(self, "_{}".format(kind))[name]
 
@@ -40,7 +34,6 @@ def create_getter(name, kind, type_hint):
 
 
 def create_setter(name, kind, type_hint):
-    @typeguard.typechecked
     def setter(self, value: type_hint) -> None:
         _dict = getattr(self, "_{}".format(kind))
         _dict[name] = value
@@ -59,6 +52,8 @@ def update_init(init_func):  # TODO: why not have a Mixin class instead?
     return wrapper
 
 
+# TODO: essentially creates a new class with getters and setters for attributes in hidden dicts
+# TODO: it replaces regular instance attributes with properties that point to these hidden state dicts
 def serializable(cls):
     """decorator to make class serializable"""
     class_dict = dict(cls.__dict__)
@@ -125,7 +120,8 @@ def serializable(cls):
     return new_cls
 
 
-@typeguard.typechecked
+# TODO: utils.io already has a dump json method, but not as involved as this one
+# TODO: maybe we need a generic 'unpack' futures thing that traverses a nested dict and replaces all futures?
 def _dump_json(
     inputs: list = [],
     outputs: list = [],
@@ -176,7 +172,6 @@ def _dump_json(
 dump_json = python_app(_dump_json, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def serialize(
     obj: Serializable,
     path_json: Optional[Path] = None,
@@ -266,7 +261,8 @@ def serialize(
     )
 
 
-@typeguard.typechecked
+# TODO: recreates a class instance from the json string, simply repopulating its fields hidden fields
+# TODO: by reconstructing objects based on whether they belong to _attrs, _files, ...
 def deserialize(data_str: str, custom_cls: Optional[list] = None):
     from psiflow.data import Dataset
     from psiflow.hamiltonians import (
