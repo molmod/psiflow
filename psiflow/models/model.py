@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @typeguard.typechecked
-@psiflow.serializable
+@psiflow.register_serializable  # TODO: not required? you should always subclass this
 class Model:
     _config: dict
     model_future: Optional[psiflow._DataFuture]

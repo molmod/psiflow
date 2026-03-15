@@ -1,8 +1,6 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import warnings
 import logging
-from typing import ClassVar, Optional, Union, Callable, Sequence
+from typing import Optional, Union, Callable, Sequence
 from pathlib import Path
 from functools import partial
 from enum import Enum
@@ -32,6 +30,7 @@ class Status(Enum):
 
 class SinglePointResult:
     """All dict keys update_geometry understands"""
+    # TODO: why not use this container instead of a dict?
 
     status: Status
     natoms: int  # optional
@@ -83,7 +82,7 @@ def get_minimum_energy(element: str, **kwargs) -> AppFuture[float]:
 def compute_dataset(
     dataset: Dataset,
     length: int,
-    reference: Reference,
+    reference: 'Reference',
 ) -> list[AppFuture[Geometry]]:
     logger.info(f"Performing {length} {reference.__class__.__name__} calculations.")
     geometries = dataset.geometries()  # read it once
@@ -92,7 +91,7 @@ def compute_dataset(
 
 
 def _execute(
-    reference: Reference,
+    reference: 'Reference',
     inputs: list[File],
     bash_template: str,
     parsl_resource_specification: Optional[dict] = None,
@@ -102,11 +101,11 @@ def _execute(
 ) -> str:
     # TODO: we do not set env_vars here?
     command = reference.get_shell_command(inputs)
-    return bash_template.format(commands=command, env=">/dev/null")
+    return bash_template.format(commands=command, env="")
 
 
 def _process_output(
-    reference: Reference,
+    reference: 'Reference',
     geom: Geometry,
     inputs: tuple[str | int] = (),
 ) -> Geometry:
@@ -122,7 +121,7 @@ def _process_output(
 
 
 @join_app
-def evaluate(reference: Reference, geom: Geometry) -> AppFuture[Geometry]:
+def evaluate(reference: 'Reference', geom: Geometry) -> AppFuture[Geometry]:
     """"""
     if geom == NullState:  # TODO: remove this
         warnings.warn("Skipping NullState..")
@@ -137,16 +136,15 @@ def evaluate(reference: Reference, geom: Geometry) -> AppFuture[Geometry]:
     return future
 
 
-@psiflow.serializable
+@psiflow.register_serializable  # TODO: necessary? you should always subclass this
 class Reference(Computable):
     outputs: Sequence[str]
-    batch_size: ClassVar[int] = 1  # TODO: not really used
-    app_execute: ClassVar[Callable]  # TODO: fix serialisation
-    app_post: ClassVar[Callable]
-    _execute_label: ClassVar[str]
+    batch_size: int = 1  # TODO: not really used
+    app_execute: Callable
+    app_post: Callable
+    _execute_label: str
     execute_command: str
-    executor: ClassVar[str]
-    n_cores: Optional[int]
+    executor: str
 
     def __init__(
         self, outputs: Sequence[str] = ("energy", "forces"), n_cores: int | None = None
@@ -221,7 +219,7 @@ class Reference(Computable):
             futures[str(mult)] = reference.evaluate(state)
         return get_minimum_energy(element, **futures)
 
-    def get_single_atom_references(self, element: str) -> dict[int, Reference]:
+    def get_single_atom_references(self, element: str) -> dict[int, 'Reference']:
         raise NotImplementedError
 
     def get_shell_command(self, inputs: list[File]) -> str:

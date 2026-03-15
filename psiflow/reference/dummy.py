@@ -1,4 +1,3 @@
-from typing import Optional, Union
 from functools import partial
 
 import numpy as np
@@ -10,7 +9,7 @@ from psiflow.reference.reference import Reference, Status
 from psiflow.reference.reference import _execute, _process_output
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class ReferenceDummy(Reference):
     executor = "HTEX"
     _execute_label = "dummy_singlepoint"

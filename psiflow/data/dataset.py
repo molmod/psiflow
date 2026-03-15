@@ -36,7 +36,7 @@ from .utils import (
 )
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class Dataset:
     """
     A class representing a dataset of atomic structures.

@@ -119,9 +119,9 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     return data
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class ORCA(Reference):
-    executor: ClassVar[str] = "ORCA"
+    executor: str = "ORCA"
     _execute_label = "orca_singlepoint"
     input_template: str
     input_kwargs: dict

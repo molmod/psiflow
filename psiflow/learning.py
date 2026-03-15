@@ -100,7 +100,7 @@ def evaluate_outputs(
 
 
 @typeguard.typechecked
-@psiflow.serializable
+# @psiflow.serializable
 class Learning:
     reference: Reference
     path_output: str

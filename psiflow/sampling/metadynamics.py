@@ -9,7 +9,7 @@ from psiflow.utils._plumed import remove_comments_printflush, set_path_in_plumed
 from psiflow.utils.apps import copy_app_future, copy_data_future
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class Metadynamics:
     _plumed_input: str
     external: Optional[psiflow._DataFuture]

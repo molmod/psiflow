@@ -1,4 +1,5 @@
 import copy
+from functools import partial
 from typing import Any, Callable
 from collections.abc import Sequence
 
@@ -8,7 +9,7 @@ from parsl.dataflow.futures import AppFuture, Future
 from psiflow.geometry import Geometry
 
 
-CLS_TO_IGNORE = (Future, File, Geometry)
+CLS_TO_IGNORE = (Future, Callable, File, Geometry)
 
 
 def traverse(obj: Any, callback: Callable) -> Any:
@@ -23,7 +24,7 @@ def traverse(obj: Any, callback: Callable) -> Any:
         case dict():
             return {k: traverse(v, callback) for k, v in node.items()}
         case list() | tuple() | set():
-            return [traverse(v, callback) for v in node]
+            return type(obj)(traverse(v, callback) for v in node)
         case object(__dict__=data):
             # filters for classes with attributes - will not work with slots
             for k, v in data.items():

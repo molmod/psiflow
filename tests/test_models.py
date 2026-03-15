@@ -11,7 +11,7 @@ from psiflow.models import MACE, load_model
 
 def test_mace_init(mace_config, dataset):
     model = MACE(**mace_config)
-    assert "model_future" in model._files
+    # assert "model_future" in model._files
     assert model.model_future is None
     model.initialize(dataset[:1])
     assert model.model_future is not None

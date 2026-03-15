@@ -93,9 +93,9 @@ def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.nda
     return data | {"forces": forces * Ha / Bohr}
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class CP2K(Reference):
-    executor: ClassVar[str] = "CP2K"
+    executor: str = "CP2K"
     _execute_label = "cp2k_singlepoint"
     input_dict: dict
 
@@ -105,7 +105,7 @@ class CP2K(Reference):
         modify_input(self.input_dict, self.outputs)
         self._create_apps()
 
-    def compute_atomic_energy(self, element, box_size=None) -> AppFuture[float]:
+    def compute_atomic_energy(self, element, box_size=None) -> AppFuture:
         assert box_size, "CP2K expects a periodic box."
         return super().compute_atomic_energy(element, box_size)
 

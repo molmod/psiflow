@@ -147,16 +147,16 @@ def _add_contributions(
 add_contributions = python_app(_add_contributions, executors=["default_threads"])
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 @dataclass
 class SimulationOutput:
     task_id: str
     walker: Walker
-    status: Union[Status, AppFuture]
-    state: Union[Geometry, AppFuture]
+    status: Status | AppFuture
+    state: Geometry | AppFuture
     data: AppFuture
-    time: Union[float, AppFuture]
-    temperature: Union[float, AppFuture]
+    time: float | AppFuture
+    temperature: float | AppFuture
     trajectory: Optional[Dataset]
     observables: list[str]
 

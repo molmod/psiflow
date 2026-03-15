@@ -13,6 +13,7 @@ from psiflow.utils.future import resolve_nested_futures
 
 
 # TODO: verify which attributes need to be serialized with a _to_serialize key?
+# TODO: what with attribute like 'Callable' (the apps created by various psiflow things?)
 
 
 CLS_KEY = "PSIFLOW_CLS"
@@ -20,11 +21,6 @@ SKIP_INIT = "SKIP_INIT"
 SERIALIZABLE_CLS = {}
 
 _DataFuture = Union[File, DataFuture]  # TODO: does not belong here
-
-
-# TODO: temporary patch
-def serializable(obj: Any) -> Any:
-    return obj
 
 
 class SerializationError(TypeError):
@@ -133,4 +129,6 @@ def deserialize_hook(data: dict) -> Any:
     obj = cls.__new__(cls)
     for k, v in data.items():
         setattr(obj, k, v)
+    if hasattr(obj, "_create_apps"):
+        obj._create_apps()  # reconstruct apps - TODO: do not think this is the best
     return obj

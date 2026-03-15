@@ -32,9 +32,9 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     return data
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class GPAW(Reference):
-    executor: ClassVar[str] = "GPAW"
+    executor: str = "GPAW"
     _execute_label = "gpaw_singlepoint"
     parameters: dict
     script: str

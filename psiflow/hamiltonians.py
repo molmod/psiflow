@@ -26,13 +26,12 @@ from psiflow.utils.apps import copy_app_future, get_attribute
 from psiflow.utils.io import dump_json
 
 
-@psiflow.serializable
+@psiflow.register_serializable  # TODO: required? you should always subclass this
 class Hamiltonian(Computable):
-    # TODO: app is actually an instance variable, but serialization complains..
-    outputs: ClassVar[tuple] = ("energy", "forces", "stress")
+    outputs: tuple = ("energy", "forces", "stress")
     batch_size = 1000
-    app: ClassVar[Callable]
-    function_name: ClassVar[str]
+    app: Callable
+    function_name: str
 
     def compute(
         self,
@@ -83,29 +82,7 @@ class Hamiltonian(Computable):
         return {}
 
 
-@psiflow.serializable
-class Zero(Hamiltonian):
-
-    def __init__(self):
-        apply_zero = python_app(_apply, executors=["default_threads"])
-        self.app = partial(apply_zero, function_cls=ZeroFunction)
-
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        if type(hamiltonian) is Zero:
-            return True
-        return False
-
-    def __mul__(self, a: float) -> "Zero":
-        return Zero()
-
-    def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
-        # (Zero + Hamiltonian) is different from (Hamiltonian + Zero)
-        return hamiltonian
-
-    __rmul__ = __mul__  # handle float * Zero
-
-
-@psiflow.serializable
+@psiflow.register_serializable
 class MixtureHamiltonian(Hamiltonian):
     hamiltonians: list[Hamiltonian]
     coefficients: list[float]
@@ -231,14 +208,38 @@ class MixtureHamiltonian(Hamiltonian):
         return [h.serialize_function(**kwargs) for h in self.hamiltonians]
 
 
-@psiflow.serializable
+@psiflow.register_serializable
+class Zero(Hamiltonian):
+    function_name: str = "ZeroFunction"
+
+    def __init__(self):
+        apply_zero = python_app(_apply, executors=["default_threads"])
+        self.app = partial(apply_zero, function_cls=ZeroFunction)
+
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+        if type(hamiltonian) is Zero:
+            return True
+        return False
+
+    def __mul__(self, a: float) -> "Zero":
+        return Zero()
+
+    def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+        # (Zero + Hamiltonian) is different from (Hamiltonian + Zero)
+        return hamiltonian
+
+    __rmul__ = __mul__  # handle float * Zero
+
+
+@psiflow.register_serializable
 class EinsteinCrystal(Hamiltonian):
-    reference_geometry: Union[Geometry, AppFuture]
+    # TODO: logic not consistent depending on Geometry | AppFuture
+    reference_geometry: Geometry | AppFuture
     force_constant: float
-    function_name: ClassVar[str] = "EinsteinCrystalFunction"
+    function_name: str = "EinsteinCrystalFunction"
 
     def __init__(
-        self, geometry: Union[Geometry, AppFuture[Geometry]], force_constant: float
+        self, geometry: Union[Geometry, AppFuture], force_constant: float
     ):
         super().__init__()
         self.reference_geometry = copy_app_future(geometry)
@@ -269,11 +270,11 @@ class EinsteinCrystal(Hamiltonian):
         return True
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class PlumedHamiltonian(Hamiltonian):
     plumed_input: str  # TODO: or future?
     external: Optional[psiflow._DataFuture]
-    function_name: ClassVar[str] = "PlumedFunction"
+    function_name: str = "PlumedFunction"
 
     def __init__(
         self,
@@ -314,16 +315,16 @@ class PlumedHamiltonian(Hamiltonian):
         return True
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class Harmonic(Hamiltonian):
-    reference_geometry: Union[Geometry, AppFuture[Geometry]]
-    hessian: Union[np.ndarray, AppFuture[np.ndarray]]
-    function_name: ClassVar[str] = "HarmonicFunction"
+    reference_geometry: Geometry | AppFuture
+    hessian: np.ndarray | AppFuture
+    function_name: str = "HarmonicFunction"
 
     def __init__(
         self,
-        reference_geometry: Union[Geometry, AppFuture[Geometry]],
-        hessian: Union[np.ndarray, AppFuture[np.ndarray]],
+        reference_geometry: Geometry | AppFuture,
+        hessian: np.ndarray | AppFuture,
     ):
         # TODO: why not copy_app_future(geometry) like others?
         self.reference_geometry = reference_geometry
@@ -367,11 +368,11 @@ class Harmonic(Hamiltonian):
         return True
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class D3Hamiltonian(Hamiltonian):
     method: str
     damping: str
-    function_name: ClassVar[str] = "DispersionFunction"
+    function_name: str = "DispersionFunction"
 
     def __init__(self, method: str, damping: str = "d3bj"):
         self.method, self.damping = method, damping
@@ -406,11 +407,11 @@ class D3Hamiltonian(Hamiltonian):
         return True
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
     atomic_energies: dict[str, float]
-    function_name: ClassVar[str] = "MACEFunction"
+    function_name: str = "MACEFunction"
 
     def __init__(
         self,
@@ -469,7 +470,7 @@ class MACEHamiltonian(Hamiltonian):
     # TODO: the methods below are outdated..
 
     @classmethod
-    def mace_mp0(cls, size: str = "small") -> 'MACEHamiltonian':
+    def mace_mp0(cls, size: str = "small") -> "MACEHamiltonian":
         urls = dict(
             small="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
             large="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model",
@@ -483,7 +484,7 @@ class MACEHamiltonian(Hamiltonian):
         return cls(parsl_file, {})
 
     @classmethod
-    def mace_cc(cls) -> 'MACEHamiltonian':
+    def mace_cc(cls) -> "MACEHamiltonian":
         url = "https://github.com/molmod/psiflow/raw/main/examples/data/ani500k_cc_cpu.model"
         parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
         urllib.request.urlretrieve(

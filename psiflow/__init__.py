@@ -5,8 +5,8 @@ from .execution import ExecutionContextLoader
 from .serialization import (  # noqa: F401
     _DataFuture,
     deserialize,
-    serializable,
     serialize,
+    register_serializable,
 )
 
 
@@ -30,4 +30,3 @@ def resolve_and_check(path: Path) -> Path:
 load = ExecutionContextLoader.load
 context = ExecutionContextLoader.context
 wait = ExecutionContextLoader.wait
-

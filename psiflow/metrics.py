@@ -454,7 +454,7 @@ initialize_wandb = python_app(_initialize_wandb, executors=["default_htex"])
 
 
 @typeguard.typechecked
-@psiflow.serializable
+# @psiflow.serializable
 class Metrics:
     wandb_group: Optional[str]
     wandb_project: Optional[str]

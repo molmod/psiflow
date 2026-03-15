@@ -199,11 +199,11 @@ def train(
 
 
 @typeguard.typechecked
-@psiflow.serializable
+@psiflow.register_serializable
 class MACE(Model):
     _config: dict
     model_future: Optional[psiflow._DataFuture]
-    atomic_energies: dict[str, Union[float, AppFuture]]
+    atomic_energies: dict[str, float | AppFuture]
 
     def __init__(self, **config) -> None:
         config = MACEConfig(**config)  # validate input
