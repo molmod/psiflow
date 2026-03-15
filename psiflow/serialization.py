@@ -129,6 +129,4 @@ def deserialize_hook(data: dict) -> Any:
     obj = cls.__new__(cls)
     for k, v in data.items():
         setattr(obj, k, v)
-    if hasattr(obj, "_create_apps"):
-        obj._create_apps()  # reconstruct apps - TODO: do not think this is the best
     return obj

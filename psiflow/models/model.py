@@ -1,9 +1,10 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import copy
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 import parsl
 import typeguard
@@ -57,11 +58,9 @@ class Model:
                 validation.subtract_offset(**self.atomic_energies).extxyz,
             ]
         else:
-            inputs += [
-                training.extxyz,
-                validation.extxyz,
-            ]
-        future = self._train(
+            inputs += [training.extxyz, validation.extxyz]
+        train_app = self.get_train_app()
+        future = train_app(
             dict(self._config),
             stdout=parsl.AUTO_LOGNAME,
             stderr=parsl.AUTO_LOGNAME,
@@ -77,7 +76,8 @@ class Model:
             inputs = [dataset.subtract_offset(**self.atomic_energies).extxyz]
         else:
             inputs = [dataset.extxyz]
-        future = self._initialize(
+        initialise_app = self.get_initialise_app()
+        future = initialise_app(
             self._config,
             stdout=parsl.AUTO_LOGNAME,
             stderr=parsl.AUTO_LOGNAME,
@@ -125,6 +125,12 @@ class Model:
                 outputs=[psiflow.context().new_file("model_", ".pth")],
             ).outputs[0]
         return model
+
+    def get_train_app(self) -> Callable:
+        raise NotImplementedError
+
+    def get_initialise_app(self) -> Callable:
+        raise NotImplementedError
 
     @property
     def do_offset(self) -> bool:

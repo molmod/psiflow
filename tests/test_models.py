@@ -11,7 +11,6 @@ from psiflow.models import MACE, load_model
 
 def test_mace_init(mace_config, dataset):
     model = MACE(**mace_config)
-    # assert "model_future" in model._files
     assert model.model_future is None
     model.initialize(dataset[:1])
     assert model.model_future is not None
@@ -19,12 +18,14 @@ def test_mace_init(mace_config, dataset):
     _config = model._config
 
     data_str = psiflow.serialize(model).result()
-    model = psiflow.deserialize(data_str)
+    model = psiflow.deserialize(data_str).result()
 
     _config_ = model._config
     for key, value in _config.items():
         assert key in _config_
-        if type(value) is not list:
+        if key in ("train_file", "valid_file"):
+            pass  # these are updated by the apps
+        elif type(value) is not list:
             assert value == _config_[key]
 
     config = copy.deepcopy(mace_config)
@@ -54,10 +55,10 @@ def test_mace_init(mace_config, dataset):
     for i in range(nstates):
         assert np.allclose(energies[i], evaluated[i].energy)
 
-    energies = hamiltonian.compute(dataset, "energy").result()
-    second = psiflow.deserialize(psiflow.serialize(hamiltonian).result())
-    energies_ = second.compute(dataset, "energy").result()
-    assert np.allclose(energies, energies_)
+    second = psiflow.deserialize(psiflow.serialize(hamiltonian)).result()
+    energies = hamiltonian.compute(dataset, "energy")
+    energies_ = second.compute(dataset, "energy")
+    assert np.allclose(energies.result(), energies_.result())
 
     hamiltonian = model.create_hamiltonian()
     model.reset()
