@@ -369,7 +369,7 @@ class D3Hamiltonian(Hamiltonian):
         # execution-side parameters of function are not included in self.parameters()
         evaluation = psiflow.context().definitions["ModelEvaluation"]
         resources = evaluation.wq_resources(1)
-        resources.pop("gpus")  # do not request GPU
+        resources.pop("gpus", None)  # do not request GPU
         return partial(
             apply_modelevaluation,
             function_cls=DispersionFunction,

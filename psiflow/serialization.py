@@ -13,7 +13,6 @@ from psiflow.utils.future import resolve_nested_futures
 
 
 # TODO: verify which attributes need to be serialized with a _to_serialize key?
-# TODO: what with attribute like 'Callable' (the apps created by various psiflow things?)
 
 
 CLS_KEY = "PSIFLOW_CLS"
