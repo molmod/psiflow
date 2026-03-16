@@ -1,7 +1,8 @@
 import copy
 import io
 import warnings
-from typing import Optional, Union, ClassVar
+from typing import Optional
+from collections.abc import Sequence
 
 import numpy as np
 from ase.data import chemical_symbols
@@ -14,7 +15,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
-from psiflow.utils.parse import find_line, lines_to_array
+from psiflow.utils.parse import find_line, lines_to_array, format_env_vars
 
 # costly to initialise
 input_parser = CP2KInputParserSimplified(
@@ -40,8 +41,7 @@ def modify_input(input_dict: dict, properties: tuple) -> None:
     if global_dict.get("print_level") in ["SILENT", "LOW"]:
         global_dict["print_level"] = "MEDIUM"
 
-    if "forces" in properties:
-        # output forces
+    if "forces" in properties:  # output forces
         global_dict["run_type"] = "ENERGY_FORCE"
         input_dict["force_eval"]["print"] = {"FORCES": {}}
     elif "energy" in properties:
@@ -55,9 +55,17 @@ def modify_input(input_dict: dict, properties: tuple) -> None:
         global_dict["fm"] = {"type_of_matrix_multiplication": "SCALAPACK"}
 
 
-def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.ndarray]:
+def make_bash_template(executor: str) -> str:
+    context = psiflow.context()
+    definition = context.definitions[executor]
+    command = f"cp {{}} cp2k.inp\n{definition.command()}"
+    env = format_env_vars(definition.env_vars)
+    return context.bash_template.format(commands=command, env=env)
+
+
+def parse_output(stdout: str, outputs: Sequence[str]) -> dict:
     """Very basic output parser. Perhaps check the cp2k-output-tools package?"""
-    lines = output_str.split("\n")
+    lines = stdout.split("\n")
     data = {}
 
     # output status
@@ -82,7 +90,7 @@ def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.nda
     idx = find_line(lines, key, idx)
     data["energy"] = float(lines[idx].split()[-1]) * Ha
 
-    if "forces" not in properties:
+    if "forces" not in outputs:
         return data
 
     # read forces
@@ -103,7 +111,7 @@ class CP2K(Reference):
         super().__init__(**kwargs)
         self.input_dict = str_to_dict(input_str)
         modify_input(self.input_dict, self.outputs)
-        self._create_apps()
+        self.bash_template = make_bash_template(self.executor)
 
     def compute_atomic_energy(self, element, box_size=None) -> AppFuture:
         assert box_size, "CP2K expects a periodic box."
@@ -121,8 +129,10 @@ class CP2K(Reference):
                 input_section["scf"]["ot"] = {"minimizer": "CG"}
         else:
             input_section["scf"] = {"ot": {"minimizer": "CG"}}
+
         # necessary for oxygen calculation, at least in 2024.1
-        input_section["scf"]["ignore_convergence_failure"] = "TRUE"
+        # TODO: not an allowed keyword in 2025.2
+        # input_section["scf"]["ignore_convergence_failure"] = "TRUE"
         input_str = dict_to_str(input_dict)
 
         references = {}
@@ -130,16 +140,8 @@ class CP2K(Reference):
             references[mult] = CP2K(
                 input_str.format(mult=mult),
                 outputs=self.outputs,
-                executor=self.executor,
             )
         return references
-
-    def get_shell_command(self, inputs: list[File]) -> str:
-        command_list = [f"cp {inputs[0].filepath} cp2k.inp", self.execute_command]
-        return "\n".join(command_list)
-
-    def parse_output(self, stdout: str) -> dict:
-        return parse_output(stdout, self.outputs)
 
     def create_input(self, geom: Geometry) -> tuple[bool, Optional[File]]:
         if not geom.periodic:
@@ -168,3 +170,6 @@ class CP2K(Reference):
 
         self.input_dict["force_eval"]["subsys"] = section_copy  # revert changes
         return True, File(file)
+
+    def parse_output(self, stdout: str) -> dict:
+        return parse_output(stdout, self.outputs)
