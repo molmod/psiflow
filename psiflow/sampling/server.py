@@ -98,7 +98,7 @@ def add_extras(noutputs: int) -> None:
     # property headers
     file_props = next(Path.cwd().glob("*0*.properties"))   # properties should be the same for all coupled walkers?
     _, info_dict = read_output(file_props)
-    props_headers = ["# column   {}     --> {}{} : {}".format(i, key, "{" + info_dict[key][0] + "}", info_dict[key][1]) for i, key in enumerate(info_dict)]
+    props_headers = ["# column   {}     --> {}{} : {}".format(i + 1, key, "{" + info_dict[key][0] + "}", info_dict[key][1]) for i, key in enumerate(info_dict)]
     # extras headers
     file_extras = next(Path.cwd().glob("*0*.extras*"))   # extras should be the same for all coupled walkers?
     with open(file_extras, "r") as f:
@@ -106,7 +106,7 @@ def add_extras(noutputs: int) -> None:
         start = line.find("(") + 1
         end = line.find(")")
         extra_names = line[start:end].split(",")
-    extras_headers = ["# column   {}     --> {}{} : {}".format(i + len(props_headers), name, "{au}", "PLUMED variable") for i, name in enumerate(extra_names)]
+    extras_headers = ["# column   {}     --> {}{} : {}".format(i + 1 + len(props_headers), name, "{au}", "PLUMED variable") for i, name in enumerate(extra_names)]
     # add extras values to properties files
     for idx in range(noutputs):
         file_props = next(Path.cwd().glob(f"*{idx}*.properties"))

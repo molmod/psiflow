@@ -54,6 +54,7 @@ class Function:
             self.outputs,
             geometries,
         )
+        extras = {}
         for i, geometry in enumerate(geometries):
             if geometry == NullState:
                 continue
@@ -61,7 +62,12 @@ class Function:
             value[i] = out["energy"]
             grad_pos[i, : len(geometry)] = out["forces"]
             grad_cell[i] = out["stress"]
-        return {"energy": value, "forces": grad_pos, "stress": grad_cell}
+            extras_out = out["extras"]
+            for key in extras_out:
+                if key not in extras:
+                    extras[key] = np.empty(shape=(len(geometries),), dtype=type(np.float64))
+                extras[key][i] = extras_out[key]
+        return {"energy": value, "forces": grad_pos, "stress": grad_cell, "extras": extras}
 
 
 @dataclass
@@ -94,7 +100,7 @@ class EinsteinCrystalFunction(EnergyFunction):
 @dataclass
 class PlumedFunction(EnergyFunction):
     plumed_input: str
-    plumed_extras: list[str]
+    plumed_extras: Optional[list[str]] = None
     external: Optional[Union[str, Path]] = None
 
     def __post_init__(self):
@@ -131,7 +137,7 @@ class PlumedFunction(EnergyFunction):
                 plumed_.cmd("readInputLine", line)
 
             self.plumed_data = {}
-            plumed_extras = self.plumed_extras
+            plumed_extras = self.plumed_extras if self.plumed_extras is not None else []
             for x in plumed_extras:
                 rank = np.zeros(1, dtype=np.int_)
                 plumed_.cmd(f"getDataRank {x}", rank)
