@@ -5,6 +5,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Optional, Type, Union, get_type_hints
+from collections.abc import Sequence
 
 import ase
 import numpy as np
@@ -62,6 +63,7 @@ class Function:
         return {"energy": value, "forces": grad_pos, "stress": grad_cell}
 
 
+# TODO: what is the point of this?
 @dataclass
 class EnergyFunction(Function):
     outputs: ClassVar[tuple[str, ...]] = ("energy", "forces", "stress")
@@ -198,6 +200,9 @@ class MACEFunction(EnergyFunction):
     atomic_energies: dict[str, float]
     env_vars: Optional[dict[str, str]] = None
 
+    # TODO: separate mlp args from execution args
+    # TODO: redo this and rely on MACECalculator
+
     def __post_init__(self):
         import logging
         import os
@@ -233,6 +238,7 @@ class MACEFunction(EnergyFunction):
         logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
 
     def get_atomic_energy(self, geometry):
+        # TODO: this calculation is performed elsewhere too
         total = 0
         numbers, counts = np.unique(geometry.per_atom.numbers, return_counts=True)
         for idx, number in enumerate(numbers):
@@ -322,7 +328,7 @@ class DispersionFunction(EnergyFunction):
 def _apply(
     arg: Union[Geometry, list[Geometry], None],
     outputs_: tuple[str, ...],
-    inputs: list = [],
+    inputs: Sequence = (),
     function_cls: Optional[Type[Function]] = None,
     parsl_resource_specification: dict = {},
     **parameters,
@@ -358,6 +364,7 @@ def function_from_json(path: Union[str, Path], **kwargs) -> Function:
         if data["function_name"] == function_cls.__name__:
             break
     data.pop("function_name")
+    # TODO: don't like this
     for name, type_hint in get_type_hints(function_cls).items():
         if type_hint is np.ndarray:
             data[name] = np.array(data[name])

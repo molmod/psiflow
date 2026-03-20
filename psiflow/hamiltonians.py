@@ -7,7 +7,7 @@ import numpy as np
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
-from parsl.dataflow.futures import AppFuture
+from parsl.dataflow.futures import AppFuture, Future
 
 import psiflow
 from psiflow.data import Computable, Dataset, aggregate_multiple, compute
@@ -26,11 +26,15 @@ from psiflow.utils.apps import copy_app_future, get_attribute
 from psiflow.utils.io import dump_json
 
 
+# TODO: remove excess future making
+
+
 apply_threads = python_app(_apply, executors=["default_threads"])
 apply_htex = python_app(_apply, executors=["default_htex"])
 apply_modelevaluation = python_app(_apply, executors=["ModelEvaluation"])
 
 
+# TODO: why have the Computable class?
 class Hamiltonian(Computable):
     outputs: tuple = ("energy", "forces", "stress")
     batch_size = 1000
@@ -394,21 +398,22 @@ class D3Hamiltonian(Hamiltonian):
 @psiflow.register_serializable
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
-    atomic_energies: dict[str, float]
+    atomic_energies: dict[str, float | Future]
     function_name: str = "MACEFunction"
 
     def __init__(
         self,
         external: Union[Path, str, psiflow._DataFuture],
-        atomic_energies: dict[str, float],
+        atomic_energies: dict[str, float | Future],
     ):
         self.atomic_energies = atomic_energies
-        if type(external) in [str, Path]:
+        if isinstance(external, (str, Path)):
             self.external = File(external)
         else:
             self.external = external
 
     def get_app(self) -> Callable:
+        # TODO: this is a python app -> env_vars/cores/.. needed
         # execution-side parameters of function are not included in self.parameters()
         evaluation = psiflow.context().definitions["ModelEvaluation"]
         resources = evaluation.wq_resources(1)
@@ -421,8 +426,19 @@ class MACEHamiltonian(Hamiltonian):
 
     def parameters(self) -> dict:
         # TODO: Why is the future copy needed? Can we not pass the File/DataFuture directly?
+        #  no because the MACEFunction expects a str to point at the model, not a File
+        #  this way, the filepath only becomes available after self.external is resolved
+        #  so _apply does not start early (DataFuture.filepath is not a future itself)
+        #  .
+        #  however, we can avoid the copy by piping self.external into a new 'inputs' argument
+        #  for _apply, so it waits correctly for all futures
         model_path = copy_app_future(self.external.filepath, inputs=[self.external])
         evaluation = psiflow.context().definitions["ModelEvaluation"]
+
+        print(self.external)
+        print(self.external.filepath)
+        print(model_path)
+
         return {
             "model_path": model_path,
             "atomic_energies": self.atomic_energies,
