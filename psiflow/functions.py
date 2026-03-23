@@ -2,15 +2,16 @@ import json
 import os
 import warnings
 import tempfile
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Optional, Type, Union, get_type_hints
 from collections.abc import Sequence
 
 import ase
 import numpy as np
-import typeguard
 from ase import Atoms
+from ase.calculators.calculator import Calculator
 from ase.data import atomic_masses, chemical_symbols
 from ase.units import fs, kJ, mol, nm
 from ase.stress import voigt_6_to_full_3x3_stress
@@ -33,10 +34,9 @@ def format_output(
     return {"energy": energy, "forces": forces, "stress": stress}
 
 
-@typeguard.typechecked
-@dataclass
+# @dataclass
 class Function:
-    outputs: ClassVar[tuple]
+    outputs: tuple = ("energy", "forces", "stress")
 
     def __call__(
         self,
@@ -49,12 +49,9 @@ class Function:
         geometries: list[Geometry],
     ) -> dict[str, float | np.ndarray]:
         """Evaluate multiple geometries and merge data into single arrays"""
-        value, grad_pos, grad_cell = create_outputs(
-            self.outputs,
-            geometries,
-        )
+        value, grad_pos, grad_cell = create_outputs(self.outputs, geometries)
         for i, geometry in enumerate(geometries):
-            if geometry == NullState:
+            if geometry == NullState:  # TODO: remove
                 continue
             out = self(geometry)
             value[i] = out["energy"]
@@ -63,15 +60,8 @@ class Function:
         return {"energy": value, "forces": grad_pos, "stress": grad_cell}
 
 
-# TODO: what is the point of this?
 @dataclass
-class EnergyFunction(Function):
-    outputs: ClassVar[tuple[str, ...]] = ("energy", "forces", "stress")
-
-
-@typeguard.typechecked
-@dataclass
-class EinsteinCrystalFunction(EnergyFunction):
+class EinsteinCrystalFunction(Function):
     force_constant: float
     centers: np.ndarray
     volume: float = 0.0
@@ -90,9 +80,8 @@ class EinsteinCrystalFunction(EnergyFunction):
         return format_output(geometry, energy, grad_pos, grad_cell)
 
 
-@typeguard.typechecked
 @dataclass
-class PlumedFunction(EnergyFunction):
+class PlumedFunction(Function):
     plumed_input: str
     external: Optional[Union[str, Path]] = None
 
@@ -161,9 +150,8 @@ class PlumedFunction(EnergyFunction):
         return tuple([geometry.periodic]) + tuple(geometry.per_atom.numbers)
 
 
-@typeguard.typechecked
 @dataclass
-class ZeroFunction(EnergyFunction):
+class ZeroFunction(Function):
     def __call__(
         self,
         geometry: Geometry,
@@ -171,9 +159,8 @@ class ZeroFunction(EnergyFunction):
         return format_output(geometry, 0)
 
 
-@typeguard.typechecked
 @dataclass
-class HarmonicFunction(EnergyFunction):
+class HarmonicFunction(Function):
     positions: np.ndarray
     hessian: np.ndarray
     energy: Optional[float] = None
@@ -190,87 +177,43 @@ class HarmonicFunction(EnergyFunction):
         return format_output(geometry, energy, (-1.0) * grad.reshape(-1, 3))
 
 
-@typeguard.typechecked
-@dataclass
-class MACEFunction(EnergyFunction):
+@dataclass(frozen=True)
+class MACEFunction(Function):
     model_path: str
     ncores: int
     device: str
     dtype: str
-    atomic_energies: dict[str, float]
+    calc_kwargs: dict
     env_vars: Optional[dict[str, str]] = None
 
-    # TODO: separate mlp args from execution args
-    # TODO: redo this and rely on MACECalculator
+    calc: Calculator = field(init=False)
 
     def __post_init__(self):
-        import logging
-        import os
-
         # import environment variables before any nontrivial imports
         if self.env_vars is not None:
             for key, value in self.env_vars.items():
                 os.environ[key] = value
 
         import torch
-        from mace.tools import torch_tools, utils
-
-        torch_tools.set_default_dtype(self.dtype)
-        if self.device == "gpu":  # when it's not a specific GPU, use any
-            self.device = "cuda"
-        self.device = torch_tools.init_device(self.device)
+        from mace.calculators.mace import MACECalculator
 
         torch.set_num_threads(self.ncores)
-        model = torch.load(f=self.model_path, map_location="cpu")
-        if self.dtype == "float64":
-            model = model.double()
-        else:
-            model = model.float()
-        model = model.to(self.device)
-        model.eval()
-        self.model = model
-        self.r_max = float(self.model.r_max)
-        self.z_table = utils.AtomicNumberTable(
-            [int(z) for z in self.model.atomic_numbers]
+        calc = MACECalculator(
+            model_paths=self.model_path,
+            device=self.device,
+            default_dtype=self.dtype,
+            **self.calc_kwargs,
         )
+        object.__setattr__(self, "calc", calc)  # frozen dataclass instance
 
         # remove unwanted streamhandler added by MACE / torch!
         logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
-
-    def get_atomic_energy(self, geometry):
-        # TODO: this calculation is performed elsewhere too
-        total = 0
-        numbers, counts = np.unique(geometry.per_atom.numbers, return_counts=True)
-        for idx, number in enumerate(numbers):
-            symbol = chemical_symbols[number]
-            try:
-                total += counts[idx] * self.atomic_energies[symbol]
-            except KeyError:
-                warnings.warn(
-                    f'(MACEFunction) No atomic energy entry for symbol "{symbol}". Are you sure?'
-                )
-        return total
 
     def __call__(
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        from mace import data
-        from mace.tools.torch_geometric.batch import Batch
-
-        # TODO: is this call necessary?
-        # torch_tools.set_default_dtype(self.dtype)
-
-        energy, forces, stress = (
-            0.0,
-            np.zeros(shape=(len(geometry), 3)),
-            np.zeros(shape=(3, 3)),
-        )
-
-        # compute offset if possible
-        if self.atomic_energies:
-            energy += self.get_atomic_energy(geometry)
-
+        # TODO: geom_to_atoms?
         cell = np.copy(geometry.cell) if geometry.periodic else None
         atoms = Atoms(
             positions=geometry.per_atom.positions,
@@ -278,22 +221,12 @@ class MACEFunction(EnergyFunction):
             cell=cell,
             pbc=geometry.periodic,
         )
-        config = data.config_from_atoms(atoms)
-        data = data.AtomicData.from_config(
-            config, z_table=self.z_table, cutoff=self.r_max
-        )
-        batch = Batch.from_data_list([data]).to(device=self.device)
-        out = self.model(batch.to_dict(), compute_stress=cell is not None)
-        energy += out["energy"].detach().cpu().item()
-        forces += out["forces"].detach().cpu().numpy()
-        if cell is not None:
-            stress += out["stress"].detach().cpu().numpy().squeeze()
-        return format_output(geometry, energy, forces, stress)
+        self.calc.calculate(atoms)
+        return format_output(geometry, **self.calc.results)
 
 
-@typeguard.typechecked
 @dataclass
-class DispersionFunction(EnergyFunction):
+class DispersionFunction(Function):
     method: str
     damping: str = "d3bj"
     params_tweaks: Optional[dict[str, float]] = None

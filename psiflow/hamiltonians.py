@@ -1,7 +1,6 @@
-import urllib
 from functools import partial
 from pathlib import Path
-from typing import Optional, Union, Callable, Sequence
+from typing import Optional, Union, Callable, Sequence, Any
 
 import numpy as np
 from parsl.app.app import python_app
@@ -82,6 +81,7 @@ class Hamiltonian(Computable):
         ).outputs[0]
 
     def parameters(self) -> dict:
+        """Return function parameters"""
         raise NotImplementedError
 
     def get_app(self) -> Callable:
@@ -398,55 +398,45 @@ class D3Hamiltonian(Hamiltonian):
 @psiflow.register_serializable
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
-    atomic_energies: dict[str, float | Future]
+    kwargs: dict
     function_name: str = "MACEFunction"
 
-    def __init__(
-        self,
-        external: Union[Path, str, psiflow._DataFuture],
-        atomic_energies: dict[str, float | Future],
-    ):
-        self.atomic_energies = atomic_energies
+    def __init__(self, external: Union[Path, str, psiflow._DataFuture], **kwargs: Any):
         if isinstance(external, (str, Path)):
             self.external = File(external)
         else:
             self.external = external
+        self.kwargs = kwargs
+
+    def update_kwargs(self, **kwargs) -> None:
+        """Specify kwargs for MACECalculator (enable_cueq, head, ..)"""
+        self.kwargs |= kwargs
 
     def get_app(self) -> Callable:
-        # TODO: this is a python app -> env_vars/cores/.. needed
         # execution-side parameters of function are not included in self.parameters()
         evaluation = psiflow.context().definitions["ModelEvaluation"]
-        resources = evaluation.wq_resources(1)
         return partial(
             apply_modelevaluation,
             function_cls=MACEFunction,
-            parsl_resource_specification=resources,
-            **self.parameters(),
+            parsl_resource_specification=evaluation.wq_resources(1),
+            inputs=[self.external],  # wait for future
+            **self.parameters(include_env=True),
         )
 
-    def parameters(self) -> dict:
-        # TODO: Why is the future copy needed? Can we not pass the File/DataFuture directly?
-        #  no because the MACEFunction expects a str to point at the model, not a File
-        #  this way, the filepath only becomes available after self.external is resolved
-        #  so _apply does not start early (DataFuture.filepath is not a future itself)
-        #  .
-        #  however, we can avoid the copy by piping self.external into a new 'inputs' argument
-        #  for _apply, so it waits correctly for all futures
-        model_path = copy_app_future(self.external.filepath, inputs=[self.external])
+    def parameters(self, include_env: bool = False) -> dict:
+        # TODO: in i-Pi MD, 'ncores', 'dtype', 'device' should be set by the sampling module
+        #  (most of them are overwritten in the driver right now)
         evaluation = psiflow.context().definitions["ModelEvaluation"]
-
-        print(self.external)
-        print(self.external.filepath)
-        print(model_path)
-
-        return {
-            "model_path": model_path,
-            "atomic_energies": self.atomic_energies,
+        data = {
+            "model_path": self.external.filepath,
             "ncores": evaluation.cores_per_task,
             "dtype": "float32",
-            "device": "gpu" if evaluation.use_gpu else "cpu",
-            "env_vars": evaluation.env_vars,
+            "device": "cuda" if evaluation.use_gpu else "cpu",
+            "calc_kwargs": self.kwargs
         }
+        if include_env:  # python apps need to set env_vars
+            data["env_vars"] = evaluation.env_vars
+        return data
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not MACEHamiltonian:
@@ -454,41 +444,10 @@ class MACEHamiltonian(Hamiltonian):
         hamiltonian: MACEHamiltonian
         if self.external.filepath != hamiltonian.external.filepath:
             return False
-        if len(self.atomic_energies) != len(hamiltonian.atomic_energies):
+        elif self.kwargs != hamiltonian.kwargs:
             return False
-        for symbol, energy in self.atomic_energies.items():
-            if not np.allclose(
-                energy,
-                hamiltonian.atomic_energies[symbol],
-            ):
-                return False
         return True
 
-    # TODO: the methods below are outdated..
-
-    @classmethod
-    def mace_mp0(cls, size: str = "small") -> "MACEHamiltonian":
-        urls = dict(
-            small="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
-            large="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model",
-        )
-        assert size in urls
-        parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
-        urllib.request.urlretrieve(
-            urls[size],
-            parsl_file.filepath,
-        )
-        return cls(parsl_file, {})
-
-    @classmethod
-    def mace_cc(cls) -> "MACEHamiltonian":
-        url = "https://github.com/molmod/psiflow/raw/main/examples/data/ani500k_cc_cpu.model"
-        parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
-        urllib.request.urlretrieve(
-            url,
-            parsl_file.filepath,
-        )
-        return cls(parsl_file, {})
 
 
 def combine_hamiltonians(hamiltonians: list[Hamiltonian]) -> MixtureHamiltonian:

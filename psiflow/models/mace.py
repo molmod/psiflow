@@ -151,10 +151,10 @@ class MACEModel:
             logger.warning(f"Overwriting existing atomic energy for '{element}'..")
         self.atomic_energies[element] = energy
 
-    # def create_hamiltonian(self) -> MACEHamiltonian:
-    #     assert self.status != Status.NEW, "Trained model does not exist.."
-    #     # TODO: can still contain futures - atomic energies no longer necessary?
-    #     return MACEHamiltonian(self.model_future, self.atomic_energies)
+    def create_hamiltonian(self) -> MACEHamiltonian:
+        # atomic energies are already part of the model
+        assert self.status != Status.NEW, "Trained model does not exist.."
+        return MACEHamiltonian(self.model_future)
 
     def _load_config(self) -> None:
         """Does not care for futures"""
