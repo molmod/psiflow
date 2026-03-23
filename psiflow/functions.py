@@ -1,18 +1,16 @@
 import json
 import os
-import warnings
 import tempfile
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Optional, Type, Union, get_type_hints
+from typing import Optional, Type, Union, get_type_hints
 from collections.abc import Sequence
 
-import ase
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
-from ase.data import atomic_masses, chemical_symbols
+from ase.data import atomic_masses
 from ase.units import fs, kJ, mol, nm
 from ase.stress import voigt_6_to_full_3x3_stress
 
@@ -34,7 +32,6 @@ def format_output(
     return {"energy": energy, "forces": forces, "stress": stress}
 
 
-# @dataclass
 class Function:
     outputs: tuple = ("energy", "forces", "stress")
 
@@ -60,7 +57,7 @@ class Function:
         return {"energy": value, "forces": grad_pos, "stress": grad_cell}
 
 
-@dataclass
+@dataclass(frozen=True)
 class EinsteinCrystalFunction(Function):
     force_constant: float
     centers: np.ndarray
@@ -80,13 +77,11 @@ class EinsteinCrystalFunction(Function):
         return format_output(geometry, energy, grad_pos, grad_cell)
 
 
-@dataclass
+@dataclass(frozen=True)
 class PlumedFunction(Function):
     plumed_input: str
     external: Optional[Union[str, Path]] = None
-
-    def __post_init__(self):
-        self.plumed_instances = {}
+    plumed_instances: dict[tuple, "plumed.Plumed"] = field(default_factory=dict)
 
     def __call__(
         self,
@@ -150,7 +145,7 @@ class PlumedFunction(Function):
         return tuple([geometry.periodic]) + tuple(geometry.per_atom.numbers)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ZeroFunction(Function):
     def __call__(
         self,
@@ -159,7 +154,7 @@ class ZeroFunction(Function):
         return format_output(geometry, 0)
 
 
-@dataclass
+@dataclass(frozen=True)
 class HarmonicFunction(Function):
     positions: np.ndarray
     hessian: np.ndarray
@@ -213,24 +208,19 @@ class MACEFunction(Function):
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        # TODO: geom_to_atoms?
-        cell = np.copy(geometry.cell) if geometry.periodic else None
-        atoms = Atoms(
-            positions=geometry.per_atom.positions,
-            numbers=geometry.per_atom.numbers,
-            cell=cell,
-            pbc=geometry.periodic,
-        )
+        atoms = geometry_to_atoms(geometry)
         self.calc.calculate(atoms)
         return format_output(geometry, **self.calc.results)
 
 
-@dataclass
+@dataclass(frozen=True)
 class DispersionFunction(Function):
     method: str
     damping: str = "d3bj"
     params_tweaks: Optional[dict[str, float]] = None
     num_threads: int = 1
+
+    calc: Calculator = field(init=False)
 
     def __post_init__(self):
         # OMP_NUM_THREADS for parallel evaluation does not work..
@@ -240,20 +230,16 @@ class DispersionFunction(Function):
 
         from dftd3.ase import DFTD3
 
-        self.calc = DFTD3(
+        calc = DFTD3(
             method=self.method, damping=self.damping, params_tweaks=self.params_tweaks
         )
+        object.__setattr__(self, "calc", calc)  # frozen dataclass instance
 
     def __call__(
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        atoms = ase.Atoms(  # TODO: geometry.to_atoms?
-            numbers=geometry.per_atom.numbers,
-            positions=geometry.per_atom.positions,
-            cell=geometry.cell,
-            pbc=geometry.periodic,
-        )
+        atoms = geometry_to_atoms(geometry)
         self.calc.calculate(atoms)
         return format_output(geometry, **self.calc.results)
 
@@ -261,8 +247,8 @@ class DispersionFunction(Function):
 def _apply(
     arg: Union[Geometry, list[Geometry], None],
     outputs_: tuple[str, ...],
+    function_cls: Type[Function],
     inputs: Sequence = (),
-    function_cls: Optional[Type[Function]] = None,
     parsl_resource_specification: dict = {},
     **parameters,
 ) -> Optional[list[np.ndarray]]:
@@ -288,16 +274,13 @@ def function_from_json(path: Union[str, Path], **kwargs) -> Function:
         MACEFunction,
         PlumedFunction,
         DispersionFunction,
-        None,
     ]
+
     with open(path, "r") as f:
         data = json.loads(f.read())
-    assert "function_name" in data
-    for function_cls in functions:
-        if data["function_name"] == function_cls.__name__:
-            break
-    data.pop("function_name")
-    # TODO: don't like this
+    function_name = data.pop("function_name")
+    function_cls = {f.__name__: f for f in functions}[function_name]
+
     for name, type_hint in get_type_hints(function_cls).items():
         if type_hint is np.ndarray:
             data[name] = np.array(data[name])
@@ -306,3 +289,13 @@ def function_from_json(path: Union[str, Path], **kwargs) -> Function:
             data[key] = value
     function = function_cls(**data)
     return function
+
+
+def geometry_to_atoms(geom: Geometry) -> Atoms:
+    """Only structural information"""
+    return Atoms(
+        positions=geom.per_atom.positions,
+        numbers=geom.per_atom.numbers,
+        cell=np.copy(geom.cell) if geom.periodic else None,
+        pbc=geom.periodic,
+    )
