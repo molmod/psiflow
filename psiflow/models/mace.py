@@ -23,7 +23,6 @@ from psiflow.utils.parse import format_env_vars
 
 # TODO: when changing the training dataset, the models avg_num_neighbors will also change,
 #  making old checkpoints inconsistent
-# TODO: check whether atomic energies are actually correct in the model
 # TODO: sanitise_config consistently called?
 
 logger = logging.getLogger(__name__)  # logging per module
@@ -154,7 +153,7 @@ class MACEModel:
     def create_hamiltonian(self) -> MACEHamiltonian:
         # atomic energies are already part of the model
         assert self.status != Status.NEW, "Trained model does not exist.."
-        return MACEHamiltonian(self.model_future)
+        return MACEHamiltonian(self.model_future, {})
 
     def _load_config(self) -> None:
         """Does not care for futures"""
@@ -301,3 +300,24 @@ def store_last(model: MACEModel, future: Any, outputs: Sequence[File] = ()) -> N
     # also copy the checkpoint
     files = list(model.path_checkpoints.glob("*.pt"))
     shutil.copy2(sorted(files)[-1], outputs[1].filepath)
+
+
+# copied from the MACE v0.3.15 repo
+mace_mp_urls = {
+    "small": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model",
+    "medium": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model",
+    "large": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/MACE_MPtrj_2022.9.model",
+    "small-0b": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0b/mace_agnesi_small.model",
+    "medium-0b": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0b/mace_agnesi_medium.model",
+    "small-0b2": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0b2/mace-small-density-agnesi-stress.model",
+    "medium-0b2": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0b2/mace-medium-density-agnesi-stress.model",
+    "large-0b2": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0b2/mace-large-density-agnesi-stress.model",
+    "medium-0b3": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0b3/mace-mp-0b3-medium.model",
+    "medium-mpa-0": "https://github.com/ACEsuit/mace-mp/releases/download/mace_mpa_0/mace-mpa-0-medium.model",
+    "small-omat-0": "https://github.com/ACEsuit/mace-mp/releases/download/mace_omat_0/mace-omat-0-small.model",
+    "medium-omat-0": "https://github.com/ACEsuit/mace-mp/releases/download/mace_omat_0/mace-omat-0-medium.model",
+    "mace-matpes-pbe-0": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_matpes_0/MACE-matpes-pbe-omat-ft.model",
+    "mace-matpes-r2scan-0": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_matpes_0/MACE-matpes-r2scan-omat-ft.model",
+    "mh-0": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_mh_1/mace-mh-0.model",
+    "mh-1": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_mh_1/mace-mh-1.model",
+}

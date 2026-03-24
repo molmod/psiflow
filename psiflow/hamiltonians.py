@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 from pathlib import Path
 from typing import Optional, Union, Callable, Sequence, Any, ClassVar
@@ -28,6 +29,9 @@ from psiflow.utils.io import dump_json
 
 # TODO: comparison logic in __eq__ only works for hamiltonians without futures
 # TODO: dataclasses automatically generate __eq__
+
+
+logger = logging.getLogger(__name__)  # logging per module
 
 
 apply_threads = python_app(_apply, executors=["default_threads"])
@@ -402,7 +406,7 @@ class D3Hamiltonian(Hamiltonian):
 @dataclass(frozen=True)
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
-    kwargs: dict
+    kwargs: dict = field(default_factory=dict)
     function_name: ClassVar[str] = "MACEFunction"
 
     def __post_init__(self):
@@ -448,6 +452,19 @@ class MACEHamiltonian(Hamiltonian):
         ):
             return False
         return True
+
+    @classmethod
+    def from_foundation(cls, name: Optional[str] = None, url: Optional[str] = None):
+        # see mace.calculators.foundation_models
+        import urllib.request
+        from psiflow.models.mace import mace_mp_urls
+
+        if name is not None:
+            url = mace_mp_urls.get(name)
+        file = psiflow.context().new_file("mace_foundation_", ".model")
+        logger.info(f"Downloading MACE foundation model from {url}")
+        _, http_msg = urllib.request.urlretrieve(url, file)
+        return cls(external=file)
 
 
 def combine_hamiltonians(hamiltonians: list[Hamiltonian]) -> MixtureHamiltonian:
