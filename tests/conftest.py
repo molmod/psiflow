@@ -1,6 +1,6 @@
-from dataclasses import asdict
 from pathlib import Path
 
+import ase
 import numpy as np
 import parsl
 import pytest
@@ -12,7 +12,8 @@ from ase.calculators.emt import EMT
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry
-from psiflow.models import MACE, MACEConfig
+from psiflow.models import MACEModel
+from psiflow.hamiltonians import MACEHamiltonian
 
 
 def pytest_addoption(parser):
@@ -50,21 +51,23 @@ def context(request, tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def mace_config():
-    mace_config = MACEConfig()
-    mace_config.num_radial_basis = 3
-    mace_config.num_cutoff_basis = 2
-    mace_config.max_ell = 1
-    mace_config.correlation = 1
-    mace_config.MLP_irreps = "2x0e"
-    mace_config.num_channels = 2
-    mace_config.max_L = 0
-    mace_config.r_max = 4
-    mace_config.radial_MLP = "[4]"
-    return asdict(mace_config)
+def mace_config() -> dict:
+    return dict(
+        num_radial_basis=3,
+        num_cutoff_basis=2,
+        max_ell=1,
+        correlation=1,
+        MLP_irreps="2x0e",
+        num_channels=2,
+        max_L=0,
+        r_max=4,
+        radial_MLP="[4]",
+        energy_key="energy",
+        forces_key="forces",
+    )
 
 
-def generate_emt_cu_data(nstates, amplitude, supercell=None):
+def generate_emt_cu_data(nstates, amplitude, supercell=None) -> list[ase.Atoms]:
     if supercell is None:
         supercell = np.eye(3)
     atoms = make_supercell(bulk("Cu", "fcc", a=3.6, cubic=True), supercell)
@@ -90,31 +93,37 @@ def generate_emt_cu_data(nstates, amplitude, supercell=None):
 
 
 @pytest.fixture
-def dataset(context):
+def dataset(context) -> Dataset:
     data = generate_emt_cu_data(20, 0.2)
     data += generate_emt_cu_data(5, 0.15, supercell=np.diag([1, 2, 1]))
     data_ = [Geometry.from_atoms(atoms) for atoms in data]
     return Dataset(data_).align_axes()
 
 
+# @pytest.fixture(scope="session")
+# def mace_model(tmp_path_factory, mace_config):
+#     path = tmp_path_factory.mktemp("mace")
+#     model = MACEModel(path, mace_config)
+#     # manually recreate dataset with 'session' scope
+#     data = generate_emt_cu_data(20, 0.2)
+#     data_ = [Geometry.from_atoms(atoms) for atoms in data]
+#     dataset = Dataset(data_)
+#     # add additional state to initialize other atomic numbers
+#     geometry = Geometry.from_data(
+#         numbers=np.array(2 * [101]),
+#         positions=np.array([[0, 0, 0], [2, 0, 0]]),
+#         cell=None,
+#     )
+#     geometry.energy = -1.0
+#     geometry.per_atom.forces[:] = np.random.uniform(size=(2, 3))
+#     model.initialize(dataset[:5] + Dataset([geometry]))
+#     return model
+
+
 @pytest.fixture(scope="session")
-def mace_model(mace_config):
-    # manually recreate dataset with 'session' scope
-    data = generate_emt_cu_data(20, 0.2)
-    data_ = [Geometry.from_atoms(atoms) for atoms in data]
-    dataset = Dataset(data_)
-    model = MACE(**mace_config)
-    # add additional state to initialize other atomic numbers
-    # mace cannot handle partially periodic datasets
-    geometry = Geometry.from_data(
-        numbers=np.array(2 * [101]),
-        positions=np.array([[0, 0, 0], [2, 0, 0]]),
-        cell=2 * np.eye(3),
-    )
-    geometry.energy = -1.0
-    geometry.per_atom.forces[:] = np.random.uniform(size=(2, 3))
-    model.initialize(dataset[:5] + Dataset([geometry]))
-    return model
+def mace_foundation() -> Path:
+    hamiltonian = MACEHamiltonian.from_foundation(name="small")
+    return hamiltonian.external.filepath
 
 
 @pytest.fixture
