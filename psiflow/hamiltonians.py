@@ -1,6 +1,7 @@
 from functools import partial
 from pathlib import Path
-from typing import Optional, Union, Callable, Sequence, Any
+from typing import Optional, Union, Callable, Sequence, Any, ClassVar
+from dataclasses import dataclass, field, InitVar
 
 import numpy as np
 from parsl.app.app import python_app
@@ -21,11 +22,12 @@ from psiflow.functions import (
 )
 from psiflow.geometry import Geometry
 from psiflow.utils._plumed import remove_comments_printflush
-from psiflow.utils.apps import copy_app_future, get_attribute
+from psiflow.utils.apps import get_attribute
 from psiflow.utils.io import dump_json
 
 
-# TODO: remove excess future making
+# TODO: comparison logic in __eq__ only works for hamiltonians without futures
+# TODO: dataclasses automatically generate __eq__
 
 
 apply_threads = python_app(_apply, executors=["default_threads"])
@@ -35,10 +37,10 @@ apply_modelevaluation = python_app(_apply, executors=["ModelEvaluation"])
 
 # TODO: why have the Computable class?
 class Hamiltonian(Computable):
-    outputs: tuple = ("energy", "forces", "stress")
-    batch_size = 1000
     app: Callable
-    function_name: str
+    batch_size = 1000
+    outputs: ClassVar[tuple] = ("energy", "forces", "stress")
+    function_name: ClassVar[str]
 
     def compute(
         self,
@@ -214,8 +216,9 @@ class MixtureHamiltonian(Hamiltonian):
 
 
 @psiflow.register_serializable
+@dataclass(frozen=True)
 class Zero(Hamiltonian):
-    function_name: str = "ZeroFunction"
+    function_name: ClassVar[str] = "ZeroFunction"
 
     def __init__(self):
         pass
@@ -239,17 +242,12 @@ class Zero(Hamiltonian):
 
 
 @psiflow.register_serializable
+@dataclass(frozen=True)
 class EinsteinCrystal(Hamiltonian):
-    # TODO: logic not consistent depending on Geometry | AppFuture
-    reference_geometry: Geometry | AppFuture
-    force_constant: float
-    function_name: str = "EinsteinCrystalFunction"
-
-    def __init__(self, geometry: Union[Geometry, AppFuture], force_constant: float):
-        super().__init__()
-        self.reference_geometry = copy_app_future(geometry)
-        self.force_constant = force_constant
-        self.external = None  # needed
+    force_constant: float | AppFuture
+    centers: np.ndarray | AppFuture
+    volume: float | AppFuture
+    function_name: ClassVar[str] = "EinsteinCrystalFunction"
 
     def get_app(self) -> Callable:
         return partial(
@@ -259,48 +257,64 @@ class EinsteinCrystal(Hamiltonian):
     def parameters(self) -> dict:
         return {
             "force_constant": self.force_constant,
-            "centers": get_attribute(self.reference_geometry, "per_atom", "positions"),
-            "volume": get_attribute(self.reference_geometry, "volume"),
+            "centers": self.centers,
+            "volume": self.volume,
         }
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if (
             not isinstance(hamiltonian, EinsteinCrystal)
             or not np.allclose(self.force_constant, hamiltonian.force_constant)
-            or self.reference_geometry != hamiltonian.reference_geometry
+            or not np.allclose(self.centers, hamiltonian.centers)
+            or not np.isclose(self.volume, hamiltonian.volume)
         ):
             return False
         return True
 
+    @classmethod
+    def from_geometry(
+        cls, geometry: Geometry | AppFuture, force_constant: float | AppFuture
+    ):
+        # TODO: this is not immutable?
+        centers = get_attribute(geometry, "per_atom", "positions")
+        volume = get_attribute(geometry, "volume")
+        return cls(force_constant, centers, volume)
+
 
 @psiflow.register_serializable
+@dataclass(frozen=True)
 class PlumedHamiltonian(Hamiltonian):
-    plumed_input: str  # TODO: or future?
-    external: Optional[psiflow._DataFuture]
-    function_name: str = "PlumedFunction"
+    plumed_input: str | AppFuture
+    external: Optional[psiflow._DataFuture] = None
+    function_name: ClassVar[str] = "PlumedFunction"
 
-    def __init__(
-        self,
-        plumed_input: str,
-        external: Union[None, str, Path, File, DataFuture] = None,
-    ):
-        super().__init__()
-        self.plumed_input = remove_comments_printflush(plumed_input)
-        if type(external) in [str, Path]:
-            external = File(str(external))
-        if external is not None:
-            assert external.filepath in self.plumed_input
-        self.external = external
+    def __post_init__(self):
+        self._prepare_input()
+        if isinstance(ext := self.external, (str, Path)):
+            ext = File(ext)
+        if ext is not None:
+            assert ext.filepath in self.plumed_input
+        object.__setattr__(self, "external", ext)
+
+    def _prepare_input(self) -> None:
+        if isinstance(inp := self.plumed_input, Future):
+            app = python_app(remove_comments_printflush, executors=["default_threads"])
+            inp = app(inp)
+        else:
+            inp = remove_comments_printflush(inp)
+        object.__setattr__(self, "plumed_input", inp)
 
     def get_app(self) -> Callable:
-        return partial(apply_htex, function_cls=PlumedFunction, **self.parameters())
+        return partial(
+            apply_htex,
+            function_cls=PlumedFunction,
+            inputs=[self.external],  # wait for future
+            **self.parameters(),
+        )
 
     def parameters(self) -> dict:
-        if self.external is not None:  # ensure parameters depends on self.external
-            external = copy_app_future(self.external.filepath, inputs=[self.external])
-        else:
-            external = None
-        return {"plumed_input": self.plumed_input, "external": external}
+        path = self.external.filepath if self.external is not None else None
+        return {"plumed_input": self.plumed_input, "external": path}
 
     def __eq__(self, other: Hamiltonian) -> bool:
         if (
@@ -312,19 +326,12 @@ class PlumedHamiltonian(Hamiltonian):
 
 
 @psiflow.register_serializable
+@dataclass(frozen=True)
 class Harmonic(Hamiltonian):
-    reference_geometry: Geometry | AppFuture
     hessian: np.ndarray | AppFuture
-    function_name: str = "HarmonicFunction"
-
-    def __init__(
-        self,
-        reference_geometry: Geometry | AppFuture,
-        hessian: np.ndarray | AppFuture,
-    ):
-        # TODO: why not copy_app_future(geometry) like others?
-        self.reference_geometry = reference_geometry
-        self.hessian = hessian
+    positions: np.ndarray | AppFuture
+    energy: np.ndarray | AppFuture
+    function_name: ClassVar[str] = "HarmonicFunction"
 
     def get_app(self) -> Callable:
         return partial(
@@ -332,42 +339,38 @@ class Harmonic(Hamiltonian):
         )
 
     def parameters(self) -> dict:
-        positions = get_attribute(self.reference_geometry, "per_atom", "positions")
-        energy = get_attribute(self.reference_geometry, "energy")
         return {
-            "positions": positions,
-            "energy": energy,
+            "positions": self.positions,
+            "energy": self.energy,
             "hessian": self.hessian,
         }
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        if type(hamiltonian) is not Harmonic:
-            return False
-        hamiltonian: Harmonic
-        if hamiltonian.reference_geometry != self.reference_geometry:
-            return False
-
-        # TODO: why this check? Is it not always an ndarray?
-        # slightly different check for numpy arrays
-        is_array0 = type(hamiltonian.hessian) is np.ndarray
-        is_array1 = type(self.hessian) is np.ndarray
-        if is_array0 and is_array1:
-            equal = np.allclose(hamiltonian.hessian, self.hessian)
-        else:
-            equal = hamiltonian.hessian == self.hessian
-        if not equal:
+        if (
+            not isinstance(hamiltonian, Harmonic)
+            or not np.allclose(self.hessian, hamiltonian.hessian)
+            or not np.allclose(self.positions, hamiltonian.positions)
+            or not np.isclose(self.energy, hamiltonian.energy)
+        ):
             return False
         return True
 
+    @classmethod
+    def from_geometry(
+        cls, geometry: Geometry | AppFuture, hessian: np.ndarray | AppFuture
+    ):
+        # TODO: this is not immutable?
+        positions = get_attribute(geometry, "per_atom", "positions")
+        energy = get_attribute(geometry, "energy")
+        return cls(hessian, positions, energy)
+
 
 @psiflow.register_serializable
+@dataclass(frozen=True)
 class D3Hamiltonian(Hamiltonian):
-    method: str
-    damping: str
-    function_name: str = "DispersionFunction"
-
-    def __init__(self, method: str, damping: str = "d3bj"):
-        self.method, self.damping = method, damping
+    method: str | AppFuture
+    damping: str | AppFuture = "d3bj"
+    function_name: ClassVar[str] = "DispersionFunction"
 
     def get_app(self) -> Callable:
         # execution-side parameters of function are not included in self.parameters()
@@ -396,19 +399,18 @@ class D3Hamiltonian(Hamiltonian):
 
 
 @psiflow.register_serializable
+@dataclass(frozen=True)
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
     kwargs: dict
-    function_name: str = "MACEFunction"
+    function_name: ClassVar[str] = "MACEFunction"
 
-    def __init__(self, external: Union[Path, str, psiflow._DataFuture], **kwargs: Any):
-        if isinstance(external, (str, Path)):
-            self.external = File(external)
-        else:
-            self.external = external
-        self.kwargs = kwargs
+    def __post_init__(self):
+        if isinstance(ext := self.external, (str, Path)):
+            ext = File(ext)
+            object.__setattr__(self, "external", ext)
 
-    def update_kwargs(self, **kwargs) -> None:
+    def update_kwargs(self, **kwargs: Any) -> None:
         """Specify kwargs for MACECalculator (enable_cueq, head, ..)"""
         self.kwargs |= kwargs
 
@@ -432,22 +434,20 @@ class MACEHamiltonian(Hamiltonian):
             "ncores": evaluation.cores_per_task,
             "dtype": "float32",
             "device": "cuda" if evaluation.use_gpu else "cpu",
-            "calc_kwargs": self.kwargs
+            "calc_kwargs": self.kwargs,
         }
         if include_env:  # python apps need to set env_vars
             data["env_vars"] = evaluation.env_vars
         return data
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        if type(hamiltonian) is not MACEHamiltonian:
-            return False
-        hamiltonian: MACEHamiltonian
-        if self.external.filepath != hamiltonian.external.filepath:
-            return False
-        elif self.kwargs != hamiltonian.kwargs:
+        if (
+            not isinstance(hamiltonian, MACEHamiltonian)
+            or self.external.filepath != hamiltonian.external.filepath
+            or self.kwargs != hamiltonian.kwargs
+        ):
             return False
         return True
-
 
 
 def combine_hamiltonians(hamiltonians: list[Hamiltonian]) -> MixtureHamiltonian:

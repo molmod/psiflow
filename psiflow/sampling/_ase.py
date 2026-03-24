@@ -22,7 +22,7 @@ from ase.optimize import BFGS
 from ase.filters import FrechetCellFilter
 
 from psiflow.geometry import Geometry
-from psiflow.functions import function_from_json, EnergyFunction
+from psiflow.functions import function_from_json, Function
 from psiflow.sampling.utils import TimeoutException, timeout_handler
 
 
@@ -34,7 +34,7 @@ FILE_TRAJ: str = "out.traj"
 class FunctionCalculator(Calculator):
     implemented_properties = ["energy", "free_energy", "forces", "stress"]
 
-    def __init__(self, function: EnergyFunction, **kwargs):
+    def __init__(self, function: Function, **kwargs):
         super().__init__(**kwargs)
         self.function = function
 
