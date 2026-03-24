@@ -2,7 +2,7 @@ import logging
 from functools import partial
 from pathlib import Path
 from typing import Optional, Union, Callable, Sequence, Any, ClassVar
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass, field
 
 import numpy as np
 from parsl.app.app import python_app
@@ -58,7 +58,7 @@ class Hamiltonian(Computable):
             batch_size = self.__class__.batch_size
         return compute(arg, self.get_app(), outputs_=outputs, batch_size=batch_size)
 
-    def __eq__(self, hamiltonian: "Hamiltonian") -> bool:
+    def __eq__(self, other: "Hamiltonian") -> bool:
         raise NotImplementedError
 
     def __mul__(self, a: float) -> "MixtureHamiltonian":
@@ -220,7 +220,7 @@ class MixtureHamiltonian(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Zero(Hamiltonian):
     function_name: ClassVar[str] = "ZeroFunction"
 
@@ -231,9 +231,7 @@ class Zero(Hamiltonian):
         return partial(apply_threads, function_cls=ZeroFunction)
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        if type(hamiltonian) is Zero:
-            return True
-        return False
+        return True if isinstance(hamiltonian, Zero) else False
 
     def __mul__(self, a: float) -> "Zero":
         return Zero()
@@ -246,7 +244,7 @@ class Zero(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class EinsteinCrystal(Hamiltonian):
     force_constant: float | AppFuture
     centers: np.ndarray | AppFuture
@@ -265,12 +263,14 @@ class EinsteinCrystal(Hamiltonian):
             "volume": self.volume,
         }
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if self is other:
+            return True  # identity check
         if (
-            not isinstance(hamiltonian, EinsteinCrystal)
-            or not np.allclose(self.force_constant, hamiltonian.force_constant)
-            or not np.allclose(self.centers, hamiltonian.centers)
-            or not np.isclose(self.volume, hamiltonian.volume)
+            not isinstance(other, EinsteinCrystal)
+            or not attrs_equal(self.force_constant, other.force_constant)
+            or not attrs_equal(self.centers, other.centers)
+            or not attrs_equal(self.volume, other.volume)
         ):
             return False
         return True
@@ -286,7 +286,7 @@ class EinsteinCrystal(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class PlumedHamiltonian(Hamiltonian):
     plumed_input: str | AppFuture
     external: Optional[psiflow._DataFuture] = None
@@ -321,16 +321,17 @@ class PlumedHamiltonian(Hamiltonian):
         return {"plumed_input": self.plumed_input, "external": path}
 
     def __eq__(self, other: Hamiltonian) -> bool:
-        if (
-            not isinstance(other, PlumedHamiltonian)
-            or self.plumed_input != other.plumed_input
+        if self is other:
+            return True  # identity check
+        if not isinstance(other, PlumedHamiltonian) or not attrs_equal(
+            self.plumed_input, other.plumed_input
         ):
             return False
         return True
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Harmonic(Hamiltonian):
     hessian: np.ndarray | AppFuture
     positions: np.ndarray | AppFuture
@@ -349,12 +350,14 @@ class Harmonic(Hamiltonian):
             "hessian": self.hessian,
         }
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if self is other:
+            return True  # identity check
         if (
-            not isinstance(hamiltonian, Harmonic)
-            or not np.allclose(self.hessian, hamiltonian.hessian)
-            or not np.allclose(self.positions, hamiltonian.positions)
-            or not np.isclose(self.energy, hamiltonian.energy)
+            not isinstance(other, Harmonic)
+            or not attrs_equal(self.hessian, other.hessian)
+            or not attrs_equal(self.positions, other.positions)
+            or not attrs_equal(self.energy, other.energy)
         ):
             return False
         return True
@@ -370,7 +373,7 @@ class Harmonic(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class D3Hamiltonian(Hamiltonian):
     method: str | AppFuture
     damping: str | AppFuture = "d3bj"
@@ -392,18 +395,20 @@ class D3Hamiltonian(Hamiltonian):
     def parameters(self) -> dict:
         return {"method": self.method, "damping": self.damping}
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if self is other:
+            return True  # identity check
         if (
-            not isinstance(hamiltonian, D3Hamiltonian)
-            or self.method != hamiltonian.method
-            or self.damping != hamiltonian.damping
+            not isinstance(other, D3Hamiltonian)
+            or not attrs_equal(self.method, other.method)
+            or not attrs_equal(self.damping, other.damping)
         ):
             return False
         return True
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
     kwargs: dict = field(default_factory=dict)
@@ -444,11 +449,13 @@ class MACEHamiltonian(Hamiltonian):
             data["env_vars"] = evaluation.env_vars
         return data
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if self is other:
+            return True  # identity check
         if (
-            not isinstance(hamiltonian, MACEHamiltonian)
-            or self.external.filepath != hamiltonian.external.filepath
-            or self.kwargs != hamiltonian.kwargs
+            not isinstance(other, MACEHamiltonian)
+            or not attrs_equal(self.external.filepath, other.external.filepath)
+            or not attrs_equal(self.kwargs, other.kwargs)
         ):
             return False
         return True
@@ -469,3 +476,20 @@ class MACEHamiltonian(Hamiltonian):
 
 def combine_hamiltonians(hamiltonians: list[Hamiltonian]) -> MixtureHamiltonian:
     return sum(hamiltonians, start=Zero())  # mostly for type hinting
+
+
+def attrs_equal(attr1: Any, attr2: Any) -> bool:
+
+    # check for futures
+    future1 = isinstance(attr1, Future)
+    future2 = isinstance(attr2, Future)
+    if future1 and future2:
+        return attr1 == attr2  # has to be the same object
+    elif future1 != future2:
+        return False  # xor
+
+    elif isinstance(attr1, (np.ndarray, float)):
+        return np.allclose(attr1, attr2)
+    elif isinstance(attr1, (dict, str)):
+        return attr1 == attr2
+    return False
