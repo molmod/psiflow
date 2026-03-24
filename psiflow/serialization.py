@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Optional, Union
 from collections.abc import Sequence
 
+import numpy as np
 from parsl import File, python_app
 from parsl.dataflow.futures import AppFuture, DataFuture
 
@@ -87,6 +88,8 @@ class JSONEncoder(json.JSONEncoder):
                 return self._handle_file(obj)
             case Geometry():
                 return {CLS_KEY: "Geometry", "data": obj.to_string()}
+            case np.ndarray():
+                return {CLS_KEY: "Array", "data": obj.tolist()}
             case _ if name in SERIALIZABLE_CLS:  # class instances
                 return {CLS_KEY: name} | vars(obj)
             case _ if obj in SERIALIZABLE_CLS.values():  # classes
@@ -116,6 +119,8 @@ def deserialize_hook(data: dict) -> Any:
         return File(Path(data["path"]))
     elif cls_name == "Geometry":
         return Geometry.from_string(data["data"])
+    elif cls_name == "Array":
+        return np.array(data["data"])
     elif cls_name not in SERIALIZABLE_CLS:
         cls_set = set(SERIALIZABLE_CLS.keys()) or {}
         msg = f"Custom class '{cls_name}' not in {cls_set}. Cannot deserialize.."

@@ -177,11 +177,11 @@ class HarmonicFunction(Function):
 
 @dataclass(frozen=True)
 class MACEFunction(Function):
-    model_path: str
+    model_path: str | Path
     ncores: int
     device: str
     dtype: str
-    calc_kwargs: dict
+    calc_kwargs: dict = field(default_factory=dict)
     env_vars: Optional[dict[str, str]] = None
 
     calc: Calculator = field(init=False)
@@ -271,6 +271,8 @@ def _apply(
 
 
 def function_from_json(path: Union[str, Path], **kwargs) -> Function:
+    from psiflow.serialization import deserialize_hook
+
     functions = [
         EinsteinCrystalFunction,
         HarmonicFunction,
@@ -278,15 +280,11 @@ def function_from_json(path: Union[str, Path], **kwargs) -> Function:
         PlumedFunction,
         DispersionFunction,
     ]
-
     with open(path, "r") as f:
-        data = json.loads(f.read())
+        data = json.loads(f.read(), object_hook=deserialize_hook)
     function_name = data.pop("function_name")
     function_cls = {f.__name__: f for f in functions}[function_name]
 
-    for name, type_hint in get_type_hints(function_cls).items():
-        if type_hint is np.ndarray:
-            data[name] = np.array(data[name])
     for key, value in kwargs.items():
         if key in data:
             data[key] = value

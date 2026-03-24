@@ -41,7 +41,6 @@ apply_modelevaluation = python_app(_apply, executors=["ModelEvaluation"])
 
 # TODO: why have the Computable class?
 class Hamiltonian(Computable):
-    app: Callable
     batch_size = 1000
     outputs: ClassVar[tuple] = ("energy", "forces", "stress")
     function_name: ClassVar[str]
@@ -298,7 +297,7 @@ class PlumedHamiltonian(Hamiltonian):
             ext = File(ext)
         if ext is not None:
             assert ext.filepath in self.plumed_input
-        object.__setattr__(self, "external", ext)
+        self.external = ext
 
     def _prepare_input(self) -> None:
         if isinstance(inp := self.plumed_input, Future):
@@ -306,7 +305,7 @@ class PlumedHamiltonian(Hamiltonian):
             inp = app(inp)
         else:
             inp = remove_comments_printflush(inp)
-        object.__setattr__(self, "plumed_input", inp)
+        self.plumed_input = inp
 
     def get_app(self) -> Callable:
         return partial(
@@ -410,14 +409,14 @@ class D3Hamiltonian(Hamiltonian):
 @psiflow.register_serializable
 @dataclass
 class MACEHamiltonian(Hamiltonian):
-    external: psiflow._DataFuture
+    external: psiflow._DataFuture | str | Path
     kwargs: dict = field(default_factory=dict)
     function_name: ClassVar[str] = "MACEFunction"
 
     def __post_init__(self):
         if isinstance(ext := self.external, (str, Path)):
             ext = File(ext)
-            object.__setattr__(self, "external", ext)
+            self.external = ext
 
     def update_kwargs(self, **kwargs: Any) -> None:
         """Specify kwargs for MACECalculator (enable_cueq, head, ..)"""

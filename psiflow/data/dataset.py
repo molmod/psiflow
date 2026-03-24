@@ -285,7 +285,7 @@ class Dataset:
         Returns:
             Dataset: A new Dataset with evaluation results.
         """
-        # TODO: WIP
+        # TODO: remove this functionality?
         from psiflow.hamiltonians import Hamiltonian
 
         if not isinstance(computable, Hamiltonian):
