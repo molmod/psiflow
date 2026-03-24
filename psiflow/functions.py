@@ -83,13 +83,16 @@ class PlumedFunction(Function):
     external: Optional[Union[str, Path]] = None
     plumed_instances: dict[tuple, "plumed.Plumed"] = field(default_factory=dict)
 
+    def __post_init__(self):
+        if self.external is not None:
+            assert self.external in self.plumed_input
+
     def __call__(
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        plumed_input = self.plumed_input
-        if self.external is not None:
-            assert self.external in plumed_input
+        if not geometry.periodic and "VOLUME" in self.plumed_input:
+            raise ValueError("VOLUME CV only supported for periodic structures")
 
         key = self._geometry_to_key(geometry)
         if key not in self.plumed_instances:
@@ -110,7 +113,7 @@ class PlumedFunction(Function):
             plumed_.cmd("setRestart", True)
             plumed_.cmd("setNatoms", len(geometry))
             plumed_.cmd("init")
-            for line in plumed_input.split("\n"):
+            for line in self.plumed_input.split("\n"):
                 plumed_.cmd("readInputLine", line)
             os.remove(tmp.name)  # remove whatever plumed has created
             self.plumed_instances[key] = plumed_
