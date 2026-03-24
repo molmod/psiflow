@@ -220,7 +220,7 @@ class MixtureHamiltonian(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True, eq=False)
+@dataclass
 class Zero(Hamiltonian):
     function_name: ClassVar[str] = "ZeroFunction"
 
@@ -244,7 +244,7 @@ class Zero(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True, eq=False)
+@dataclass
 class EinsteinCrystal(Hamiltonian):
     force_constant: float | AppFuture
     centers: np.ndarray | AppFuture
@@ -286,7 +286,7 @@ class EinsteinCrystal(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True, eq=False)
+@dataclass
 class PlumedHamiltonian(Hamiltonian):
     plumed_input: str | AppFuture
     external: Optional[psiflow._DataFuture] = None
@@ -331,7 +331,7 @@ class PlumedHamiltonian(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True, eq=False)
+@dataclass
 class Harmonic(Hamiltonian):
     hessian: np.ndarray | AppFuture
     positions: np.ndarray | AppFuture
@@ -373,7 +373,7 @@ class Harmonic(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True, eq=False)
+@dataclass
 class D3Hamiltonian(Hamiltonian):
     method: str | AppFuture
     damping: str | AppFuture = "d3bj"
@@ -408,7 +408,7 @@ class D3Hamiltonian(Hamiltonian):
 
 
 @psiflow.register_serializable
-@dataclass(frozen=True, eq=False)
+@dataclass
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
     kwargs: dict = field(default_factory=dict)
