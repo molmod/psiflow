@@ -12,7 +12,7 @@ from ase.calculators.emt import EMT
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry
-from psiflow.models import MACEModel
+from psiflow.models import MACE
 from psiflow.hamiltonians import MACEHamiltonian
 
 
@@ -62,8 +62,12 @@ def mace_config() -> dict:
         max_L=0,
         r_max=4,
         radial_MLP="[4]",
-        energy_key="energy",
-        forces_key="forces",
+        swa=True,
+        #
+        batch_size=1,  # MACE crashes if it is larger than dataset size
+        max_num_epochs=5,
+        energy_weight=100,  # make sure energy RMSE drops from first epoch
+        forces_weight=10
     )
 
 
@@ -128,11 +132,7 @@ def mace_foundation() -> Path:
 
 @pytest.fixture
 def dataset_h2(context):
-    h2 = Atoms(
-        numbers=[1, 1],
-        positions=[[0, 0, 0], [0.74, 0, 0]],
-        pbc=False,
-    )
+    h2 = Atoms(numbers=[1, 1], positions=[[0, 0, 0], [0.74, 0, 0]], pbc=False)
     data = [h2.copy() for i in range(20)]
     for atoms in data:
         atoms.positions += np.random.uniform(-0.05, 0.05, size=(2, 3))

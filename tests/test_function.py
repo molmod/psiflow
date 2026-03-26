@@ -354,11 +354,6 @@ def test_json_dump():
     assert type(data_["c"]) is list
 
 
-def test_mace_function(dataset, mace_foundation):
-    # TODO: this feels pretty useless now
-    function = MACEFunction(mace_foundation, device="cpu", dtype="float32", ncores=2)
-    output = function.compute(dataset[:4].geometries().result())
-
 def test_function_from_json(tmp_path, dataset):
     hills = """#! FIELDS time CV sigma_CV height biasf
 #! SET multivariate false

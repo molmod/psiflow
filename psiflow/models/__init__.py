@@ -1,1 +1,1 @@
-from psiflow.models.mace import MACEModel
+from psiflow.models.mace import MACE
