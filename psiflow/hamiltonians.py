@@ -311,7 +311,7 @@ class PlumedHamiltonian(Hamiltonian):
         return partial(
             apply_htex,
             function_cls=PlumedFunction,
-            inputs=[self.external],  # wait for future
+            wait_for=self.external,
             **self.parameters(),
         )
 
@@ -428,8 +428,8 @@ class MACEHamiltonian(Hamiltonian):
         return partial(
             apply_modelevaluation,
             function_cls=MACEFunction,
+            wait_for=self.external,
             parsl_resource_specification=evaluation.wq_resources(1),
-            inputs=[self.external],  # wait for future
             **self.parameters(include_env=True),
         )
 

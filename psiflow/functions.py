@@ -4,7 +4,7 @@ import tempfile
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Type, Union, get_type_hints
+from typing import Optional, Type, Union, Any
 from collections.abc import Sequence
 
 import numpy as np
@@ -205,7 +205,7 @@ class MACEFunction(Function):
         object.__setattr__(self, "calc", calc)  # frozen dataclass instance
 
         # remove unwanted streamhandler added by MACE / torch!
-        logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
+        # logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
 
     def __call__(
         self,
@@ -251,11 +251,16 @@ def _apply(
     arg: Union[Geometry, list[Geometry], None],
     outputs_: tuple[str, ...],
     function_cls: Type[Function],
+    wait_for: Any = None,
     inputs: Sequence = (),
     parsl_resource_specification: dict = {},
     **parameters,
 ) -> Optional[list[np.ndarray]]:
     from psiflow.data.utils import _read_frames
+
+    # TODO: why pass geoms through arg or inputs?
+    #  should we not have a single keyword for input structures?
+    #  or at least reserve inputs for arbitrary futures (to wait on)?
 
     assert function_cls is not None
     if arg is None:
