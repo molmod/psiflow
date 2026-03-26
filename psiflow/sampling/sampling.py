@@ -349,7 +349,7 @@ def setup_output(
             extra_type=extras,
             bead="0",
         )
-        extras_element.text = f" extras "
+        extras_element.text = f" extras_bias "
         output.append(extras_element)
     return output, observables
 
