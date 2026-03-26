@@ -19,26 +19,33 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.utils.future import resolve_nested_futures
-from psiflow.utils.parse import format_env_vars
+from psiflow.utils.parse import format_env_vars, get_task_name_id
 
 # TODO: when changing the training dataset, the models avg_num_neighbors will also change,
 #  making old checkpoints inconsistent
 # TODO: sanitise_config consistently called?
+# TODO: training fails when batch_size > dataset (see github issue)
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
 KEY_ATOMIC_ENERGIES = "psiflow_atomic_energies"
+KEY_ITERATION = "psiflow_train_iteration"
 
 
 class Status(StrEnum):
-    NEW = "new"
-    INIT = "init"
-    TRAINED = "trained"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+    BAD_INPUT = "BAD INPUT"
+    UNKNOWN_ERROR = "UNKNOWN ERROR"
 
 
-def sanitise_config(config: dict) -> None:
+def sanitise_config(config: dict) -> dict:
     """"""
+    defaults = dict(
+        energy_key="energy", forces_key="forces", seed=42, restart_latest=True
+    )
+
     config["save_cpu"] = True  # save to CPU after training
 
     # keep all files in work_dir
@@ -46,6 +53,8 @@ def sanitise_config(config: dict) -> None:
     keys = ("log_dir", "model_dir", "checkpoints_dir", "results_dir", "downloads_dir")
     for k in keys:
         config.pop(k, None)
+
+    return defaults | config
 
 
 def create_checkpoint_name(config: dict) -> str:
@@ -84,39 +93,39 @@ def _execute(
     return bash_template.format(*inputs)
 
 
-class MACEModel:
+class MACE:
     """"""
 
     root: Path
     config: dict[str, Any]
+    iteration: int
     model_future: Optional[psiflow._DataFuture]
     atomic_energies: dict[str, float | AppFuture]
 
     def __init__(self, root: Path, config: Optional[dict] = None):
         self.root = psiflow.resolve_and_check(root)
+        self.iteration = -1
         self.atomic_energies = {}
-        self.config = config
         if config is not None:
-            sanitise_config(config)
+            self.config = sanitise_config(config)
             yaml.safe_dump(config, self.path_config.open("w"))
         else:
             self._load_config()
 
         # create a lockfile to signal this root directory is in use
-        # TODO: might need closing in __del__ of this class
         lock = tempfile.NamedTemporaryFile(prefix="psiflow-", suffix=".lock", dir=root)
         self.lock = lock
 
         self.model_future = None
         if (p := self.path_mlp).is_file():
-            self.model_future = p
+            self.model_future = File(p)
 
-    def set_kwargs(self, **kwargs: Any | Future) -> None:
+    def update_kwargs(self, **kwargs: Any | Future) -> None:
         """Update config arguments, possibly with futures"""
         self.config |= kwargs
 
     def train(self, training: Dataset, validation: Dataset) -> AppFuture:
-        if self.status == Status.NEW:
+        if not self.has_model_future:
             logger.warning("Attempting to train new model. Initialising first..")
             self.initialize(training)
 
@@ -127,40 +136,40 @@ class MACEModel:
             training.extxyz,
             validation.extxyz,
             inputs=[self.model_future],  # wait for previous model training
+            outputs=[File(self.path_mlp)],
         )
-        outputs = [File(self.path_mlp), File(self.path_chkpt)]
-        future = store_last(self, future, outputs=outputs)
         self.model_future = future.outputs[0]
         return future
 
     def initialize(self, dataset: Dataset) -> AppFuture:
         """Create and save the model architecture"""
-        assert self.status == Status.NEW, "Already initialized.."
+        assert not self.has_model_future, "Already initialized.."
         future_cfg = self._resolve_futures()
-        future = initialize_app(self, future_cfg, dataset.extxyz)
-        future = store_last(self, future, outputs=[File(self.path_mlp)])
+        future = initialize_app(
+            self, future_cfg, dataset.extxyz, outputs=[File(self.path_mlp)]
+        )
         self.model_future = future.outputs[0]
         return future
 
     def add_atomic_energy(self, element: str, energy: float | AppFuture) -> None:
         assert (
-            self.status == Status.NEW
-        ), "cannot add atomic energies after model has been initialized.."
+            not self.has_model_future
+        ), "Cannot add atomic energies after model has been initialized.."
         if element in self.atomic_energies:
             logger.warning(f"Overwriting existing atomic energy for '{element}'..")
         self.atomic_energies[element] = energy
 
     def create_hamiltonian(self) -> MACEHamiltonian:
         # atomic energies are already part of the model
-        assert self.status != Status.NEW, "Trained model does not exist.."
+        assert self.has_model_future, "Trained model does not exist.."
         return MACEHamiltonian(self.model_future, {})
 
     def _load_config(self) -> None:
         """Does not care for futures"""
         config = yaml.safe_load(self.path_config.open())
         self.atomic_energies = config.pop(KEY_ATOMIC_ENERGIES, {})
-        sanitise_config(config)
-        self.config = config
+        self.iteration = config.pop(KEY_ITERATION, 0)
+        self.config = sanitise_config(config)
 
     def _resolve_futures(self) -> AppFuture:
         """Wait for all futures in config and atomic energies"""
@@ -198,21 +207,13 @@ class MACEModel:
         return self.root / "checkpoints"
 
     @property
-    def status(self) -> Status:
-        if self.model_future is None:
-            return Status.NEW
-        if self.path_chkpt.is_file():
-            return Status.TRAINED
-        return Status.INIT
+    def has_model_future(self) -> bool:
+        # whether a model exists (or will exist)
+        return self.model_future is not None
 
     @property
-    def stage(self) -> str:
-        # TODO: very ugly
-        iteration = -1
-        files = list(self.path_checkpoints.glob("*.pt"))
-        if files:
-            iteration = sorted(files)[-1].name.split("_")[0].split("-")[-1]
-        return f"train-{int(iteration) + 1}"
+    def has_checkpoint(self) -> bool:
+        return self.path_chkpt.is_file()
 
     @classmethod
     def create(cls, path_dir: Path, config: dict):
@@ -229,11 +230,16 @@ class MACEModel:
 
 
 @join_app
-def initialize_app(model: MACEModel, config: dict, file_data: File) -> AppFuture:
+def initialize_app(
+    model: MACE, config: dict, file_data: File, outputs: Sequence[File]
+) -> AppFuture:
     """"""
     # TODO: we can kill mace_run_train as soon as 'RESULTS' block starts
-    logging.info("Initialising MACE model...")
-    yaml.safe_dump(config, model.path_config.open("w"))
+    assert len(outputs) == 1
+    logger.info("Initialising MACE model...")
+
+    # replace futures - safe because atomic_energies are fixed post init
+    model.atomic_energies = config.pop(KEY_ATOMIC_ENERGIES)
 
     # make dummy val set
     file_val = psiflow.context().new_file("dummy_", ".xyz")
@@ -242,64 +248,106 @@ def initialize_app(model: MACEModel, config: dict, file_data: File) -> AppFuture
     ase.io.write(file_val.filepath, dummy)
 
     # update train config
-    config |= {
+    cfg = config.copy()
+    cfg |= {
         "name": "init",
         "max_num_epochs": 0,
         "train_file": file_data.filepath,
         "valid_file": file_val.filepath,
     }
-    atomic_energies = config.pop(KEY_ATOMIC_ENERGIES)
-    config["E0s"] = format_E0s(atomic_energies)
+    cfg["E0s"] = format_E0s(model.atomic_energies)
     file_cfg = psiflow.context().new_file("mace_cfg_", ".yaml")
-    yaml.safe_dump(config, open(file_cfg.filepath, "w"))
+    yaml.safe_dump(cfg, open(file_cfg.filepath, "w"))
 
     command = get_bash_command(model.root)
     app, template = model.get_app(init=True)
-    return app(template.format(commands=command), inputs=[file_cfg])
+
+    future = app(template.format(commands=command), inputs=[file_cfg])
+    inputs = [future.stdout, future.stderr, future]
+    future_ = process_output(model, config, inputs=inputs)
+    return future_
 
 
 @join_app
 def train_app(
-    model: MACEModel, config: dict, file_train: File, file_val, inputs: Sequence = ()
+    model: MACE,
+    config: dict,
+    file_train: File,
+    file_val,
+    inputs: Sequence = (),
+    outputs: Sequence[File] = (),
 ) -> AppFuture:
     """Wait for inputs and (re)train model"""
-    if model.status == Status.TRAINED:
-        logging.info("Retraining MACE model...")
+    assert len(outputs) == 1
+    if model.has_checkpoint:
+        logger.info("Retraining MACE model...")
     else:
-        logging.info("Training initialised MACE model...")
-    yaml.safe_dump(config, model.path_config.open("w"))
+        logger.info("Training initialised MACE model...")
 
     # update train config
-    config |= {
-        "name": model.stage,
+    cfg = config.copy()
+    cfg |= {
+        "name": f"train-{model.iteration}",
         "train_file": file_train.filepath,
         "valid_file": file_val.filepath,
     }
-    atomic_energies = config.pop(KEY_ATOMIC_ENERGIES)
-    config["E0s"] = format_E0s(atomic_energies)
+    cfg["E0s"] = format_E0s(cfg.pop(KEY_ATOMIC_ENERGIES))
     file_cfg = psiflow.context().new_file("mace_cfg_", ".yaml")
-    yaml.safe_dump(config, open(file_cfg.filepath, "w"))
+    yaml.safe_dump(cfg, open(file_cfg.filepath, "w"))
 
     pre = None
-    if model.status == Status.TRAINED:
-        chkpt_out = f"checkpoints/{create_checkpoint_name(config)}"
+    if model.has_checkpoint:
+        chkpt_out = f"checkpoints/{create_checkpoint_name(cfg)}"
         pre = f"cp {model.path_chkpt} {chkpt_out}"
     command = get_bash_command(model.root, pre=pre)
     app, template = model.get_app(init=False)
-    return app(template.format(commands=command), inputs=[file_cfg])
+
+    future = app(template.format(commands=command), inputs=[file_cfg])
+    inputs = [future.stdout, future.stderr, future]
+    future_ = process_output(model, config, inputs=inputs)
+    return future_
 
 
 @python_app(executors=["default_threads"])
-def store_last(model: MACEModel, future: Any, outputs: Sequence[File] = ()) -> None:
-    """Waits for future and copies last MACE model (and checkpoint)"""
-    files = list(model.path_checkpoints.glob("*.model"))
-    shutil.copy2(sorted(files)[-1], outputs[0].filepath)
-    if len(outputs) == 1:
-        return  # only copy the model
+def process_output(model: MACE, config: dict, inputs: Sequence = ()) -> None:
+    """Waits for future and processes MLP training output"""
+    key = "init" if model.iteration < 0 else f"train-{model.iteration}"
 
-    # also copy the checkpoint
-    files = list(model.path_checkpoints.glob("*.pt"))
-    shutil.copy2(sorted(files)[-1], outputs[1].filepath)
+    # copy last model
+    files = list(model.path_checkpoints.glob(f"{key}*.model"))
+    if len(files):
+        status = Status.SUCCESS
+        shutil.copy2(sorted(files)[-1], model.path_mlp)
+    else:
+        status = Status.FAILURE
+
+    # copy last checkpoint
+    files = list(model.path_checkpoints.glob(f"{key}*.pt"))
+    if len(files):
+        shutil.copy2(sorted(files)[-1], model.path_chkpt)
+
+    name, task_id = get_task_name_id(inputs[0])
+    model.iteration += 1
+    cfg = config | {
+        KEY_ATOMIC_ENERGIES: model.atomic_energies,
+        KEY_ITERATION: model.iteration,
+    }
+    if status == Status.SUCCESS:
+        # only update stored config if training is successful
+        logger.info(f"MACE training [ID {task_id}]: {status}")
+        yaml.safe_dump(cfg, model.path_config.open("w"))
+        return
+
+    # check final error logs
+    lines = Path(inputs[1]).read_text().rsplit(sep="\n", maxsplit=5)
+    log = "\n".join(lines[1:])
+    if "unrecognized arguments" in log:
+        status = Status.BAD_INPUT
+    else:
+        status = Status.UNKNOWN_ERROR
+
+    logger.warning(f"MACE training [ID {task_id}]: {status}")
+    raise RuntimeError("MACE training failed. Check output logs.")
 
 
 # copied from the MACE v0.3.15 repo
