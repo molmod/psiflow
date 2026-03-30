@@ -1,7 +1,7 @@
 import warnings
 import re
 from functools import partial
-from typing import Optional, Union
+from typing import Optional, Union, ClassVar
 
 import ase.symbols
 import numpy as np
@@ -12,8 +12,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
-from psiflow.utils.parse import find_line, lines_to_array, string_to_timedelta
+from psiflow.utils.parse import find_line, lines_to_array, str_to_timedelta
 
 
 KEY_GHOST = "ghost"
@@ -95,7 +94,7 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     if status == Status.SUCCESS:
         # total runtime
         idx = find_line(lines, "TOTAL RUN TIME", reverse=True, max_lines=5)
-        data["runtime"] = string_to_timedelta(lines[idx][16:])
+        data["runtime"] = str_to_timedelta(lines[idx][16:])
 
     # read coordinates
     idx_start = idx = find_line(lines, "CARTESIAN COORDINATES (ANGSTROEM)") + 2
@@ -122,20 +121,15 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
 
 @psiflow.serializable
 class ORCA(Reference):
+    executor: ClassVar[str] = "ORCA"
     _execute_label = "orca_singlepoint"
     input_template: str
     input_kwargs: dict
 
-    def __init__(
-        self,
-        input_template: str,
-        executor: str = "ORCA",
-        outputs: Union[tuple, list] = ("energy", "forces"),
-    ):
-        self.executor = executor
-        self.input_template = check_input(input_template, outputs)
+    def __init__(self, input_template: str, **kwargs):
+        super().__init__(**kwargs)
+        self.input_template = check_input(input_template, self.outputs)
         self.input_kwargs = DEFAULT_KWARGS.copy()  # TODO: user control?
-        self.outputs = tuple(outputs)
         self._create_apps()
 
     def _create_apps(self):
@@ -162,12 +156,7 @@ class ORCA(Reference):
         return references
 
     def get_shell_command(self, inputs: list[File]) -> str:
-        command_list = [
-            TMP_COMMAND,
-            CD_COMMAND,
-            f"cp {inputs[0].filepath} orca.inp",
-            self.execute_command,
-        ]
+        command_list = [f"cp {inputs[0].filepath} orca.inp", self.execute_command]
         return "\n".join(command_list)
 
     def parse_output(self, stdout: str) -> dict:

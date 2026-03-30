@@ -317,7 +317,7 @@ def test_output_status(dataset):
 
     # walltime
     definition = psiflow.context().definitions["ModelEvaluation"]
-    definition.max_simulation_time = 5 / 60  # 5 seconds
+    definition.max_runtime = 5  # seconds
     outputs = sample([walker], steps=10000)
     assert outputs[0].status.result() == Status.TIMEOUT
     assert outputs[0].time.result() > 0

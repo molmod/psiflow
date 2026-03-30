@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psiflow"
-version = "4.0.1"
+version = "4.0.2"
 description = "Library for developing interatomic potentials"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,12 +13,11 @@ dependencies = [
     "ase>=3.23.0",
     "pyyaml>=6.0",
     "numpy>=1.22.3, <2",
-    "parsl==2024.12.16",
+    "parsl==2026.02.23",
     "prettytable",
     "psutil",
     "cp2k-input-tools @ git+https://github.com/cp2k/cp2k-input-tools.git@3b9929735dcb3c8c0620a548b1fe20efecbad077",  # need 2024.1
     "ipi @ git+https://github.com/i-pi/i-pi.git@v3.1.10",
-    "pytimeparse",
     ]
 
 

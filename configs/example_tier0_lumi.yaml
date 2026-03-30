@@ -1,0 +1,21 @@
+# Tier-0 LUMI requires an active research project to submit calculations
+
+# run ModelEvaluation and ModelTraining in a psiflow container
+container:
+    uri: oras://ghcr.io/molmod/psiflow:4.0.0_rocm6.2  # outdated uri
+    engine: singularity  # LUMI uses singularity instead of apptainer
+    gpu_flavour: rocm  # GPU nodes are of the AMD kind
+
+# not specifying max_runtime defaults to (just shy of) job walltime
+ModelTraining:
+  cores_per_task: 56
+  gpus_per_task: 8
+  slurm:
+    partition: standard-g
+    account: project_465001125
+    nodes_per_block: 1
+    cores_per_node: 56
+    gpus_per_node: 8
+    max_blocks: 1
+    walltime: "12:00:00"
+    scheduler_options: "#SBATCH --clusters=dodrio\n#SBATCH --gpus=1\n"

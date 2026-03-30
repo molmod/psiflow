@@ -14,7 +14,8 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, check_equality
 from psiflow.hamiltonians import Hamiltonian, Zero, combine_hamiltonians
-from psiflow.order_parameters import OrderParameter
+
+# from psiflow.order_parameters import OrderParameter
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils.apps import copy_app_future
 
@@ -68,7 +69,7 @@ def get_ensemble_kwargs(walker: "Walker") -> dict:
 @dataclass
 class Walker:
     start: Union[Geometry, AppFuture]
-    hamiltonian: Hamiltonian = Zero()
+    hamiltonian: Hamiltonian = field(default_factory=lambda: Zero())
     timestep: float = 0.5
     temperature: Optional[float] = 300
     pressure: Optional[float] = None
@@ -78,7 +79,7 @@ class Walker:
     masses: Union[np.ndarray, float, None] = None
     nbeads: int = 1
     metadynamics: Optional[Metadynamics] = None
-    order_parameter: Optional[OrderParameter] = None
+    # order_parameter: Optional['OrderParameter'] = None
 
     state: Union[Geometry, AppFuture] = field(init=False)
     coupling: Optional[Coupling] = field(init=False)
@@ -96,9 +97,9 @@ class Walker:
             # we cannot check this for futures
             assert self.pressure is None, "Pressure requires PBC"
 
-        if self.order_parameter is not None:
-            # TODO: order_parameter out of commission
-            self.start = self.order_parameter.evaluate(self.start)
+        # if self.order_parameter is not None:
+        #     # TODO: order_parameter out of commission
+        #     self.start = self.order_parameter.evaluate(self.start)
 
         if (m := self.masses) is None:
             pass  # do nothing

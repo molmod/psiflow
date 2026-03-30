@@ -1,5 +1,4 @@
-import copy
-import re
+import logging
 from enum import Enum
 from pathlib import Path
 from dataclasses import dataclass, field, InitVar
@@ -13,15 +12,14 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry, NullState
+from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
 from psiflow.sampling.walker import Walker
 from psiflow.utils.io import save_npz
-from psiflow.utils.apps import setup_logger
 from psiflow.utils.parse import get_task_name_id
 
 
-logger = setup_logger(__name__)  # logging per module
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_OBSERVABLES = [

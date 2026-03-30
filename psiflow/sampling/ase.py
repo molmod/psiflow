@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Union
 
 import parsl
@@ -9,15 +10,13 @@ from psiflow.data import Dataset
 from psiflow.data.utils import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.utils.apps import setup_logger
 from psiflow.utils.io import _dump_json
-from psiflow.utils import TMP_COMMAND, CD_COMMAND, export_env_command
-from psiflow.utils.parse import get_task_name_id
+from psiflow.utils.parse import get_task_name_id, format_env_vars
 
 from ._ase import ALLOWED_MODES, __file__ as file_ase
 
-DEFAULT_EXECUTABLE = 'script.py'
-logger = setup_logger(__name__)  # logging per module
+DEFAULT_EXECUTABLE = "script.py"
+logger = logging.getLogger(__name__)
 
 
 class OptimisationFailedError(Exception):
@@ -48,6 +47,7 @@ def _execute_ase(
     inputs: list[DataFuture],
     outputs: list[DataFuture],
     env_vars: dict = {},
+    bash_template: str = "",
     stdout: str = parsl.AUTO_LOGNAME,
     stderr: str = parsl.AUTO_LOGNAME,
     parsl_resource_specification: Optional[dict] = None,
@@ -63,14 +63,11 @@ def _execute_ase(
         command_opt_args.append(f"--output_traj={outputs[1].filepath}")
 
     command_list = [
-        TMP_COMMAND,
-        CD_COMMAND,
-        export_env_command(env_vars),
         f"cp {inputs[0].filepath} {DEFAULT_EXECUTABLE}",
         " ".join(command_opt_args),
-        "exit 0",  # ignore timeout exitcode
     ]
-    return "\n".join(command_list)
+    commands, env = "\n".join(command_list), format_env_vars(env_vars)
+    return bash_template.format(commands=commands, env=env)
 
 
 execute_ase = bash_app(_execute_ase, executors=["ModelEvaluation"])
@@ -93,12 +90,8 @@ def optimize(
 
     context = psiflow.context()
     definition = context.definitions["ModelEvaluation"]
-
-    command_list = [f"python -u {DEFAULT_EXECUTABLE}"]
-    if definition.max_simulation_time is not None:
-        max_time = 0.9 * (60 * definition.max_simulation_time)
-        command_list = ["timeout -s 15 {}s".format(max_time), *command_list]
-    command_launch = " ".join(command_list)
+    command = f"python -u {DEFAULT_EXECUTABLE}"
+    command_launch = definition.wrap_in_timeout(command)
 
     input_geometry = Dataset([state]).extxyz  # state can be future
     hamiltonian = 1.0 * hamiltonian  # convert to mixture
@@ -128,6 +121,7 @@ def optimize(
     result = execute_ase(
         command_launch=command_launch,
         env_vars=definition.env_vars,
+        bash_template=context.bash_template,
         inputs=inputs,
         outputs=outputs,
         parsl_resource_specification=definition.wq_resources(1),

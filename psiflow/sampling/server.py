@@ -97,7 +97,6 @@ def run(start_xyz: str, input_xml: str):
     # prepare starting geometries from context_dir
     data_start: list[ase.Atoms] = read(start_xyz, index=":")
     for i, at in enumerate(data_start):
-        print(at.pbc)
         if not any(at.pbc):  # set fake large cell for i-PI
             at.pbc = True
             at.cell = Cell(NONPERIODIC_CELL)
@@ -188,7 +187,7 @@ def main():
         run(args.start_xyz, args.input_xml)
         softexit.trigger(status="success", message="@PSIFLOW: We are done here.")
     except ConnectionError:
-        # TODO: in this case, no output files are generated..
+        # TODO: in this case, no output files are generated, so the task fails..
         traceback.print_exc()
         softexit.trigger(status="bad", message="@PSIFLOW: Clients failed to connect.")
     except np.linalg.LinAlgError:

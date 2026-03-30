@@ -1,7 +1,7 @@
 import copy
 import io
 import warnings
-from typing import Optional, Union
+from typing import Optional, Union, ClassVar
 
 import numpy as np
 from ase.data import chemical_symbols
@@ -15,8 +15,6 @@ import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
 from psiflow.utils.parse import find_line, lines_to_array
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
-
 
 # costly to initialise
 input_parser = CP2KInputParserSimplified(
@@ -58,15 +56,16 @@ def modify_input(input_dict: dict, properties: tuple) -> None:
 
 
 def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.ndarray]:
+    """Very basic output parser. Perhaps check the cp2k-output-tools package?"""
     lines = output_str.split("\n")
     data = {}
 
     # output status
-    idx = find_line(lines, "CP2K", reverse=True, max_lines=250)
+    key = "SUBROUTINE"
+    idx = find_line(lines, key, reverse=True, max_lines=100)
     data["status"] = status = Status.SUCCESS if idx is not None else Status.FAILED
     if status == Status.SUCCESS:
-        # total runtime
-        data["runtime"] = float(lines[idx].split()[-1])
+        data["runtime"] = float(lines[idx + 2].split()[-1])  # total runtime
 
     # find number of atoms
     idx = find_line(lines, "TOTAL NUMBERS AND MAXIMUM NUMBERS")
@@ -79,7 +78,7 @@ def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.nda
     data["positions"] = lines_to_array(lines[idx : idx + natoms], 4, 7)
 
     # read energy
-    key = "ENERGY| Total FORCE_EVAL ( QS ) energy [a.u.]"
+    key = "ENERGY| Total FORCE_EVAL ( QS ) energy"
     idx = find_line(lines, key, idx)
     data["energy"] = float(lines[idx].split()[-1]) * Ha
 
@@ -87,28 +86,23 @@ def parse_output(output_str: str, properties: tuple) -> dict[str, float | np.nda
         return data
 
     # read forces
-    key = "ATOMIC FORCES in [a.u.]"
-    idx = find_line(lines, key, idx) + 3
-    forces = lines_to_array(lines[idx : idx + natoms], 3)
+    key = "FORCES| Atomic forces"
+    idx = find_line(lines, key, idx) + 2
+    forces = lines_to_array(lines[idx : idx + natoms], 2, 5)
 
     return data | {"forces": forces * Ha / Bohr}
 
 
 @psiflow.serializable
 class CP2K(Reference):
+    executor: ClassVar[str] = "CP2K"
     _execute_label = "cp2k_singlepoint"
     input_dict: dict
 
-    def __init__(
-        self,
-        input_str: str,
-        executor: str = "CP2K",
-        outputs: Union[tuple, list] = ("energy", "forces"),
-    ):
-        self.executor = executor
-        self.outputs = tuple(outputs)
+    def __init__(self, input_str: str, **kwargs):
+        super().__init__(**kwargs)
         self.input_dict = str_to_dict(input_str)
-        modify_input(self.input_dict, outputs)
+        modify_input(self.input_dict, self.outputs)
         self._create_apps()
 
     def compute_atomic_energy(self, element, box_size=None) -> AppFuture[float]:
@@ -141,12 +135,7 @@ class CP2K(Reference):
         return references
 
     def get_shell_command(self, inputs: list[File]) -> str:
-        command_list = [
-            TMP_COMMAND,
-            CD_COMMAND,
-            f"cp {inputs[0].filepath} cp2k.inp",
-            self.execute_command,
-        ]
+        command_list = [f"cp {inputs[0].filepath} cp2k.inp", self.execute_command]
         return "\n".join(command_list)
 
     def parse_output(self, stdout: str) -> dict:

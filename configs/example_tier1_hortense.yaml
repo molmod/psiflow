@@ -1,0 +1,19 @@
+# Tier-1 Hortense requires an active research project to submit calculations
+# always make sure to 'unset SBATCH_PARTITION' before submitting anything
+
+# when not using a psiflow container, you need to make sure all necessary software is available on the worker node
+# this can be through installed modules, custom environments, ...
+ModelEvaluation:
+  cores_per_task: 8
+  gpus_per_task: 1
+  max_runtime: 06:00:00
+  slurm:
+    partition: gpu_rome_a100  # specify node partition where jobs should run
+    account: 2026_042  # specify your active computational grant
+    nodes_per_block: 1
+    cores_per_node: 32
+    gpus_per_block: 4
+    max_blocks: 10
+    walltime: 06:30:00
+    worker_init: micromamba activate my-mace-env  # load an environment with the appropriate software
+

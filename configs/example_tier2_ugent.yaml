@@ -1,0 +1,59 @@
+# Tier-2 UGent divides its compute nodes over 'clusters' rather than partitions
+# always make sure to 'unset SLURM_CLUSTERS' before submitting anything
+
+# retry failed apps once
+retries: 1
+
+# psiflow always launches one HighThroughputExecutor and one ThreadPoolExecutor to handle internal apps (IO, parsing)
+# these tasks run locally and should never do any real computational work
+# default_threads needs to mainly be high enough to avoid concurrency bottlenecks
+default_threads: 8
+
+# run ModelEvaluation and ModelTraining in a psiflow container
+container:
+    uri: oras://ghcr.io/molmod/psiflow:4.0.0_cu118  # outdated uri
+    engine: apptainer
+    gpu_flavour: cuda  # required for GPU usage
+
+# tasks will use (at least) two cores (no GPUs) and can run for six hours at most
+# parsl asks SLURM for 16 cores on either doduo or shinx, so 8 tasks can run per SLURM job
+# only 10 SLURM jobs will run at once
+ModelEvaluation:
+  cores_per_task: 2
+  max_runtime: 06:00:00
+  slurm:
+    nodes_per_block: 1
+    cores_per_node: 16
+    max_blocks: 10
+    walltime: 08:00:00
+    clusters: doduo,shinx
+
+# tasks will use 8 cores and one GPU, running for four hours at most
+# parsl asks SLURM for 12 cores + 1 GPU on accelgor, so one task can run per SLURM job
+ModelTraining:
+  cores_per_task: 12
+  gpus_per_task: 1
+  max_runtime: 04:00:00
+  slurm:
+    nodes_per_block: 1
+    cores_per_node: 12
+    gpus_per_node: 1
+    walltime: 04:00:00
+    clusters: accelgor
+
+# tasks will use 32 cores (by default), running for one hour at most
+# tasks will be killed when they exceed 64 GB of memory usage
+# parsl asks SLURM for 32 cores on doduo or shinx, so one task can run per SLURM job
+# tells WQ to load a CP2K module before trying to launch calculations
+CP2K:
+  cores_per_task: 32
+  max_runtime: 01:00:00
+  memory_limit: 64
+  slurm:
+    nodes_per_block: 1
+    cores_per_node: 32
+    mem_per_node: 64
+    walltime: 04:00:00
+    max_blocks: 50
+    clusters: doduo,shinx
+    worker_init: ml CP2K/2023.1-foss-2023a
