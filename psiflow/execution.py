@@ -546,10 +546,6 @@ class ModelTraining(ExecutionDefinition):
         # only for WQ
         return (self.spec or {}).get("gpus", 0) > 1
 
-    def train_command(self, initialize: bool = False):
-        command = "psiflow-mace-train"
-        return self.wrap_in_timeout(command)
-
     def wq_resources(self, *args, **kwargs) -> dict:
         if self.spec is None:
             return {}  # threadpool

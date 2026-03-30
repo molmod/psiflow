@@ -3,9 +3,8 @@ import tempfile
 import logging
 from pathlib import Path
 from enum import StrEnum
-from typing import Optional, Callable, Any
+from typing import Optional, Any
 from collections.abc import Sequence
-from functools import partial
 
 import ase
 import ase.io
@@ -13,7 +12,7 @@ import yaml
 import parsl
 from ase.data import atomic_numbers
 from parsl import bash_app, python_app, File, join_app
-from parsl.dataflow.futures import AppFuture, DataFuture, Future
+from parsl.dataflow.futures import AppFuture, Future
 
 import psiflow
 from psiflow.data import Dataset
