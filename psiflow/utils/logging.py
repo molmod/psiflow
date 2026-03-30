@@ -18,6 +18,10 @@ def setup_logging(file: Path, level=logging.INFO) -> None:
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
+    # keep Parsl logs in the parsl.log file
+    logging.getLogger("parsl").propagate = False
+
+
 
 def log_dfk_tasks(verbose: bool = False):
     """Get an overview of all tasks stored in the parsl DFK. For debugging purposes."""

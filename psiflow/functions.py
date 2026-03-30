@@ -195,6 +195,9 @@ class MACEFunction(Function):
         import torch
         from mace.calculators.mace import MACECalculator
 
+        # MACE uses the root logger..
+        logging.getLogger("").setLevel(logging.INFO)
+
         torch.set_num_threads(self.ncores)
         calc = MACECalculator(
             model_paths=self.model_path,
@@ -203,9 +206,6 @@ class MACEFunction(Function):
             **self.calc_kwargs,
         )
         object.__setattr__(self, "calc", calc)  # frozen dataclass instance
-
-        # remove unwanted streamhandler added by MACE / torch!
-        # logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
 
     def __call__(
         self,
