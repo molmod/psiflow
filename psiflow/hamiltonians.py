@@ -1,7 +1,7 @@
 import urllib
 from functools import partial
 from pathlib import Path
-from typing import ClassVar, Optional, Union, Callable, Sequence
+from typing import Optional, Union, Callable, Sequence
 
 import numpy as np
 from parsl.app.app import python_app
@@ -26,13 +26,16 @@ from psiflow.utils.apps import copy_app_future, get_attribute
 from psiflow.utils.io import dump_json
 
 
-@psiflow.serializable
+apply_threads = python_app(_apply, executors=["default_threads"])
+apply_htex = python_app(_apply, executors=["default_htex"])
+apply_modelevaluation = python_app(_apply, executors=["ModelEvaluation"])
+
+
 class Hamiltonian(Computable):
-    # TODO: app is actually an instance variable, but serialization complains..
-    outputs: ClassVar[tuple] = ("energy", "forces", "stress")
+    outputs: tuple = ("energy", "forces", "stress")
     batch_size = 1000
-    app: ClassVar[Callable]
-    function_name: ClassVar[str]
+    app: Callable
+    function_name: str
 
     def compute(
         self,
@@ -44,12 +47,7 @@ class Hamiltonian(Computable):
             outputs = tuple(self.__class__.outputs)
         if batch_size == -1:
             batch_size = self.__class__.batch_size
-        return compute(
-            arg,
-            self.app,
-            outputs_=outputs,
-            batch_size=batch_size,
-        )
+        return compute(arg, self.get_app(), outputs_=outputs, batch_size=batch_size)
 
     def __eq__(self, hamiltonian: "Hamiltonian") -> bool:
         raise NotImplementedError
@@ -80,32 +78,13 @@ class Hamiltonian(Computable):
         ).outputs[0]
 
     def parameters(self) -> dict:
-        return {}
+        raise NotImplementedError
+
+    def get_app(self) -> Callable:
+        raise NotImplementedError
 
 
-@psiflow.serializable
-class Zero(Hamiltonian):
-
-    def __init__(self):
-        apply_zero = python_app(_apply, executors=["default_threads"])
-        self.app = partial(apply_zero, function_cls=ZeroFunction)
-
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        if type(hamiltonian) is Zero:
-            return True
-        return False
-
-    def __mul__(self, a: float) -> "Zero":
-        return Zero()
-
-    def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
-        # (Zero + Hamiltonian) is different from (Hamiltonian + Zero)
-        return hamiltonian
-
-    __rmul__ = __mul__  # handle float * Zero
-
-
-@psiflow.serializable
+@psiflow.register_serializable
 class MixtureHamiltonian(Hamiltonian):
     hamiltonians: list[Hamiltonian]
     coefficients: list[float]
@@ -127,10 +106,9 @@ class MixtureHamiltonian(Hamiltonian):
     ) -> Union[list[AppFuture], AppFuture]:
         if outputs is None:
             outputs = list(self.__class__.outputs)
-        apply_apps = [h.app for h in self.hamiltonians]
+        apply_apps = [h.get_app() for h in self.hamiltonians]
         reduce_func = partial(
-            aggregate_multiple,
-            coefficients=np.array(self.coefficients),
+            aggregate_multiple, coefficients=np.array(self.coefficients)
         )
         return compute(
             arg,
@@ -231,25 +209,47 @@ class MixtureHamiltonian(Hamiltonian):
         return [h.serialize_function(**kwargs) for h in self.hamiltonians]
 
 
-@psiflow.serializable
-class EinsteinCrystal(Hamiltonian):
-    reference_geometry: Union[Geometry, AppFuture]
-    force_constant: float
-    function_name: ClassVar[str] = "EinsteinCrystalFunction"
+@psiflow.register_serializable
+class Zero(Hamiltonian):
+    function_name: str = "ZeroFunction"
 
-    def __init__(
-        self, geometry: Union[Geometry, AppFuture[Geometry]], force_constant: float
-    ):
+    def __init__(self):
+        pass
+
+    def get_app(self) -> Callable:
+        return partial(apply_threads, function_cls=ZeroFunction)
+
+    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+        if type(hamiltonian) is Zero:
+            return True
+        return False
+
+    def __mul__(self, a: float) -> "Zero":
+        return Zero()
+
+    def __add__(self, hamiltonian: Hamiltonian) -> Hamiltonian:
+        # (Zero + Hamiltonian) is different from (Hamiltonian + Zero)
+        return hamiltonian
+
+    __rmul__ = __mul__  # handle float * Zero
+
+
+@psiflow.register_serializable
+class EinsteinCrystal(Hamiltonian):
+    # TODO: logic not consistent depending on Geometry | AppFuture
+    reference_geometry: Geometry | AppFuture
+    force_constant: float
+    function_name: str = "EinsteinCrystalFunction"
+
+    def __init__(self, geometry: Union[Geometry, AppFuture], force_constant: float):
         super().__init__()
         self.reference_geometry = copy_app_future(geometry)
         self.force_constant = force_constant
         self.external = None  # needed
-        self._create_apps()
 
-    def _create_apps(self):
-        apply_app = python_app(_apply, executors=["default_threads"])
-        self.app = partial(
-            apply_app, function_cls=EinsteinCrystalFunction, **self.parameters()
+    def get_app(self) -> Callable:
+        return partial(
+            apply_threads, function_cls=EinsteinCrystalFunction, **self.parameters()
         )
 
     def parameters(self) -> dict:
@@ -269,11 +269,11 @@ class EinsteinCrystal(Hamiltonian):
         return True
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class PlumedHamiltonian(Hamiltonian):
     plumed_input: str  # TODO: or future?
     external: Optional[psiflow._DataFuture]
-    function_name: ClassVar[str] = "PlumedFunction"
+    function_name: str = "PlumedFunction"
 
     def __init__(
         self,
@@ -281,22 +281,15 @@ class PlumedHamiltonian(Hamiltonian):
         external: Union[None, str, Path, File, DataFuture] = None,
     ):
         super().__init__()
-
         self.plumed_input = remove_comments_printflush(plumed_input)
         if type(external) in [str, Path]:
             external = File(str(external))
         if external is not None:
             assert external.filepath in self.plumed_input
         self.external = external
-        self._create_apps()
 
-    def _create_apps(self):
-        apply_app = python_app(_apply, executors=["default_htex"])
-        self.app = partial(
-            apply_app,
-            function_cls=PlumedFunction,
-            **self.parameters(),
-        )
+    def get_app(self) -> Callable:
+        return partial(apply_htex, function_cls=PlumedFunction, **self.parameters())
 
     def parameters(self) -> dict:
         if self.external is not None:  # ensure parameters depends on self.external
@@ -314,28 +307,24 @@ class PlumedHamiltonian(Hamiltonian):
         return True
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class Harmonic(Hamiltonian):
-    reference_geometry: Union[Geometry, AppFuture[Geometry]]
-    hessian: Union[np.ndarray, AppFuture[np.ndarray]]
-    function_name: ClassVar[str] = "HarmonicFunction"
+    reference_geometry: Geometry | AppFuture
+    hessian: np.ndarray | AppFuture
+    function_name: str = "HarmonicFunction"
 
     def __init__(
         self,
-        reference_geometry: Union[Geometry, AppFuture[Geometry]],
-        hessian: Union[np.ndarray, AppFuture[np.ndarray]],
+        reference_geometry: Geometry | AppFuture,
+        hessian: np.ndarray | AppFuture,
     ):
         # TODO: why not copy_app_future(geometry) like others?
         self.reference_geometry = reference_geometry
         self.hessian = hessian
-        self._create_apps()
 
-    def _create_apps(self):
-        apply_app = python_app(_apply, executors=["default_threads"])
-        self.app = partial(
-            apply_app,
-            function_cls=HarmonicFunction,
-            **self.parameters(),
+    def get_app(self) -> Callable:
+        return partial(
+            apply_threads, function_cls=HarmonicFunction, **self.parameters()
         )
 
     def parameters(self) -> dict:
@@ -367,30 +356,26 @@ class Harmonic(Hamiltonian):
         return True
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class D3Hamiltonian(Hamiltonian):
     method: str
     damping: str
-    function_name: ClassVar[str] = "DispersionFunction"
+    function_name: str = "DispersionFunction"
 
     def __init__(self, method: str, damping: str = "d3bj"):
         self.method, self.damping = method, damping
-        self._create_apps()
 
-    def _create_apps(self):
-        # TODO: does this make sense? GPU settings are useless for example
-        evaluation = psiflow.context().definitions["ModelEvaluation"]
-        apply_app = python_app(_apply, executors=["ModelEvaluation"])
-        resources = evaluation.wq_resources(1)
-        resources.pop("gpus", None)
-
+    def get_app(self) -> Callable:
         # execution-side parameters of function are not included in self.parameters()
-        self.app = partial(
-            apply_app,
+        evaluation = psiflow.context().definitions["ModelEvaluation"]
+        resources = evaluation.wq_resources(1)
+        resources.pop("gpus", None)  # do not request GPU
+        return partial(
+            apply_modelevaluation,
             function_cls=DispersionFunction,
             parsl_resource_specification=resources,
             **self.parameters(),
-            num_threads=resources.get("cores", 1),  # TODO: sloppy
+            num_threads=resources.get("cores"),
         )
 
     def parameters(self) -> dict:
@@ -406,11 +391,11 @@ class D3Hamiltonian(Hamiltonian):
         return True
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class MACEHamiltonian(Hamiltonian):
     external: psiflow._DataFuture
     atomic_energies: dict[str, float]
-    function_name: ClassVar[str] = "MACEFunction"
+    function_name: str = "MACEFunction"
 
     def __init__(
         self,
@@ -422,16 +407,13 @@ class MACEHamiltonian(Hamiltonian):
             self.external = File(external)
         else:
             self.external = external
-        self._create_apps()
 
-    def _create_apps(self):
-        evaluation = psiflow.context().definitions["ModelEvaluation"]
-        apply_app = python_app(_apply, executors=["ModelEvaluation"])
-        resources = evaluation.wq_resources(1)
-
+    def get_app(self) -> Callable:
         # execution-side parameters of function are not included in self.parameters()
-        self.app = partial(
-            apply_app,
+        evaluation = psiflow.context().definitions["ModelEvaluation"]
+        resources = evaluation.wq_resources(1)
+        return partial(
+            apply_modelevaluation,
             function_cls=MACEFunction,
             parsl_resource_specification=resources,
             **self.parameters(),
@@ -469,7 +451,7 @@ class MACEHamiltonian(Hamiltonian):
     # TODO: the methods below are outdated..
 
     @classmethod
-    def mace_mp0(cls, size: str = "small") -> 'MACEHamiltonian':
+    def mace_mp0(cls, size: str = "small") -> "MACEHamiltonian":
         urls = dict(
             small="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
             large="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model",
@@ -483,7 +465,7 @@ class MACEHamiltonian(Hamiltonian):
         return cls(parsl_file, {})
 
     @classmethod
-    def mace_cc(cls) -> 'MACEHamiltonian':
+    def mace_cc(cls) -> "MACEHamiltonian":
         url = "https://github.com/molmod/psiflow/raw/main/examples/data/ani500k_cc_cpu.model"
         parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
         urllib.request.urlretrieve(

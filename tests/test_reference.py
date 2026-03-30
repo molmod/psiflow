@@ -343,14 +343,10 @@ def test_cp2k_atomic_energies(simple_cp2k_input):
 def test_cp2k_serialize(simple_cp2k_input):
     element = "H"
     reference = CP2K(simple_cp2k_input, outputs=("energy",))
-    assert "outputs" in reference._attrs
-    assert "input_dict" in reference._attrs
-
     data = psiflow.serialize(reference).result()
-    reference2 = psiflow.deserialize(data)
+    reference2 = psiflow.deserialize(data).result()
     future = reference.compute_atomic_energy(element, box_size=4)
     future2 = reference2.compute_atomic_energy(element, box_size=4)
-
     assert type(reference2.outputs) is list
     assert np.allclose(future.result(), future2.result())
 

@@ -65,10 +65,10 @@ def get_ensemble_kwargs(walker: "Walker") -> dict:
     )
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 @dataclass
 class Walker:
-    start: Union[Geometry, AppFuture]
+    start: Geometry | AppFuture
     hamiltonian: Hamiltonian = field(default_factory=lambda: Zero())
     timestep: float = 0.5
     temperature: Optional[float] = 300
@@ -231,7 +231,7 @@ def validate_coupling(walkers: list[Walker]):
         assert coupling.nwalkers == counts[i]
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class ReplicaExchange(Coupling):
     trial_frequency: int
     rescale_kinetic: bool

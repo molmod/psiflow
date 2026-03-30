@@ -70,6 +70,6 @@ def get_task_name_id(logfile: str) -> tuple[str, str]:
 def format_env_vars(env_vars: dict) -> str:
     if len(env_vars) == 0:
         return ""
-    return "export" + " ".join([f"{k}={v}" for k, v in env_vars.items()])
+    return "export " + " ".join([f"{k}={v}" for k, v in env_vars.items()])
 
 

@@ -5,13 +5,11 @@ from ase.units import kJ, mol  # type: ignore
 from parsl.data_provider.files import File  # type: ignore
 
 import psiflow
-from psiflow.data import Dataset
 from psiflow.functions import (
     EinsteinCrystalFunction,
     HarmonicFunction,
     MACEFunction,
     PlumedFunction,
-    DispersionFunction,
     function_from_json,
 )
 from psiflow.hamiltonians import (
@@ -25,6 +23,7 @@ from psiflow.hamiltonians import (
 from psiflow.utils._plumed import remove_comments_printflush, set_path_in_plumed
 from psiflow.utils.apps import copy_app_future
 from psiflow.utils.io import dump_json
+from psiflow.serialization import CLS_KEY
 
 
 def test_einstein_crystal(dataset):
@@ -299,39 +298,33 @@ RESTRAINT ARG=CV AT={center} KAPPA={kappa}
     )
     plumed = PlumedHamiltonian(plumed_input)
     data = json.loads(psiflow.serialize(einstein).result())
-    assert "EinsteinCrystal" in data
-    assert "reference_geometry" in data["EinsteinCrystal"]["_geoms"]
-    einstein_ = psiflow.deserialize(json.dumps(data))
-    assert np.allclose(
-        einstein.compute(dataset[:10], "energy").result(),
-        einstein_.compute(dataset[:10], "energy", batch_size=3).result(),
-    )
+    assert data[CLS_KEY] == "EinsteinCrystal"
+    assert "reference_geometry" in data
+    einstein_ = psiflow.deserialize(json.dumps(data)).result()
+    energy = einstein.compute(dataset[:10], "energy")
+    energy_ = einstein_.compute(dataset[:10], "energy")
+    assert np.allclose(energy.result(), energy_.result())
 
     mixed = 0.1 * einstein + 0.9 * plumed
-    assert "hamiltonians" in mixed._serial
-    assert "coefficients" in mixed._attrs
     data = json.loads(psiflow.serialize(mixed).result())
-    assert "MixtureHamiltonian" in data
-    assert "hamiltonians" in data["MixtureHamiltonian"]["_serial"]
-    mixed_ = psiflow.deserialize(json.dumps(data))
-    for i, h in enumerate(mixed.hamiltonians):
+    assert data[CLS_KEY] == "MixtureHamiltonian"
+    assert "hamiltonians" in data
+    assert "coefficients" in data
+    mixed_ = psiflow.deserialize(json.dumps(data)).result()
+    for h, h_ in zip(mixed.hamiltonians, mixed_.hamiltonians):
         if isinstance(h, EinsteinCrystal):
-            assert h.force_constant == mixed_.hamiltonians[i].force_constant
-            assert (
-                h.reference_geometry.result()
-                == mixed_.hamiltonians[i].reference_geometry
-            )
+            assert h.force_constant == h_.force_constant
+            assert h.reference_geometry.result() == h_.reference_geometry
         else:
-            assert h == mixed_.hamiltonians[i]
-        assert mixed.coefficients[i] == mixed_.coefficients[i]
-    assert np.allclose(
-        mixed.compute(dataset[:10], "energy").result(),
-        mixed_.compute(dataset[:10], "energy").result(),
-    )
+            assert h == h_
+    assert mixed.coefficients == mixed_.coefficients
+    energy = mixed.compute(dataset[:10], "energy")
+    energy_ = mixed_.compute(dataset[:10], "energy")
+    assert np.allclose(energy.result(), energy_.result())
 
     data = json.loads(psiflow.serialize(Zero()).result())
-    assert "Zero" in data
-    zero = psiflow.deserialize(json.dumps(data))
+    assert data[CLS_KEY] == "Zero"
+    zero = psiflow.deserialize(json.dumps(data)).result()
     assert isinstance(zero, Zero)
 
 

@@ -12,7 +12,7 @@ def setup_logging(file: Path, level=logging.INFO) -> None:
 
     fh = logging.FileHandler(file)
     formatter = logging.Formatter(
-        fmt='%(asctime)s [%(levelname)s] %(name)s \t %(message)s',
+        fmt='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M'
     )
     fh.setFormatter(formatter)

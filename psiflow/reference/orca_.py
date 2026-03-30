@@ -1,7 +1,8 @@
 import warnings
 import re
 from functools import partial
-from typing import Optional, Union, ClassVar
+from typing import Optional
+from collections.abc import Sequence
 
 import ase.symbols
 import numpy as np
@@ -12,7 +13,12 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status, get_spin_multiplicities
-from psiflow.utils.parse import find_line, lines_to_array, str_to_timedelta
+from psiflow.utils.parse import (
+    find_line,
+    lines_to_array,
+    str_to_timedelta,
+    format_env_vars,
+)
 
 
 KEY_GHOST = "ghost"
@@ -59,7 +65,7 @@ def format_coord(geom: Geometry) -> str:
     return "\n".join(data)
 
 
-def check_input(input_template: str, properties: tuple[str, ...]) -> str:
+def check_input(input_template: str, properties: Sequence[str]) -> str:
     """"""
     research = partial(re.search, string=input_template, flags=re.IGNORECASE)
 
@@ -83,7 +89,15 @@ def check_input(input_template: str, properties: tuple[str, ...]) -> str:
     return "\n".join(lines)
 
 
-def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
+def make_bash_template(executor: str) -> str:
+    context = psiflow.context()
+    definition = context.definitions[executor]
+    command = f"cp {{}} orca.inp\n{definition.command()}"
+    env = format_env_vars(definition.env_vars)
+    return context.bash_template.format(commands=command, env=env)
+
+
+def parse_output(stdout: str, properties: Sequence[str]) -> dict:
     lines = stdout.split("\n")
     data = {}
 
@@ -114,14 +128,14 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     idx_start = idx = find_line(lines, "CARTESIAN GRADIENT", idx) + 3
     idx_stop = find_line(lines, "Difference", idx) - 1
     gradients = lines_to_array(lines[idx_start:idx_stop], start=3, stop=6)
-    data["forces"] = - gradients * Ha / Bohr
+    data["forces"] = -gradients * Ha / Bohr
 
     return data
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class ORCA(Reference):
-    executor: ClassVar[str] = "ORCA"
+    executor: str = "ORCA"
     _execute_label = "orca_singlepoint"
     input_template: str
     input_kwargs: dict
@@ -129,13 +143,11 @@ class ORCA(Reference):
     def __init__(self, input_template: str, **kwargs):
         super().__init__(**kwargs)
         self.input_template = check_input(input_template, self.outputs)
-        self.input_kwargs = DEFAULT_KWARGS.copy()  # TODO: user control?
-        self._create_apps()
+        self.bash_template = make_bash_template(self.executor)
 
-    def _create_apps(self):
-        super()._create_apps()
+        self.input_kwargs = DEFAULT_KWARGS.copy()  # TODO: user control?
         definition = psiflow.context().definitions[self.executor]
-        wq_resources = definition.wq_resources()
+        wq_resources = definition.wq_resources(self.n_cores)
         cores, memory = wq_resources["cores"], wq_resources["memory"]
         self.input_kwargs |= {"cores": cores, "memory": memory // cores}  # in MB
 
@@ -154,10 +166,6 @@ class ORCA(Reference):
             ref.input_kwargs["multiplicity"] = mult
             references[mult] = ref
         return references
-
-    def get_shell_command(self, inputs: list[File]) -> str:
-        command_list = [f"cp {inputs[0].filepath} orca.inp", self.execute_command]
-        return "\n".join(command_list)
 
     def parse_output(self, stdout: str) -> dict:
         return parse_output(stdout, self.outputs)

@@ -414,7 +414,7 @@ FLUSH STRIDE=1
         assert len(f.read()) > 0
 
     data = [psiflow.serialize(obj, copy_to=tmp_path) for obj in walkers]
-    new_objects = [psiflow.deserialize(d.result()) for d in data]
+    new_objects = [psiflow.deserialize(d).result() for d in data]
     psiflow.wait()
     for d in data:
         print(d.result())
