@@ -71,17 +71,6 @@ def format_E0s(atomic_energies: dict) -> dict | str:
         return "average"
 
 
-def get_bash_command(root: Path, pre: Optional[str] = None) -> str:
-    defaults = [
-        "mkdir checkpoints",  # otherwise MACE borks
-        "mace_run_train --config {}",  # run MACE
-        f"rsync -av --ignore-existing --exclude=/*.model ./ {root}/",  # copy things back
-    ]
-    if pre:
-        defaults.insert(1, pre)
-    return "\n".join(defaults)
-
-
 def _execute(
     bash_template: str,
     inputs: list[File],
@@ -176,19 +165,49 @@ class MACE:
         cfg = self.config | {KEY_ATOMIC_ENERGIES: self.atomic_energies}
         return resolve_nested_futures(cfg)
 
-    @staticmethod
-    def get_app(init: bool = False) -> tuple[Callable, str]:
-        # TODO: update -- why staticmethod and not function?
+    def _execute_app(self, config: dict) -> AppFuture:
+        """"""
         context = psiflow.context()
         definition = context.definitions["ModelTraining"]
-        template = context.bash_template
+        resources = definition.wq_resources()
+
+        # final config tweaks
+        if definition.multi_gpu:
+            config["distributed"] = True
+            config["launcher"] = "torchrun"
+        else:
+            config["distributed"] = False
+        file = psiflow.context().new_file("mace_cfg_", ".yaml")
+        yaml.safe_dump(config, open(file.filepath, "w"))
+
+        # construct MACE train script
+        command = "$(which mace_run_train) --config {}"
+        if config["distributed"]:
+            command = f"torchrun --standalone --nnodes=1 --nproc_per_node={resources['gpus']} {command}"
+        command = definition.wrap_in_timeout(command)
+
+        pre_copy = ""
+        if self.has_checkpoint:  # restart from latest checkpoint
+            chkpt_out = f"checkpoints/{create_checkpoint_name(config)}"
+            pre_copy = f"cp {self.path_chkpt} {chkpt_out}"
+
+        command_lines = [
+            "mkdir checkpoints",  # otherwise MACE borks
+            pre_copy,
+            command,
+            f"rsync -av --ignore-existing --exclude=/*.model ./ {self.root}/",  # copy things back
+        ]
+        command = "\n".join([l for l in command_lines if l])
+
+        execute_app = bash_app(_execute, executors=["ModelTraining"])
         env_vars = format_env_vars(definition.env_vars)
-        app = partial(
-            bash_app(_execute, executors=["ModelTraining"]),
-            parsl_resource_specification=definition.wq_resources(),
-            label="mace_init" if init else "mace_train",
+        future = execute_app(
+            bash_template=context.bash_template.format(commands=command, env=env_vars),
+            inputs=[file],
+            parsl_resource_specification=resources,
+            label="mace_init" if config["name"] == "init" else "mace_train",
         )
-        return app, template.format(commands="{commands}", env=env_vars)
+        return future
 
     @property
     def path_config(self) -> Path:
@@ -256,13 +275,8 @@ def initialize_app(
         "valid_file": file_val.filepath,
     }
     cfg["E0s"] = format_E0s(model.atomic_energies)
-    file_cfg = psiflow.context().new_file("mace_cfg_", ".yaml")
-    yaml.safe_dump(cfg, open(file_cfg.filepath, "w"))
 
-    command = get_bash_command(model.root)
-    app, template = model.get_app(init=True)
-
-    future = app(template.format(commands=command), inputs=[file_cfg])
+    future = model._execute_app(cfg)
     inputs = [future.stdout, future.stderr, future]
     future_ = process_output(model, config, inputs=inputs)
     return future_
@@ -292,17 +306,8 @@ def train_app(
         "valid_file": file_val.filepath,
     }
     cfg["E0s"] = format_E0s(cfg.pop(KEY_ATOMIC_ENERGIES))
-    file_cfg = psiflow.context().new_file("mace_cfg_", ".yaml")
-    yaml.safe_dump(cfg, open(file_cfg.filepath, "w"))
 
-    pre = None
-    if model.has_checkpoint:
-        chkpt_out = f"checkpoints/{create_checkpoint_name(cfg)}"
-        pre = f"cp {model.path_chkpt} {chkpt_out}"
-    command = get_bash_command(model.root, pre=pre)
-    app, template = model.get_app(init=False)
-
-    future = app(template.format(commands=command), inputs=[file_cfg])
+    future = model._execute_app(cfg)
     inputs = [future.stdout, future.stderr, future]
     future_ = process_output(model, config, inputs=inputs)
     return future_

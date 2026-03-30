@@ -112,10 +112,13 @@ def test_mace_hamiltonian(dataset, mace_foundation):
     assert hamiltonian0 != hamiltonian1
     hamiltonian2 = psiflow.deserialize(psiflow.serialize(hamiltonian1)).result()
     assert hamiltonian0 != hamiltonian2
+    assert hamiltonian1 == hamiltonian2
+    hamiltonian2.update_kwargs(enable_cueq=True)
 
     e0 = hamiltonian0.compute(dataset, "energy")
     e1 = hamiltonian1.compute(dataset, "energy")
+    e2 = hamiltonian2.compute(dataset, "energy")
     assert np.allclose(e0.result(), e1.result())
-    pass
+    assert np.allclose(e0.result(), e2.result())
 
 
