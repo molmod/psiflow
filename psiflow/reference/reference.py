@@ -112,6 +112,7 @@ class Reference:
     bash_template: str
     _execute_label: str
     executor: str
+    n_cores: Optional[int]
 
     def __init__(
         self, outputs: Sequence[str] = ("energy", "forces"), n_cores: int | None = None

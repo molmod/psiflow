@@ -147,7 +147,7 @@ class ORCA(Reference):
 
         self.input_kwargs = DEFAULT_KWARGS.copy()  # TODO: user control?
         definition = psiflow.context().definitions[self.executor]
-        wq_resources = definition.wq_resources()
+        wq_resources = definition.wq_resources(self.n_cores)
         cores, memory = wq_resources["cores"], wq_resources["memory"]
         self.input_kwargs |= {"cores": cores, "memory": memory // cores}  # in MB
 

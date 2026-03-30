@@ -287,6 +287,7 @@ class ExecutionDefinition:
         # TODO: how to handle env variables?
         # disable thread affinity and busy-idling until we can isolate task resources
         default_env_vars = {
+            "PYTHONUNBUFFERED": "TRUE",
             "OMP_PROC_BIND": "FALSE",
             "OMP_WAIT_POLICY": "PASSIVE",
             "OMP_DISPLAY_ENV": "VERBOSE",  # verbose OMP log
