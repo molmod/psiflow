@@ -1,4 +1,3 @@
----
 psiflow_log_level: INFO
 
 ModelEvaluation:
@@ -11,7 +10,6 @@ ModelTraining:
     max_threads: 4
     max_runtime: 00:00:20
 
-  
 CP2K:
   executor: workqueue
   cores_per_task: 2
@@ -23,6 +21,7 @@ CP2K:
 GPAW:
   executor: workqueue
   cores_per_task: 2
+  max_runtime: 00:00:20
   container:
     uri: oras://ghcr.io/molmod/gpaw:24.1
   
@@ -30,5 +29,3 @@ ORCA:
   executor: workqueue
   cores_per_task: 2
 
-
-...
