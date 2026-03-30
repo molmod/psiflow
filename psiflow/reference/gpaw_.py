@@ -49,7 +49,7 @@ def parse_output(stdout: str, properties: Sequence[str]) -> dict:
 @psiflow.register_serializable
 class GPAW(Reference):
     executor: str = "GPAW"
-    _execute_label = "gpaw_singlepoint"
+    _execute_label: str = "gpaw_singlepoint"
     parameters: dict
     script: str
 
@@ -59,7 +59,6 @@ class GPAW(Reference):
         assert (script := Path(script)).is_file()
         self.script = str(script.resolve())  # absolute path
         self.bash_template = make_bash_template(self.executor, self.script)
-        print(self.bash_template)
 
     def compute_atomic_energy(self, element, box_size=None) -> AppFuture:
         return copy_app_future(0.0)  # GPAW computes formation energy by default

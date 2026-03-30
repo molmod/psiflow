@@ -1,121 +1,124 @@
-import copy
-
+import pytest
+import torch
 import numpy as np
 from parsl.app.futures import DataFuture
 
 import psiflow
 from psiflow.data import compute_rmse
 from psiflow.hamiltonians import MACEHamiltonian
-from psiflow.models import MACE, load_model
+from psiflow.models import MACE
+from psiflow.models.mace import KEY_ATOMIC_ENERGIES, KEY_ITERATION
+from psiflow.utils.apps import copy_app_future
+from psiflow.utils.io import _read_yaml
+
+# tests for the calculator (specifying head, cueq, ..)?
+# see test_mace_function..
 
 
-def test_mace_init(mace_config, dataset):
-    model = MACE(**mace_config)
+def test_mace_init(tmp_path, mace_config, dataset):
+    model = MACE.create(tmp_path / "mace", mace_config)
+    atomic_energies = {"Cu": 3, "H": 7}
+    for k, v in atomic_energies.items():
+        model.add_atomic_energy(k, v)
+    model.update_kwargs(seed=42, pair_repulsion=copy_app_future(True))
+
     assert model.model_future is None
-    model.initialize(dataset[:1])
-    assert model.model_future is not None
-
-    _config = model._config
-
-    data_str = psiflow.serialize(model).result()
-    model = psiflow.deserialize(data_str).result()
-
-    _config_ = model._config
-    for key, value in _config.items():
-        assert key in _config_
-        if key in ("train_file", "valid_file"):
-            pass  # these are updated by the apps
-        elif type(value) is not list:
-            assert value == _config_[key]
-
-    config = copy.deepcopy(mace_config)
-    config["batch_size"] = (
-        100000  # bigger than ntrain --> should get reduced internally
-    )
-    model = MACE(**config)
-    model.seed = 1
-    model.initialize(dataset[:3])
+    assert model.iteration == -1
+    future = model.initialize(dataset[:5])
     assert isinstance(model.model_future, DataFuture)
+    assert model.iteration == -1
+    future.result()
+    assert model.path_mlp.is_file()
+    assert model.iteration == 0
 
-    # create hamiltonian and verify addition of atomic energies
-    hamiltonian = model.create_hamiltonian()
-    assert hamiltonian == model.create_hamiltonian()
-    energies = hamiltonian.compute(dataset, "energy").result()
+    config = _read_yaml([model.path_config])
+    assert config.pop(KEY_ATOMIC_ENERGIES) == atomic_energies
+    assert config.pop(KEY_ITERATION) == 0
+    assert config["seed"] == 42
+    assert config["pair_repulsion"]
 
-    nstates = dataset.length().result()
-    # energies = np.array([evaluated[i].result().energy for i in range(nstates)])
-    assert not np.any(np.allclose(energies, 0.0))
-    energy_Cu = 3
-    energy_H = 7
-    atomic_energies = {"Cu": energy_Cu, "H": energy_H}
-    hamiltonian = MACEHamiltonian(hamiltonian.external, atomic_energies=atomic_energies)
-    assert hamiltonian != model.create_hamiltonian()  # atomic energies
+    mlp = torch.load(model.path_mlp, weights_only=False)
+    atomic_energies_ = mlp.atomic_energies_fn.atomic_energies.numpy()
+    assert atomic_energies_.flatten().tolist() == [7, 3]  # H, Cu
 
-    evaluated = dataset.evaluate(hamiltonian).subtract_offset(Cu=energy_Cu, H=energy_H).geometries().result()
-    for i in range(nstates):
-        assert np.allclose(energies[i], evaluated[i].energy)
+    with pytest.raises(AssertionError):  # can only initialise once
+        model.initialize(dataset[:3])
+    with pytest.raises(AssertionError):  # one instance per dir
+        MACE.load(tmp_path / "mace")
 
-    second = psiflow.deserialize(psiflow.serialize(hamiltonian)).result()
-    energies = hamiltonian.compute(dataset, "energy")
-    energies_ = second.compute(dataset, "energy")
-    assert np.allclose(energies.result(), energies_.result())
-
-    hamiltonian = model.create_hamiltonian()
-    model.reset()
-    model.initialize(dataset[:3])
-    assert hamiltonian != model.create_hamiltonian()
+    model.config = model.atomic_energies = None
+    model._load_config()
+    assert model.config == config
+    assert model.atomic_energies == atomic_energies
+    assert model.iteration == 0
 
 
 def test_mace_train(gpu, mace_config, dataset, tmp_path):
     # as an additional verification, this test can be executed while monitoring
     # the mace logging, and in particular the rmse_r during training, to compare
     # it with the manually computed value
+    key = "per_atom_energy"
     training = dataset[:-5]
     validation = dataset[-5:]
-    mace_config["start_swa"] = 100
-    model = MACE(**mace_config)
-    model.initialize(training)
-    hamiltonian0 = model.create_hamiltonian()
-    rmse0 = compute_rmse(
-        validation.get("per_atom_energy"),
-        validation.evaluate(hamiltonian0).get("per_atom_energy"),
-    )
+    model = MACE.create(tmp_path / "mace", mace_config)
+
     model.train(training, validation)
-    hamiltonian1 = model.create_hamiltonian()
-    rmse1 = compute_rmse(
-        validation.get("per_atom_energy"),
-        validation.evaluate(hamiltonian1).get("per_atom_energy"),
+    hamiltonian = model.create_hamiltonian()
+    rmse0 = compute_rmse(
+        validation.get(key),
+        validation.evaluate(hamiltonian).get(key),
     )
+    future_train = model.train(training, validation)
+    hamiltonian = model.create_hamiltonian()
+    rmse1 = compute_rmse(
+        validation.get(key),
+        validation.evaluate(hamiltonian).get(key),
+    )
+
+    future_train.result()  # wait for second training run
+    model.lock.close()  # 'free' training dir
+    del model
+
+    # train from load
+    model_ = MACE.load(tmp_path / "mace")
+    hamiltonian = model_.create_hamiltonian()
+    rmse2 = compute_rmse(
+        validation.get(key),
+        validation.evaluate(hamiltonian).get(key),
+    )
+    model_.train(training, validation)
+    hamiltonian = model_.create_hamiltonian()
+    rmse3 = compute_rmse(
+        validation.get(key),
+        validation.evaluate(hamiltonian).get(key),
+    )
+
+    print(rmse0.result())
+    print(rmse1.result())
+    print(rmse2.result())
+    print(rmse3.result())
+
     assert rmse0.result() > rmse1.result()
+    assert np.isclose(rmse1.result(), rmse2.result())
+    assert rmse2.result() > rmse3.result()
 
 
-def test_mace_save_load(mace_config, dataset, tmp_path):
-    model = MACE(**mace_config)
-    model.add_atomic_energy("H", 3)
-    model.add_atomic_energy("Cu", 4)
-    model.save(tmp_path)
-    model.initialize(dataset[:2])
-    e0 = model.create_hamiltonian().compute(dataset[3], "energy").result()
+def test_mace_hamiltonian(dataset, mace_foundation):
+    hamiltonian0 = MACEHamiltonian(mace_foundation)
+    hamiltonian1 = MACEHamiltonian(mace_foundation)
 
-    psiflow.wait()
-    assert (tmp_path / "MACE.yaml").exists()
-    assert not (tmp_path / "MACE.pth").exists()
+    assert hamiltonian0 == hamiltonian1
+    hamiltonian1.update_kwargs(head="less")
+    assert hamiltonian0 != hamiltonian1
+    hamiltonian2 = psiflow.deserialize(psiflow.serialize(hamiltonian1)).result()
+    assert hamiltonian0 != hamiltonian2
+    assert hamiltonian1 == hamiltonian2
+    hamiltonian2.update_kwargs(enable_cueq=True)
 
-    model.save(tmp_path)
-    psiflow.wait()
-    assert (tmp_path / "MACE.pth").exists()
-
-    model_ = load_model(tmp_path)
-    assert type(model_) is MACE
-    assert model_.model_future is not None
-    e1 = model_.create_hamiltonian().compute(dataset[3], "energy").result()
-    assert np.allclose(e0, e1, atol=1e-4)  # up to single precision
+    e0 = hamiltonian0.compute(dataset, "energy")
+    e1 = hamiltonian1.compute(dataset, "energy")
+    e2 = hamiltonian2.compute(dataset, "energy")
+    assert np.allclose(e0.result(), e1.result())
+    assert np.allclose(e0.result(), e2.result())
 
 
-def test_mace_seed(mace_config):
-    model = MACE(**mace_config)
-    assert model.seed == 0
-    model.seed = 111
-    assert model.seed == 111
-    model._config["seed"] = 112
-    assert model.seed == 112
