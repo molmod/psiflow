@@ -1,5 +1,4 @@
-import copy
-import re
+import logging
 from enum import Enum
 from pathlib import Path
 from dataclasses import dataclass, field, InitVar
@@ -13,15 +12,14 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry, NullState
+from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
 from psiflow.sampling.walker import Walker
 from psiflow.utils.io import save_npz
-from psiflow.utils.apps import setup_logger
 from psiflow.utils.parse import get_task_name_id
 
 
-logger = setup_logger(__name__)  # logging per module
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_OBSERVABLES = [
@@ -149,16 +147,16 @@ def _add_contributions(
 add_contributions = python_app(_add_contributions, executors=["default_threads"])
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 @dataclass
 class SimulationOutput:
     task_id: str
     walker: Walker
-    status: Union[Status, AppFuture]
-    state: Union[Geometry, AppFuture]
+    status: Status | AppFuture
+    state: Geometry | AppFuture
     data: AppFuture
-    time: Union[float, AppFuture]
-    temperature: Union[float, AppFuture]
+    time: float | AppFuture
+    temperature: float | AppFuture
     trajectory: Optional[Dataset]
     observables: list[str]
 

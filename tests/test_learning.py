@@ -9,7 +9,7 @@ from psiflow.learning import Learning, evaluate_outputs
 from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
 from psiflow.reference import ReferenceDummy
 from psiflow.sampling import SimulationOutput, Walker
-from psiflow.utils.apps import combine_futures
+# from psiflow.utils.apps import combine_futures  # use pack instead
 from psiflow.utils.io import _load_metrics, _save_metrics, load_metrics, save_metrics
 
 

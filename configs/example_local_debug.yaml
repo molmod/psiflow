@@ -1,0 +1,15 @@
+# log all of the messages
+parsl_log_level: DEBUG
+psiflow_log_level: DEBUG
+
+# tell Parsl to not clean up completed tasks from the DFK
+# you can print out the full list of tasks with 'log_dfk_tasks' from psiflow.utils.logging
+garbage_collect: false
+
+# tell psiflow to execute every bash app in a specified directory - and not clean up afterwards
+# allows you to track which files are created in each task
+tmpdir_root: ~/psiflow_tasks
+keep_tmpdirs: true
+
+# not specifying ModelEvaluation or ModelTraining falls back to the default in 'psiflow.utils.config'
+# this does not include any ReferenceEvaluation blocks, so Reference apps will not run with this configuration

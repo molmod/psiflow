@@ -1,10 +1,7 @@
 import logging
 import os
 
-import typeguard
 
-
-@typeguard.typechecked
 def try_manual_plumed_linking() -> str:
     if "PLUMED_KERNEL" not in os.environ.keys():
         # try linking manually
@@ -23,7 +20,6 @@ def try_manual_plumed_linking() -> str:
     return os.environ["PLUMED_KERNEL"]
 
 
-@typeguard.typechecked
 def remove_comments_printflush(plumed_input: str) -> str:
     new_input = []
     for line in list(plumed_input.split("\n")):
@@ -38,7 +34,6 @@ def remove_comments_printflush(plumed_input: str) -> str:
     return "\n".join(new_input)
 
 
-@typeguard.typechecked
 def set_path_in_plumed(plumed_input: str, keyword: str, path_to_set: str) -> str:
     lines = plumed_input.split("\n")
     for i, line in enumerate(lines):

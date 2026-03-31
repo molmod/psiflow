@@ -330,7 +330,7 @@ def test_output_status(dataset):
 
     # walltime
     definition = psiflow.context().definitions["ModelEvaluation"]
-    definition.max_simulation_time = 5 / 60  # 5 seconds
+    definition.max_runtime = 5  # seconds
     outputs = sample([walker], steps=10000)
     assert outputs[0].status.result() == Status.TIMEOUT
     assert outputs[0].time.result() > 0
@@ -427,7 +427,7 @@ FLUSH STRIDE=1
         assert len(f.read()) > 0
 
     data = [psiflow.serialize(obj, copy_to=tmp_path) for obj in walkers]
-    new_objects = [psiflow.deserialize(d.result()) for d in data]
+    new_objects = [psiflow.deserialize(d).result() for d in data]
     psiflow.wait()
     for d in data:
         print(d.result())

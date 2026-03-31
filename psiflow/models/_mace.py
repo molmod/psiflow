@@ -3,7 +3,7 @@ from __future__ import annotations  # necessary for type-guarding class methods
 import logging
 from dataclasses import asdict, dataclass
 from functools import partial
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 import typeguard
 from parsl.app.app import bash_app
@@ -14,7 +14,6 @@ import psiflow
 from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models.model import Model
 
-# TODO: not used
 logger = logging.getLogger(__name__)  # logging per module
 
 
@@ -199,11 +198,11 @@ def train(
 
 
 @typeguard.typechecked
-@psiflow.serializable
+@psiflow.register_serializable
 class MACE(Model):
     _config: dict
     model_future: Optional[psiflow._DataFuture]
-    atomic_energies: dict[str, Union[float, AppFuture]]
+    atomic_energies: dict[str, float | AppFuture]
 
     def __init__(self, **config) -> None:
         config = MACEConfig(**config)  # validate input
@@ -216,31 +215,28 @@ class MACE(Model):
         self.model_future = None
         self.atomic_energies = {}
 
-        self._create_apps()
+    def get_train_app(self) -> Callable:
+        training = psiflow.context().definitions["ModelTraining"]
+        return partial(
+            bash_app(train, executors=[training.name]),
+            command_train=training.train_command(False),
+            env_vars=training.env_vars,
+            parsl_resource_specification=training.wq_resources(),
+        )
 
-    def _create_apps(self):  # initialize apps
+    def get_initialise_app(self) -> Callable:
         evaluation = psiflow.context().definitions["ModelEvaluation"]
         training = psiflow.context().definitions["ModelTraining"]
         command_init = training.train_command(True)
-        command_train = training.train_command(False)
-
         app_initialize = bash_app(initialize, executors=[evaluation.name])
-        resources_init = evaluation.wq_resources(1)
         # TODO: find a better way for model init
-        if not evaluation.use_threadpool:
+        resources_init = evaluation.wq_resources(1)
+        if not evaluation.executor_type == "threadpool":
             resources_init["running_time_min"] = 30  # at least 30 mins for init?
-        app_train = bash_app(train, executors=[training.name])
-        resources_train = training.wq_resources()
-        self._initialize = partial(
+        return partial(
             app_initialize,
             command_train=command_init,
             parsl_resource_specification=resources_init,
-        )
-        self._train = partial(
-            app_train,
-            command_train=command_train,
-            env_vars=training.env_vars,
-            parsl_resource_specification=resources_train,
         )
 
     @property

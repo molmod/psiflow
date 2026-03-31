@@ -1,18 +1,15 @@
 from pathlib import Path
 
-import typeguard
-
 from .config import setup_slurm_config  # noqa: F401
 from .execution import ExecutionContextLoader
 from .serialization import (  # noqa: F401
     _DataFuture,
     deserialize,
-    serializable,
     serialize,
+    register_serializable,
 )
 
 
-@typeguard.typechecked
 def resolve_and_check(path: Path) -> Path:
     path = path.resolve()
     if Path.cwd() in path.parents:
@@ -33,4 +30,3 @@ def resolve_and_check(path: Path) -> Path:
 load = ExecutionContextLoader.load
 context = ExecutionContextLoader.context
 wait = ExecutionContextLoader.wait
-

@@ -1,6 +1,7 @@
 import json
+import textwrap
 from pathlib import Path
-from typing import Optional, Union
+from collections.abc import Sequence
 
 from parsl import File
 from parsl.dataflow.futures import AppFuture
@@ -8,19 +9,31 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.reference.reference import Reference, Status
-from psiflow.utils import TMP_COMMAND, CD_COMMAND
 from psiflow.utils.apps import copy_app_future
-from psiflow.utils.parse import find_line
 from psiflow.reference._gpaw import FILEPATH, DEFAULTS, STDOUT_KEY
+from psiflow.utils.parse import find_line, format_env_vars
 
 
-def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
+def make_bash_template(executor: str, script: str) -> str:
+    context = psiflow.context()
+    definition = context.definitions[executor]
+    command = f"""
+    cp {{}} input.json
+    cp {script} script_gpaw.py
+    {definition.command()}
+    """
+    command = textwrap.dedent(command)[1:]
+    env = format_env_vars(definition.env_vars)
+    return context.bash_template.format(commands=command, env=env)
+
+
+def parse_output(stdout: str, properties: Sequence[str]) -> dict:
     lines = stdout.split("\n")
     idx_start = find_line(lines, STDOUT_KEY) + 1
     idx_stop = find_line(lines, STDOUT_KEY, idx_start)
     txt = "\n".join(lines[idx_start:idx_stop])
     geom = Geometry.from_string(txt)
-    idx = find_line(lines, "Total:", reverse=True)
+    idx = find_line(lines, "Total:", reverse=True, max_lines=100)
     data = {
         "status": Status.SUCCESS,
         "runtime": lines[idx].split()[-2],
@@ -33,38 +46,23 @@ def parse_output(stdout: str, properties: tuple[str, ...]) -> dict:
     return data
 
 
-@psiflow.serializable
+@psiflow.register_serializable
 class GPAW(Reference):
+    executor: str = "GPAW"
     _execute_label = "gpaw_singlepoint"
     parameters: dict
     script: str
 
-    def __init__(
-        self,
-        parameters: dict,
-        script: str | Path = FILEPATH,
-        outputs: Union[tuple, list] = ("energy", "forces"),
-        executor: str = "GPAW",
-    ):
-        self.outputs = tuple(outputs)
+    def __init__(self, parameters: dict, script: str | Path = FILEPATH, **kwargs):
+        super().__init__(**kwargs)
         self.parameters = parameters
         assert (script := Path(script)).is_file()
         self.script = str(script.resolve())  # absolute path
-        self.executor = executor
-        self._create_apps()
+        self.bash_template = make_bash_template(self.executor, self.script)
+        print(self.bash_template)
 
     def compute_atomic_energy(self, element, box_size=None) -> AppFuture:
         return copy_app_future(0.0)  # GPAW computes formation energy by default
-
-    def get_shell_command(self, inputs: list[File]) -> str:
-        command_list = [
-            TMP_COMMAND,
-            CD_COMMAND,
-            f"cp {inputs[0].filepath} input.json",
-            f"cp {self.script} script_gpaw.py",
-            self.execute_command,
-        ]
-        return "\n".join(command_list)
 
     def parse_output(self, stdout: str) -> dict:
         return parse_output(stdout, self.outputs)

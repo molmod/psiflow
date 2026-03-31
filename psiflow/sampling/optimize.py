@@ -20,7 +20,7 @@ from psiflow.sampling.sampling import (
 )
 from psiflow.sampling.output import HamiltonianComponent
 from psiflow.utils.io import save_xml
-from psiflow.utils import TMP_COMMAND, CD_COMMAND, export_env_command
+from psiflow.utils.parse import format_env_vars
 
 
 warnings.warn(
@@ -97,6 +97,7 @@ def _execute_ipi(
     driver_kwargs: list[dict],
     command_server: str,
     env_vars: dict = {},
+    bash_template: str = "",
     stdout: str = parsl.AUTO_LOGNAME,
     stderr: str = parsl.AUTO_LOGNAME,
     inputs: list = [],
@@ -111,17 +112,14 @@ def _execute_ipi(
         set(d["address"] for d in driver_kwargs)
     )
     commands_driver = make_driver_commands(driver_kwargs, file_xyz_in, files_in)
-
     command_list = [
-        TMP_COMMAND,
-        CD_COMMAND,
-        export_env_command(env_vars),
         command_start,
         command_wait,
         *commands_driver,
         "wait",
     ]
-    return "\n".join(command_list)
+    commands, env = "\n".join(command_list), format_env_vars(env_vars)
+    return bash_template.format(commands=commands, env=env)
 
 
 execute_ipi = bash_app(_execute_ipi, executors=["ModelEvaluation"])
@@ -181,13 +179,14 @@ def optimize(
         inputs.append(comp.hamiltonian.serialize_function(dtype="float64"))
         kwargs = {"idx": i, "address": comp.address}
         if isinstance(comp.hamiltonian, MACEHamiltonian):
-            kwargs |= definition.get_driver_devices(1)[0]
+            kwargs |= definition.get_driver_resources.get(1, 1)[0]
         driver_kwargs.append(kwargs)
 
     result = execute_ipi(
         driver_kwargs,
         definition.server_command(),
         env_vars=definition.env_vars,
+        bash_template=context.bash_template,
         inputs=inputs,
         outputs=outputs,
         parsl_resource_specification=definition.wq_resources(1),

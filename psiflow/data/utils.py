@@ -1,6 +1,6 @@
 import re
 import shutil
-from typing import Optional, Union
+from typing import Optional, Union, Sequence
 
 import numpy as np
 import typeguard
@@ -9,7 +9,6 @@ from parsl.app.app import python_app
 from parsl.dataflow.futures import AppFuture
 
 from psiflow.geometry import Geometry, NullState, _assign_identifier, create_outputs
-from psiflow.utils.apps import unpack_i
 
 
 @typeguard.typechecked
@@ -206,7 +205,7 @@ extract_quantities = python_app(_extract_quantities, executors=["default_threads
 @typeguard.typechecked
 def _insert_quantities(
     quantities: tuple[str, ...],
-    arrays: list[np.ndarray, ...],
+    arrays: Sequence[np.ndarray],
     data: Optional[list[Geometry]] = None,
     inputs: list = [],
     outputs: list = [],
@@ -761,7 +760,7 @@ def get_train_valid_indices(
         tuple[AppFuture, AppFuture]: Futures for training and validation indices.
     """
     future = train_valid_indices(effective_nstates, train_valid_split, shuffle)
-    return unpack_i(future, 0), unpack_i(future, 1)
+    return future[0], future[1]
 
 
 @typeguard.typechecked

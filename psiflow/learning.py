@@ -1,6 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import shutil
+import logging
 from pathlib import Path
 from typing import Optional, Union
 
@@ -17,9 +18,10 @@ from psiflow.metrics import Metrics
 from psiflow.models import Model
 from psiflow.reference import Reference
 from psiflow.sampling import SimulationOutput, Walker, sample
-from psiflow.utils.apps import boolean_or, isnan, setup_logger, unpack_i
+from psiflow.utils.apps import boolean_or, isnan
 
-logger = setup_logger(__name__)
+
+logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
@@ -98,7 +100,7 @@ def evaluate_outputs(
 
 
 @typeguard.typechecked
-@psiflow.serializable
+# @psiflow.serializable
 class Learning:
     reference: Reference
     path_output: str

@@ -1,6 +1,7 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
 import os
+import logging
 from pathlib import Path
 from typing import Optional, Union
 
@@ -15,9 +16,10 @@ from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.models import Model
 from psiflow.sampling import SimulationOutput
-from psiflow.utils.apps import combine_futures, log_message, setup_logger
+from psiflow.utils.apps import log_message
+# from psiflow.utils.apps import combine_futures, log_message, setup_logger
 
-logger = setup_logger(__name__)
+logger = logging.getLogger(__name__)  # logging per module
 
 
 @typeguard.typechecked
@@ -452,7 +454,7 @@ initialize_wandb = python_app(_initialize_wandb, executors=["default_htex"])
 
 
 @typeguard.typechecked
-@psiflow.serializable
+# @psiflow.serializable
 class Metrics:
     wandb_group: Optional[str]
     wandb_project: Optional[str]

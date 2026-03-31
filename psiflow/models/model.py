@@ -1,8 +1,10 @@
 from __future__ import annotations  # necessary for type-guarding class methods
 
+import copy
+import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 import parsl
 import typeguard
@@ -11,14 +13,15 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.utils.apps import copy_data_future, log_message, setup_logger
+from psiflow.utils.apps import copy_data_future, log_message
 from psiflow.utils.io import save_yaml
 
-logger = setup_logger(__name__)
+
+logger = logging.getLogger(__name__)
 
 
 @typeguard.typechecked
-@psiflow.serializable
+@psiflow.register_serializable  # TODO: not required? you should always subclass this
 class Model:
     _config: dict
     model_future: Optional[psiflow._DataFuture]
@@ -55,11 +58,9 @@ class Model:
                 validation.subtract_offset(**self.atomic_energies).extxyz,
             ]
         else:
-            inputs += [
-                training.extxyz,
-                validation.extxyz,
-            ]
-        future = self._train(
+            inputs += [training.extxyz, validation.extxyz]
+        train_app = self.get_train_app()
+        future = train_app(
             dict(self._config),
             stdout=parsl.AUTO_LOGNAME,
             stderr=parsl.AUTO_LOGNAME,
@@ -75,7 +76,8 @@ class Model:
             inputs = [dataset.subtract_offset(**self.atomic_energies).extxyz]
         else:
             inputs = [dataset.extxyz]
-        future = self._initialize(
+        initialise_app = self.get_initialise_app()
+        future = initialise_app(
             self._config,
             stdout=parsl.AUTO_LOGNAME,
             stderr=parsl.AUTO_LOGNAME,
@@ -123,6 +125,12 @@ class Model:
                 outputs=[psiflow.context().new_file("model_", ".pth")],
             ).outputs[0]
         return model
+
+    def get_train_app(self) -> Callable:
+        raise NotImplementedError
+
+    def get_initialise_app(self) -> Callable:
+        raise NotImplementedError
 
     @property
     def do_offset(self) -> bool:

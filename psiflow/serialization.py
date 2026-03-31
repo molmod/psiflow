@@ -1,339 +1,131 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
-import inspect
+import shutil
 import json
 from pathlib import Path
-from typing import ClassVar, Optional, Union, get_args, get_origin, get_type_hints
-from dataclasses import InitVar
+from typing import Any, Optional, Union
+from collections.abc import Sequence
 
-import typeguard
-from parsl.app.app import python_app
-from parsl.app.futures import DataFuture
-from parsl.data_provider.files import File
-from parsl.dataflow.futures import AppFuture
+from parsl import File, python_app
+from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
 from psiflow.geometry import Geometry
+from psiflow.utils.future import resolve_nested_futures
 
 
-# TODO: this is only used in the Learning class currently
+# TODO: verify which attributes need to be serialized with a _to_serialize key?
 
 
-_DataFuture = Union[File, DataFuture]
+CLS_KEY = "PSIFLOW_CLS"
+SKIP_INIT = "SKIP_INIT"
+SERIALIZABLE_CLS = {}
+
+_DataFuture = Union[File, DataFuture]  # TODO: does not belong here
 
 
-class Serializable:
+class SerializationError(TypeError):
     pass
 
 
-def dummy(*args, **kwargs):
-    return None
+def register_serializable(cls):
+    SERIALIZABLE_CLS[cls.__name__] = cls
+    return cls
 
 
-def create_getter(name, kind, type_hint):
-    @typeguard.typechecked
-    def getter(self) -> type_hint:
-        return getattr(self, "_{}".format(kind))[name]
-
-    return getter
-
-
-def create_setter(name, kind, type_hint):
-    @typeguard.typechecked
-    def setter(self, value: type_hint) -> None:
-        _dict = getattr(self, "_{}".format(kind))
-        _dict[name] = value
-
-    return setter
-
-
-def update_init(init_func):  # TODO: why not have a Mixin class instead?
-    def wrapper(self, *args, **kwargs):
-        self._geoms = {}
-        self._files = {}
-        self._attrs = {}
-        self._serial = {}
-        return init_func(self, *args, **kwargs)
-
-    return wrapper
-
-
-def serializable(cls):
-    """decorator to make class serializable"""
-    class_dict = dict(cls.__dict__)
-    for name, type_hint in get_type_hints(cls).items():
-        kind = None
-        if get_origin(type_hint) in [Union, Optional, list, tuple]:
-            args = get_args(type_hint)
-            if (File in args) or (DataFuture in args):
-                kind = "files"
-            else:
-                if Geometry in args:
-                    kind = "geoms"
-                else:
-                    kind = "attrs"
-                for arg in args:
-                    if inspect.isclass(arg):
-                        if issubclass(arg, Serializable):  # weird
-                            kind = "serial"
-        else:
-            # TODO: temporary hotfixes all around
-            origin = get_origin(type_hint)
-            if origin is ClassVar:
-                continue  # do nothing for classvars
-            elif origin == dict:
-                kind = "attrs"
-            elif isinstance(type_hint, str) and type_hint.startswith("dataclasses"):
-                continue
-            elif isinstance(type_hint, InitVar):
-                continue
-
-            if kind is None and not inspect.isclass(type_hint):
-                raise ValueError(
-                    "{} is formally not a class ({})".format(type_hint, name)
-                )
-            if issubclass(type_hint, Serializable):
-                kind = "serial"
-            elif type_hint is Geometry:
-                kind = "geoms"
-            else:
-                kind = "attrs"
-        getter = create_getter(name, kind, type_hint)
-        setter = create_setter(name, kind, type_hint)
-        class_dict[name] = property(getter, setter)
-
-    if "__init__" not in class_dict:
-        class_dict["__init__"] = dummy
-    class_dict["__init__"] = update_init(
-        class_dict["__init__"]
-    )  # create _attrs / _files / _serial
-
-    bases = cls.__mro__
-    if bases is not None:
-        if Serializable in bases:
-            pass
-        else:
-            bases = (Serializable,) + bases
-    else:
-        bases = (Serializable,)
-    new_cls = type(
-        cls.__name__,
-        bases,
-        class_dict,
-    )
-    return new_cls
-
-
-@typeguard.typechecked
-def _dump_json(
-    inputs: list = [],
-    outputs: list = [],
-    **kwargs,
-) -> str:
-    import numpy as np
-    from parsl.dataflow.futures import AppFuture
-
-    def convert_to_list(array):
-        if not type(array) is np.ndarray:
-            return array
-        as_list = []
-        for item in array:
-            as_list.append(convert_to_list(item))
-        return as_list
-
-    def descend_and_wait(value):
-        if type(value) in [AppFuture, DataFuture]:
-            value = value.result()
-        if type(value) is dict:
-            for key in list(value.keys()):
-                value[key] = descend_and_wait(value[key])
-        if type(value) in [list]:  # do not allow futures in tuples!
-            for i in range(len(value)):
-                value[i] = descend_and_wait(value[i])
-        return value
-
-    # descend_and_wait(kwargs)
-    # print(kwargs)
-    # for name, value in kwargs.items():
-    #    print(name, type(value))
-
-    kwargs = descend_and_wait(kwargs)
-
-    for name in list(kwargs.keys()):
-        value = kwargs[name]
-        if type(value) is np.ndarray:
-            value = convert_to_list(value)
-        kwargs[name] = value
-
-    s = json.dumps(kwargs)
-    if len(outputs) > 0:
-        with open(outputs[0], "w") as f:
-            f.write(s)
-    return s
-
-
-dump_json = python_app(_dump_json, executors=["default_threads"])
-
-
-@typeguard.typechecked
 def serialize(
-    obj: Serializable,
-    path_json: Optional[Path] = None,
-    copy_to: Optional[Path] = None,
+    obj: Any, path_json: Optional[Path] = None, copy_to: Optional[Path] = None
 ) -> AppFuture:
-    from psiflow.utils.apps import copy_data_future
-
+    """JSON serialization for psiflow classes"""
+    outputs = []
     if path_json is not None:
-        path_json = psiflow.resolve_and_check(path_json)
-    data = {
-        "_attrs": dict(obj._attrs),
-    }
+        outputs = [File(psiflow.resolve_and_check(path_json))]
+    future = resolve_nested_futures(obj)
+    return serialize_object(future, copy_to, outputs=outputs)
 
-    # dump_json waits for all futures in this list
-    inputs = (
-        list(obj._attrs.values())
-        + list(obj._files.values())
-        # + list(obj._serial.values())
-        # + list(obj._geoms.values())
-    )
 
-    # populate _files dict;
-    # if data futures need to be copied, this adds the copy operation to inputs
-    _files = {}
-    if copy_to is None:
-        for key, _file in obj._files.items():
-            if _file is None:
-                _files[key] = None
-                continue
-            _files[key] = _file.filepath
-    else:
-        copy_to.mkdir(exist_ok=True)
-        for key, _file in obj._files.items():
-            if _file is None:
-                _files[key] = None
-                continue
-            new_path = copy_to / Path(_file.filepath).name
-            new_file = copy_data_future(
-                pass_on_exist=True,  # e.g. identical hamiltonians in different walkers
-                inputs=[_file],
-                outputs=[File(new_path)],
-            ).outputs[0]
-            _files[key] = new_file.filepath
-            inputs.append(new_file)
-    data["_files"] = _files
+def _deserialize(json_str: str) -> Any:
+    """Reconstruct a psiflow object"""
 
-    # populate _serial dict;
-    # adds result of sub serialize calls to inputs
-    _serial = {}
-    for name, serial in obj._serial.items():
-        if serial is None:  # optional types
-            _serial[name] = None
-            continue
-        if type(serial) in [list, tuple]:
-            serialized = [serialize(s, path_json=None, copy_to=copy_to) for s in serial]
-            inputs += serialized
+    return json.loads(json_str, object_hook=deserialize_hook)
+
+
+deserialize = python_app(_deserialize, executors=["default_threads"])
+
+
+def _serialize_object(
+    obj: Any,
+    copy_to: Optional[Path],
+    outputs: Sequence[File],
+) -> str:
+    """Serialize a psiflow object. It should not contain any futures."""
+    try:
+        json_str = json.dumps(obj, cls=JSONEncoder, copy_to=copy_to)
+    except TypeError as e:
+        cls_set = set(SERIALIZABLE_CLS.keys()) or {}
+        msg = f"Failed to serialize with error '{e}'. Is it an instance of {cls_set}?"
+        raise SerializationError(msg)
+    if outputs:
+        with open(outputs[0], "w") as f:
+            f.write(json_str)
+    return json_str
+
+
+serialize_object = python_app(_serialize_object, executors=["default_threads"])
+
+
+class JSONEncoder(json.JSONEncoder):
+    def __init__(self, *args, **kwargs):
+        self.copy_to = copy_to = kwargs.pop("copy_to", None)
+        if copy_to is not None:
+            copy_to.mkdir(exist_ok=True, parents=True)
+        super().__init__(*args, **kwargs)
+
+    def default(self, obj: Any) -> dict[str, Any]:
+        """How to handle special class instances"""
+        name = obj.__class__.__name__
+        match obj:
+            case File():
+                return self._handle_file(obj)
+            case Geometry():
+                return {CLS_KEY: "Geometry", "data": obj.to_string()}
+            case _ if name in SERIALIZABLE_CLS:  # class instances
+                return {CLS_KEY: name} | vars(obj)
+            case _ if obj in SERIALIZABLE_CLS.values():  # classes
+                return {CLS_KEY: obj.__name__} | {SKIP_INIT: True}
+            case _:
+                return super().default(obj)  # fall back to default behaviour
+
+    def _handle_file(self, obj: File) -> dict[str, str]:
+        if self.copy_to is None:
+            path = obj.filepath
         else:
-            serialized = serialize(serial, path_json=None, copy_to=copy_to)
-            inputs.append(serialized)
-        _serial[name] = serialized
-    data["_serial"] = _serial
-
-    # populate _geoms dict:
-    # generate Geometry and AppFuture[Geometry] strings
-    @python_app(executors=["default_threads"])
-    def to_string(geometry: Optional[Geometry]) -> str:
-        if geometry is None:
-            return ""
-        else:
-            return geometry.to_string()
-
-    _geoms = {}
-    for key, value in obj._geoms.items():
-        _geoms[key] = to_string(value)
-    data["_geoms"] = _geoms
-    inputs += list(_geoms.values())
-
-    if path_json is not None:
-        outputs = [File(str(path_json))]
-    else:
-        outputs = []
-
-    return dump_json(
-        **{obj.__class__.__name__: data},
-        inputs=inputs,
-        outputs=outputs,
-    )
+            path = self.copy_to / obj.filename
+            if path.is_file():
+                pass  # e.g. identical hamiltonians in different walkers
+            else:
+                shutil.copy(obj.filepath, path)
+        return {CLS_KEY: "File", "path": str(path)}
 
 
-@typeguard.typechecked
-def deserialize(data_str: str, custom_cls: Optional[list] = None):
-    from psiflow.data import Dataset
-    from psiflow.hamiltonians import (
-        EinsteinCrystal,
-        Harmonic,
-        MACEHamiltonian,
-        MixtureHamiltonian,
-        PlumedHamiltonian,
-        Zero,
-    )
-    from psiflow.learning import Learning
-    from psiflow.metrics import Metrics
-    from psiflow.models import MACE
-    from psiflow.order_parameters import OrderParameter
-    from psiflow.reference import CP2K, GPAW, ORCA, ReferenceDummy
-    from psiflow.sampling import Metadynamics, ReplicaExchange, SimulationOutput, Walker
+def deserialize_hook(data: dict) -> Any:
+    """Reconstruct psiflow objects. Let JSON handle the rest."""
+    if CLS_KEY not in data:
+        return data
+    cls_name = data.pop(CLS_KEY)
 
-    SERIALIZABLES = {}
-    if custom_cls is None:
-        custom_cls = []
-    for cls in custom_cls + [
-        Dataset,
-        MACE,
-        CP2K,
-        GPAW,
-        ORCA,
-        ReferenceDummy,
-        Zero,
-        MACEHamiltonian,
-        EinsteinCrystal,
-        PlumedHamiltonian,
-        Harmonic,
-        MixtureHamiltonian,
-        Metadynamics,
-        OrderParameter,
-        ReplicaExchange,
-        SimulationOutput,
-        Walker,
-        Metrics,
-        Learning,
-    ]:
-        SERIALIZABLES[cls.__name__] = cls
+    if cls_name == "File":
+        return File(Path(data["path"]))
+    elif cls_name == "Geometry":
+        return Geometry.from_string(data["data"])
+    elif cls_name not in SERIALIZABLE_CLS:
+        cls_set = set(SERIALIZABLE_CLS.keys()) or {}
+        msg = f"Custom class '{cls_name}' not in {cls_set}. Cannot deserialize.."
+        raise TypeError(msg)
 
-    data = json.loads(data_str)
-    cls_name = list(data.keys())[0]
-    cls = SERIALIZABLES.get(cls_name, None)
-    assert cls is not None
+    cls = SERIALIZABLE_CLS.get(cls_name)
+    if data.get(SKIP_INIT):
+        return cls  # return class instead of instance
 
     obj = cls.__new__(cls)
-    obj._files = {}
-    for key, value in data[cls_name]["_files"].items():
-        if value is not None:
-            value = File(value)
-        obj._files[key] = value
-    obj._attrs = data[cls_name]["_attrs"]
-    obj._geoms = {
-        k: Geometry.from_string(s, natoms=None)
-        for k, s in data[cls_name]["_geoms"].items()
-    }
-    _serial = {}
-    for key, value in data[cls_name]["_serial"].items():
-        if value is None:
-            _serial[key] = value
-        elif type(value) in [list, tuple]:
-            _serial[key] = [deserialize(v, custom_cls=custom_cls) for v in value]
-        else:
-            _serial[key] = deserialize(value, custom_cls=custom_cls)
-    obj._serial = _serial
-    if hasattr(obj, "_create_apps"):
-        obj._create_apps()
+    for k, v in data.items():
+        setattr(obj, k, v)
     return obj
