@@ -247,6 +247,19 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     temp1 = output["temperature{kelvin}"].result()[-1]
     assert np.allclose(temp0, temp1)
 
+    # check extraction of PLUMED extras
+    plumed_str = """
+UNITS LENGTH=A
+CV: VOLUME
+PRINT ARG=CV
+"""
+    walker = Walker(start=geom_start, temperature=300, hamiltonian=plumed+einstein)
+    [output] = sample(
+        [walker],
+        steps=10,
+    )
+    assert np.allclose(output["CV{au}"].result(), output["volume{angstrom3}"].result())
+
     return
 
 

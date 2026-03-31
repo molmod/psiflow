@@ -135,7 +135,7 @@ CV: VOLUME
 RESTRAINT ARG=CV AT=50 KAPPA=1
 """
     function = PlumedFunction(plumed_input)
-    energy, forces, stress = function.compute(dataset.geometries().result()).values()
+    energy, forces, stress, _ = function.compute(dataset.geometries().result()).values()
 
     volumes = np.linalg.det(dataset.get("cell").result())
     energy_ = (volumes - 50) ** 2 * (kJ / mol) / 2
@@ -191,6 +191,21 @@ METAD ARG=CV PACE=1 SIGMA=3 HEIGHT=342 FILE={}
     with open(path_hills, "r") as f:
         assert f.read() == hills
 
+    # check extraction of PLUMED extras
+    plumed_input = """
+UNITS LENGTH=A ENERGY=kj/mol TIME=fs
+CV: VOLUME
+PRINT ARG=CV
+"""
+    ham = PlumedHamiltonian(plumed_input)
+    plumed_extras = ham.plumed_extras
+    assert plumed_extras == ["CV"]
+    function = PlumedFunction(plumed_input, plumed_extras=plumed_extras)
+    _, _, _, extras = function.compute(dataset.geometries().result()).values()
+    assert "CV" in extras
+
+    volumes = np.linalg.det(dataset.get("cell").result())
+    assert np.allclose(extras["CV"].astype(np.float64), volumes)
 
 def test_harmonic_function(dataset):
     reference = dataset[0].result()

@@ -1,5 +1,6 @@
 import urllib
 from functools import partial
+import re
 from pathlib import Path
 from typing import Optional, Union, Callable, Sequence
 
@@ -281,6 +282,9 @@ class PlumedHamiltonian(Hamiltonian):
         external: Union[None, str, Path, File, DataFuture] = None,
     ):
         super().__init__()
+
+        match = re.search(r'^\s*PRINT\s+.*\bARG=(\S+)', plumed_input, re.MULTILINE)  # parse plumed quantities from input file
+        self.plumed_extras = match.group(1).split(",") if match else []
         self.plumed_input = remove_comments_printflush(plumed_input)
         if type(external) in [str, Path]:
             external = File(str(external))
@@ -296,7 +300,7 @@ class PlumedHamiltonian(Hamiltonian):
             external = copy_app_future(self.external.filepath, inputs=[self.external])
         else:
             external = None
-        return {"plumed_input": self.plumed_input, "external": external}
+        return {"plumed_input": self.plumed_input, "plumed_extras": self.plumed_extras, "external": external}
 
     def __eq__(self, other: Hamiltonian) -> bool:
         if (

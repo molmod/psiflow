@@ -324,7 +324,7 @@ def setup_output(
         trajectory = ET.Element(
             "trajectory",
             filename="trajectory",
-            stride=str(step),
+            stride=str(step),   # TODO: separate stride for trajectory and properties?
             format="ase",
             bead="0",
         )
@@ -337,6 +337,22 @@ def setup_output(
     )
     properties.text = create_xml_list(observables)
     output.append(properties)
+    extras_list = []
+    for comp in components:
+        if comp.name.startswith("Plumed"):  # technically other hamiltonians could also have extras
+            extras_list += comp.hamiltonian.plumed_extras    # maybe extras should be a general property of the Hamiltonian class?
+    observables += [extra + "{au}" for extra in extras_list]   # for SimulationOutput  TODO: what to do with units?
+    if extras_list:
+        extras = ",".join(list(set(extras_list)))
+        extras_element = ET.Element(
+            "trajectory",
+            filename=f"extras",
+            stride=str(step),
+            extra_type=extras,
+            bead="0",
+        )
+        extras_element.text = f" extras_bias "
+        output.append(extras_element)
     return output, observables
 
 
@@ -551,7 +567,7 @@ def _sample(
     if step is not None:
         start = math.floor(start / step)  # start is applied on subsampled quantities
     if step is None:
-        keep_trajectory = False
+        keep_trajectory = False # TODO: warning here? 
     # TODO: check whether observables are valid?
     output, observables = setup_output(
         hamiltonian_components,  # for potential components
