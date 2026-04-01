@@ -1,463 +1,379 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
+import io
+import pickle
 from pathlib import Path
-from typing import Optional, Union
+from types import SimpleNamespace
+from typing import Optional, Union, Any
+from collections.abc import Sequence
 
+import ase.calculators.calculator
 import numpy as np
-import typeguard
+import numpy.typing as npt
 from ase import Atoms
-from ase.data import atomic_masses, chemical_symbols
-from ase.io.extxyz import key_val_dict_to_str, key_val_str_to_dict_regex
+from ase.data import atomic_masses, chemical_symbols, atomic_numbers
+from ase.io.extxyz import key_val_dict_to_str, read_xyz, key_val_str_to_dict
 from parsl.app.app import python_app
 
 import psiflow
 
-per_atom_dtype = np.dtype(
-    [
-        ("numbers", np.uint8),
-        ("positions", np.float64, (3,)),
-        ("forces", np.float64, (3,)),
-    ]
-)
-
-QUANTITIES = [
-    "positions",
-    "cell",
-    "numbers",
-    "energy",
-    "per_atom_energy",
-    "forces",
-    "stress",
-    "delta",
-    "logprob",
-    "phase",
-    "identifier",
-]
+# TODO: docstrings
+# TODO: custom attributes
 
 
-@typeguard.typechecked
+class Container:
+    """
+    Holds 'per atom' arrays like positions and forces
+    For every attribute, the first array dimension should be n_atoms
+    """
+
+    def __init__(
+        self,
+        numbers: npt.NDArray[np.uint8],
+        positions: npt.NDArray[np.float64],
+        **kwargs: npt.NDArray,
+    ):
+        self.numbers = numbers.astype(int).reshape(-1, 1)
+        self.positions = positions
+        self._check(positions)
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def __setattr__(self, name, value):
+        if not self._check(value):
+            raise ValueError(f"Field '{name}' is not a per-atom property..")
+        super().__setattr__(name, value)
+
+    def __getattr__(self, name):
+        # only runs if the attribute isn't found normally
+        raise AttributeError(
+            f"'{type(self).__name__}' instance has no attribute '{name}'"
+        )
+
+    def __len__(self) -> int:
+        return self.numbers.shape[0]
+
+    def __str__(self) -> str:
+        return f"Container[{len(self)}](keys={set(vars(self))})"
+
+    def _check(self, arr: npt.NDArray) -> bool:
+        try:
+            return (arr.shape[0] == len(self)) and arr.ndim == 2
+        except AttributeError:
+            return arr.ndim == 2  # numbers not yet defined
+
+    def reset(self):
+        """Wipes optional fields"""
+        attrs = [k for k in vars(self) if k not in ("numbers", "positions")]
+        for attr in attrs:
+            delattr(self, attr)
+
+    def to_string(self) -> tuple[str, str]:
+        symbols = [chemical_symbols[i] for i in self.numbers.flatten()]
+        data = {"species": np.array(symbols).reshape(-1, 1), "pos": self.positions}
+        if hasattr(self, "forces"):
+            data["forces"] = self.forces
+
+        # create extxyz header
+        header = "Properties=species:S:1:pos:R:3"
+        for k, arr in data.items():
+            if k in header:
+                continue
+            header += f":{k}:R:{arr.shape[1]}"
+
+        # create a structured array with all fields
+        dtypes = []
+        for k, arr in data.items():
+            dtypes += [arr.dtype] * arr.shape[1]
+        dtype = [(str(i), t) for i, t in enumerate(dtypes)]
+
+        structured = np.zeros(len(self), dtype=dtype)
+        i = 0
+        for k, arr in data.items():
+            for j in range(arr.shape[1]):
+                structured[str(i)] = arr[:, j]
+                i += 1
+
+        # write to string
+        formats = []
+        format_map = {"species": "%-2s"}
+        for k, arr in data.items():
+            dformat = format_map.get(k, "%16.8f")
+            formats += [dformat] * arr.shape[1]
+        buffer = io.StringIO()
+        np.savetxt(buffer, structured, fmt=formats)
+        txt = buffer.getvalue()
+
+        return header, txt
+
+    @classmethod
+    def from_string(cls, s: str, props: Optional[str] = None):
+        props = (props or "species:S:1:pos:R:3") + ":"
+        dtype_map = {"R": "f8", "S": "i8"}
+
+        # figure out what columns belong to which property
+        keys, dtypes = [], []
+        while props:
+            k, t, n, props = props.split(":", 3)
+            keys += [k] * int(n)
+            dtypes += [dtype_map[t]] * int(n)
+        dtype = [(str(i), t) for i, t in enumerate(dtypes)]
+
+        # convert species to numbers automatically
+        conv = {0: lambda s: atomic_numbers[s]}
+        structured = np.loadtxt(io.StringIO(s), dtype=dtype, converters=conv)
+
+        # group subarrays per property
+        data = {k: [] for k in set(keys)}
+        for i, k in enumerate(structured.dtype.names):
+            arr = structured[k]
+            data[keys[i]].append(arr)
+        arrays = {k: np.stack(v, axis=-1) for k, v in data.items()}
+
+        arrays["numbers"] = arrays.pop("species")
+        arrays["positions"] = arrays.pop("pos")
+        return cls(**arrays)
+
+
 class Geometry:
     """
     Represents an atomic structure with associated properties.
-
     This class encapsulates the atomic structure, including atom positions, cell parameters,
     and various physical properties such as energy and forces.
 
     Attributes:
-        per_atom (np.recarray): Record array containing per-atom properties.
+        per_atom (Container): Record array containing per-atom properties.
         cell (np.ndarray): 3x3 array representing the unit cell vectors.
-        order (dict): Dictionary to store custom ordering information.
         energy (Optional[float]): Total energy of the system.
         stress (Optional[np.ndarray]): Stress tensor of the system.
-        delta (Optional[float]): Delta value, if applicable.
-        phase (Optional[str]): Phase information, if applicable.
-        logprob (Optional[np.ndarray]): Log probability values, if applicable.
-        stdout (Optional[str]): Standard output information, if applicable.
-        identifier (Optional[int]): Unique identifier for the geometry.
     """
 
-    per_atom: np.recarray
-    cell: np.ndarray
-    order: dict
+    per_atom: Container
+    cell: npt.NDArray
     energy: Optional[float]
     stress: Optional[np.ndarray]
-    delta: Optional[float]
-    phase: Optional[str]
-    logprob: Optional[np.ndarray]
-    stdout: Optional[str]
-    identifier: Optional[int]
+    meta: SimpleNamespace
 
     def __init__(
         self,
-        per_atom: np.recarray,
-        cell: np.ndarray,
-        order: Optional[dict] = None,
+        per_atom: Container,
         energy: Optional[float] = None,
+        cell: Optional[np.ndarray] = None,
         stress: Optional[np.ndarray] = None,
-        delta: Optional[float] = None,
-        phase: Optional[str] = None,
-        logprob: Optional[np.ndarray] = None,
-        stdout: Optional[str] = None,
-        identifier: Optional[int] = None,
+        **kwargs: Any,
     ):
         """
         Initialize a Geometry instance, though the preferred way of instantiating
-        proceeds via the `from_data` or `from_atoms` class methods
-
-        Args:
-            per_atom (np.recarray): Record array containing per-atom properties.
-            cell (np.ndarray): 3x3 array representing the unit cell vectors.
-            order (Optional[dict], optional): Custom ordering information. Defaults to None.
-            energy (Optional[float], optional): Total energy of the system. Defaults to None.
-            stress (Optional[np.ndarray], optional): Stress tensor of the system. Defaults to None.
-            delta (Optional[float], optional): Delta value. Defaults to None.
-            phase (Optional[str], optional): Phase information. Defaults to None.
-            logprob (Optional[np.ndarray], optional): Log probability values. Defaults to None.
-            stdout (Optional[str], optional): Standard output information. Defaults to None.
-            identifier (Optional[int], optional): Unique identifier for the geometry. Defaults to None.
+        proceeds via the class methods
         """
-        self.per_atom = per_atom.astype(per_atom_dtype)  # copies data
-        self.cell = cell.astype(np.float64)
-        assert self.cell.shape == (3, 3)
-        if order is None:
-            order = {}
-        self.order = order
+        self.per_atom = per_atom
         self.energy = energy
+        if cell is not None:
+            assert cell.shape == (3, 3)
+        self.cell = cell
+        if stress is not None:
+            assert stress.shape == (3, 3)
         self.stress = stress
-        self.delta = delta
-        self.phase = phase
-        self.logprob = logprob
-        self.stdout = stdout
-        self.identifier = identifier
+        self.meta = SimpleNamespace(**kwargs)
 
-    def reset(self):
+    def reset(self) -> None:
         """
         Reset all computed properties of the geometry to their default values.
         """
+        self.per_atom.reset()
         self.energy = None
         self.stress = None
-        self.delta = None
-        self.phase = None
-        self.logprob = None
-        self.per_atom.forces[:] = np.nan
 
-    def clean(self):
+    def clean(self) -> None:
         """
         Clean the geometry by resetting properties and removing additional information.
         """
         self.reset()
-        self.order = {}
-        self.stdout = None
-        self.identifier = None
+        self.meta = SimpleNamespace()
 
-    def __eq__(self, other) -> bool:
-        """
-        Check if two Geometry instances are equal.
-
-        Args:
-            other: The other object to compare with.
-
-        Returns:
-            bool: True if the geometries are equal, False otherwise.
-        """
-        if not isinstance(other, Geometry):
-            return False
-        # have to check separately for np.allclose due to different dtypes
-        equal = True
-        equal = equal and (len(self) == len(other))
-        equal = equal and (self.periodic == other.periodic)
-        if not equal:
-            return False
-        equal = equal and np.allclose(self.per_atom.numbers, other.per_atom.numbers)
-        equal = equal and np.allclose(self.per_atom.positions, other.per_atom.positions)
-        equal = equal and np.allclose(self.cell, other.cell)
-        return bool(equal)
-
-    def align_axes(self):
+    def align_axes(self) -> None:
         """
         Align the axes of the unit cell to a canonical representation for periodic systems.
         """
-        if self.periodic:  # only do something if periodic:
-            positions = self.per_atom.positions
-            cell = self.cell
-            transform_lower_triangular(positions, cell, reorder=False)
-            reduce_box_vectors(cell)
-
-    def __len__(self):
-        """
-        Get the number of atoms in the geometry.
-
-        Returns:
-            int: The number of atoms.
-        """
-        return len(self.per_atom)
-
-    def to_string(self) -> str:
-        """
-        Convert the Geometry instance to a string representation in extended XYZ format.
-
-        Returns:
-            str: String representation of the geometry.
-        """
-        if self.periodic:
-            comment = 'Lattice="'
-            comment += " ".join([str(x) for x in np.reshape(self.cell.T, 9, order="F")])
-            comment += '" pbc="T T T" '
-        else:
-            comment = 'pbc="F F F" '
-
-        write_forces = not np.any(np.isnan(self.per_atom.forces))
-        comment += "Properties=species:S:1:pos:R:3"
-        if write_forces:
-            comment += ":forces:R:3"
-        comment += " "
-
-        keys = [
-            "energy",
-            "stress",
-            "delta",
-            "phase",
-            "logprob",
-            "stdout",
-            "identifier",
-        ]
-        values_dict = {}
-        for key in keys:
-            value = getattr(self, key)
-            if value is None:
-                continue
-            if type(value) is np.ndarray:
-                if np.all(np.isnan(value)):
-                    continue
-            values_dict[key] = value
-        for key, value in self.order.items():
-            values_dict["order_" + key] = value
-        comment += key_val_dict_to_str(values_dict)
-        lines = ["{}".format(len(self))]
-        lines.append("{}".format(comment))
-        fmt = " ".join(["%2s"] + 3 * ["%16.8f"]) + " "
-        if write_forces:
-            fmt += " ".join(3 * ["%16.8f"])
-        for i in range(len(self)):
-            entry = (chemical_symbols[self.per_atom.numbers[i]],)
-            entry = entry + tuple(self.per_atom.positions[i])
-            if write_forces:
-                entry = entry + tuple(self.per_atom.forces[i])
-            lines.append(fmt % entry)
-        return "\n".join(lines)
-
-    def save(self, path_xyz: Union[Path, str]):
-        """
-        Save the Geometry instance to an XYZ file.
-
-        Args:
-            path_xyz (Union[Path, str]): Path to save the XYZ file.
-        """
-        path_xyz = psiflow.resolve_and_check(Path(path_xyz))
-        with open(path_xyz, "w") as f:
-            f.write(self.to_string())
+        if not self.periodic:
+            return
+        positions = self.per_atom.positions
+        cell = self.cell
+        transform_lower_triangular(positions, cell, reorder=False)
+        reduce_box_vectors(cell)
 
     def copy(self) -> Geometry:
         """
         Create a deep copy of the Geometry instance.
-
-        Returns:
-            Geometry: A new Geometry instance with the same data.
         """
-        return Geometry.from_string(self.to_string())
+        return pickle.loads(pickle.dumps(self))
 
-    @classmethod
-    def from_string(cls, s: str, natoms: Optional[int] = None) -> Optional[Geometry]:
+    def to_string(self) -> str:
         """
-        Create a Geometry instance from a string representation in extended XYZ format.
-
-        Args:
-            s (str): String representation of the geometry.
-            natoms (Optional[int], optional): Number of atoms (if known). Defaults to None.
-
-        Returns:
-            Optional[Geometry]: A new Geometry instance, or None if the string is empty.
+        Convert the Geometry instance to a string representation in extended XYZ format.
         """
-        if len(s) == 0:
-            return None
-        if not natoms:  # natoms in s
-            lines = s.strip().split("\n")
-            natoms = int(lines[0])
-            lines = lines[1:]
+        data = {k: getattr(self, k) for k in ("energy", "stress")}
+        if self.periodic:
+            data["Lattice"] = self.cell.T  # ase does Fortran ordering
+            data["pbc"] = "T T T"
         else:
-            lines = s.rstrip().split(
-                "\n"
-            )  # i-PI nonperiodic starts with empty -> rstrip!
-        assert len(lines) == natoms + 1
-        comment = lines[0]
-        comment_dict = key_val_str_to_dict_regex(comment)
+            data["pbc"] = "F F F"
+        data |= vars(self.meta)
+        data = {k: v for k, v in data.items() if v is not None}
+        info_str = key_val_dict_to_str(data)
+        properties, txt = self.per_atom.to_string()
+        header = " ".join([properties, info_str])
+        return "\n".join([str(len(self)), header, txt])
 
-        # read and format per_atom data
-        column_indices = {}
-        if "Properties" in comment_dict:
-            properties = comment_dict["Properties"].split(":")
-            count = 0
-            for i in range(len(properties) // 3):
-                name = properties[3 * i]
-                ncolumns = int(properties[3 * i + 2])
-                column_indices[name] = count
-                count += ncolumns
-            assert "pos" in column_indices  # positions need to be there
-
-        per_atom = np.recarray(natoms, dtype=per_atom_dtype)
-        per_atom.forces[:] = np.nan
-        POS_INDEX = column_indices.get("pos", 1)
-        FORCES_INDEX = column_indices.get("forces", None)
-        for i in range(natoms):
-            values = lines[i + 1].split()
-            per_atom.numbers[i] = chemical_symbols.index(values[0])
-            per_atom.positions[i, :] = [
-                float(_) for _ in values[POS_INDEX : POS_INDEX + 3]
-            ]
-            if FORCES_INDEX is not None:
-                per_atom.forces[i, :] = [
-                    float(_) for _ in values[FORCES_INDEX : FORCES_INDEX + 3]
-                ]
-
-        order = {}
-        for key, value in comment_dict.items():
-            if key.startswith("order_"):
-                order[key.replace("order_", "")] = value
-
-        # TODO: this needs a better solution
-        cell = comment_dict.pop("Lattice", np.zeros((3, 3)))
-        if isinstance(cell, str):
-            # most likely an array of NaNs
-            cell = np.array(cell.split()).reshape((3, 3))
-        cell = cell.T # transposed!
-        pbc = sum(comment_dict.pop("pbc", [])) == 3
-        geometry = cls(
-            per_atom=per_atom,
-            cell=cell if pbc else np.zeros((3, 3)),
-            energy=comment_dict.pop("energy", None),
-            stress=comment_dict.pop("stress", None),
-            delta=comment_dict.pop("delta", None),
-            phase=comment_dict.pop("phase", None),
-            logprob=comment_dict.pop("logprob", None),
-            stdout=comment_dict.pop("stdout", None),
-            identifier=comment_dict.pop("identifier", None),
-            order=order,
-        )
-        return geometry
-
-    @classmethod
-    def load(cls, path_xyz: Union[Path, str]) -> Geometry:
+    def save(self, path_xyz: Path | str) -> None:
         """
-        Load a Geometry instance from an XYZ file.
-
-        Args:
-            path_xyz (Union[Path, str]): Path to the XYZ file.
-
-        Returns:
-            Geometry: A new Geometry instance loaded from the file.
+        Save the Geometry instance to an XYZ file.
         """
         path_xyz = psiflow.resolve_and_check(Path(path_xyz))
-        assert path_xyz.exists()
-        with open(path_xyz, "r") as f:
-            content = f.read()
+        path_xyz.write_text(self.to_string())
+
+    def to_atoms(self, structural_only: bool = False) -> Atoms:
+        """
+        Convert the Geometry instance to an Atoms object.
+        """
+        if structural_only:
+            return Atoms(
+                positions=self.per_atom.positions,
+                numbers=self.numbers,
+                cell=self.cell,
+                pbc=self.periodic,
+            )
+
+        # use the ASE extxyz reader
+        s = self.to_string()
+        return next(read_xyz(io.StringIO(s), index=0))
+
+    def __eq__(self, other: "Geometry") -> bool:
+        """
+        Check if two Geometry instances are structurally equal.
+        """
+        if (
+            isinstance(other, Geometry)
+            and len(self) == len(other)
+            and self.periodic == other.periodic
+            and (not self.periodic or np.allclose(self.cell, other.cell))
+            and np.allclose(self.per_atom.numbers, other.per_atom.numbers)
+            and np.allclose(self.per_atom.positions, other.per_atom.positions)
+        ):
+            return True
+        return False
+
+    def __len__(self) -> int:
+        """
+        Get the number of atoms in the geometry.
+        """
+        return len(self.per_atom)
+
+    @classmethod
+    def from_string(cls, s: str) -> Geometry:
+        """
+        Create a Geometry instance from a string representation in extended XYZ format.
+        """
+        n_atoms, header, body = s.strip().split("\n", 2)
+        data = key_val_str_to_dict(header)
+        data.pop("pbc", None)
+        if "Lattice" in data:
+            data["cell"] = data.pop("Lattice").T  # ase does Fortran ordering
+        else:
+            data["cell"] = None
+        per_atom = Container.from_string(body, data.pop("Properties", None))
+
+        assert len(per_atom) == int(n_atoms)
+        return Geometry(per_atom, **data)
+
+    @classmethod
+    def load(cls, path_xyz: Path | str) -> "Geometry":
+        """
+        Load a Geometry instance from an XYZ file.
+        """
+        path_xyz = psiflow.resolve_and_check(Path(path_xyz))
+        content = path_xyz.read_text()
         return cls.from_string(content)
-
-    @property
-    def periodic(self):
-        """
-        Check if the geometry is periodic.
-
-        Returns:
-            bool: True if the geometry is periodic, False otherwise.
-        """
-        return np.any(self.cell)
-
-    @property
-    def per_atom_energy(self):
-        """
-        Calculate the energy per atom.
-
-        Returns:
-            Optional[float]: Energy per atom if total energy is available, None otherwise.
-        """
-        if self.energy is None:
-            return None
-        else:
-            return self.energy / len(self)
-
-    @property
-    def volume(self):
-        """
-        Calculate the volume of the unit cell.
-
-        Returns:
-            float: Volume of the unit cell for periodic systems, np.nan for non-periodic systems.
-        """
-        if not self.periodic:
-            return np.nan
-        else:
-            return np.linalg.det(self.cell)
-        
-    @property
-    def atomic_masses(self):
-         """
-         Get the atomic masses of the atoms in the geometry.
- 
-         Returns:
-             np.ndarray: Array of atomic masses.
-         """
-         return np.array([atomic_masses[n] for n in self.per_atom.numbers])
 
     @classmethod
     def from_data(
-        cls,
-        numbers: np.ndarray,
-        positions: np.ndarray,
-        cell: Optional[np.ndarray],
+        cls, numbers: np.ndarray, positions: np.ndarray, cell: Optional[np.ndarray]
     ) -> Geometry:
         """
         Create a Geometry instance from atomic numbers, positions, and cell data.
-
-        Args:
-            numbers (np.ndarray): Array of atomic numbers.
-            positions (np.ndarray): Array of atomic positions.
-            cell (Optional[np.ndarray]): Unit cell vectors (or None for non-periodic systems).
-
-        Returns:
-            Geometry: A new Geometry instance.
         """
-        per_atom = np.recarray(len(numbers), dtype=per_atom_dtype)
-        per_atom.numbers[:] = numbers
-        per_atom.positions[:] = positions
-        per_atom.forces[:] = np.nan
-        if cell is not None:
-            cell = cell.copy()
-        else:
-            cell = np.zeros((3, 3))
-        return Geometry(per_atom, cell)
+        per_atom = Container(numbers.copy(), positions.copy())
+        cell = cell if cell is None else cell.copy()
+        return Geometry(per_atom, cell=cell)
 
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> Geometry:
         """
         Create a Geometry instance from an ASE Atoms object.
-
-        Args:
-            atoms (Atoms): ASE Atoms object.
-
-        Returns:
-            Geometry: A new Geometry instance.
         """
-        per_atom = np.recarray(len(atoms), dtype=per_atom_dtype)
-        per_atom.numbers[:] = atoms.numbers.astype(np.uint8)
-        per_atom.positions[:] = atoms.get_positions()
-        per_atom.forces[:] = atoms.arrays.get("forces", np.nan)  # TODO: ASE stores forces in calc now
-        if np.any(atoms.pbc):
-            cell = np.array(atoms.cell)
-        else:
-            cell = np.zeros((3, 3))
-        geometry = cls(per_atom, cell)
-        geometry.energy = atoms.info.get("energy", None)
-        geometry.stress = atoms.info.get("stress", None)
-        geometry.delta = atoms.info.get("delta", None)
-        geometry.phase = atoms.info.get("phase", None)
-        geometry.logprob = atoms.info.get("logprob", None)
-        geometry.stdout = atoms.info.get("stdout", None)
-        geometry.identifier = atoms.info.get("identifier", None)
-        return geometry
+        per_atom = Container(**atoms.arrays)
+        data = atoms.info
+        if all(atoms.pbc):
+            data["cell"] = atoms.cell.array
+        if atoms.calc is not None:
+            # ASE does stupid calc things
+            try:
+                data["energy"] = atoms.get_potential_energy()
+                per_atom.forces = atoms.get_forces()
+            except ase.calculators.calculator.PropertyNotImplementedError:
+                pass  # property was not stored in calc
+        return cls(per_atom, **data)
+
+    @property
+    def periodic(self) -> bool:
+        """
+        Check if the geometry is periodic.
+        """
+        return np.any(self.cell)
+
+    @property
+    def per_atom_energy(self) -> Optional[float]:
+        """
+        Calculate the energy per atom.
+        """
+        if self.energy is None:
+            return None
+        return self.energy / len(self)
+
+    @property
+    def volume(self) -> Optional[float]:
+        """
+        Calculate the volume of the unit cell.
+        """
+        if not self.periodic:
+            return None
+        return np.linalg.det(self.cell)
+
+    @property
+    def atomic_masses(self) -> npt.NDArray:
+        """
+        Get the atomic masses of the atoms in the geometry.
+        """
+        return np.array([atomic_masses[n] for n in self.per_atom.numbers]).flatten()
+
+    @property
+    def numbers(self) -> npt.NDArray:
+        """
+        Get a flattened version of the per_atom.numbers array.
+        """
+        return self.per_atom.numbers.flatten()
 
 
-def new_nullstate():
-    """
-    Create a new null state Geometry.
-
-    Returns:
-        Geometry: A Geometry instance representing a null state.
-    """
-    return Geometry.from_data(np.zeros(1), np.zeros((1, 3)), None)
+# def new_nullstate():
+#     """
+#     Create a new null state Geometry.
+#
+#     Returns:
+#         Geometry: A Geometry instance representing a null state.
+#     """
+#     return Geometry.from_data(np.zeros(1), np.zeros((1, 3)), None)
 
 
 # use universal dummy state
-NullState = new_nullstate()
+# NullState = new_nullstate()
 
 
 def is_lower_triangular(cell: np.ndarray) -> bool:
@@ -554,7 +470,6 @@ def reduce_box_vectors(cell: np.ndarray):
     cell[1, :] = cell[1, :] - cell[0, :] * np.round(cell[1, 0] / cell[0, 0])
 
 
-@typeguard.typechecked
 def get_mass_matrix(geometry: Geometry) -> np.ndarray:
     """
     Compute the mass matrix for a given geometry.
@@ -573,7 +488,6 @@ def get_mass_matrix(geometry: Geometry) -> np.ndarray:
     return np.outer(sqrt_inv, sqrt_inv)
 
 
-@typeguard.typechecked
 def mass_weight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
     """
     Apply mass-weighting to a Hessian matrix.
@@ -590,7 +504,6 @@ def mass_weight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
     return hessian * get_mass_matrix(geometry)
 
 
-@typeguard.typechecked
 def mass_unweight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
     """
     Remove mass-weighting from a Hessian matrix.
@@ -607,104 +520,110 @@ def mass_unweight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
     return hessian / get_mass_matrix(geometry)
 
 
-def create_outputs(quantities: list[str], data: list[Geometry]) -> list[np.ndarray]:
-    """
-    Create output arrays for specified quantities from a list of Geometry instances.
-
-    Args:
-        quantities (list[str]): List of quantity names to extract.
-        data (list[Geometry]): List of Geometry instances.
-
-    Returns:
-        list[np.ndarray]: List of arrays containing the requested quantities.
-    """
-    order_names = list(set([k for g in data for k in g.order]))
-    assert all([q in QUANTITIES + order_names for q in quantities])
-    natoms = np.array([len(geometry) for geometry in data], dtype=int)
-    max_natoms = np.max(natoms)
-    nframes = len(data)
-    nprob = 0
-    max_phase = 0
-    for state in data:
-        if state.logprob is not None:
-            nprob = max(len(state.logprob), nprob)
-        if state.phase is not None:
-            max_phase = max(len(state.phase), max_phase)
-
-    arrays = []
-    for quantity in quantities:
-        if quantity in ["positions", "forces"]:
-            array = np.empty((nframes, max_natoms, 3), dtype=np.float64)
-            array[:] = np.nan
-        elif quantity in ["cell", "stress"]:
-            array = np.empty((nframes, 3, 3), dtype=np.float64)
-            array[:] = np.nan
-        elif quantity in ["numbers"]:
-            array = np.empty((nframes, max_natoms), dtype=np.uint8)
-            array[:] = 0
-        elif quantity in ["energy", "delta", "per_atom_energy"]:
-            array = np.empty((nframes,), dtype=np.float64)
-            array[:] = np.nan
-        elif quantity in ["phase"]:
-            array = np.empty((nframes,), dtype=(np.unicode_, max_phase))
-            array[:] = ""
-        elif quantity in ["logprob"]:
-            array = np.empty((nframes, nprob), dtype=np.float64)
-            array[:] = np.nan
-        elif quantity in ["identifier"]:
-            array = np.empty((nframes,), dtype=np.int64)
-            array[:] = -1
-        elif quantity in order_names:
-            array = np.empty((nframes,), dtype=np.float64)
-            array[:] = np.nan
-        else:
-            raise AssertionError("missing quantity in if/else")
-        arrays.append(array)
-    return arrays
+def get_unique_numbers(states: Sequence[Geometry]) -> set[int]:
+    """Returns a set of unique atom numbers found across all states."""
+    numbers = set(el for geom in states for el in np.unique(geom.per_atom.numbers))
+    return {int(n) for n in numbers}
 
 
-def _assign_identifier(
-    state: Geometry,
-    identifier: int,
-    discard: bool = False,
-) -> tuple[Geometry, int]:
-    """
-    Assign an identifier to a Geometry instance.
-
-    Args:
-        state (Geometry): Input Geometry instance.
-        identifier (int): Identifier to assign.
-        discard (bool, optional): Whether to discard the state. Defaults to False.
-
-    Returns:
-        tuple[Geometry, int]: Updated Geometry and next available identifier.
-    """
-    if (state == NullState) or discard:
-        return state, identifier
-    else:
-        assert state.identifier is None
-        state.identifier = identifier
-        return state, identifier + 1
+def get_atomic_energy(geometry: Geometry, atomic_energies: dict[str, float]) -> float:
+    """Compute the total atomic energy based on provided single atom energies."""
+    total = 0
+    numbers, counts = np.unique(geometry.numbers, return_counts=True)
+    for number, count in zip(numbers, counts):
+        symbol = chemical_symbols[number]
+        try:
+            total += count * atomic_energies[symbol]
+        except KeyError:
+            raise KeyError(f"No atomic energy value for symbol '{symbol}'..")
+    return float(total)
 
 
-assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
+# def create_outputs(quantities: list[str], data: list[Geometry]) -> list[np.ndarray]:
+#     """
+#     Create output arrays for specified quantities from a list of Geometry instances.
+#
+#     Args:
+#         quantities (list[str]): List of quantity names to extract.
+#         data (list[Geometry]): List of Geometry instances.
+#
+#     Returns:
+#         list[np.ndarray]: List of arrays containing the requested quantities.
+#     """
+#     order_names = list(set([k for g in data for k in g.order]))
+#     assert all([q in QUANTITIES + order_names for q in quantities])
+#     natoms = np.array([len(geometry) for geometry in data], dtype=int)
+#     max_natoms = np.max(natoms)
+#     nframes = len(data)
+#     nprob = 0
+#     max_phase = 0
+#     for state in data:
+#         if state.logprob is not None:
+#             nprob = max(len(state.logprob), nprob)
+#         if state.phase is not None:
+#             max_phase = max(len(state.phase), max_phase)
+#
+#     arrays = []
+#     for quantity in quantities:
+#         if quantity in ["positions", "forces"]:
+#             array = np.empty((nframes, max_natoms, 3), dtype=np.float64)
+#             array[:] = np.nan
+#         elif quantity in ["cell", "stress"]:
+#             array = np.empty((nframes, 3, 3), dtype=np.float64)
+#             array[:] = np.nan
+#         elif quantity in ["numbers"]:
+#             array = np.empty((nframes, max_natoms), dtype=np.uint8)
+#             array[:] = 0
+#         elif quantity in ["energy", "delta", "per_atom_energy"]:
+#             array = np.empty((nframes,), dtype=np.float64)
+#             array[:] = np.nan
+#         elif quantity in ["phase"]:
+#             array = np.empty((nframes,), dtype=(np.unicode_, max_phase))
+#             array[:] = ""
+#         elif quantity in ["logprob"]:
+#             array = np.empty((nframes, nprob), dtype=np.float64)
+#             array[:] = np.nan
+#         elif quantity in ["identifier"]:
+#             array = np.empty((nframes,), dtype=np.int64)
+#             array[:] = -1
+#         elif quantity in order_names:
+#             array = np.empty((nframes,), dtype=np.float64)
+#             array[:] = np.nan
+#         else:
+#             raise AssertionError("missing quantity in if/else")
+#         arrays.append(array)
+#     return arrays
 
 
-@typeguard.typechecked
-def _check_equality(
-    state0: Geometry,
-    state1: Geometry,
-) -> bool:
-    """
-    Check if two Geometry instances are equal.
+# def _assign_identifier(
+#     state: Geometry,
+#     identifier: int,
+#     discard: bool = False,
+# ) -> tuple[Geometry, int]:
+#     """
+#     Assign an identifier to a Geometry instance.
+#
+#     Args:
+#         state (Geometry): Input Geometry instance.
+#         identifier (int): Identifier to assign.
+#         discard (bool, optional): Whether to discard the state. Defaults to False.
+#
+#     Returns:
+#         tuple[Geometry, int]: Updated Geometry and next available identifier.
+#     """
+#     if (state == NullState) or discard:
+#         return state, identifier
+#     else:
+#         assert state.identifier is None
+#         state.identifier = identifier
+#         return state, identifier + 1
 
-    Args:
-        state0 (Geometry): First Geometry instance.
-        state1 (Geometry): Second Geometry instance.
 
-    Returns:
-        bool: True if the Geometry instances are equal, False otherwise.
-    """
+# assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
+
+
+def _check_equality(state0: Geometry, state1: Geometry) -> bool:
+    """    Check if two Geometry instances are equal"""
     return state0 == state1
 
 
