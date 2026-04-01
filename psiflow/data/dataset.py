@@ -25,11 +25,11 @@ from .utils import (
     get_train_valid_indices,
     insert_quantities,
     join_frames,
-    not_null,
     read_frames,
     reset_frames,
     shuffle,
     write_frames,
+    extract_quantities_per_atom,
 )
 
 
@@ -171,55 +171,46 @@ class Dataset:
         """
         Clean all structures in the dataset.
         """
-
         file = psiflow.context().new_file("data_", ".xyz")
         future = clean_frames(self.extxyz, outputs=[file])
         return Dataset(extxyz=future.outputs[0])
 
-    def get(
+    def get(self, *quantities: str) -> tuple[AppFuture, ...]:
+        """
+        Extract specified quantities from the dataset.
+        """
+        future_states = read_frames(self.extxyz)
+        future_dict = extract_quantities(future_states, quantities)
+        return tuple(future_dict[q] for q in quantities)
+
+    def get_per_atom(
         self,
         *quantities: str,
         atom_indices: Optional[list[int]] = None,
         elements: Optional[list[str]] = None,
-    ):
+    ) -> tuple[AppFuture, ...]:
         """
-        Extract specified quantities from the dataset.
+        Extract specified per atom quantities from the dataset.
 
         Args:
             *quantities: Names of quantities to extract.
             atom_indices: Optional list of atom indices to consider.
             elements: Optional list of element symbols to consider.
-
-        Returns:
-            Union[AppFuture, tuple[AppFuture, ...]]: Future(s) representing the extracted quantities.
         """
-        result = extract_quantities(
-            quantities,
-            atom_indices,
-            elements,
-            inputs=[self.extxyz],
+        future_states = read_frames(self.extxyz)
+        future_dict = extract_quantities_per_atom(
+            future_states, quantities, atom_indices, elements
         )
-        if len(quantities) == 1:
-            return result[0]
-        else:
-            return tuple([result[i] for i in range(len(quantities))])
+        return tuple(future_dict[q] for q in quantities)
 
     def evaluate(
-        self,
-        computable: Computable,
-        batch_size: Optional[int] = None,
+        self, computable: Computable, batch_size: Optional[int] = None
     ) -> Dataset:
         """
         Evaluate a Computable on the dataset.
-
-        Args:
-            computable: Computable object to evaluate.
-            batch_size: Optional batch size for evaluation.
-
-        Returns:
-            Dataset: A new Dataset with evaluation results.
         """
         # TODO: remove this functionality?
+        #  or this should be the (only) way to label a dataset?
         from psiflow.hamiltonians import Hamiltonian
 
         if not isinstance(computable, Hamiltonian):
@@ -233,58 +224,30 @@ class Dataset:
             outputs = computable.compute(self)  # use default from computable
         if not isinstance(outputs, list):  # compute unpacks for only one property
             outputs = [outputs]
-        future = insert_quantities(
-            quantities=tuple(computable.outputs),
-            arrays=pack(*outputs),
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        )
-        return Dataset(None, future.outputs[0])
+        data = {k: v for k, v in zip(computable.outputs, outputs)}
 
-    def filter(
-        self,
-        quantity: str,
-    ) -> Dataset:
+        file = psiflow.context().new_file("data_", ".xyz")
+
+        future = read_frames(self.extxyz)
+        future = insert_quantities(future, data)
+        extxyz = write_frames(future, outputs=[file]).outputs[0]
+        return Dataset(extxyz=extxyz)
+
+    def filter(self, quantity: str) -> Dataset:
         """
         Filter the dataset based on a specified quantity.
-
-        Args:
-            quantity: The quantity to filter on.
-
-        Returns:
-            Dataset: A new Dataset containing only structures that pass the filter.
-        """
-        assert quantity in QUANTITIES
-        extxyz = app_filter(
-            quantity,
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
-
-    def not_null(self) -> Dataset:
-        """
-        Remove null states from the dataset.
-
-        Returns:
-            Dataset: A new Dataset without null states.
         """
         file = psiflow.context().new_file("data_", ".xyz")
-        extxyz = not_null(inputs=[self.extxyz], outputs=[file]).outputs[0]
-        return Dataset(None, extxyz)
+        future = app_filter(self.extxyz, quantity, outputs=[file])
+        return Dataset(extxyz=future.outputs[0])
 
-    def align_axes(self):
+    def align_axes(self) -> Dataset:
         """
         Adopt a canonical orientation for all (periodic) structures in the dataset.
-
-        Returns:
-            Dataset: A new Dataset with aligned structures.
         """
-        extxyz = align_axes(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
+        file = psiflow.context().new_file("data_", ".xyz")
+        future = align_axes(self.extxyz, outputs=[file])
+        return Dataset(extxyz=future.outputs[0])
 
     def split(self, fraction, shuffle=True):  # auto-shuffles
         """

@@ -19,6 +19,20 @@ from psiflow.geometry import Geometry, get_atomic_energy, get_unique_numbers
 
 FileLike: TypeAlias = str | Path | File
 
+
+class MissingType:
+    """Placeholder sentinel for missing data fields"""
+
+    def __repr__(self):
+        return "<MISSING>"
+
+    def __bool__(self):
+        return False
+
+
+MISSING = MissingType()
+
+
 def iter_read_frames(file: FileLike) -> Generator[list[str]]:
     """Yields text data to instantiate geometries"""
     frame_regex = re.compile(r"^\d+$")
@@ -94,164 +108,94 @@ def _read_frames(
 read_frames = python_app(_read_frames, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _extract_quantities(
-    quantities: tuple[str, ...],
-    atom_indices: Optional[list[int]],
-    elements: Optional[list[str]],
-    *extra_data: Geometry,
-    inputs: list = [],
-) -> tuple[np.ndarray, ...]:
+    states: Sequence[Geometry], quantities: Sequence[str]
+) -> dict[str, list]:
     """
     Extract specified quantities from Geometry instances.
-
-    Args:
-        quantities: Tuple of quantity names to extract.
-        atom_indices: List of atom indices to consider.
-        elements: List of element symbols to consider.
-        *extra_data: Additional Geometry instances.
-        inputs: List of Parsl futures. If provided, the first element should be a DataFuture
-                representing the input file path containing geometry data.
-
-    Returns:
-        tuple[np.ndarray, ...]: Tuple of arrays containing extracted quantities.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
-    if not len(extra_data):
-        assert len(inputs) == 1
-        data = _read_frames(inputs=inputs)
-    else:
-        assert len(inputs) == 0
-        data = list(extra_data)
-    order_names = list(set([k for g in data for k in g.order]))
-    natoms = np.array([len(geometry) for geometry in data], dtype=int)
-    max_natoms = np.max(natoms)
-
-    arrays = create_outputs(quantities, data)
-    for i, geometry in enumerate(data):
-        mask = get_index_element_mask(
-            geometry.per_atom.numbers,
-            atom_indices,
-            elements,
-            natoms_padded=int(max_natoms),
-        )
-        natoms = len(geometry)
-        for j, quantity in enumerate(quantities):
-            if quantity == "positions":
-                arrays[j][i, mask, :] = geometry.per_atom.positions[mask[:natoms]]
-            elif quantity == "forces":
-                arrays[j][i, mask, :] = geometry.per_atom.forces[mask[:natoms]]
-            elif quantity == "cell":
-                arrays[j][i, :, :] = geometry.cell
-            elif quantity == "stress":
-                if geometry.stress is not None:
-                    arrays[j][i, :, :] = geometry.stress
-            elif quantity == "numbers":
-                arrays[j][i, :] = geometry.numbers
-            elif quantity == "energy":
-                if geometry.energy is not None:
-                    arrays[j][i] = geometry.energy
-            elif quantity == "delta":
-                if geometry.delta is not None:
-                    arrays[j][i] = geometry.delta
-            elif quantity == "per_atom_energy":
-                if geometry.energy is not None:
-                    arrays[j][i] = geometry.per_atom_energy
-            elif quantity == "phase":
-                if geometry.phase is not None:
-                    arrays[j][i] = geometry.phase
-            elif quantity == "logprob":
-                if geometry.logprob is not None:
-                    arrays[j][i, :] = geometry.logprob
-            elif quantity == "identifier":
-                if geometry.identifier is not None:
-                    arrays[j][i] = geometry.identifier
-            elif quantity in order_names:
-                if quantity in geometry.order:
-                    arrays[j][i] = geometry.order[quantity]
-    return tuple(arrays)
+    data = {k: [] for k in quantities}
+    for k in quantities:
+        if k in ("cell", "energy", "stress"):
+            for geom in states:
+                value = getattr(geom, k, MISSING)
+                data[k].append(value)
+            continue
+        for geom in states:
+            value = getattr(geom.per_atom, k, MISSING)
+            if value is MISSING:
+                value = getattr(geom.meta, k, MISSING)
+            data[k].append(value)
+    return data
 
 
 extract_quantities = python_app(_extract_quantities, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _insert_quantities(
-    quantities: tuple[str, ...],
-    arrays: Sequence[np.ndarray],
-    data: Optional[list[Geometry]] = None,
-    inputs: list = [],
-    outputs: list = [],
-) -> None:
+    states: Sequence[Geometry], data: dict[str, list]
+) -> Sequence[Geometry]:
     """
-    Insert quantities into Geometry instances.
-
-    Args:
-        quantities: Tuple of quantity names to insert.
-        arrays: List of arrays containing the quantities to insert.
-        data: List of Geometry instances to update.
-        inputs: List of Parsl futures. If provided, the first element should be a DataFuture
-                representing the input file path containing geometry data.
-        outputs: List of Parsl futures. If provided, the first element should be a DataFuture
-                 representing the output file path where updated geometries will be written.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    Insert quantities from data into Geometry instances.
     """
-    if data is None:
-        assert len(inputs) == 1
-        data = _read_frames(inputs=inputs)
-    else:
-        assert len(inputs) == 0
-    max_natoms = max([len(geometry) for geometry in data])
+    for q, values in data.items():
+        assert len(states) == len(values)
 
-    for i, geometry in enumerate(data):
-        if geometry == NullState:
+        if q in ("cell", "energy", "stress"):
+            for geom, v in zip(states, values):
+                setattr(geom, q, v)
             continue
-        mask = get_index_element_mask(
-            geometry.per_atom.numbers,
-            None,
-            None,
-            natoms_padded=int(max_natoms),
-        )
-        natoms = len(geometry)
-        for j, quantity in enumerate(quantities):
-            if quantity == "positions":
-                geometry.per_atom.positions[:natoms, :] = arrays[j][i, mask, :]
-            elif quantity == "forces":
-                geometry.per_atom.forces[mask[:natoms]] = arrays[j][i, mask, :]
-            elif quantity == "cell":
-                geometry.cell = arrays[j][i, :, :]
-            elif quantity == "stress":
-                geometry.stress = arrays[j][i, :, :]
-            elif quantity == "numbers":
-                geometry.numbers = arrays[j][i, :]
-            elif quantity == "energy":
-                geometry.energy = arrays[j][i]
-            elif quantity == "delta":
-                geometry.delta = arrays[j][i]
-            elif quantity == "per_atom_energy":
-                geometry.per_atom_energy = arrays[j][i]
-            elif quantity == "phase":
-                geometry.phase = arrays[j][i]
-            elif quantity == "logprob":
-                geometry.logprob = arrays[j][i, :]
-            elif quantity == "identifier":
-                geometry.identifier = arrays[j][i]
-            elif quantity in geometry.order:
-                geometry.order[quantity] = arrays[j][i]
+
+        for geom, v in zip(states, values):
+            if isinstance(v, np.ndarray) and len(geom) == len(v):
+                setattr(geom.per_atom, q, v)
             else:
-                raise ValueError("unknown quantity {}".format(quantity))
-    if len(outputs) > 0:
-        _write_frames(*data, outputs=[outputs[0]])
+                setattr(geom.meta, q, v)
+
+    return states
 
 
 insert_quantities = python_app(_insert_quantities, executors=["default_threads"])
+
+
+def _extract_quantities_per_atom(
+    states: Sequence[Geometry],
+    quantities: Sequence[str],
+    atom_indices: Optional[Sequence[int]] = None,
+    elements: Optional[Sequence[str]] = None,
+) -> dict[str, list]:
+    """
+    Extract per atom quantities from Geometry instances, filtering based on atom_indices or elements.
+    """
+    if atom_indices is None and elements is None:
+        # no filtering
+        data = {}
+        for k in quantities:
+            data[k] = [getattr(geom.per_atom, k, MISSING) for geom in states]
+        return data
+
+    data = {k: [] for k in quantities}
+    numbers = {atomic_numbers[s] for s in elements or ()}
+    for geom in states:
+        # mask out unwanted rows
+        mask = np.zeros(len(geom), dtype=bool)
+        for n in numbers:
+            mask[geom.numbers == n] = True
+        if atom_indices is not None:
+            mask[atom_indices] = True
+
+        for k in quantities:
+            value = getattr(geom.per_atom, k, MISSING)
+            if not value is MISSING:
+                value = value[mask]
+            data[k].append(value)
+
+    return data
+
+
+extract_quantities_per_atom = python_app(
+    _extract_quantities_per_atom, executors=["default_threads"]
+)
 
 
 @typeguard.typechecked
@@ -416,7 +360,10 @@ clean_frames = python_app(_clean_frames, executors=["default_threads"])
 
 
 def _apply_offset(
-    file: FileLike, subtract: bool, outputs: Sequence[File] = (), **atomic_energies: float
+    file: FileLike,
+    subtract: bool,
+    outputs: Sequence[File] = (),
+    **atomic_energies: float,
 ) -> None:
     """
     Apply an energy offset to all frames in a file.
@@ -461,128 +408,52 @@ def _get_elements(*files: File) -> set[str]:
 get_elements = python_app(_get_elements, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _align_axes(inputs: list = [], outputs: list = []) -> None:
+def _align_axes(file: FileLike, outputs: Sequence[File] = ()) -> None:
     """
     Align axes for all frames in a file.
 
     Args:
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
+        file: DataFuture representing the input file path containing the geometry data.
         outputs: List of Parsl futures. The first element should be a DataFuture
                  representing the output file path where aligned frames will be written.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
-    data = _read_frames(inputs[0])
+    assert len(outputs) == 1
+    data = _read_frames(file)
     for geometry in data:
         geometry.align_axes()
-    _write_frames(*data, outputs=[outputs[0]])
+    _write_frames(*data, outputs=outputs)
 
 
 align_axes = python_app(_align_axes, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _not_null(inputs: list = [], outputs: list = []) -> list[bool]:
+def _app_filter(file: FileLike, quantity: str, outputs: Sequence[File] = ()) -> None:
     """
-    Check which frames in a file are not null states.
-
-    Args:
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
-        outputs: List of Parsl futures. If provided, the first element should be a DataFuture
-                 representing the output file path where non-null frames will be written.
-
-    Returns:
-        list[bool]: List of boolean values indicating non-null states.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    Filter frames based on a specified quantity and writes to first output.
     """
-    frame_regex = re.compile(r"^\d+$")
+    # TODO: where is this used?
+    data = _read_frames(file)
+    out = []
 
-    data = []
-    mask = []
-    with open(inputs[0], "r") as f:
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            if frame_regex.match(line.strip()):
-                natoms = int(line.strip())
-                _ = [f.readline() for _i in range(natoms + 1)]
-                if natoms == 1:
-                    if _[-1].strip()[0] == "X":  # check if element(-1) == X
-                        mask.append(False)
-                        continue
-                data.append("".join([line] + _))
-                mask.append(True)
-    if len(outputs) > 0:
-        with open(outputs[0], "w") as f:
-            f.write("\n".join(data))
-    return mask
+    # None does not count
+    for geom in data:
+        if (quantity in ("cell", "energy", "stress")) and getattr(
+            geom, quantity, None
+        ) is not None:
+            out.append(geom)
+            continue
+
+        value = getattr(geom.per_atom, quantity, None)
+        if value is None:
+            value = getattr(geom.meta, quantity, None)
+        if value is not None:
+            out.append(geom)
+
+    _write_frames(out, outputs=outputs)
 
 
-not_null = python_app(_not_null, executors=["default_threads"])
-
-
-@typeguard.typechecked
-def _app_filter(
-    quantity: str,
-    inputs: list = [],
-    outputs: list = [],
-) -> None:
-    """
-    Filter frames based on a specified quantity.
-
-    Args:
-        quantity: The quantity to filter on.
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
-        outputs: List of Parsl futures. The first element should be a DataFuture
-                 representing the output file path where filtered frames will be written.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
-    data = _read_frames(inputs=[inputs[0]])
-    i = 0
-    while i < len(data):
-        if quantity == "forces":
-            if np.all(np.invert(np.isnan(data[i].per_atom.forces))):
-                retain = True
-            else:
-                retain = False
-        elif quantity == "cell":
-            if not np.allclose(data[i].cell, 0.0):
-                retain = True
-            else:
-                retain = False
-        elif hasattr(data[i], quantity) and getattr(data[i], quantity) is not None:
-            retain = True
-        else:
-            retain = False
-
-        # pop if necessary:
-        if retain:
-            i += 1
-        else:
-            data.pop(i)
-
-    _write_frames(*data, outputs=[outputs[0]])
-
-
-app_filter = python_app(
-    _app_filter, executors=["default_threads"]
-)  # filter is protected
+# filter is protected
+app_filter = python_app(_app_filter, executors=["default_threads"])
 
 
 def _shuffle(
@@ -662,46 +533,47 @@ def get_train_valid_indices(
     return future[0], future[1]
 
 
-@typeguard.typechecked
-def get_index_element_mask(
-    numbers: np.ndarray,
-    atom_indices: Optional[list[int]],
-    elements: Optional[list[str]],
-    natoms_padded: Optional[int] = None,
-) -> np.ndarray:
-    """
-    Generate a mask for atom indices and elements.
+# @typeguard.typechecked
+# def get_index_element_mask(
+#     numbers: np.ndarray,
+#     atom_indices: Optional[list[int]],
+#     elements: Optional[list[str]],
+#     natoms_padded: Optional[int] = None,
+# ) -> np.ndarray:
+#     """
+#     Generate a mask for atom indices and elements.
+#
+#     Args:
+#         numbers: Array of atomic numbers.
+#         atom_indices: List of atom indices to include.
+#         elements: List of element symbols to include.
+#         natoms_padded: Total number of atoms including padding.
+#
+#     Returns:
+#         np.ndarray: Boolean mask array.
+#     """
+#     mask = np.array([True] * len(numbers))
+#
+#     if elements is not None:
+#         numbers_to_include = [atomic_numbers[e] for e in elements]
+#         mask_elements = np.array([False] * len(numbers))
+#         for number in numbers_to_include:
+#             mask_elements = np.logical_or(mask_elements, (numbers == number))
+#         mask = np.logical_and(mask, mask_elements)
+#
+#     if natoms_padded is not None:
+#         assert natoms_padded >= len(numbers)
+#         padding = natoms_padded - len(numbers)
+#         mask = np.concatenate((mask, np.array([False] * padding)), axis=0).astype(bool)
+#
+#     if atom_indices is not None:  # below padding
+#         mask_indices = np.array([False] * len(mask))
+#         mask_indices[np.array(atom_indices)] = True
+#         mask = np.logical_and(mask, mask_indices)
+#
+#     return mask
 
-    Args:
-        numbers: Array of atomic numbers.
-        atom_indices: List of atom indices to include.
-        elements: List of element symbols to include.
-        natoms_padded: Total number of atoms including padding.
-
-    Returns:
-        np.ndarray: Boolean mask array.
-    """
-    mask = np.array([True] * len(numbers))
-
-    if elements is not None:
-        numbers_to_include = [atomic_numbers[e] for e in elements]
-        mask_elements = np.array([False] * len(numbers))
-        for number in numbers_to_include:
-            mask_elements = np.logical_or(mask_elements, (numbers == number))
-        mask = np.logical_and(mask, mask_elements)
-
-    if natoms_padded is not None:
-        assert natoms_padded >= len(numbers)
-        padding = natoms_padded - len(numbers)
-        mask = np.concatenate((mask, np.array([False] * padding)), axis=0).astype(bool)
-
-    if atom_indices is not None:  # below padding
-        mask_indices = np.array([False] * len(mask))
-        mask_indices[np.array(atom_indices)] = True
-        mask = np.logical_and(mask, mask_indices)
-
-    return mask
-
+# TODO: these do not belong here
 
 @typeguard.typechecked
 def _compute_rmse(
