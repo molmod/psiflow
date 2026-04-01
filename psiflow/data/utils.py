@@ -1,119 +1,94 @@
 import re
 import shutil
-from typing import Optional, Union, Sequence
+import subprocess
+from pathlib import Path
+from typing import Optional, Union, Sequence, Generator, TypeAlias
 
 import numpy as np
 import typeguard
 from ase.data import atomic_numbers, chemical_symbols
-from parsl.app.app import python_app
+from parsl import python_app, File
 from parsl.dataflow.futures import AppFuture
 
-from psiflow.geometry import Geometry, NullState, _assign_identifier, create_outputs
+from psiflow.geometry import Geometry, get_atomic_energy, get_unique_numbers
+
+# TODO: Note: This function is wrapped as a Parsl app and executed using the default_threads executor.
+# TODO: loosen type hints?
+# TODO: inputs/outputs for apps sometimes behave weird
 
 
-@typeguard.typechecked
+FileLike: TypeAlias = str | Path | File
+
+def iter_read_frames(file: FileLike) -> Generator[list[str]]:
+    """Yields text data to instantiate geometries"""
+    frame_regex = re.compile(r"^\d+$")
+    with open(file, "r") as f:
+        for line in f:
+            if frame_regex.match(_ := line.strip()):
+                n = int(_)
+                yield [line] + [f.readline() for _i in range(n + 1)]
+
+
 def _write_frames(
-    *states: Geometry,
-    extra_states: Union[Geometry, list[Geometry], None] = None,
-    outputs: list = [],
+    *states: Geometry | list[Geometry], outputs: Sequence[File] = ()
 ) -> None:
     """
     Write Geometry instances to a file.
 
     Args:
-        *states: Variable number of Geometry instances to write.
-        extra_states: Additional Geometry instance(s) to write.
+        states: Variable number of (lists of) Geometry instances to write.
         outputs: List of Parsl futures. The first element should be a DataFuture
                  representing the output file path.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
-    all_states = list(states)
-    if extra_states is not None:
-        if isinstance(extra_states, list):
-            all_states += extra_states
-        else:  # single geometry
-            all_states.append(extra_states)
+    assert len(outputs) == 1
+    data = []
+    for d in states:
+        if isinstance(d, list):
+            data.extend(d)
+        else:
+            data.append(d)
     with open(outputs[0], "w") as f:
-        for state in all_states:  # avoid double newline by using strip!
-            f.write(state.to_string().strip() + "\n")
+        f.write("".join([geom.to_string() for geom in data]))
 
 
 write_frames = python_app(_write_frames, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _read_frames(
-    indices: Union[None, slice, list[int], int] = None,
-    inputs: list = [],
-    outputs: list = [],
-) -> Optional[list[Geometry]]:
+    file: FileLike, indices: Optional[slice | list[int] | int] = None
+) -> list[Geometry]:
     """
     Read Geometry instances from a file.
 
     Args:
+        file: DataFuture representing the input file path containing the geometry data.
         indices: Indices of frames to read. Can be None (read all), a slice, a list of integers, or a single integer.
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing the geometry data.
-        outputs: List of Parsl futures. If provided, the first element should be
-                 a DataFuture representing the output file path where the selected
-                 geometries will be written.
 
-    Returns:
-        Optional[list[Geometry]]: List of read Geometry instances if no output
-                                  is specified, otherwise None.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
-    frame_index = 0
-    frame_regex = re.compile(r"^\d+$")
-    length = _count_frames(inputs=inputs)
-    _all = range(length)
+    if indices is None:
+        # read everything
+        data = ["".join(geom_str_list) for geom_str_list in iter_read_frames(file)]
+        return [Geometry.from_string(s) for s in data]
+
+    # figure out what frames to read
+    # TODO: reads twice + indices always wrap modulo nframes which might be unexpected
+    length = _count_frames(file)
     if isinstance(indices, slice):
-        indices = list(_all[indices])
+        indices = list(range(length)[indices])
     elif isinstance(indices, int):
-        indices = [list(_all)[indices]]
+        indices = [indices]
 
-    if isinstance(indices, list):
-        if length > 0:
-            indices = [i % length for i in indices]  # for negative indices and wrapping
-        indices_ = set(indices)  # for *much* faster 'i in indices'
-    else:
-        assert indices is None
-        indices_ = None
+    if length > 0:
+        indices = [i % length for i in indices]  # for negative indices and wrapping
+    indices_ = set(indices)  # for *much* faster 'i in indices'
 
-    data = []
-    with open(inputs[0], "r") as f:
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            if frame_regex.match(line.strip()):
-                natoms = int(line.strip())
+    data = {}
+    for i, geom_str_list in enumerate(iter_read_frames(file)):
+        if i in indices_:
+            data[i] = Geometry.from_string("".join(geom_str_list))
 
-                # currently at position frame_index, check if to be read
-                _ = [f.readline() for _i in range(natoms + 1)]
-                if indices_ is None or frame_index in indices_:
-                    data.append("".join([line] + _))
-                else:
-                    data.append(None)
-                frame_index += 1
-
-    if indices is not None:  # sort states accordingly
-        data = [data[i] for i in indices]
-
-    if len(outputs) > 0:
-        with open(outputs[0], "w") as f:
-            f.write("\n".join([d.strip() for d in data if d is not None]))
-            f.write("\n")
-    else:
-        geometries = [Geometry.from_string(s) for s in data if s is not None]
-        return geometries
+    # return in original order
+    return [data[i] for i in indices]
 
 
 read_frames = python_app(_read_frames, executors=["default_threads"])
@@ -365,11 +340,7 @@ def _assign_identifiers(
 assign_identifiers = python_app(_assign_identifiers, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _join_frames(
-    inputs: list = [],
-    outputs: list = [],
-):
+def _join_frames(inputs: Sequence[File] = (), outputs: Sequence[File] = ()) -> None:
     """
     Join multiple frame files into a single file.
 
@@ -378,12 +349,6 @@ def _join_frames(
                 representing an input file path containing geometry data.
         outputs: List of Parsl futures. The first element should be a DataFuture
                  representing the output file path where joined frames will be written.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
     assert len(outputs) == 1
 
@@ -396,157 +361,101 @@ def _join_frames(
 join_frames = python_app(_join_frames, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _count_frames(inputs: list = []) -> int:
-    """
-    Count the number of frames in a file.
+def _count_frames(file: FileLike) -> int:
+    """Count the number of frames in a file."""
+    path = Path(file)
+    threshold = 10 * 1024 * 1024  # 10 MB in bytes
+    file_size = path.stat().st_size
 
-    Args:
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
-
-    Returns:
-        int: Number of frames in the file.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
-    nframes = 0
-    frame_regex = re.compile(r"^\d+$")
-    with open(inputs[0], "r") as f:
-        for line in f:
-            if frame_regex.match(line.strip()):
-                nframes += 1
-                natoms = int(line.strip())
-                _ = [f.readline() for _i in range(natoms + 1)]
-    return nframes
+    if file_size > threshold:  # use grep
+        cmd = f"grep -Fc Properties {path}"
+        result = subprocess.check_output(cmd.split())
+        return int(result.strip())
+    return len([_ for _ in iter_read_frames(path)])
 
 
 count_frames = python_app(_count_frames, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _reset_frames(inputs: list = [], outputs: list = []) -> None:
+def _reset_frames(file: FileLike, outputs: Sequence[File] = ()) -> None:
     """
     Reset all frames in a file.
 
     Args:
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
+        file: DataFuture representing the input file path containing the geometry data.
         outputs: List of Parsl futures. The first element should be a DataFuture
                  representing the output file path where reset frames will be written.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
-    data = _read_frames(inputs=[inputs[0]])
+    assert len(outputs) == 1
+    data = _read_frames(file)
     for geometry in data:
         geometry.reset()
-    _write_frames(*data, outputs=[outputs[0]])
+    _write_frames(*data, outputs=outputs)
 
 
 reset_frames = python_app(_reset_frames, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _clean_frames(inputs: list = [], outputs: list = []) -> None:
+def _clean_frames(file: FileLike, outputs: Sequence[File] = ()) -> None:
     """
     Clean all frames in a file.
 
     Args:
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
+        file: DataFuture representing the input file path containing the geometry data.
         outputs: List of Parsl futures. The first element should be a DataFuture
-                 representing the output file path where cleaned frames will be written.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
+                 representing the output file path where reset frames will be written.
     """
-    data = _read_frames(inputs=[inputs[0]])
+    assert len(outputs) == 1
+    data = _read_frames(file)
     for geometry in data:
         geometry.clean()
-    _write_frames(*data, outputs=[outputs[0]])
+    _write_frames(*data, outputs=outputs)
 
 
 clean_frames = python_app(_clean_frames, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _apply_offset(
-    subtract: bool,
-    inputs: list = [],
-    outputs: list = [],
-    **atomic_energies: float,
+    file: FileLike, subtract: bool, outputs: Sequence[File] = (), **atomic_energies: float
 ) -> None:
     """
     Apply an energy offset to all frames in a file.
 
     Args:
+        file: DataFuture representing the input file path containing the geometry data.
         subtract: Whether to subtract or add the offset.
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
         outputs: List of Parsl futures. The first element should be a DataFuture
                  representing the output file path where updated frames will be written.
         **atomic_energies: Atomic energies for each element.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
-    assert len(inputs) == 1
     assert len(outputs) == 1
-    data = _read_frames(inputs=[inputs[0]])
-    numbers = [atomic_numbers[e] for e in atomic_energies.keys()]
-    all_numbers = [n for geometry in data for n in set(geometry.per_atom.numbers)]
-    for n in all_numbers:
-        if n != 0:  # from NullState
-            assert n in numbers
-    for geometry in data:
-        if geometry == NullState:
-            continue
-        natoms = len(geometry)
-        energy = geometry.energy
-        for number in numbers:
-            natoms_per_number = np.sum(geometry.per_atom.numbers == number)
-            if natoms_per_number == 0:
-                continue
-            element = chemical_symbols[number]
-            multiplier = -1 if subtract else 1
-            energy += multiplier * natoms_per_number * atomic_energies[element]
-            natoms -= natoms_per_number
-        assert natoms == 0  # all atoms accounted for
-        geometry.energy = energy
-    _write_frames(*data, outputs=[outputs[0]])
+    frames = _read_frames(file)
+    numbers_data = get_unique_numbers(frames)
+    numbers_kwargs = {atomic_numbers[e] for e in atomic_energies.keys()}
+    assert numbers_data == numbers_kwargs, "Provide atomic energies for all elements.."
+
+    for geom in frames:
+        energy = get_atomic_energy(geom, atomic_energies)
+        if subtract:
+            geom.energy -= energy
+        else:
+            geom.energy += energy
+
+    _write_frames(frames, outputs=outputs)
 
 
 apply_offset = python_app(_apply_offset, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _get_elements(inputs: list = []) -> set[str]:
+def _get_elements(*files: File) -> set[str]:
     """
-    Get the set of elements present in all frames of a file.
+    Get the set of elements present in all frames of a sequence of file.
 
     Args:
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
-
-    Returns:
-        set[str]: Set of element symbols.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
+        inputs: List of Parsl DataFuture
     """
-    data = _read_frames(inputs=[inputs[0]])
-    return set([chemical_symbols[n] for g in data for n in g.per_atom.numbers])
+    frames = [geom for file in files for geom in _read_frames(file)]
+    return {chemical_symbols[i] for i in get_unique_numbers(frames)}
 
 
 get_elements = python_app(_get_elements, executors=["default_threads"])
@@ -569,7 +478,7 @@ def _align_axes(inputs: list = [], outputs: list = []) -> None:
     Note:
         This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
-    data = _read_frames(inputs=[inputs[0]])
+    data = _read_frames(inputs[0])
     for geometry in data:
         geometry.align_axes()
     _write_frames(*data, outputs=[outputs[0]])
@@ -676,32 +585,22 @@ app_filter = python_app(
 )  # filter is protected
 
 
-@typeguard.typechecked
 def _shuffle(
-    inputs: list = [],
-    outputs: list = [],
+    file: FileLike,
+    outputs: Sequence[File] = (),
 ) -> None:
     """
     Shuffle the order of frames in a file.
 
     Args:
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
+        file: DataFuture representing the input file path containing the geometry data.
         outputs: List of Parsl futures. The first element should be a DataFuture
                  representing the output file path where shuffled frames will be written.
-
-    Returns:
-        None
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
     """
-    data = _read_frames(inputs=[inputs[0]])
-    indices = np.arange(len(data))
-    np.random.shuffle(indices)
-
-    shuffled = [data[int(i)] for i in indices]
-    _write_frames(*shuffled, outputs=[outputs[0]])
+    assert len(outputs) == 1
+    frames = _read_frames(file)
+    np.random.shuffle(frames)
+    _write_frames(frames, outputs=outputs)
 
 
 shuffle = python_app(_shuffle, executors=["default_threads"])

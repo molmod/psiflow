@@ -1,18 +1,15 @@
-from __future__ import annotations  # necessary for type-guarding class methods
-
 import math
 from pathlib import Path
 from typing import Callable, ClassVar, Optional, Union
 
 import numpy as np
-import typeguard
 from parsl.app.app import join_app, python_app
 from parsl.app.python import PythonApp
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
-from psiflow.geometry import QUANTITIES, Geometry
+from psiflow.geometry import Geometry
 from psiflow.utils.apps import copy_data_future, pack
 
 from .utils import (
@@ -48,7 +45,7 @@ class Dataset:
 
     def __init__(
         self,
-        states: Optional[list[Union[AppFuture, Geometry]], AppFuture],
+        states: Optional[list[AppFuture | Geometry] | AppFuture] = None,
         extxyz: Optional[psiflow._DataFuture] = None,
     ):
         """
@@ -56,26 +53,15 @@ class Dataset:
 
         Args:
             states: List of Geometry instances or AppFutures representing geometries.
-            extxyz: Optional DataFuture representing an existing extxyz file.
-
-        Note:
-            Either states or extxyz should be provided, not both.
         """
-        if extxyz is not None:
-            assert states is None
+        if extxyz is not None:  # takes precedence over states
             self.extxyz = extxyz
-        else:
-            assert states is not None
-            if not isinstance(states, list):  # AppFuture[list, geometry]
-                extra_states = states
-                states = []
-            else:
-                extra_states = None
-            self.extxyz = write_frames(
-                *states,
-                extra_states=extra_states,
-                outputs=[psiflow.context().new_file("data_", ".xyz")],
-            ).outputs[0]
+            return
+
+        if not isinstance(states, list):  # AppFuture[list, geometry]
+            states = [states]
+        file = psiflow.context().new_file("data_", ".xyz")
+        self.extxyz = write_frames(*states, outputs=[file]).outputs[0]
 
     def length(self) -> AppFuture:
         """
@@ -84,25 +70,19 @@ class Dataset:
         Returns:
             AppFuture: Future representing the number of structures.
         """
-        return count_frames(inputs=[self.extxyz])
+        return count_frames(self.extxyz)
 
-    def shuffle(self):
+    def shuffle(self) -> "Dataset":
         """
         Shuffle the order of structures in the dataset.
-
-        Returns:
-            Dataset: A new Dataset with shuffled structures.
         """
-        extxyz = shuffle(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
+        file = psiflow.context().new_file("data_", ".xyz")
+        extxyz = shuffle(self.extxyz, outputs=[file]).outputs[0]
+        return Dataset(extxyz=extxyz)
 
     def __getitem__(
-        self,
-        index: Union[int, slice, list[int], AppFuture],
-    ) -> Union[Dataset, AppFuture]:
+        self, index: int | slice | list[int] | AppFuture
+    ) -> Dataset | AppFuture:
         """
         Get a subset of the dataset or a single structure.
 
@@ -112,36 +92,23 @@ class Dataset:
         Returns:
             Union[Dataset, AppFuture]: A new Dataset or an AppFuture of a single Geometry.
         """
+        future_frames = read_frames(self.extxyz, indices=index)
         if isinstance(index, int):
-            future = read_frames(
-                [index],
-                inputs=[self.extxyz],
-                outputs=[],  # will return Geometry as Future
-            )
-            return future[0]
-        else:  # slice, list, AppFuture
-            extxyz = read_frames(
-                index,
-                inputs=[self.extxyz],
-                outputs=[psiflow.context().new_file("data_", ".xyz")],
-            ).outputs[0]
-            return Dataset(None, extxyz)
+            return future_frames[0]  # will return Geometry as Future
 
-    def save(self, path: Union[Path, str]) -> DataFuture:
+        # slice, list, AppFuture
+        file = psiflow.context().new_file("data_", ".xyz")
+        extxyz = write_frames(future_frames, outputs=[file]).outputs[0]
+        return Dataset(extxyz=extxyz)
+
+    def save(self, path: Path | str) -> DataFuture:
         """
         Save the dataset to a file.
-
-        Args:
-            path: Path to save the dataset.
-
         Returns:
             DataFuture: Future representing the file to which will be saved.
         """
         path = psiflow.resolve_and_check(Path(path))
-        future = copy_data_future(
-            inputs=[self.extxyz],
-            outputs=[File(str(path))],
-        )
+        future = copy_data_future(inputs=[self.extxyz], outputs=[File(path)])
         return future.outputs[0]
 
     def geometries(self) -> AppFuture:
@@ -151,96 +118,63 @@ class Dataset:
         Returns:
             AppFuture: Future representing a list of Geometry instances.
         """
-        return read_frames(inputs=[self.extxyz])
+        return read_frames(self.extxyz)
 
     def __add__(self, dataset: Dataset) -> Dataset:
         """
         Concatenate two datasets.
-
-        Args:
-            dataset: Another Dataset to add to this one.
-
-        Returns:
-            Dataset: A new Dataset containing structures from both datasets.
         """
-        extxyz = join_frames(
-            inputs=[self.extxyz, dataset.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
+        file = psiflow.context().new_file("data_", ".xyz")
+        future = join_frames(inputs=[self.extxyz, dataset.extxyz], outputs=[file])
+        return Dataset(extxyz=future.outputs[0])
 
-    def subtract_offset(self, **atomic_energies: Union[float, AppFuture]) -> Dataset:
+    def subtract_offset(self, **atomic_energies: float | AppFuture) -> Dataset:
         """
         Subtract atomic energy offsets from the dataset.
-
-        Args:
-            **atomic_energies: Atomic energies for each element.
-
-        Returns:
-            Dataset: A new Dataset with adjusted energies.
         """
         assert len(atomic_energies) > 0
-        extxyz = apply_offset(
-            True,
-            **atomic_energies,
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
+        file = psiflow.context().new_file("data_", ".xyz")
+        future = apply_offset(
+            self.extxyz, subtract=True, **atomic_energies, outputs=[file]
+        )
+        return Dataset(extxyz=future.outputs[0])
 
     def add_offset(self, **atomic_energies) -> Dataset:
         """
         Add atomic energy offsets to the dataset.
-
-        Args:
-            **atomic_energies: Atomic energies for each element.
-
-        Returns:
-            Dataset: A new Dataset with adjusted energies.
         """
         assert len(atomic_energies) > 0
-        extxyz = apply_offset(
-            False,
-            **atomic_energies,
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
+        file = psiflow.context().new_file("data_", ".xyz")
+        future = apply_offset(
+            self.extxyz, subtract=False, **atomic_energies, outputs=[file]
+        )
+        return Dataset(extxyz=future.outputs[0])
 
-    def elements(self):
+    def elements(self) -> AppFuture:
         """
         Get the set of elements present in the dataset.
 
         Returns:
             AppFuture: Future representing a set of element symbols.
         """
-        return get_elements(inputs=[self.extxyz])
+        return get_elements(self.extxyz)
 
-    def reset(self):
+    def reset(self) -> Dataset:
         """
         Reset all structures in the dataset.
-
-        Returns:
-            Dataset: A new Dataset with reset structures.
         """
-        extxyz = reset_frames(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
+        file = psiflow.context().new_file("data_", ".xyz")
+        future = reset_frames(self.extxyz, outputs=[file])
+        return Dataset(extxyz=future.outputs[0])
 
-    def clean(self):
+    def clean(self) -> Dataset:
         """
         Clean all structures in the dataset.
-
-        Returns:
-            Dataset: A new Dataset with cleaned structures.
         """
-        extxyz = clean_frames(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
-        return Dataset(None, extxyz)
+
+        file = psiflow.context().new_file("data_", ".xyz")
+        future = clean_frames(self.extxyz, outputs=[file])
+        return Dataset(extxyz=future.outputs[0])
 
     def get(
         self,
@@ -335,10 +269,8 @@ class Dataset:
         Returns:
             Dataset: A new Dataset without null states.
         """
-        extxyz = not_null(
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        ).outputs[0]
+        file = psiflow.context().new_file("data_", ".xyz")
+        extxyz = not_null(inputs=[self.extxyz], outputs=[file]).outputs[0]
         return Dataset(None, extxyz)
 
     def align_axes(self):
@@ -393,25 +325,15 @@ class Dataset:
         return result
 
     @classmethod
-    def load(
-        cls,
-        path_xyz: Union[Path, str],
-    ) -> Dataset:
+    def load(cls, path_xyz: Union[Path, str]) -> Dataset:
         """
         Load a dataset from a file.
-
-        Args:
-            path_xyz: Path to the XYZ file.
-
-        Returns:
-            Dataset: Loaded dataset.
         """
         path_xyz = psiflow.resolve_and_check(Path(path_xyz))
         assert path_xyz.exists()  # needs to be locally accessible
-        return cls(None, extxyz=File(str(path_xyz)))
+        return cls(extxyz=File(path_xyz))
 
 
-@typeguard.typechecked
 def _concatenate_multiple(*args: list[np.ndarray]) -> list[np.ndarray]:
     """
     Concatenate multiple lists of arrays.
@@ -459,7 +381,6 @@ def _concatenate_multiple(*args: list[np.ndarray]) -> list[np.ndarray]:
 concatenate_multiple = python_app(_concatenate_multiple, executors=["default_threads"])
 
 
-@typeguard.typechecked
 def _aggregate_multiple(
     *arrays_list,
     coefficients: Optional[np.ndarray] = None,
@@ -493,7 +414,6 @@ aggregate_multiple = python_app(_aggregate_multiple, executors=["default_threads
 
 
 @join_app
-@typeguard.typechecked
 def batch_apply(
     apply_apps: tuple[Union[PythonApp, Callable]],
     arg: Union[Dataset, list[Geometry]],
@@ -560,7 +480,6 @@ def get_length(arg):
         return 1
 
 
-@typeguard.typechecked
 def compute(
     arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
     *apply_apps: Union[PythonApp, Callable],
@@ -623,7 +542,6 @@ def compute(
         return [future[i] for i in range(len(outputs_))]
 
 
-@typeguard.typechecked
 class Computable:
     """
     Base class for computable objects.
