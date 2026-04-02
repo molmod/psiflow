@@ -2,18 +2,16 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional, Union, Sequence, Generator, TypeAlias
+from typing import Optional, Sequence, Generator, TypeAlias
 
 import numpy as np
 import typeguard
 from ase.data import atomic_numbers, chemical_symbols
 from parsl import python_app, File
-from parsl.dataflow.futures import AppFuture
 
 from psiflow.geometry import Geometry, get_atomic_energy, get_unique_numbers
 
 # TODO: Note: This function is wrapped as a Parsl app and executed using the default_threads executor.
-# TODO: loosen type hints?
 # TODO: inputs/outputs for apps sometimes behave weird
 
 
@@ -31,81 +29,6 @@ class MissingType:
 
 
 MISSING = MissingType()
-
-
-def iter_read_frames(file: FileLike) -> Generator[list[str]]:
-    """Yields text data to instantiate geometries"""
-    frame_regex = re.compile(r"^\d+$")
-    with open(file, "r") as f:
-        for line in f:
-            if frame_regex.match(_ := line.strip()):
-                n = int(_)
-                yield [line] + [f.readline() for _i in range(n + 1)]
-
-
-def _write_frames(
-    *states: Geometry | list[Geometry], outputs: Sequence[File] = ()
-) -> None:
-    """
-    Write Geometry instances to a file.
-
-    Args:
-        states: Variable number of (lists of) Geometry instances to write.
-        outputs: List of Parsl futures. The first element should be a DataFuture
-                 representing the output file path.
-    """
-    assert len(outputs) == 1
-    data = []
-    for d in states:
-        if isinstance(d, list):
-            data.extend(d)
-        else:
-            data.append(d)
-    with open(outputs[0], "w") as f:
-        f.write("".join([geom.to_string() for geom in data]))
-
-
-write_frames = python_app(_write_frames, executors=["default_threads"])
-
-
-def _read_frames(
-    file: FileLike, indices: Optional[slice | list[int] | int] = None
-) -> list[Geometry]:
-    """
-    Read Geometry instances from a file.
-
-    Args:
-        file: DataFuture representing the input file path containing the geometry data.
-        indices: Indices of frames to read. Can be None (read all), a slice, a list of integers, or a single integer.
-
-    """
-    if indices is None:
-        # read everything
-        data = ["".join(geom_str_list) for geom_str_list in iter_read_frames(file)]
-        return [Geometry.from_string(s) for s in data]
-
-    # figure out what frames to read
-    # TODO: reads twice + indices always wrap modulo nframes which might be unexpected
-    length = _count_frames(file)
-    if isinstance(indices, slice):
-        indices = list(range(length)[indices])
-    elif isinstance(indices, int):
-        indices = [indices]
-
-    if length > 0:
-        indices = [i % length for i in indices]  # for negative indices and wrapping
-    indices_ = set(indices)  # for *much* faster 'i in indices'
-
-    data = {}
-    for i, geom_str_list in enumerate(iter_read_frames(file)):
-        if i in indices_:
-            data[i] = Geometry.from_string("".join(geom_str_list))
-
-    # return in original order
-    return [data[i] for i in indices]
-
-
-read_frames = python_app(_read_frames, executors=["default_threads"])
 
 
 def _extract_quantities(
@@ -198,90 +121,79 @@ extract_quantities_per_atom = python_app(
 )
 
 
-@typeguard.typechecked
-def _check_distances(state: Geometry, threshold: float) -> Geometry:
+def iter_read_frames(file: FileLike) -> Generator[list[str]]:
+    """Yields text data to instantiate geometries"""
+    frame_regex = re.compile(r"^\d+$")
+    with open(file, "r") as f:
+        for line in f:
+            if frame_regex.match(_ := line.strip()):
+                n = int(_)
+                yield [line] + [f.readline() for _i in range(n + 1)]
+
+
+def _write_frames(
+    *states: Geometry | list[Geometry], outputs: Sequence[File] = ()
+) -> None:
     """
-    Check if all interatomic distances in a Geometry are above a threshold.
+    Write Geometry instances to a file.
 
     Args:
-        state: Geometry instance to check.
-        threshold: Minimum allowed interatomic distance.
-
-    Returns:
-        Geometry: The input Geometry if all distances are above the threshold, otherwise NullState.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_htex executor.
-    """
-    from ase.geometry.geometry import find_mic
-
-    if state == NullState:
-        return NullState
-    nrows = int(len(state) * (len(state) - 1) / 2)
-    deltas = np.zeros((nrows, 3))
-    count = 0
-    for i in range(len(state) - 1):
-        for j in range(i + 1, len(state)):
-            deltas[count] = state.per_atom.positions[i] - state.per_atom.positions[j]
-            count += 1
-    assert count == nrows
-    if state.periodic:
-        deltas, _ = find_mic(deltas, state.cell)
-    check = np.all(np.linalg.norm(deltas, axis=1) > threshold)
-    if check:
-        return state
-    else:
-        return NullState
-
-
-check_distances = python_app(_check_distances, executors=["default_htex"])
-
-
-@typeguard.typechecked
-def _assign_identifiers(
-    identifier: Optional[int],
-    inputs: list = [],
-    outputs: list = [],
-) -> int:
-    """
-    Assign identifiers to Geometry instances in a file.
-
-    Args:
-        identifier: Starting identifier value.
-        inputs: List of Parsl futures. The first element should be a DataFuture
-                representing the input file path containing geometry data.
+        states: Variable number of (lists of) Geometry instances to write.
         outputs: List of Parsl futures. The first element should be a DataFuture
-                 representing the output file path where updated geometries will be written.
-
-    Returns:
-        int: Next available identifier.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
+                 representing the output file path.
     """
-    data = _read_frames(slice(None), inputs=[inputs[0]])
-    states = []
-    if identifier is None:  # do not assign but look for max
-        identifier = -1
-        for geometry in data:
-            if geometry.identifier is not None:
-                identifier = max(identifier, geometry.identifier)
-        identifier += 1
-        for geometry in data:  # assign those which were not yet assigned
-            if geometry.identifier is None:
-                geometry, identifier = _assign_identifier(geometry, identifier)
-            states.append(geometry)
-        _write_frames(*states, outputs=[outputs[0]])
-        return identifier
-    else:
-        for geometry in data:
-            geometry, identifier = _assign_identifier(geometry, identifier)
-            states.append(geometry)
-        _write_frames(*states, outputs=[outputs[0]])
-        return identifier
+    assert len(outputs) == 1
+    data = []
+    for d in states:
+        if isinstance(d, list):
+            data.extend(d)
+        else:
+            data.append(d)
+    with open(outputs[0], "w") as f:
+        f.write("".join([geom.to_string() for geom in data]))
 
 
-assign_identifiers = python_app(_assign_identifiers, executors=["default_threads"])
+write_frames = python_app(_write_frames, executors=["default_threads"])
+
+
+def _read_frames(
+    file: FileLike, indices: Optional[slice | list[int] | int] = None
+) -> list[Geometry]:
+    """
+    Read Geometry instances from a file.
+
+    Args:
+        file: DataFuture representing the input file path containing the geometry data.
+        indices: Indices of frames to read. Can be None (read all), a slice, a list of integers, or a single integer.
+
+    """
+    if indices is None:
+        # read everything
+        data = ["".join(geom_str_list) for geom_str_list in iter_read_frames(file)]
+        return [Geometry.from_string(s) for s in data]
+
+    # figure out what frames to read
+    # TODO: reads twice + indices always wrap modulo nframes which might be unexpected
+    length = _count_frames(file)
+    if isinstance(indices, slice):
+        indices = list(range(length)[indices])
+    elif isinstance(indices, int):
+        indices = [indices]
+
+    if length > 0:
+        indices = [i % length for i in indices]  # for negative indices and wrapping
+    indices_ = set(indices)  # for *much* faster 'i in indices'
+
+    data = {}
+    for i, geom_str_list in enumerate(iter_read_frames(file)):
+        if i in indices_:
+            data[i] = Geometry.from_string("".join(geom_str_list))
+
+    # return in original order
+    return [data[i] for i in indices]
+
+
+read_frames = python_app(_read_frames, executors=["default_threads"])
 
 
 def _join_frames(inputs: Sequence[File] = (), outputs: Sequence[File] = ()) -> None:
@@ -477,186 +389,33 @@ def _shuffle(
 shuffle = python_app(_shuffle, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _train_valid_indices(
-    effective_nstates: int,
-    train_valid_split: float,
-    shuffle: bool,
-) -> tuple[list[int], list[int]]:
-    """
-    Generate indices for train and validation splits.
-
-    Args:
-        effective_nstates: Total number of states.
-        train_valid_split: Fraction of states to use for training.
-        shuffle: Whether to shuffle the indices.
-
-    Returns:
-        tuple[list[int], list[int]]: Lists of indices for training and validation sets.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
-    ntrain = int(np.floor(effective_nstates * train_valid_split))
-    nvalid = effective_nstates - ntrain
-    assert ntrain > 0
-    assert nvalid > 0
-    order = np.arange(ntrain + nvalid, dtype=int)
+def _split_frames(
+    file: FileLike, fraction: float, shuffle: bool, outputs: Sequence[File] = ()
+) -> None:
+    """Split into training and validation sets"""
+    assert len(outputs) == 2
+    assert 0 <= fraction <= 1
+    frames = _read_frames(file)
+    order = np.arange(len(frames))
     if shuffle:
         np.random.shuffle(order)
-    train_list = list(order[:ntrain])
-    valid_list = list(order[ntrain : (ntrain + nvalid)])
-    return [int(i) for i in train_list], [int(i) for i in valid_list]
+
+    n_train = int(len(frames) * fraction)
+    train_ids = order[:n_train]
+    val_ids = order[n_train:]
+
+    train = [frames[i] for i in train_ids]
+    val = [frames[i] for i in val_ids]
+    _write_frames(train, outputs=outputs[:1])
+    _write_frames(val, outputs=outputs[1:])
 
 
-train_valid_indices = python_app(_train_valid_indices, executors=["default_threads"])
+split_frames = python_app(_split_frames, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def get_train_valid_indices(
-    effective_nstates: AppFuture,
-    train_valid_split: float,
-    shuffle: bool,
-) -> tuple[AppFuture, AppFuture]:
-    """
-    Get futures for train and validation indices.
-
-    Args:
-        effective_nstates: Future representing the total number of states.
-        train_valid_split: Fraction of states to use for training.
-        shuffle: Whether to shuffle the indices.
-
-    Returns:
-        tuple[AppFuture, AppFuture]: Futures for training and validation indices.
-    """
-    future = train_valid_indices(effective_nstates, train_valid_split, shuffle)
-    return future[0], future[1]
-
-
-# @typeguard.typechecked
-# def get_index_element_mask(
-#     numbers: np.ndarray,
-#     atom_indices: Optional[list[int]],
-#     elements: Optional[list[str]],
-#     natoms_padded: Optional[int] = None,
-# ) -> np.ndarray:
-#     """
-#     Generate a mask for atom indices and elements.
-#
-#     Args:
-#         numbers: Array of atomic numbers.
-#         atom_indices: List of atom indices to include.
-#         elements: List of element symbols to include.
-#         natoms_padded: Total number of atoms including padding.
-#
-#     Returns:
-#         np.ndarray: Boolean mask array.
-#     """
-#     mask = np.array([True] * len(numbers))
-#
-#     if elements is not None:
-#         numbers_to_include = [atomic_numbers[e] for e in elements]
-#         mask_elements = np.array([False] * len(numbers))
-#         for number in numbers_to_include:
-#             mask_elements = np.logical_or(mask_elements, (numbers == number))
-#         mask = np.logical_and(mask, mask_elements)
-#
-#     if natoms_padded is not None:
-#         assert natoms_padded >= len(numbers)
-#         padding = natoms_padded - len(numbers)
-#         mask = np.concatenate((mask, np.array([False] * padding)), axis=0).astype(bool)
-#
-#     if atom_indices is not None:  # below padding
-#         mask_indices = np.array([False] * len(mask))
-#         mask_indices[np.array(atom_indices)] = True
-#         mask = np.logical_and(mask, mask_indices)
-#
-#     return mask
-
-# TODO: these do not belong here
-
-@typeguard.typechecked
-def _compute_rmse(
-    array0: np.ndarray,
-    array1: np.ndarray,
-    reduce: bool = True,
-) -> Union[float, np.ndarray]:
-    """
-    Compute the Root Mean Square Error (RMSE) between two arrays.
-
-    Args:
-        array0: First array.
-        array1: Second array.
-        reduce: Whether to reduce the result to a single value.
-
-    Returns:
-        Union[float, np.ndarray]: RMSE value(s).
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
-    assert array0.shape == array1.shape
-    assert np.all(np.isnan(array0) == np.isnan(array1))
-
-    se = (array0 - array1) ** 2
-    se = se.reshape(se.shape[0], -1)
-
-    if reduce:  # across both dimensions
-        mask = np.logical_not(np.isnan(se))
-        return float(np.sqrt(np.mean(se[mask])))
-    else:  # retain first dimension
-        if se.ndim == 1:
-            return se
-        else:
-            values = np.empty(len(se))
-            for i in range(len(se)):
-                if np.all(np.isnan(se[i])):
-                    values[i] = np.nan
-                else:
-                    mask = np.logical_not(np.isnan(se[i]))
-                    value = np.sqrt(np.mean(se[i][mask]))
-                    values[i] = value
-            return values
-
-
-compute_rmse = python_app(_compute_rmse, executors=["default_threads"])
-
-
-@typeguard.typechecked
-def _compute_mae(
-    array0,
-    array1,
-    reduce: bool = True,
-) -> Union[float, np.ndarray]:
-    """
-    Compute the Mean Absolute Error (MAE) between two arrays.
-
-    Args:
-        array0: First array.
-        array1: Second array.
-        reduce: Whether to reduce the result to a single value.
-
-    Returns:
-        Union[float, np.ndarray]: MAE value(s).
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
-    assert array0.shape == array1.shape
-    mask0 = np.logical_not(np.isnan(array0))
-    mask1 = np.logical_not(np.isnan(array1))
-    assert np.all(mask0 == mask1)
-    ae = np.abs(array0 - array1)
-    to_reduce = tuple(range(1, array0.ndim))
-    mask = np.logical_not(np.all(np.isnan(ae), axis=to_reduce))
-    ae = ae[mask0].reshape(np.sum(1 * mask), -1)
-    if reduce:  # across both dimensions
-        return float(np.sqrt(np.mean(ae)))
-    else:  # retain first dimension
-        return np.sqrt(np.mean(ae, axis=1))
-
-
-compute_mae = python_app(_compute_mae, executors=["default_threads"])
+# TODO
+# TODO: think about where the parts below should live
+# TODO
 
 
 @typeguard.typechecked
@@ -710,3 +469,78 @@ def _batch_frames(
 
 
 batch_frames = python_app(_batch_frames, executors=["default_threads"])
+
+
+# def _assign_identifier(
+#     state: Geometry,
+#     identifier: int,
+#     discard: bool = False,
+# ) -> tuple[Geometry, int]:
+#     """
+#     Assign an identifier to a Geometry instance.
+#
+#     Args:
+#         state (Geometry): Input Geometry instance.
+#         identifier (int): Identifier to assign.
+#         discard (bool, optional): Whether to discard the state. Defaults to False.
+#
+#     Returns:
+#         tuple[Geometry, int]: Updated Geometry and next available identifier.
+#     """
+#     if (state == NullState) or discard:
+#         return state, identifier
+#     else:
+#         assert state.identifier is None
+#         state.identifier = identifier
+#         return state, identifier + 1
+#
+#
+# assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
+#
+
+
+@typeguard.typechecked
+def _assign_identifiers(
+    identifier: Optional[int],
+    inputs: list = [],
+    outputs: list = [],
+) -> int:
+    """
+    Assign identifiers to Geometry instances in a file.
+
+    Args:
+        identifier: Starting identifier value.
+        inputs: List of Parsl futures. The first element should be a DataFuture
+                representing the input file path containing geometry data.
+        outputs: List of Parsl futures. The first element should be a DataFuture
+                 representing the output file path where updated geometries will be written.
+
+    Returns:
+        int: Next available identifier.
+
+    Note:
+        This function is wrapped as a Parsl app and executed using the default_threads executor.
+    """
+    data = _read_frames(slice(None), inputs=[inputs[0]])
+    states = []
+    if identifier is None:  # do not assign but look for max
+        identifier = -1
+        for geometry in data:
+            if geometry.identifier is not None:
+                identifier = max(identifier, geometry.identifier)
+        identifier += 1
+        for geometry in data:  # assign those which were not yet assigned
+            if geometry.identifier is None:
+                geometry, identifier = _assign_identifier(geometry, identifier)
+            states.append(geometry)
+        _write_frames(*states, outputs=[outputs[0]])
+        return identifier
+    else:
+        for geometry in data:
+            geometry, identifier = _assign_identifier(geometry, identifier)
+            states.append(geometry)
+        _write_frames(*states, outputs=[outputs[0]])
+        return identifier
+
+
+assign_identifiers = python_app(_assign_identifiers, executors=["default_threads"])

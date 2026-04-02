@@ -11,7 +11,6 @@ import numpy.typing as npt
 from ase import Atoms
 from ase.data import atomic_masses, chemical_symbols, atomic_numbers
 from ase.io.extxyz import key_val_dict_to_str, read_xyz, key_val_str_to_dict
-from parsl.app.app import python_app
 
 import psiflow
 
@@ -19,7 +18,7 @@ import psiflow
 # TODO: custom attributes
 
 
-class Container:
+class PerAtom:
     """
     Holds 'per atom' arrays like positions and forces
     For every attribute, the first array dimension should be n_atoms
@@ -52,7 +51,7 @@ class Container:
         return self.numbers.shape[0]
 
     def __str__(self) -> str:
-        return f"Container[{len(self)}](keys={set(vars(self))})"
+        return f"PerAtom[{len(self)}](keys={set(vars(self))})"
 
     def _check(self, arr: npt.NDArray) -> bool:
         try:
@@ -140,21 +139,20 @@ class Geometry:
     and various physical properties such as energy and forces.
 
     Attributes:
-        per_atom (Container): Record array containing per-atom properties.
+        per_atom (PerAtom): Record array containing per-atom properties.
         cell (np.ndarray): 3x3 array representing the unit cell vectors.
         energy (Optional[float]): Total energy of the system.
         stress (Optional[np.ndarray]): Stress tensor of the system.
     """
 
-    per_atom: Container
+    per_atom: PerAtom
     cell: npt.NDArray
     energy: Optional[float]
     stress: Optional[np.ndarray]
-    meta: SimpleNamespace
 
     def __init__(
         self,
-        per_atom: Container,
+        per_atom: PerAtom,
         energy: Optional[float] = None,
         cell: Optional[np.ndarray] = None,
         stress: Optional[np.ndarray] = None,
@@ -279,7 +277,7 @@ class Geometry:
             data["cell"] = data.pop("Lattice").T  # ase does Fortran ordering
         else:
             data["cell"] = None
-        per_atom = Container.from_string(body, data.pop("Properties", None))
+        per_atom = PerAtom.from_string(body, data.pop("Properties", None))
 
         assert len(per_atom) == int(n_atoms)
         return Geometry(per_atom, **data)
@@ -300,7 +298,7 @@ class Geometry:
         """
         Create a Geometry instance from atomic numbers, positions, and cell data.
         """
-        per_atom = Container(numbers.copy(), positions.copy())
+        per_atom = PerAtom(numbers.copy(), positions.copy())
         cell = cell if cell is None else cell.copy()
         return Geometry(per_atom, cell=cell)
 
@@ -309,7 +307,7 @@ class Geometry:
         """
         Create a Geometry instance from an ASE Atoms object.
         """
-        per_atom = Container(**atoms.arrays)
+        per_atom = PerAtom(**atoms.arrays)
         data = atoms.info
         if all(atoms.pbc):
             data["cell"] = atoms.cell.array
@@ -360,20 +358,6 @@ class Geometry:
         Get a flattened version of the per_atom.numbers array.
         """
         return self.per_atom.numbers.flatten()
-
-
-# def new_nullstate():
-#     """
-#     Create a new null state Geometry.
-#
-#     Returns:
-#         Geometry: A Geometry instance representing a null state.
-#     """
-#     return Geometry.from_data(np.zeros(1), np.zeros((1, 3)), None)
-
-
-# use universal dummy state
-# NullState = new_nullstate()
 
 
 def is_lower_triangular(cell: np.ndarray) -> bool:
@@ -537,94 +521,3 @@ def get_atomic_energy(geometry: Geometry, atomic_energies: dict[str, float]) -> 
         except KeyError:
             raise KeyError(f"No atomic energy value for symbol '{symbol}'..")
     return float(total)
-
-
-# def create_outputs(quantities: list[str], data: list[Geometry]) -> list[np.ndarray]:
-#     """
-#     Create output arrays for specified quantities from a list of Geometry instances.
-#
-#     Args:
-#         quantities (list[str]): List of quantity names to extract.
-#         data (list[Geometry]): List of Geometry instances.
-#
-#     Returns:
-#         list[np.ndarray]: List of arrays containing the requested quantities.
-#     """
-#     order_names = list(set([k for g in data for k in g.order]))
-#     assert all([q in QUANTITIES + order_names for q in quantities])
-#     natoms = np.array([len(geometry) for geometry in data], dtype=int)
-#     max_natoms = np.max(natoms)
-#     nframes = len(data)
-#     nprob = 0
-#     max_phase = 0
-#     for state in data:
-#         if state.logprob is not None:
-#             nprob = max(len(state.logprob), nprob)
-#         if state.phase is not None:
-#             max_phase = max(len(state.phase), max_phase)
-#
-#     arrays = []
-#     for quantity in quantities:
-#         if quantity in ["positions", "forces"]:
-#             array = np.empty((nframes, max_natoms, 3), dtype=np.float64)
-#             array[:] = np.nan
-#         elif quantity in ["cell", "stress"]:
-#             array = np.empty((nframes, 3, 3), dtype=np.float64)
-#             array[:] = np.nan
-#         elif quantity in ["numbers"]:
-#             array = np.empty((nframes, max_natoms), dtype=np.uint8)
-#             array[:] = 0
-#         elif quantity in ["energy", "delta", "per_atom_energy"]:
-#             array = np.empty((nframes,), dtype=np.float64)
-#             array[:] = np.nan
-#         elif quantity in ["phase"]:
-#             array = np.empty((nframes,), dtype=(np.unicode_, max_phase))
-#             array[:] = ""
-#         elif quantity in ["logprob"]:
-#             array = np.empty((nframes, nprob), dtype=np.float64)
-#             array[:] = np.nan
-#         elif quantity in ["identifier"]:
-#             array = np.empty((nframes,), dtype=np.int64)
-#             array[:] = -1
-#         elif quantity in order_names:
-#             array = np.empty((nframes,), dtype=np.float64)
-#             array[:] = np.nan
-#         else:
-#             raise AssertionError("missing quantity in if/else")
-#         arrays.append(array)
-#     return arrays
-
-
-# def _assign_identifier(
-#     state: Geometry,
-#     identifier: int,
-#     discard: bool = False,
-# ) -> tuple[Geometry, int]:
-#     """
-#     Assign an identifier to a Geometry instance.
-#
-#     Args:
-#         state (Geometry): Input Geometry instance.
-#         identifier (int): Identifier to assign.
-#         discard (bool, optional): Whether to discard the state. Defaults to False.
-#
-#     Returns:
-#         tuple[Geometry, int]: Updated Geometry and next available identifier.
-#     """
-#     if (state == NullState) or discard:
-#         return state, identifier
-#     else:
-#         assert state.identifier is None
-#         state.identifier = identifier
-#         return state, identifier + 1
-
-
-# assign_identifier = python_app(_assign_identifier, executors=["default_threads"])
-
-
-def _check_equality(state0: Geometry, state1: Geometry) -> bool:
-    """    Check if two Geometry instances are equal"""
-    return state0 == state1
-
-
-check_equality = python_app(_check_equality, executors=["default_threads"])
