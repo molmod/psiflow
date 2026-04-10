@@ -96,7 +96,7 @@ def generate_emt_cu_data(nstates, amplitude, supercell=None) -> list[ase.Atoms]:
     return atoms_list
 
 
-@pytest.fixture
+@pytest.fixture  # TODO: do we need to regenerate this every test?
 def dataset(context) -> Dataset:
     data = generate_emt_cu_data(20, 0.2)
     data += generate_emt_cu_data(5, 0.15, supercell=np.diag([1, 2, 1]))

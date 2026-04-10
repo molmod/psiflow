@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.data.utils import read_frames
+from psiflow.data.file import read_frames
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero, MACEHamiltonian
 from psiflow.sampling.output import (
     DEFAULT_OBSERVABLES,

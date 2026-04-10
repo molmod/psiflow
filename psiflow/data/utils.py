@@ -3,6 +3,7 @@ from collections.abc import Sequence
 
 import numpy as np
 from ase.data import atomic_numbers
+from parsl import python_app
 
 from psiflow.geometry import (
     Geometry,
@@ -11,7 +12,6 @@ from psiflow.geometry import (
     PER_ATOM_FIELDS,
     MISSING,
 )
-
 
 # TODO: some of these have side effects..
 
@@ -48,7 +48,7 @@ def extract(states: Sequence[Geometry], quantities: Sequence[str]) -> dict[str, 
     return data
 
 
-def insert(states: Sequence[Geometry], data: dict[str, list]) -> Sequence[Geometry]:
+def insert(states: Sequence[Geometry], data: dict[str, list]) -> None:
     """
     Insert quantities from data into Geometry instances.
     """
@@ -59,7 +59,6 @@ def insert(states: Sequence[Geometry], data: dict[str, list]) -> Sequence[Geomet
                 setattr(geom.per_atom, q, v)
             else:
                 setattr(geom, q, v)
-    return states
 
 
 def extract_per_atom(
@@ -149,3 +148,9 @@ def assign_ids(
         identifier += 1
 
     return states, identifier
+
+
+@python_app(executors=["default_threads"])
+def check_equality(state0: Geometry, state1: Geometry) -> bool:
+    """Check if two Geometry instances are equal"""
+    return state0 == state1

@@ -4,13 +4,6 @@ TODO: these functions seem to not be used anywhere in the codebase
 """
 
 
-def _check_equality(state0: Geometry, state1: Geometry) -> bool:
-    """Check if two Geometry instances are equal"""
-    return state0 == state1
-
-
-check_equality = python_app(_check_equality, executors=["default_threads"])
-
 
 @typeguard.typechecked
 def _check_distances(state: Geometry, threshold: float) -> Geometry:
@@ -49,3 +42,34 @@ def _check_distances(state: Geometry, threshold: float) -> Geometry:
 
 
 check_distances = python_app(_check_distances, executors=["default_htex"])
+
+
+
+def test_metrics(dataset):
+    # TODO: extracted from test_data.test_data_extract
+
+    data = dataset[:2] + Dataset([NullState]) + dataset[3:5]
+    forces = data.get("forces", elements=["Cu"])
+    reference = np.zeros((5, 4, 3))
+    reference[2, :] = np.nan  # ensure nan is in same place
+    reference[:, 0] = np.nan  # ensure nan is in same place
+    value = compute_rmse(forces, reference)
+
+    # last three atoms are Cu
+    forces = np.zeros((5, 4, 3))
+    for i in range(5):
+        forces[i, :] = data[i].result().per_atom.forces
+    forces[:, 0] = np.nan
+    assert np.allclose(
+        value.result(),
+        compute_rmse(forces, forces * np.zeros_like(forces)).result(),
+    )
+    unreduced = compute_rmse(
+        forces, forces * np.zeros_like(forces), reduce=False
+    ).result()
+    assert len(unreduced) == 5
+    unreduced_ = unreduced[np.array([0, 1, 3, 4], dtype=int)]
+    assert np.allclose(
+        np.sqrt(np.mean(np.square(unreduced_))),
+        value.result(),
+    )

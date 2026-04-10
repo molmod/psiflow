@@ -12,10 +12,9 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry, check_equality
+from psiflow.geometry import Geometry
+from psiflow.data.utils import check_equality
 from psiflow.hamiltonians import Hamiltonian, Zero, combine_hamiltonians
-
-# from psiflow.order_parameters import OrderParameter
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils.apps import copy_app_future
 

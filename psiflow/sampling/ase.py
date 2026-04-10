@@ -7,7 +7,7 @@ from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.data.utils import write_frames
+from psiflow.data.file import write_frames
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
 from psiflow.utils.io import _dump_json

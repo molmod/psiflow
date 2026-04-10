@@ -11,7 +11,8 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture, Future
 
 import psiflow
-from psiflow.data import Computable, Dataset, aggregate_multiple, compute
+from psiflow.data import Dataset
+from psiflow.compute import Computable, aggregate_multiple, compute
 from psiflow.functions import (
     EinsteinCrystalFunction,
     HarmonicFunction,

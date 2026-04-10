@@ -14,8 +14,8 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.data.utils import extract_quantities
-from psiflow.geometry import Geometry, NullState
+from psiflow.data.utils import extract
+from psiflow.geometry import Geometry
 from psiflow.utils.apps import copy_app_future
 from psiflow.utils.parse import LineNotFoundError, get_task_name_id
 
@@ -149,7 +149,7 @@ class Reference:
         #  but extract_quantities does not accept AppFuture[list[Geometry]] (yet?)
         future_dataset = self.compute_dataset(dataset)
         outputs = outputs or self.outputs
-        future_data = extract_quantities(
+        future_data = extract(
             tuple(outputs), None, None, inputs=[future_dataset.extxyz]
         )
         if len(outputs) == 1:

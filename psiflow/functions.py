@@ -8,13 +8,12 @@ from typing import Optional, Type, Union, Any
 from collections.abc import Sequence
 
 import numpy as np
-from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.data import atomic_masses
 from ase.units import fs, kJ, mol, nm
 from ase.stress import voigt_6_to_full_3x3_stress
 
-from psiflow.geometry import Geometry, NullState, create_outputs
+from psiflow.geometry import Geometry
 
 
 def format_output(
@@ -212,7 +211,7 @@ class MACEFunction(Function):
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        atoms = geometry_to_atoms(geometry)
+        atoms = geometry.to_atoms(structural_only=True)
         self.calc.calculate(atoms)
         return format_output(geometry, **self.calc.results)
 
@@ -243,7 +242,7 @@ class DispersionFunction(Function):
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        atoms = geometry_to_atoms(geometry)
+        atoms = geometry.to_atoms(structural_only=True)
         self.calc.calculate(atoms)
         return format_output(geometry, **self.calc.results)
 
@@ -296,13 +295,3 @@ def function_from_json(path: Union[str, Path], **kwargs) -> Function:
             data[key] = value
     function = function_cls(**data)
     return function
-
-
-def geometry_to_atoms(geom: Geometry) -> Atoms:
-    """Only structural information"""
-    return Atoms(
-        positions=geom.per_atom.positions,
-        numbers=geom.per_atom.numbers,
-        cell=np.copy(geom.cell) if geom.periodic else None,
-        pbc=geom.periodic,
-    )

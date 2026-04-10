@@ -12,7 +12,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry, NullState, assign_identifier
+from psiflow.geometry import Geometry#, NullState, assign_identifier
 from psiflow.hamiltonians import Hamiltonian, Zero
 from psiflow.metrics import Metrics
 # from psiflow.models import Model

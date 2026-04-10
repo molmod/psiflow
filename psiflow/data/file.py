@@ -267,6 +267,7 @@ def _read_wrapper(
     frames_in = _read_frames(file)
     return execute(frames_in, *args, **kwargs)
 
+
 read_app = python_app(_read_wrapper, executors=["default_threads"])
 extract_quantities = partial(read_app, extract)
 extract_quantities_per_atom = partial(read_app, extract_per_atom)
