@@ -8,24 +8,26 @@ import psiflow
 from psiflow.geometry import Geometry
 from psiflow.utils.apps import copy_data_future
 
-from .utils import (
-    align_axes,
-    app_filter,
-    apply_offset,
-    assign_identifiers,
-    clean_frames,
+from psiflow.data.file import (
     count_frames,
-    extract_quantities,
     get_elements,
-    insert_quantities,
     join_frames,
     read_frames,
-    reset_frames,
-    shuffle,
     write_frames,
-    extract_quantities_per_atom,
     split_frames,
+    shuffle_frames,
+    apply_offset,
+    reset_frames,
+    clean_frames,
+    align_axes,
+    filter_frames,
+    extract_quantities,
+    extract_quantities_per_atom,
+    assign_identifiers,
 )
+
+
+# TODO: do all operations need to generate a new file?
 
 
 @psiflow.register_serializable
@@ -44,7 +46,7 @@ class Dataset:
         extxyz: Optional[psiflow._DataFuture] = None,
     ):
         """
-        Initialize a Dataset.
+        Initialize a Dataset. Provide either states or extxyz.
 
         Args:
             states: List of Geometry instances or AppFutures representing geometries.
@@ -72,7 +74,7 @@ class Dataset:
         Shuffle the order of structures in the dataset.
         """
         file = psiflow.context().new_file("data_", ".xyz")
-        extxyz = shuffle(self.extxyz, outputs=[file]).outputs[0]
+        extxyz = shuffle_frames(self.extxyz, outputs=[file]).outputs[0]
         return Dataset(extxyz=extxyz)
 
     def __getitem__(
@@ -174,8 +176,7 @@ class Dataset:
         """
         Extract specified quantities from the dataset.
         """
-        future_states = read_frames(self.extxyz)
-        future_dict = extract_quantities(future_states, quantities)
+        future_dict = extract_quantities(self.extxyz, quantities)
         return tuple(future_dict[q] for q in quantities)
 
     def get_per_atom(
@@ -192,48 +193,48 @@ class Dataset:
             atom_indices: Optional list of atom indices to consider.
             elements: Optional list of element symbols to consider.
         """
-        future_states = read_frames(self.extxyz)
         future_dict = extract_quantities_per_atom(
-            future_states, quantities, atom_indices, elements
+            self.extxyz, quantities, atom_indices, elements
         )
         return tuple(future_dict[q] for q in quantities)
 
-    def evaluate(
-        self, computable: "Computable", batch_size: Optional[int] = None
-    ) -> Dataset:
-        """
-        Evaluate a Computable on the dataset.
-        """
-        # TODO: remove this functionality?
-        #  or this should be the (only) way to label a dataset?
-        from psiflow.hamiltonians import Hamiltonian
-
-        if not isinstance(computable, Hamiltonian):
-            # avoid extracting and inserting the same quantities
-            return computable.compute_dataset(self)
-
-        # use Hamiltonian.compute method
-        if batch_size is not None:
-            outputs = computable.compute(self, batch_size=batch_size)
-        else:
-            outputs = computable.compute(self)  # use default from computable
-        if not isinstance(outputs, list):  # compute unpacks for only one property
-            outputs = [outputs]
-        data = {k: v for k, v in zip(computable.outputs, outputs)}
-
-        file = psiflow.context().new_file("data_", ".xyz")
-
-        future = read_frames(self.extxyz)
-        future = insert_quantities(future, data)
-        extxyz = write_frames(future, outputs=[file]).outputs[0]
-        return Dataset(extxyz=extxyz)
+    # def evaluate(
+    #     self, computable: "Computable", batch_size: Optional[int] = None
+    # ) -> Dataset:
+    #     """
+    #     Evaluate a Computable on the dataset.
+    #     """
+    #     # TODO: remove this functionality?
+    #     #  or this should be the (only) way to label a dataset?
+    #     from psiflow.hamiltonians import Hamiltonian
+    #
+    #     if not isinstance(computable, Hamiltonian):
+    #         # avoid extracting and inserting the same quantities
+    #         return computable.compute_dataset(self)
+    #
+    #     # use Hamiltonian.compute method
+    #     if batch_size is not None:
+    #         outputs = computable.compute(self, batch_size=batch_size)
+    #     else:
+    #         outputs = computable.compute(self)  # use default from computable
+    #     if not isinstance(outputs, list):  # compute unpacks for only one property
+    #         outputs = [outputs]
+    #     data = {k: v for k, v in zip(computable.outputs, outputs)}
+    #
+    #     file = psiflow.context().new_file("data_", ".xyz")
+    #
+    #     future = read_frames(self.extxyz)
+    #     future = insert_quantities(future, data)
+    #     extxyz = write_frames(future, outputs=[file]).outputs[0]
+    #     return Dataset(extxyz=extxyz)
 
     def filter(self, quantity: str) -> Dataset:
         """
         Filter the dataset based on a specified quantity.
         """
+        # TODO: where is this used?
         file = psiflow.context().new_file("data_", ".xyz")
-        future = app_filter(self.extxyz, quantity, outputs=[file])
+        future = filter_frames(self.extxyz, quantity, outputs=[file])
         return Dataset(extxyz=future.outputs[0])
 
     def align_axes(self) -> Dataset:
@@ -273,13 +274,12 @@ class Dataset:
             AppFuture: Future representing the next available identifier.
         """
         # TODO: what is the use case for this?
-        result = assign_identifiers(
-            identifier,
-            inputs=[self.extxyz],
-            outputs=[psiflow.context().new_file("data_", ".xyz")],
-        )
-        self.extxyz = result.outputs[0]
-        return result
+        # TODO: this is the only method that changes inplace instead of returning a new Dataset
+        future = assign_identifiers(self.extxyz, identifier)
+        future_states, future_id = future[0], future[1]
+        file = psiflow.context().new_file("data_", ".xyz")
+        self.extxyz = write_frames(future_states, outputs=[file]).outputs[0]
+        return future_id
 
     @classmethod
     def load(cls, path_xyz: Union[Path, str]) -> Dataset:

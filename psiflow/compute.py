@@ -3,15 +3,13 @@ from typing import Callable, ClassVar, Optional, Union
 
 import numpy as np
 import typeguard
-from parsl import python_app
 from parsl.app.app import join_app, python_app
-from parsl.app.python import PythonApp
 from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
 from psiflow.geometry import Geometry
 from psiflow.data import Dataset
-from psiflow.data.utils import batch_frames
+from psiflow.data.file import batch_frames
 
 
 def _concatenate_multiple(*args: list[np.ndarray]) -> list[np.ndarray]:
@@ -95,12 +93,12 @@ aggregate_multiple = python_app(_aggregate_multiple, executors=["default_threads
 
 @join_app
 def batch_apply(
-    apply_apps: tuple[Union[PythonApp, Callable]],
+    apply_apps: tuple[Union[python_app, Callable]],
     arg: Union[Dataset, list[Geometry]],
     batch_size: int,
     length: int,
     outputs: list = [],
-    reduce_func: Optional[PythonApp] = None,
+    reduce_func: Optional[python_app] = None,
     **app_kwargs,
 ) -> AppFuture:
     """
@@ -162,9 +160,9 @@ def get_length(arg):
 
 def compute(
     arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
-    *apply_apps: Union[PythonApp, Callable],
+    *apply_apps: Union[python_app, Callable],
     outputs_: Union[str, list[str], tuple[str, ...], None] = None,
-    reduce_func: Union[PythonApp, Callable] = aggregate_multiple,
+    reduce_func: Union[python_app, Callable] = aggregate_multiple,
     batch_size: Optional[int] = None,
 ) -> Union[list[AppFuture], AppFuture]:
     """
