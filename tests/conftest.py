@@ -65,7 +65,7 @@ def mace_config() -> dict:
         swa=True,
         #
         batch_size=1,  # MACE crashes if it is larger than dataset size
-        max_num_epochs=5,
+        max_num_epochs=10,
         energy_weight=100,  # make sure energy RMSE drops from first epoch
         forces_weight=10
     )

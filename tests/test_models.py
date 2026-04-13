@@ -7,12 +7,9 @@ import psiflow
 from psiflow.data import compute_rmse
 from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models import MACE
-from psiflow.models.mace import KEY_ATOMIC_ENERGIES, KEY_ITERATION
+from psiflow.models.mace import KEY_ATOMIC_ENERGIES, KEY_ITERATION, MODEL_DIRS
 from psiflow.utils.apps import copy_app_future
 from psiflow.utils.io import _read_yaml
-
-# tests for the calculator (specifying head, cueq, ..)?
-# see test_mace_function..
 
 
 def test_mace_init(tmp_path, mace_config, dataset):
@@ -58,9 +55,10 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     # the mace logging, and in particular the rmse_r during training, to compare
     # it with the manually computed value
     key = "per_atom_energy"
-    training = dataset[:-5]
+    training = dataset[:-15]
     validation = dataset[-5:]
-    model = MACE.create(tmp_path / "mace", mace_config)
+    path = tmp_path / "mace"
+    model = MACE.create(path, mace_config)
 
     model.train(training, validation)
     hamiltonian = model.create_hamiltonian()
@@ -76,11 +74,12 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     )
 
     future_train.result()  # wait for second training run
-    model.lock.close()  # 'free' training dir
-    del model
+    with pytest.raises(AssertionError):
+        MACE.load(path)
+    MODEL_DIRS.pop(str(model.root))  # 'free' training dir
 
     # train from load
-    model_ = MACE.load(tmp_path / "mace")
+    model_ = MACE.load(path)
     hamiltonian = model_.create_hamiltonian()
     rmse2 = compute_rmse(
         validation.get(key),
@@ -120,5 +119,3 @@ def test_mace_hamiltonian(dataset, mace_foundation):
     e2 = hamiltonian2.compute(dataset, "energy")
     assert np.allclose(e0.result(), e1.result())
     assert np.allclose(e0.result(), e2.result())
-
-

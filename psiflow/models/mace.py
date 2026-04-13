@@ -1,6 +1,6 @@
 import shutil
-import tempfile
 import logging
+import weakref
 from pathlib import Path
 from enum import StrEnum
 from typing import Optional, Any
@@ -20,16 +20,20 @@ from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.utils.future import resolve_nested_futures
 from psiflow.utils.parse import format_env_vars, get_task_name_id
 
-# TODO: when changing the training dataset, the models avg_num_neighbors will also change,
+# TODO: when changing the training dataset, the computed avg_num_neighbors will also change,
 #  making old checkpoints inconsistent
 # TODO: sanitise_config consistently called?
 # TODO: training fails when batch_size > dataset (see github issue)
+# TODO: restart_latest functionality to continue training??
 
 logger = logging.getLogger(__name__)  # logging per module
 
 
 KEY_ATOMIC_ENERGIES = "psiflow_atomic_energies"
 KEY_ITERATION = "psiflow_train_iteration"
+
+
+MODEL_DIRS = weakref.WeakValueDictionary()
 
 
 class Status(StrEnum):
@@ -42,23 +46,16 @@ class Status(StrEnum):
 def sanitise_config(config: dict) -> dict:
     """"""
     defaults = dict(
-        energy_key="energy", forces_key="forces", seed=42, restart_latest=True
+        energy_key="energy", forces_key="forces", seed=42, save_cpu=True, work_dir="."
     )
-
-    config["save_cpu"] = True  # save to CPU after training
+    cfg = defaults | config
 
     # keep all files in work_dir
-    config["work_dir"] = "."
     keys = ("log_dir", "model_dir", "checkpoints_dir", "results_dir", "downloads_dir")
     for k in keys:
-        config.pop(k, None)
+        cfg.pop(k, None)
 
-    return defaults | config
-
-
-def create_checkpoint_name(config: dict) -> str:
-    name, seed = config["name"], config["seed"]
-    return f"{name}_run-{seed}_epoch-0.pt"
+    return cfg
 
 
 def format_E0s(atomic_energies: dict) -> dict | str:
@@ -91,20 +88,20 @@ class MACE:
     atomic_energies: dict[str, float | AppFuture]
 
     def __init__(self, root: Path, config: Optional[dict] = None):
-        self.root = psiflow.resolve_and_check(root)
+        # make sure nothing else is using the root directory
+        assert str(root) not in MODEL_DIRS, "Model directory in use.."
+        MODEL_DIRS[str(root)] = self
+
+        self.root = root
         self.iteration = -1
         self.atomic_energies = {}
+        self.model_future = None
+
         if config is not None:
             self.config = sanitise_config(config)
             yaml.safe_dump(config, self.path_config.open("w"))
         else:
             self._load_config()
-
-        # create a lockfile to signal this root directory is in use
-        lock = tempfile.NamedTemporaryFile(prefix="psiflow-", suffix=".lock", dir=root)
-        self.lock = lock
-
-        self.model_future = None
         if (p := self.path_mlp).is_file():
             self.model_future = File(p)
 
@@ -185,14 +182,8 @@ class MACE:
             command = f"torchrun --standalone --nnodes=1 --nproc_per_node={resources['gpus']} {command}"
         command = definition.wrap_in_timeout(command)
 
-        pre_copy = ""
-        if self.has_checkpoint:  # restart from latest checkpoint
-            chkpt_out = f"checkpoints/{create_checkpoint_name(config)}"
-            pre_copy = f"cp {self.path_chkpt} {chkpt_out}"
-
         command_lines = [
             "mkdir checkpoints",  # otherwise MACE borks
-            pre_copy,
             command,
             f"rsync -av --ignore-existing --exclude=/*.model ./ {self.root}/",  # copy things back
         ]
@@ -217,10 +208,6 @@ class MACE:
         return self.root / "last.model"
 
     @property
-    def path_chkpt(self) -> Path:
-        return self.root / "last.pt"
-
-    @property
     def path_checkpoints(self) -> Path:
         return self.root / "checkpoints"
 
@@ -229,22 +216,18 @@ class MACE:
         # whether a model exists (or will exist)
         return self.model_future is not None
 
-    @property
-    def has_checkpoint(self) -> bool:
-        return self.path_chkpt.is_file()
-
     @classmethod
     def create(cls, path_dir: Path, config: dict):
         """Create a new model in a fresh directory"""
-        (path := Path(path_dir)).mkdir()
+        path = psiflow.resolve_and_check(Path(path_dir))
+        path.mkdir()
         return cls(path, config)
 
     @classmethod
     def load(cls, path_dir: Path):
         """Load model from existing directory"""
-        path_dir = Path(path_dir)
-        assert len(list(path_dir.glob("*.lock"))) == 0, "Model directory in use"
-        return cls(path_dir)
+        path = psiflow.resolve_and_check(Path(path_dir))
+        return cls(path)
 
 
 @join_app
@@ -255,9 +238,6 @@ def initialize_app(
     # TODO: we can kill mace_run_train as soon as 'RESULTS' block starts
     assert len(outputs) == 1
     logger.info("Initialising MACE model...")
-
-    # replace futures - safe because atomic_energies are fixed post init
-    model.atomic_energies = config.pop(KEY_ATOMIC_ENERGIES)
 
     # make dummy val set
     file_val = psiflow.context().new_file("dummy_", ".xyz")
@@ -273,7 +253,7 @@ def initialize_app(
         "train_file": file_data.filepath,
         "valid_file": file_val.filepath,
     }
-    cfg["E0s"] = format_E0s(model.atomic_energies)
+    cfg["E0s"] = format_E0s(cfg.pop(KEY_ATOMIC_ENERGIES))
 
     future = model._execute_app(cfg)
     inputs = [future.stdout, future.stderr, future]
@@ -292,10 +272,10 @@ def train_app(
 ) -> AppFuture:
     """Wait for inputs and (re)train model"""
     assert len(outputs) == 1
-    if model.has_checkpoint:
-        logger.info("Retraining MACE model...")
+    if model.iteration == 0:
+        logger.info("Training new MACE model...")
     else:
-        logger.info("Training initialised MACE model...")
+        logger.info("Retraining MACE model...")
 
     # update train config
     cfg = config.copy()
@@ -303,6 +283,7 @@ def train_app(
         "name": f"train-{model.iteration}",
         "train_file": file_train.filepath,
         "valid_file": file_val.filepath,
+        "foundation_model": str(model.path_mlp),  # restart from previous model
     }
     cfg["E0s"] = format_E0s(cfg.pop(KEY_ATOMIC_ENERGIES))
 
@@ -325,17 +306,9 @@ def process_output(model: MACE, config: dict, inputs: Sequence = ()) -> None:
     else:
         status = Status.FAILURE
 
-    # copy last checkpoint
-    files = list(model.path_checkpoints.glob(f"{key}*.pt"))
-    if len(files):
-        shutil.copy2(sorted(files)[-1], model.path_chkpt)
-
     name, task_id = get_task_name_id(inputs[0])
     model.iteration += 1
-    cfg = config | {
-        KEY_ATOMIC_ENERGIES: model.atomic_energies,
-        KEY_ITERATION: model.iteration,
-    }
+    cfg = config | {KEY_ITERATION: model.iteration}
     if status == Status.SUCCESS:
         # only update stored config if training is successful
         logger.info(f"MACE training [ID {task_id}]: {status}")
