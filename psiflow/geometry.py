@@ -224,9 +224,8 @@ class Geometry:
         Reset all computed properties of the geometry to their default values.
         """
         self.per_atom.reset()
-        for k in ("energy", "stress"):
-            if hasattr(self, k):
-                delattr(self, k)
+        for k in {"energy", "stress"}.intersection(self.attributes()):
+            delattr(self, k)
 
     def clean(self) -> None:
         """

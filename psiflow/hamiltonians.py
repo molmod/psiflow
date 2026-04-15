@@ -12,7 +12,6 @@ from parsl.dataflow.futures import AppFuture, Future
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.data.file import write_frames
 from psiflow.compute import (
     aggregate_results,
     compute,
@@ -42,7 +41,6 @@ apply_htex = python_app(_apply, executors=["default_htex"])
 apply_modelevaluation = python_app(_apply, executors=["ModelEvaluation"])
 
 
-# TODO: evaluate method for datasets?
 class Hamiltonian:
     outputs: ClassVar[tuple] = ("energy", "forces", "stress")
     function_name: ClassVar[str]
@@ -56,10 +54,7 @@ class Hamiltonian:
         geoms = arg.geometries()
         result = self.compute(geoms, batch_size)
         future = insert_results(geoms, result)
-
-        file = psiflow.context().new_file("data_", ".xyz")
-        extxyz = write_frames(future, outputs=[file]).outputs[0]
-        return Dataset(extxyz=extxyz)
+        return Dataset(future)
 
     def __eq__(self, other: "Hamiltonian") -> bool:
         raise NotImplementedError

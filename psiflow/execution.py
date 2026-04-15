@@ -345,7 +345,7 @@ class ExecutionDefinition:
             return command  # noop
 
         # send SIGTERM after max_runtime, follow with SIGKILL 30s later
-        return f"timeout -k 30s {self.max_runtime}s {command}"
+        return f"timeout -v -k 30s {self.max_runtime}s {command}"
 
     # def wrap_in_srun(self, command: str) -> str:
     #     # TODO: stub -- this does not work
