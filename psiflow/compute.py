@@ -1,336 +1,309 @@
-import math
-from typing import Callable, ClassVar, Optional, Union
+from typing import Callable, ClassVar, Optional, Union, Type, Any, TypeAlias
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 import numpy as np
-import typeguard
 from parsl.app.app import join_app, python_app
 from parsl.dataflow.futures import AppFuture, DataFuture
 
 import psiflow
-from psiflow.geometry import Geometry
+from psiflow.geometry import Geometry, PER_ATOM_FIELDS, DEFAULT_PROPERTIES, MISSING
 from psiflow.data import Dataset
-from psiflow.data.file import batch_frames
+from psiflow.functions import Function
+from psiflow.utils.apps import pack
+
+ComputeInput: TypeAlias = (
+    Dataset | list[Geometry] | list[AppFuture] | AppFuture | Geometry
+)
 
 
-def _concatenate_multiple(*args: list[np.ndarray]) -> list[np.ndarray]:
-    """
-    Concatenate multiple lists of arrays.
+@dataclass
+class ComputeResult:
+    """Container to hold and manipulate the results from compute/apply operations."""
 
-    Args:
-        *args: Lists of numpy arrays to concatenate.
+    n_atoms: np.ndarray
+    data: dict[str, np.ndarray]
 
-    Returns:
-        list[np.ndarray]: List of concatenated arrays.
+    def __post_init__(self):
+        self.cutoffs = self.n_atoms.cumsum()
 
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
+    def __getattr__(self, item):
+        """Enable parsl deferred_getitem on AppFuture"""
+        if item == "data":
+            raise AttributeError()  # prevent RecursionError from pickle
+        return self.data[item]
 
-    def pad_arrays(
-        arrays: list[np.ndarray],
-        pad_dimension: int = 1,
-    ) -> list[np.ndarray]:
-        ndims = np.array([len(a.shape) for a in arrays])
-        assert np.all(ndims == ndims[0])
-        assert np.all(pad_dimension < ndims)
+    @property
+    def keys(self) -> set[str]:
+        return set(self.data.keys())
 
-        pad_size = max([a.shape[pad_dimension] for a in arrays])
-        for i in range(len(arrays)):
-            shape = list(arrays[i].shape)
-            shape[pad_dimension] = pad_size - shape[pad_dimension]
-            padding = np.zeros(tuple(shape)) + np.nan
-            arrays[i] = np.concatenate((arrays[i], padding), axis=pad_dimension)
-        return arrays
+    def get(self, key: str, per_geom: bool = False) -> list | np.ndarray:
+        arr = self.data[key]
+        if not per_geom:
+            return arr
 
-    narrays = len(args[0])
-    for arg in args:
-        assert isinstance(arg, list)
-    assert all([len(a) == narrays for a in args])
+        if self.cutoffs[-1] == arr.shape[0]:
+            data_list = np.array_split(arr, self.cutoffs[:-1])
+        else:
+            data_list = list(arr)
+        return data_list
 
-    concatenated = []
-    for i in range(narrays):
-        arrays = [arg[i] for arg in args]
-        if len(arrays[0].shape) > 1:
-            pad_arrays(arrays)
-        concatenated.append(np.concatenate(tuple(arrays)))
-    return concatenated
-
-
-concatenate_multiple = python_app(_concatenate_multiple, executors=["default_threads"])
+    @classmethod
+    def from_data(cls, n_atoms: Sequence[int], data: dict[str, list]):
+        values = {}
+        for k, v in data.items():
+            assert len(v) == n_atoms.size
+            if k in PER_ATOM_FIELDS:
+                values[k] = np.concatenate(v)
+            elif k in DEFAULT_PROPERTIES:
+                values[k] = np.stack(v)
+            else:
+                # TODO: what with custom properties?
+                values[k] = np.stack(v)
+        return cls(np.array(n_atoms), values)
 
 
-def _aggregate_multiple(
-    *arrays_list,
-    coefficients: Optional[np.ndarray] = None,
-) -> list[np.ndarray]:
-    """
-    Aggregate multiple lists of arrays with optional coefficients.
+def _apply(
+    states: Sequence[Geometry],
+    function_cls: Type[Function],
+    inputs: Sequence = (),
+    parsl_resource_specification: dict = {},
+    **parameters,
+) -> ComputeResult:
+    assert function_cls is not None
+    function = function_cls(**parameters)  # psiflow.functions.Function subclass
+    output_dict = function.compute(states)
+    n_atoms = np.array([len(geom) for geom in states])
+    return ComputeResult.from_data(n_atoms, output_dict)
 
-    Args:
-        *arrays_list: Lists of arrays to aggregate.
-        coefficients: Optional coefficients for weighted aggregation.
 
-    Returns:
-        list[np.ndarray]: List of aggregated arrays.
+@python_app(executors=["default_threads"])
+def concatenate_results(*results: ComputeResult) -> ComputeResult:
+    """"""
+    n_atoms_list = [result.n_atoms for result in results]
+    n_atoms = np.concatenate(n_atoms_list)
 
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
+    data = {}
+    for k in results[0].keys:
+        values = [result.get(k) for result in results]
+        data[k] = np.concatenate(values)
+
+    return ComputeResult(n_atoms, data)
+
+
+@python_app(executors=["default_threads"])
+def aggregate_results(
+    *results: ComputeResult, coefficients: Optional[np.ndarray] = None
+) -> ComputeResult:
+    """"""
+    # TODO: what with data fields that are not shared?
     if coefficients is None:
-        coefficients = np.ones(len(arrays_list))
-    else:
-        assert len(coefficients) == len(arrays_list)
+        coefficients = np.ones(len(results))
+    assert len(coefficients) == len(results)
 
-    results = [np.zeros(a.shape) for a in arrays_list[0]]
-    for i, arrays in enumerate(arrays_list):
-        for j, array in enumerate(arrays):
-            results[j] += coefficients[i] * array
-    return results
+    n_atoms = results[0].n_atoms
+    for result in results[1:]:
+        assert np.allclose(n_atoms, result.n_atoms)
 
+    data = {k: np.zeros_like(v) for k, v in results[0].data.items()}
+    for i, result in enumerate(results):
+        for k in data:
+            data[k] += result.get(k) * coefficients[i]
 
-aggregate_multiple = python_app(_aggregate_multiple, executors=["default_threads"])
+    return ComputeResult(n_atoms, data)
 
 
 @join_app
 def batch_apply(
-    apply_apps: tuple[Union[python_app, Callable]],
-    arg: Union[Dataset, list[Geometry]],
+    states: list[Geometry],
+    apply_apps: Sequence[Callable],
     batch_size: int,
-    length: int,
-    outputs: list = [],
-    reduce_func: Optional[python_app] = None,
-    **app_kwargs,
+    reduce_func: Callable,
 ) -> AppFuture:
-    """
-    Apply a set of apps to batches of data.
+    """Apply a set of apps to batches of data"""
+    # TODO: holds everything in memory -- what with very large datasets?
+    n_batch = len(states) // batch_size + 1 * (len(states) % batch_size > 0)
+    batches = [arr.tolist() for arr in np.array_split(states, n_batch)]
 
-    Args:
-        apply_apps: Tuple of PythonApps or Callables to apply.
-        arg: Dataset or list of Geometries to process.
-        batch_size: Size of each batch.
-        length: Total number of items to process.
-        outputs: List of output files.
-        reduce_func: Optional function to reduce results.
-        **app_kwargs: Additional keyword arguments for the apps.
-
-    Returns:
-        AppFuture: Future representing the result of batch application.
-
-    Note:
-        This function is wrapped as a Parsl join_app.
-    """
-    nbatches = math.ceil(length / batch_size)
-    batches = [psiflow.context().new_file("data_", ".xyz") for _ in range(nbatches)]
-    future = batch_frames(batch_size, inputs=[arg.extxyz], outputs=batches)
-    output_futures = []
-    for i in range(nbatches):
+    output = []
+    for batch in batches:
         futures = []
         for app in apply_apps:
-            f = app(
-                None,
-                inputs=[future.outputs[i]],
-                **app_kwargs,
-            )
-            futures.append(f)
-        reduced = reduce_func(*futures)
-        output_futures.append(reduced)
-    future = concatenate_multiple(*output_futures)
-    return future
+            future = app(batch)
+            futures.append(future)
+        future = reduce_func(*futures)
+        output.append(future)
 
-
-@python_app(executors=["default_threads"])
-def get_length(arg):
-    """
-    Get the length of the input argument.
-
-    Args:
-        arg: Input to get the length of.
-
-    Returns:
-        int: Length of the input.
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
-    if isinstance(arg, list):
-        return len(arg)
-    else:
-        return 1
+    return concatenate_results(*output)
 
 
 def compute(
-    arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
-    *apply_apps: Union[python_app, Callable],
-    outputs_: Union[str, list[str], tuple[str, ...], None] = None,
-    reduce_func: Union[python_app, Callable] = aggregate_multiple,
+    arg: ComputeInput,
+    apply_apps: Sequence[Callable],
+    reduce_func: Union[python_app, Callable] = aggregate_results,
     batch_size: Optional[int] = None,
-) -> Union[list[AppFuture], AppFuture]:
+) -> AppFuture:
     """
     Compute results by applying apps to the input data.
 
     Args:
         arg: Input data to compute on.
-        *apply_apps: Apps to apply to the data.
-        outputs_: Names of output quantities.
+        apply_apps: Apps to apply to the data.
         reduce_func: Function to reduce results.
         batch_size: Optional batch size for processing.
-
-    Returns:
-        Union[list[AppFuture], AppFuture]: Future(s) representing computation results.
     """
-    if type(outputs_) is str:
-        outputs_ = [outputs_]
-    if batch_size is not None:
-        if isinstance(arg, Dataset):
-            length = arg.length()
-        else:
-            length = get_length(arg)
-            # convert to Dataset for convenience
-            arg = Dataset(arg)
-        future = batch_apply(
-            apply_apps,
-            arg,
-            batch_size,
-            length,
-            outputs_=outputs_,
-            reduce_func=reduce_func,
-        )
-    else:
+    states = input_to_geometries(arg)
+    if batch_size is None:
         futures = []
-        if isinstance(arg, Dataset):
-            for app in apply_apps:
-                future = app(
-                    None,
-                    outputs_=outputs_,
-                    inputs=[arg.extxyz],
-                )
-                futures.append(future)
-        else:
-            for app in apply_apps:
-                future = app(
-                    arg,
-                    outputs_=outputs_,
-                    inputs=[],
-                )
-                futures.append(future)
+        for app in apply_apps:
+            future = app(states)
+            futures.append(future)
         future = reduce_func(*futures)
-    if len(outputs_) == 1:
-        return future[0]
     else:
-        return [future[i] for i in range(len(outputs_))]
+        future = batch_apply(states, apply_apps, batch_size, reduce_func)
+
+    return future
 
 
-class Computable:
-    """
-    Base class for computable objects.
-
-    Attributes:
-        outputs (ClassVar[tuple[str, ...]]): Names of output quantities.
-        batch_size (ClassVar[Optional[int]]): Default batch size for computation.
-    """
-
-    outputs: ClassVar[tuple[str, ...]] = ()
-    batch_size: ClassVar[Optional[int]] = None
-
-    def compute(
-        self,
-        arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
-        *outputs: Optional[str],
-        batch_size: Optional[int] = -1,  # if -1: take class default
-    ) -> Union[list[AppFuture], AppFuture]:
-        """
-        Compute results for the given input.
-
-        Args:
-            arg: Input data to compute on.
-            outputs: Names of output quantities.
-            batch_size: Batch size for computation.
-
-        Returns:
-            Union[list[AppFuture], AppFuture]: Future(s) representing computation results.
-        """
-        raise NotImplementedError
+metric_func_map: dict[str, Callable] = {
+    "RMSE": lambda arr1, arr2: np.mean((arr1 - arr2) ** 2) ** 0.5,
+    "MAE": lambda arr1, arr2: np.abs(arr1 - arr2).mean(),
+}
 
 
-@typeguard.typechecked
-def _compute_rmse(
-    array0: np.ndarray,
-    array1: np.ndarray,
+def _compare_results(
+    result1: ComputeResult,
+    result2: Optional[ComputeResult] = None,
+    metric: str = "RMSE",
     reduce: bool = True,
-) -> Union[float, np.ndarray]:
-    """
-    Compute the Root Mean Square Error (RMSE) between two arrays.
+    **kwargs: list | np.ndarray,
+) -> dict:
+    """"""
+    # TODO: what with missing values?
+    assert (result2 is None) != (len(kwargs) == 0)  # xor
+    if kwargs:
+        result2 = ComputeResult.from_data(result1.n_atoms, kwargs)
+    elif not np.allclose(result1.cutoffs, result2.cutoffs):
+        raise ValueError("Results cannot be compared")
 
-    Args:
-        array0: First array.
-        array1: Second array.
-        reduce: Whether to reduce the result to a single value.
+    metric_func = metric_func_map[metric]
+    keys = result1.keys.intersection(result2.keys)
 
-    Returns:
-        Union[float, np.ndarray]: RMSE value(s).
-
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
-    assert array0.shape == array1.shape
-    assert np.all(np.isnan(array0) == np.isnan(array1))
-
-    se = (array0 - array1) ** 2
-    se = se.reshape(se.shape[0], -1)
-
-    if reduce:  # across both dimensions
-        mask = np.logical_not(np.isnan(se))
-        return float(np.sqrt(np.mean(se[mask])))
-    else:  # retain first dimension
-        if se.ndim == 1:
-            return se
+    out = {}
+    for k in keys:
+        if reduce:
+            arr1, arr2 = result1.get(k), result2.get(k)
+            out[k] = metric_func(arr1, arr2)
         else:
-            values = np.empty(len(se))
-            for i in range(len(se)):
-                if np.all(np.isnan(se[i])):
-                    values[i] = np.nan
-                else:
-                    mask = np.logical_not(np.isnan(se[i]))
-                    value = np.sqrt(np.mean(se[i][mask]))
-                    values[i] = value
-            return values
+            list1, list2 = result1.get(k, per_geom=True), result2.get(k, per_geom=True)
+            out[k] = [metric_func(v1, v2) for v1, v2 in zip(list1, list2)]
+
+    return out
 
 
-compute_rmse = python_app(_compute_rmse, executors=["default_threads"])
+compare_results = python_app(_compare_results, executors=["default_threads"])
 
 
-@typeguard.typechecked
-def _compute_mae(
-    array0,
-    array1,
-    reduce: bool = True,
-) -> Union[float, np.ndarray]:
-    """
-    Compute the Mean Absolute Error (MAE) between two arrays.
+# def _compute_rmse(
+#     array0: np.ndarray,
+#     array1: np.ndarray,
+#     reduce: bool = True,
+# ) -> Union[float, np.ndarray]:
+#     """
+#     Compute the Root Mean Square Error (RMSE) between two arrays.
+#
+#     Args:
+#         array0: First array.
+#         array1: Second array.
+#         reduce: Whether to reduce the result to a single value.
+#
+#     Returns:
+#         Union[float, np.ndarray]: RMSE value(s).
+#
+#     Note:
+#         This function is wrapped as a Parsl app and executed using the default_threads executor.
+#     """
+#     assert array0.shape == array1.shape
+#     assert np.all(np.isnan(array0) == np.isnan(array1))
+#
+#     se = (array0 - array1) ** 2
+#     se = se.reshape(se.shape[0], -1)
+#
+#     if reduce:  # across both dimensions
+#         mask = np.logical_not(np.isnan(se))
+#         return float(np.sqrt(np.mean(se[mask])))
+#     else:  # retain first dimension
+#         if se.ndim == 1:
+#             return se
+#         else:
+#             values = np.empty(len(se))
+#             for i in range(len(se)):
+#                 if np.all(np.isnan(se[i])):
+#                     values[i] = np.nan
+#                 else:
+#                     mask = np.logical_not(np.isnan(se[i]))
+#                     value = np.sqrt(np.mean(se[i][mask]))
+#                     values[i] = value
+#             return values
+#
+#
+# compute_rmse = python_app(_compute_rmse, executors=["default_threads"])
+#
+#
+# def _compute_mae(
+#     array0,
+#     array1,
+#     reduce: bool = True,
+# ) -> Union[float, np.ndarray]:
+#     """
+#     Compute the Mean Absolute Error (MAE) between two arrays.
+#
+#     Args:
+#         array0: First array.
+#         array1: Second array.
+#         reduce: Whether to reduce the result to a single value.
+#
+#     Returns:
+#         Union[float, np.ndarray]: MAE value(s).
+#
+#     Note:
+#         This function is wrapped as a Parsl app and executed using the default_threads executor.
+#     """
+#     assert array0.shape == array1.shape
+#     mask0 = np.logical_not(np.isnan(array0))
+#     mask1 = np.logical_not(np.isnan(array1))
+#     assert np.all(mask0 == mask1)
+#     ae = np.abs(array0 - array1)
+#     to_reduce = tuple(range(1, array0.ndim))
+#     mask = np.logical_not(np.all(np.isnan(ae), axis=to_reduce))
+#     ae = ae[mask0].reshape(np.sum(1 * mask), -1)
+#     if reduce:  # across both dimensions
+#         return float(np.sqrt(np.mean(ae)))
+#     else:  # retain first dimension
+#         return np.sqrt(np.mean(ae, axis=1))
+#
+#
+# compute_mae = python_app(_compute_mae, executors=["default_threads"])
 
-    Args:
-        array0: First array.
-        array1: Second array.
-        reduce: Whether to reduce the result to a single value.
 
-    Returns:
-        Union[float, np.ndarray]: MAE value(s).
+def input_to_geometries(data: ComputeInput) -> AppFuture:
+    """Convert ComputeInput into a sequence of geometries (as a future)"""
+    # Dataset | list[Geometry] | list[AppFuture] | AppFuture | Geometry
 
-    Note:
-        This function is wrapped as a Parsl app and executed using the default_threads executor.
-    """
-    assert array0.shape == array1.shape
-    mask0 = np.logical_not(np.isnan(array0))
-    mask1 = np.logical_not(np.isnan(array1))
-    assert np.all(mask0 == mask1)
-    ae = np.abs(array0 - array1)
-    to_reduce = tuple(range(1, array0.ndim))
-    mask = np.logical_not(np.all(np.isnan(ae), axis=to_reduce))
-    ae = ae[mask0].reshape(np.sum(1 * mask), -1)
-    if reduce:  # across both dimensions
-        return float(np.sqrt(np.mean(ae)))
-    else:  # retain first dimension
-        return np.sqrt(np.mean(ae, axis=1))
+    @python_app(executors=["default_threads"])
+    def prep_input(data: Geometry | Sequence[Geometry]) -> list[Geometry]:
+        # make sure apply apps get consistent input
+        if isinstance(data, Geometry):
+            data = [data]
+        return data
 
-
-compute_mae = python_app(_compute_mae, executors=["default_threads"])
+    if isinstance(data, Dataset):
+        return data.geometries()
+    elif isinstance(data, Geometry):
+        return pack(data)
+    elif isinstance(data, AppFuture):
+        return prep_input(data)
+    elif isinstance(data, list):
+        return pack(*data)
+    else:
+        assert False
