@@ -16,6 +16,8 @@ import psiflow
 
 # TODO: docstrings
 # TODO: custom attributes writing
+# TODO: Reference and Sampling want to add attributes to Geometry (used to be 'order' dict)
+#  what to do?
 
 # these are always accessible for every geometry
 DEFAULT_PROPERTIES = "per_atom", "cell", "energy", "stress"

@@ -10,10 +10,16 @@ micromamba install ndcctools -c conda-forge
 # install psiflow
 pip install -e psiflow[dev]
 
-# install PyTorch and MACE
+# install PyTorch and MACE -- CUDA
 pip install torch --index-url https://download.pytorch.org/whl/cu128
 pip install mace-torch
 pip install cuequivariance cuequivariance-torch cuequivariance-ops-torch-cu12
+
+# install PyTorch and MACE -- ROCM
+pip install torch --index-url https://download.pytorch.org/whl/rocm6.3
+pip install mace-torch
+pip install openequivariance
+python -c "import openequivariance"  # compile some binary, maybe
 
 # install basic PLUMED and python API
 micromamba install plumed -c conda-forge

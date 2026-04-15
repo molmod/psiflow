@@ -74,7 +74,10 @@ class Psiflow_driver(Dummy_driver):
             unit_to_internal("energy", "electronvolt", energy), np.float64
         )
         force_ipi = np.asarray(unit_to_internal("force", "ev/ang", forces), np.float64)
-        vir_calc = -stress * self.geometry.volume
+        if self.geometry.periodic:
+            vir_calc = -stress * self.geometry.volume
+        else:
+            vir_calc = np.zeros_like(stress)
         vir_ipi = np.array(
             unit_to_internal("energy", "electronvolt", vir_calc.T), dtype=np.float64
         )

@@ -185,7 +185,7 @@ get_minimum_energy_states = python_app(
 def quench(walkers: list[Walker], dataset: Dataset) -> None:
     """Assign the lowest energy geometry in dataset to every walker"""
     hamiltonians = combine_hamiltonians([w.hamiltonian for w in walkers])
-    energies = [h.compute(dataset, "energy") for h in hamiltonians.hamiltonians]
+    energies = [h.compute(dataset).energy for h in hamiltonians.hamiltonians]
     coefficients = [
         hamiltonians.get_coefficients(walker.hamiltonian * 1.0) for walker in walkers
     ]

@@ -192,7 +192,7 @@ def optimize(
         parsl_resource_specification=definition.wq_resources(1),
     )
 
-    final = Dataset(None, result.outputs[0]).evaluate(hamiltonian)[-1]
+    final = hamiltonian.evaluate(Dataset(extxyz=result.outputs[0]))[-1]
     if keep_trajectory:
         trajectory = Dataset(None, result.outputs[1])
         return final, trajectory

@@ -635,7 +635,7 @@ def _sample(
 
     # process MD output
     simulation_outputs = []
-    final_states = read_frames(inputs=result.outputs[:1])
+    final_states = read_frames(result.outputs[0])
     for idx, walker in enumerate(walkers):
         # TODO: order_parameter out of commission
         # if walker.order_parameter is not None:
