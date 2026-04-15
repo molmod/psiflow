@@ -9,6 +9,7 @@ from parsl.dataflow.futures import AppFuture, DataFuture
 import psiflow
 from psiflow.geometry import Geometry, PER_ATOM_FIELDS, DEFAULT_PROPERTIES, MISSING
 from psiflow.data import Dataset
+from psiflow.data.utils import insert
 from psiflow.functions import Function
 from psiflow.utils.apps import pack
 
@@ -47,6 +48,9 @@ class ComputeResult:
         else:
             data_list = list(arr)
         return data_list
+
+    def to_dict(self) -> dict[str, list]:
+        return {k: self.get(k, per_geom=True) for k in self.keys}
 
     @classmethod
     def from_data(cls, n_atoms: Sequence[int], data: dict[str, list]):
@@ -204,6 +208,7 @@ def _compare_results(
 compare_results = python_app(_compare_results, executors=["default_threads"])
 
 
+# TODO: cleanup
 # def _compute_rmse(
 #     array0: np.ndarray,
 #     array1: np.ndarray,
@@ -307,3 +312,10 @@ def input_to_geometries(data: ComputeInput) -> AppFuture:
         return pack(*data)
     else:
         assert False
+
+
+@python_app(executors=["default_threads"])
+def insert_results(states: Sequence[Geometry], result: ComputeResult) -> Sequence[Geometry]:
+    """"""
+    insert(states, result.to_dict())
+    return states

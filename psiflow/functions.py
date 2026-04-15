@@ -4,7 +4,7 @@ import tempfile
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Type, Union, Any
+from typing import Optional, Union
 from collections.abc import Sequence
 
 import numpy as np
@@ -42,18 +42,15 @@ class Function:
 
     def compute(
         self,
-        geometries: list[Geometry],
-    ) -> dict[str, float | np.ndarray]:
+        geometries: Sequence[Geometry],
+    ) -> dict[str, list[float | np.ndarray]]:
         """Evaluate multiple geometries and merge data into single arrays"""
-        value, grad_pos, grad_cell = create_outputs(self.outputs, geometries)
+        data = {k: [] for k in self.outputs}
         for i, geometry in enumerate(geometries):
-            if geometry == NullState:  # TODO: remove
-                continue
             out = self(geometry)
-            value[i] = out["energy"]
-            grad_pos[i, : len(geometry)] = out["forces"]
-            grad_cell[i] = out["stress"]
-        return {"energy": value, "forces": grad_pos, "stress": grad_cell}
+            for k, v in out.items():
+                data[k].append(v)
+        return data
 
 
 @dataclass(frozen=True)
@@ -144,7 +141,7 @@ class PlumedFunction(Function):
 
     @staticmethod
     def _geometry_to_key(geometry: Geometry) -> tuple:
-        return tuple([geometry.periodic]) + tuple(geometry.per_atom.numbers)
+        return tuple([geometry.periodic]) + tuple(geometry.numbers)
 
 
 @dataclass(frozen=True)
@@ -153,7 +150,7 @@ class ZeroFunction(Function):
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        return format_output(geometry, 0)
+        return format_output(geometry, 0.0)
 
 
 @dataclass(frozen=True)
@@ -221,7 +218,7 @@ class DispersionFunction(Function):
     method: str
     damping: str = "d3bj"
     params_tweaks: Optional[dict[str, float]] = None
-    num_threads: int = 1
+    num_threads: int = 4
 
     calc: Calculator = field(init=False)
 
@@ -247,32 +244,7 @@ class DispersionFunction(Function):
         return format_output(geometry, **self.calc.results)
 
 
-def _apply(
-    arg: Union[Geometry, list[Geometry], None],
-    outputs_: tuple[str, ...],
-    function_cls: Type[Function],
-    wait_for: Any = None,
-    inputs: Sequence = (),
-    parsl_resource_specification: dict = {},
-    **parameters,
-) -> Optional[list[np.ndarray]]:
-    from psiflow.data.utils import _read_frames
 
-    # TODO: why pass geoms through arg or inputs?
-    #  should we not have a single keyword for input structures?
-    #  or at least reserve inputs for arbitrary futures (to wait on)?
-
-    assert function_cls is not None
-    if arg is None:
-        states = _read_frames(inputs=[inputs[0]])
-    elif not isinstance(arg, list):
-        states = [arg]
-    else:
-        states = arg
-    function = function_cls(**parameters)
-    output_dict = function.compute(states)
-    output_arrays = [output_dict[k] for k in outputs_]
-    return output_arrays
 
 
 def function_from_json(path: Union[str, Path], **kwargs) -> Function:

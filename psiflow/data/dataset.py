@@ -197,6 +197,7 @@ class Dataset:
         )
         return tuple(future_dict[q] for q in quantities)
 
+    # TODO: cleanup?
     # def evaluate(
     #     self, computable: "Computable", batch_size: Optional[int] = None
     # ) -> Dataset:
