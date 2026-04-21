@@ -173,7 +173,6 @@ class HarmonicFunction(Function):
 
 @dataclass(frozen=True)
 class MACEFunction(Function):
-    # TODO: why are some arguments separated and others 'calc_kwargs'?
     model_path: str | Path
     ncores: int
     device: str

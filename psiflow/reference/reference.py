@@ -60,7 +60,7 @@ def update_geometry(geom: Geometry, data: dict) -> Geometry:
     return geom
 
 
-@join_app
+@python_app(executors=['default_threads'])
 def get_minimum_energy(element: str, **kwargs) -> AppFuture:
     energies = {m: state.energy or np.inf for m, state in kwargs.items()}
     energy = min(energies.values())
@@ -70,11 +70,11 @@ def get_minimum_energy(element: str, **kwargs) -> AppFuture:
     ]
     logger.info('\n'.join(msg))
     assert not np.isinf(energy), f"Atomic energy calculation of '{element}' failed"
-    return copy_app_future(energy)  # TODO: why?
+    return energy
 
 
 def get_spin_multiplicities(element: str) -> list[int]:
-    """TODO: rethink this"""
+    """TODO: redo this"""
     # max S = N * 1/2, max mult = 2 * S + 1
     from ase.symbols import atomic_numbers
 
@@ -166,7 +166,7 @@ def _process_output(
     try:
         data = reference.parse_output(stdout)
     except LineNotFoundError:
-        data = {"status": Status.FAILED}  # TODO: find out what went wrong?
+        data = {"status": Status.FAILED}
     data |= {"stdout": Path(inputs[0]), "stderr": Path(inputs[1])}
     return update_geometry(geom, data)
 
@@ -182,7 +182,8 @@ def evaluate(
 ) -> AppFuture:
     """"""
     flag, *files = reference.create_input(geom=geom)
-    if not flag:  # TODO: should we reset geom?
+    if not flag:
+        geom.reset()  # remove fields to indicate no evaluation happened
         return copy_app_future(geom)
 
     # do the actual evaluation

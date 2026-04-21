@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Callable, ClassVar, Optional, Union, Type, Any, TypeAlias
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -50,19 +51,19 @@ class ComputeResult:
         return data_list
 
     def to_dict(self) -> dict[str, list]:
+        """Convert to a dict that is extract/insert compliant for geometries"""
         return {k: self.get(k, per_geom=True) for k in self.keys}
 
     @classmethod
-    def from_data(cls, n_atoms: Sequence[int], data: dict[str, list]):
+    def from_data(cls, n_atoms: np.ndarray, data: dict[str, list]):
         values = {}
         for k, v in data.items():
             assert len(v) == n_atoms.size
-            if k in PER_ATOM_FIELDS:
-                values[k] = np.concatenate(v)
-            elif k in DEFAULT_PROPERTIES:
-                values[k] = np.stack(v)
+            if not np.iterable(v[0]):
+                values[k] = np.array(v)
+            elif len(v[0]) == n_atoms[0] and len(v[-1]) == n_atoms[-1]:
+                values[k] = np.concatenate(v)  # assume per-atom property
             else:
-                # TODO: what with custom properties?
                 values[k] = np.stack(v)
         return cls(np.array(n_atoms), values)
 
@@ -100,7 +101,6 @@ def aggregate_results(
     *results: ComputeResult, coefficients: Optional[np.ndarray] = None
 ) -> ComputeResult:
     """"""
-    # TODO: what with data fields that are not shared?
     if coefficients is None:
         coefficients = np.ones(len(results))
     assert len(coefficients) == len(results)
@@ -208,89 +208,6 @@ def _compare_results(
 compare_results = python_app(_compare_results, executors=["default_threads"])
 
 
-# TODO: cleanup
-# def _compute_rmse(
-#     array0: np.ndarray,
-#     array1: np.ndarray,
-#     reduce: bool = True,
-# ) -> Union[float, np.ndarray]:
-#     """
-#     Compute the Root Mean Square Error (RMSE) between two arrays.
-#
-#     Args:
-#         array0: First array.
-#         array1: Second array.
-#         reduce: Whether to reduce the result to a single value.
-#
-#     Returns:
-#         Union[float, np.ndarray]: RMSE value(s).
-#
-#     Note:
-#         This function is wrapped as a Parsl app and executed using the default_threads executor.
-#     """
-#     assert array0.shape == array1.shape
-#     assert np.all(np.isnan(array0) == np.isnan(array1))
-#
-#     se = (array0 - array1) ** 2
-#     se = se.reshape(se.shape[0], -1)
-#
-#     if reduce:  # across both dimensions
-#         mask = np.logical_not(np.isnan(se))
-#         return float(np.sqrt(np.mean(se[mask])))
-#     else:  # retain first dimension
-#         if se.ndim == 1:
-#             return se
-#         else:
-#             values = np.empty(len(se))
-#             for i in range(len(se)):
-#                 if np.all(np.isnan(se[i])):
-#                     values[i] = np.nan
-#                 else:
-#                     mask = np.logical_not(np.isnan(se[i]))
-#                     value = np.sqrt(np.mean(se[i][mask]))
-#                     values[i] = value
-#             return values
-#
-#
-# compute_rmse = python_app(_compute_rmse, executors=["default_threads"])
-#
-#
-# def _compute_mae(
-#     array0,
-#     array1,
-#     reduce: bool = True,
-# ) -> Union[float, np.ndarray]:
-#     """
-#     Compute the Mean Absolute Error (MAE) between two arrays.
-#
-#     Args:
-#         array0: First array.
-#         array1: Second array.
-#         reduce: Whether to reduce the result to a single value.
-#
-#     Returns:
-#         Union[float, np.ndarray]: MAE value(s).
-#
-#     Note:
-#         This function is wrapped as a Parsl app and executed using the default_threads executor.
-#     """
-#     assert array0.shape == array1.shape
-#     mask0 = np.logical_not(np.isnan(array0))
-#     mask1 = np.logical_not(np.isnan(array1))
-#     assert np.all(mask0 == mask1)
-#     ae = np.abs(array0 - array1)
-#     to_reduce = tuple(range(1, array0.ndim))
-#     mask = np.logical_not(np.all(np.isnan(ae), axis=to_reduce))
-#     ae = ae[mask0].reshape(np.sum(1 * mask), -1)
-#     if reduce:  # across both dimensions
-#         return float(np.sqrt(np.mean(ae)))
-#     else:  # retain first dimension
-#         return np.sqrt(np.mean(ae, axis=1))
-#
-#
-# compute_mae = python_app(_compute_mae, executors=["default_threads"])
-
-
 def input_to_geometries(data: ComputeInput) -> AppFuture:
     """Convert ComputeInput into a sequence of geometries (as a future)"""
     # Dataset | list[Geometry] | list[AppFuture] | AppFuture | Geometry
@@ -315,7 +232,9 @@ def input_to_geometries(data: ComputeInput) -> AppFuture:
 
 
 @python_app(executors=["default_threads"])
-def insert_results(states: Sequence[Geometry], result: ComputeResult) -> Sequence[Geometry]:
+def insert_results(
+    states: Sequence[Geometry], result: ComputeResult
+) -> Sequence[Geometry]:
     """"""
     insert(states, result.to_dict())
     return states

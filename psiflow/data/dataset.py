@@ -195,37 +195,6 @@ class Dataset:
         )
         return tuple(future_dict[q] for q in quantities)
 
-    # TODO: cleanup?
-    # def evaluate(
-    #     self, computable: "Computable", batch_size: Optional[int] = None
-    # ) -> Dataset:
-    #     """
-    #     Evaluate a Computable on the dataset.
-    #     """
-    #     # TODO: remove this functionality?
-    #     #  or this should be the (only) way to label a dataset?
-    #     from psiflow.hamiltonians import Hamiltonian
-    #
-    #     if not isinstance(computable, Hamiltonian):
-    #         # avoid extracting and inserting the same quantities
-    #         return computable.compute_dataset(self)
-    #
-    #     # use Hamiltonian.compute method
-    #     if batch_size is not None:
-    #         outputs = computable.compute(self, batch_size=batch_size)
-    #     else:
-    #         outputs = computable.compute(self)  # use default from computable
-    #     if not isinstance(outputs, list):  # compute unpacks for only one property
-    #         outputs = [outputs]
-    #     data = {k: v for k, v in zip(computable.outputs, outputs)}
-    #
-    #     file = psiflow.context().new_file("data_", ".xyz")
-    #
-    #     future = read_frames(self.extxyz)
-    #     future = insert_quantities(future, data)
-    #     extxyz = write_frames(future, outputs=[file]).outputs[0]
-    #     return Dataset(extxyz=extxyz)
-
     def filter(self, quantity: str) -> Dataset:
         """
         Filter the dataset based on a specified quantity.
@@ -272,7 +241,7 @@ class Dataset:
             AppFuture: Future representing the next available identifier.
         """
         # TODO: what is the use case for this?
-        # TODO: this is the only method that changes inplace instead of returning a new Dataset
+        #  this is the only method that changes inplace instead of returning a new Dataset
         future = assign_identifiers(self.extxyz, identifier)
         future_states, future_id = future[0], future[1]
         file = psiflow.context().new_file("data_", ".xyz")

@@ -138,7 +138,7 @@ def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
         out = subprocess.run(
             "i-pi-remdsort input.xml", shell=True, capture_output=True, text=True
         )
-        assert out.returncode == 0  # TODO: what if it isn't?
+        assert out.returncode == 0
         print("REMDSORT")
 
     output_props = _.split(",") if (_ := output_props) else []

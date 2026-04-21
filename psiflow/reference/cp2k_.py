@@ -128,9 +128,6 @@ class CP2K(Reference):
         else:
             input_section["scf"] = {"ot": {"minimizer": "CG"}}
 
-        # necessary for oxygen calculation, at least in 2024.1
-        # TODO: not an allowed keyword in 2025.2
-        # input_section["scf"]["ignore_convergence_failure"] = "TRUE"
         input_str = dict_to_str(input_dict)
 
         references = {}

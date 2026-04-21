@@ -14,7 +14,6 @@ from psiflow.data.utils import insert
 
 
 def test_geometry(tmp_path):
-    # TODO: custom per_atom field
     geometry = Geometry.from_data(
         numbers=np.arange(1, 6),
         positions=np.random.uniform(0, 1, size=(5, 3)),
@@ -122,7 +121,32 @@ def test_geometry(tmp_path):
         state.cell = [[1, 2, 3]] * 3
 
 
+def test_custom_attributes(dataset):
+    """Do geometries behave for non-default attributes?"""
+    geom = dataset[0].result()
+
+    geom.custom1 = False
+    geom.custom2 = [42, "42"]
+    geom.per_atom.custom1 = np.ones(len(geom), dtype=int) * 42
+    geom.per_atom.custom2 = np.random.random(len(geom)).astype(bool)
+
+    string = geom.to_string()  # casts per-atom properties to float..
+    geom_ = Geometry.from_string(string)
+    atoms = geom.to_atoms()
+
+    assert geom.custom1 == geom_.custom1
+    assert geom.custom2 == geom_.custom2
+    assert np.allclose(geom.per_atom.custom1, geom_.per_atom.custom1)
+    assert np.allclose(geom.per_atom.custom2, geom_.per_atom.custom2)
+
+    assert geom.custom1 == atoms.info["custom1"]
+    assert geom.custom2 == atoms.info["custom2"]
+    assert np.allclose(geom.per_atom.custom1, atoms.arrays["custom1"])
+    assert np.allclose(geom.per_atom.custom2, atoms.arrays["custom2"])
+
+
 def test_readwrite_cycle(dataset, tmp_path):
+    # TODO: much overlap with test_geometry
     tmp_file = File(tmp_path / "test.xyz")
 
     data = dataset[:4].geometries().result()
@@ -165,11 +189,13 @@ H      -0.764765500000000     -0.536376480000000     -1.844856190000000
     assert geometry.energy is MISSING
 
     geom = Geometry.from_data(np.ones(2), np.zeros((2, 3)), cell=None)
-    geom.stress = np.array([np.nan] * 9).reshape(3, 3)
+    with pytest.raises(ValueError):  # cannot assign stress to molecules
+        geom.stress = np.array([np.nan] * 9).reshape(3, 3)
     string = geom.to_string()
-    assert "nan" in string  # the stress field
+    assert "stress" not in string
+    assert "pbc" not in string
     geom_ = Geometry.from_string(string)
-    assert np.isnan(geom_.stress).all()
+    assert geom_.stress is MISSING
 
 
 def test_dataset(dataset, tmp_path):
@@ -256,46 +282,6 @@ def test_dataset_from_xyz(tmp_path, dataset):
     for geom, at in zip(geoms, atoms_list):
         assert np.allclose(geom.per_atom.positions, at.get_positions())
         assert geom.energy == at.calc.results["energy"]
-
-
-# def test_index_element_mask():
-#     numbers = np.array([1, 1, 1, 6, 6, 8, 8, 8])
-#     elements = ["H"]
-#     indices = [0, 1, 4, 5]
-#     assert np.allclose(
-#         np.array([True, True, False, False, False, False, False, False]),
-#         get_index_element_mask(numbers, indices, elements),
-#     )
-#     elements = ["H", "O"]
-#     indices = [0, 1, 4, 5]
-#     assert np.allclose(
-#         np.array([True, True, False, False, False, True, False, False]),
-#         get_index_element_mask(numbers, indices, elements),
-#     )
-#     elements = ["H", "O"]
-#     indices = [3]
-#     assert np.allclose(
-#         get_index_element_mask(numbers, indices, elements),
-#         np.array([False] * len(numbers)),
-#     )
-#     elements = ["H", "O"]
-#     indices = None
-#     assert np.allclose(
-#         get_index_element_mask(numbers, indices, elements),
-#         np.array([True, True, True, False, False, True, True, True]),
-#     )
-#     elements = None
-#     indices = [0, 1, 2, 3, 5]
-#     assert np.allclose(
-#         get_index_element_mask(numbers, indices, elements),
-#         np.array([True, True, True, True, False, True, False, False]),
-#     )
-#     elements = ["Cl"]  # not present at all
-#     indices = None
-#     assert np.allclose(
-#         get_index_element_mask(numbers, indices, elements),
-#         np.array([False] * len(numbers)),
-#     )
 
 
 def test_data_elements(dataset):

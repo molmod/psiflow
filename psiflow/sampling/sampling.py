@@ -192,7 +192,6 @@ def setup_ensemble(
     bias_weights_list = []
 
     # add hamiltonian components that are not shared between all walkers as bias
-    # TODO: do we always want to do this?
     for comp in components:
         if not comp.shared:
             force = ET.Element("force", forcefield=comp.name)
@@ -429,7 +428,6 @@ def make_driver_commands(
     driver_kwargs: list[dict], file_xyz: File, files_hamiltonian: list[File]
 ) -> list[str]:
     """"""
-    # TODO: what if 'file_xyz' contains multiple geometries of different size?
     assert len(driver_kwargs) >= len(files_hamiltonian)
     default = f'i-pi-driver-py -u -S "" -m custom -P {PATH_DRIVER} -a {{address}} -o {{options}} &'
 
@@ -538,6 +536,7 @@ def _sample(
     )
     smotion = setup_smotion(coupling, plumed_list)
 
+    # TODO: validate all arguments together + consistently
     # make sure at least one checkpoint is being written
     if checkpoint_step is None:  # default to every 5% of simulation progress
         if step is None:

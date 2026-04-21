@@ -2,8 +2,7 @@ import io
 import pickle
 import copy
 from pathlib import Path
-from typing import Optional, Union, Any, Final
-from collections.abc import Sequence
+from typing import Optional, Any, Final
 
 import ase.calculators.calculator
 import numpy as np
@@ -14,10 +13,9 @@ from ase.io.extxyz import key_val_dict_to_str, read_xyz, key_val_str_to_dict
 
 import psiflow
 
-# TODO: docstrings
-# TODO: custom attributes writing
-# TODO: Reference and Sampling want to add attributes to Geometry (used to be 'order' dict)
-#  what to do?
+
+# TODO: all per-atom attributes are cast to float when writing, making read-write not a noop
+
 
 # these are always accessible for every geometry
 DEFAULT_PROPERTIES = "per_atom", "cell", "energy", "stress"
@@ -39,8 +37,9 @@ MISSING: Final = MissingType()
 
 class PerAtom:
     """
-    Holds 'per atom' arrays like positions and forces
-    For every attribute, the first array dimension should be n_atoms
+    Holds 'per atom' arrays like positions and forces.
+    Must contain 'numbers' and 'positions', can contain anything else.
+    All arrays should be 2-dimensional with shape [n_atoms, *].
     """
 
     numbers: npt.NDArray[np.uint8]
@@ -53,16 +52,20 @@ class PerAtom:
         positions: npt.NDArray[np.float64],
         **kwargs: npt.NDArray,
     ):
-        self.numbers = numbers.astype(int).reshape(-1, 1)
+        self.numbers = numbers
         self.positions = positions
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: np.ndarray) -> None:
         if value is MISSING:
             return  # do not set MISSING values
-        elif not self._check(value):
+        elif name == "numbers":
+            value = value.astype(int)
+        elif len(value) != len(self):
             raise ValueError(f"Field '{name}' is not a per-atom property..")
+        if value.ndim != 2:
+            value = value.reshape(-1, 1)  # 1D arrays
         super().__setattr__(name, value)
 
     def __getattr__(self, name):
@@ -79,23 +82,22 @@ class PerAtom:
     def __str__(self) -> str:
         return f"PerAtom[{len(self)}]{set(vars(self))}"
 
-    def _check(self, arr: npt.NDArray) -> bool:
-        try:
-            return (arr.shape[0] == len(self)) and arr.ndim == 2
-        except AttributeError:
-            return arr.ndim == 2  # numbers not yet defined
+    def attributes(self) -> dict[str, Any]:
+        """Return all optional per-atom attributes"""
+        return {
+            k: v for k, v in vars(self).items() if k not in ("numbers", "positions")
+        }
 
     def reset(self):
         """Wipes optional fields"""
-        attrs = [k for k in vars(self) if k not in ("numbers", "positions")]
-        for attr in attrs:
+        for attr in self.attributes():
             delattr(self, attr)
 
     def to_string(self) -> tuple[str, str]:
+        """Creates extxyz header and body"""
         symbols = [chemical_symbols[i] for i in self.numbers.flatten()]
         data = {"species": np.array(symbols).reshape(-1, 1), "pos": self.positions}
-        if not self.forces is MISSING:
-            data["forces"] = self.forces
+        data |= self.attributes()
 
         # create extxyz header
         header = "Properties=species:S:1:pos:R:3"
@@ -131,6 +133,7 @@ class PerAtom:
 
     @classmethod
     def from_string(cls, s: str, props: Optional[str] = None):
+        """Reverses to_string"""
         props = (props or "species:S:1:pos:R:3") + ":"
         dtype_map = {"R": "f8", "S": "i8"}
 
@@ -165,10 +168,10 @@ class Geometry:
     and various physical properties such as energy and forces.
 
     Attributes:
-        per_atom (PerAtom): Record array containing per-atom properties.
-        cell (np.ndarray): 3x3 array representing the unit cell vectors.
+        per_atom (PerAtom): Container with per-atom properties.
+        cell (Optional[np.ndarray]): 3x3 array representing the unit cell vectors (or None for isolated molecules).
         energy (Optional[float]): Total energy of the system.
-        stress (Optional[np.ndarray]): Stress tensor of the system.
+        stress (Optional[np.ndarray]): Stress tensor of the system (3x3 array).
     """
 
     per_atom: PerAtom
@@ -182,10 +185,7 @@ class Geometry:
         cell: Optional[np.ndarray] = None,
         **kwargs: Any,
     ):
-        """
-        Initialize a Geometry instance, though the preferred way of instantiating
-        proceeds via the class methods
-        """
+        """Initialize a Geometry instance. Preferably instantiate through class methods."""
         self.per_atom = per_atom
         self.cell = cell
 
@@ -193,7 +193,7 @@ class Geometry:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if value is MISSING:
             return  # do not set MISSING values
 
@@ -204,6 +204,8 @@ class Geometry:
             value = float(value)
             # assert isinstance(value, float)
         elif name == "stress":
+            if self.cell is None:
+                raise ValueError("Cannot assign stress to molecules..")
             assert isinstance(value, np.ndarray) and value.shape == (3, 3)
 
         super().__setattr__(name, value)
@@ -218,21 +220,16 @@ class Geometry:
 
     def attributes(self) -> dict[str, Any]:
         """Return all non-MISSING instance attributes"""
-
         return {k: v for k, v in vars(self).items() if k != "per_atom"}
 
     def reset(self) -> None:
-        """
-        Reset all computed properties of the geometry to their default values.
-        """
+        """Reset all computed properties to their default values"""
         self.per_atom.reset()
         for k in {"energy", "stress"}.intersection(self.attributes()):
             delattr(self, k)
 
     def clean(self) -> None:
-        """
-        Clean the geometry by resetting properties and removing additional information.
-        """
+        """Remove all non-structural information ('numbers', 'positions', 'cell')"""
         self.per_atom.reset()
         for k in self.attributes():
             if k == "cell":
@@ -240,9 +237,7 @@ class Geometry:
             delattr(self, k)
 
     def align_axes(self) -> None:
-        """
-        Align the axes of the unit cell to a canonical representation for periodic systems.
-        """
+        """Align the cell axes to a canonical representation for periodic systems"""
         if not self.periodic:
             return
         positions = self.per_atom.positions
@@ -251,38 +246,28 @@ class Geometry:
         reduce_box_vectors(cell)
 
     def copy(self) -> Geometry:
-        """
-        Create a deep copy of the Geometry instance.
-        """
+        """Create a deep copy of the Geometry instance"""
         return pickle.loads(pickle.dumps(self))
 
     def to_string(self) -> str:
-        """
-        Convert the Geometry instance to a string representation in extended XYZ format.
-        """
+        """Convert the Geometry instance to a string representation in extended XYZ format"""
         data = self.attributes()
         data.pop("cell")  # cell needs special treatment
         if self.periodic:
             data["Lattice"] = self.cell.T  # ase does Fortran ordering
             data["pbc"] = "T T T"
-        else:
-            data["pbc"] = "F F F"
         info_str = key_val_dict_to_str(data)
         properties, txt = self.per_atom.to_string()
         header = " ".join([properties, info_str])
         return "\n".join([str(len(self)), header, txt])
 
     def save(self, path_xyz: Path | str) -> None:
-        """
-        Save the Geometry instance to an XYZ file.
-        """
+        """Save the Geometry instance to an XYZ file"""
         path_xyz = psiflow.resolve_and_check(Path(path_xyz))
         path_xyz.write_text(self.to_string())
 
     def to_atoms(self, structural_only: bool = False) -> Atoms:
-        """
-        Convert the Geometry instance to an Atoms object.
-        """
+        """Convert the Geometry instance to an Atoms object"""
         if structural_only:
             return Atoms(
                 positions=self.per_atom.positions,
@@ -296,9 +281,7 @@ class Geometry:
         return next(read_xyz(io.StringIO(s), index=0))
 
     def __eq__(self, other: "Geometry") -> bool:
-        """
-        Check if two Geometry instances are structurally equal.
-        """
+        """Check if two Geometry instances are structurally equal"""
         if (
             isinstance(other, Geometry)
             and len(self) == len(other)
@@ -311,16 +294,12 @@ class Geometry:
         return False
 
     def __len__(self) -> int:
-        """
-        Get the number of atoms in the geometry.
-        """
+        """Get the number of atoms in the geometry"""
         return len(self.per_atom)
 
     @classmethod
     def from_string(cls, s: str) -> Geometry:
-        """
-        Create a Geometry instance from a string representation in extended XYZ format.
-        """
+        """Create a Geometry instance from a string representation in extended XYZ format"""
         n_atoms, header, body = s.strip().split("\n", 2)
         data = key_val_str_to_dict(header)
         data.pop("pbc", None)  # geometry derives pbc from cell
@@ -335,9 +314,7 @@ class Geometry:
 
     @classmethod
     def load(cls, path_xyz: Path | str) -> "Geometry":
-        """
-        Load a Geometry instance from an XYZ file.
-        """
+        """Load a Geometry instance from an XYZ file"""
         path_xyz = psiflow.resolve_and_check(Path(path_xyz))
         content = path_xyz.read_text()
         return cls.from_string(content)
@@ -346,17 +323,13 @@ class Geometry:
     def from_data(
         cls, numbers: np.ndarray, positions: np.ndarray, cell: Optional[np.ndarray]
     ) -> Geometry:
-        """
-        Create a Geometry instance from atomic numbers, positions, and cell data.
-        """
+        """Create a Geometry instance from atomic numbers, positions, and cell data"""
         per_atom = PerAtom(numbers.copy(), positions.copy())
         return Geometry(per_atom, cell=copy.copy(cell))
 
     @classmethod
     def from_atoms(cls, atoms: Atoms) -> Geometry:
-        """
-        Create a Geometry instance from an ASE Atoms object.
-        """
+        """Create a Geometry instance from an ASE Atoms object"""
         per_atom = PerAtom(**atoms.arrays)
         data = atoms.info
         if all(atoms.pbc):
@@ -373,41 +346,31 @@ class Geometry:
 
     @property
     def periodic(self) -> bool:
-        """
-        Check if the geometry is periodic.
-        """
+        """Check if the geometry is periodic"""
         return not self.cell is None
 
     @property
     def per_atom_energy(self) -> float | MISSING:
-        """
-        Calculate the energy per atom.
-        """
+        """Calculate the per-atom energy"""
         if self.energy is MISSING:
             return MISSING
         return self.energy / len(self)
 
     @property
     def volume(self) -> Optional[float]:
-        """
-        Calculate the volume of the unit cell.
-        """
+        """Calculate the volume of the unit cell"""
         if not self.periodic:
             return None
         return np.linalg.det(self.cell)
 
     @property
     def atomic_masses(self) -> npt.NDArray:
-        """
-        Get the atomic masses of the atoms in the geometry.
-        """
+        """Get the atomic masses of the atoms in the geometry"""
         return np.array([atomic_masses[n] for n in self.numbers])
 
     @property
     def numbers(self) -> npt.NDArray:
-        """
-        Get a flattened version of the per_atom.numbers array.
-        """
+        """Get a flattened version of per_atom.numbers"""
         return self.per_atom.numbers.flatten()
 
 
@@ -556,7 +519,7 @@ def mass_unweight(hessian: np.ndarray, geometry: Geometry) -> np.ndarray:
 
 
 def get_atomic_energy(geometry: Geometry, atomic_energies: dict[str, float]) -> float:
-    """Compute the total atomic energy based on provided single atom energies."""
+    """Compute the total atomic energy based on single atom energies"""
     total = 0
     numbers, counts = np.unique(geometry.numbers, return_counts=True)
     for number, count in zip(numbers, counts):

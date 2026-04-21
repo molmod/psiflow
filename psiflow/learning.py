@@ -24,6 +24,7 @@ from psiflow.utils.apps import boolean_or, isnan
 logger = logging.getLogger(__name__)  # logging per module
 
 
+# TODO: remove -> merge into one app
 @typeguard.typechecked
 def _compute_error(
     state0: Geometry,
@@ -45,7 +46,7 @@ def _compute_error(
 
 compute_error = python_app(_compute_error, executors=["default_threads"])
 
-
+# TODO: remove -> merge into one app
 @typeguard.typechecked
 def _exceeds_error(
     errors: np.ndarray,
@@ -56,7 +57,7 @@ def _exceeds_error(
 
 exceeds_error = python_app(_exceeds_error, executors=["default_threads"])
 
-
+# TODO: remove -> merge into one app
 @typeguard.typechecked
 def evaluate_outputs(
     outputs: list[SimulationOutput],

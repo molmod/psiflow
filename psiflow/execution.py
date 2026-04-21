@@ -347,12 +347,6 @@ class ExecutionDefinition:
         # send SIGTERM after max_runtime, follow with SIGKILL 30s later
         return f"timeout -v -k 30s {self.max_runtime}s {command}"
 
-    # def wrap_in_srun(self, command: str) -> str:
-    #     # TODO: stub -- this does not work
-    #     if self.provider is None:
-    #         return command  # noop
-    # return f"srun -t 1 -c $CORES {command}"
-
     def _create_threadpool(self, path: Path) -> ThreadPoolExecutor:
         max_threads = self.kwargs["max_threads"]
         return ThreadPoolExecutor(self.name, max_threads, working_dir=str(path))
@@ -464,7 +458,7 @@ class ModelEvaluation(ExecutionDefinition):
     ):
         super().__init__(**kwargs)
 
-        if self.use_gpu and self.kwargs["gpus_per_task"] > 1:
+        if self.use_gpu and self.kwargs.get("gpus_per_task", 1) > 1:
             raise ConfigurationError("No Hamiltonian can do multi-GPU evaluation")
 
         # i-Pi will kill client connections after no response for timeout seconds

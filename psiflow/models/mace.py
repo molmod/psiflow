@@ -22,7 +22,6 @@ from psiflow.utils.parse import format_env_vars, get_task_name_id
 
 # TODO: when changing the training dataset, the computed avg_num_neighbors will also change,
 #  making old checkpoints inconsistent
-# TODO: sanitise_config consistently called?
 # TODO: training fails when batch_size > dataset (see github issue)
 # TODO: restart_latest functionality to continue training??
 
@@ -59,8 +58,7 @@ def sanitise_config(config: dict) -> dict:
 
 
 def format_E0s(atomic_energies: dict) -> dict | str:
-    """"""
-    # TODO: MACE fails when atomic energy is not defined for every element..
+    """MACE will fail if atomic energy is not defined for all elements"""
     if atomic_energies:
         return {atomic_numbers[k]: v for k, v in atomic_energies.items()}
     else:

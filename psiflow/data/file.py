@@ -20,8 +20,6 @@ from psiflow.data.utils import (
     assign_ids,
 )
 
-# TODO: some operations have side effects, which could be unexpected
-
 
 FileLike: TypeAlias = str | Path | File
 
@@ -155,45 +153,12 @@ def _split_frames(
     _write_frames(val, outputs=outputs[1:])
 
 
-def _batch_frames(
-    file: FileLike, batch_size: int, outputs: Sequence[File] = ()
-) -> list[list[Geometry]]:
-    """
-    Split frames into batches.
-
-    Args:
-        file: DataFuture representing the input file path containing the geometry data.
-        batch_size: Number of frames per batch.
-        outputs: List of Parsl futures. Each element should be a DataFuture
-                 representing an output file path for each batch.
-    """
-    # TODO: why pass batch size?
-    # TODO: will not be great for large files
-    frames = _read_frames(file)
-
-    batches, batch = [], []
-    for i, geom in enumerate(frames):
-        batch.append(geom)
-        if (i + 1) % batch_size == 0:
-            batches.append(batch)
-            batch = []
-
-    if not outputs:
-        return batches
-
-    assert len(outputs) == len(batches)
-    for file, batch in zip(outputs, batches):
-        _write_frames(batch, outputs=[file])
-    return batches
-
-
 write_frames = python_app(_write_frames, executors=["default_threads"])
 read_frames = python_app(_read_frames, executors=["default_threads"])
 join_frames = python_app(_join_frames, executors=["default_threads"])
 count_frames = python_app(_count_frames, executors=["default_threads"])
 get_elements = python_app(_get_elements, executors=["default_threads"])
 split_frames = python_app(_split_frames, executors=["default_threads"])
-batch_frames = python_app(_batch_frames, executors=["default_threads"])
 
 
 def _read_write_wrapper(
