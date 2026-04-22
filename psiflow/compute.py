@@ -14,6 +14,9 @@ from psiflow.data.utils import insert
 from psiflow.functions import Function
 from psiflow.utils.apps import pack
 
+# TODO: what with missing values in arrays?
+
+
 ComputeInput: TypeAlias = (
     Dataset | list[Geometry] | list[AppFuture] | AppFuture | Geometry
 )
@@ -183,7 +186,6 @@ def _compare_results(
     **kwargs: list | np.ndarray,
 ) -> dict:
     """"""
-    # TODO: what with missing values?
     assert (result2 is None) != (len(kwargs) == 0)  # xor
     if kwargs:
         result2 = ComputeResult.from_data(result1.n_atoms, kwargs)
@@ -206,6 +208,16 @@ def _compare_results(
 
 
 compare_results = python_app(_compare_results, executors=["default_threads"])
+
+
+def _compare_arrays(arr1: Sequence, arr2: Sequence, metric: str = "RMSE") -> float:
+    """"""
+    metric_func = metric_func_map[metric]
+    arr1, arr2 = np.array(arr1), np.array(arr2)
+    return metric_func(arr1, arr2)
+
+
+compare_arrays = python_app(_compare_arrays, executors=["default_threads"])
 
 
 def input_to_geometries(data: ComputeInput) -> AppFuture:
