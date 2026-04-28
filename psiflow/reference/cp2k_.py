@@ -4,8 +4,6 @@ import warnings
 from typing import Optional
 from collections.abc import Sequence
 
-import numpy as np
-from ase.data import chemical_symbols
 from ase.units import Bohr, Ha
 from cp2k_input_tools.generator import CP2KInputGenerator
 from cp2k_input_tools.parser import CP2KInputParserSimplified
@@ -130,9 +128,6 @@ class CP2K(Reference):
         else:
             input_section["scf"] = {"ot": {"minimizer": "CG"}}
 
-        # necessary for oxygen calculation, at least in 2024.1
-        # TODO: not an allowed keyword in 2025.2
-        # input_section["scf"]["ignore_convergence_failure"] = "TRUE"
         input_str = dict_to_str(input_dict)
 
         references = {}
@@ -153,13 +148,12 @@ class CP2K(Reference):
         section_copy = copy.deepcopy(section)
         section.pop("topology", None)  # remove topology section
 
-        # insert geometry and cell
-        symbols = np.array(chemical_symbols)[geom.per_atom.numbers]
-        coord = [
-            f"{s:5} {p[0]:<15.8f} {p[1]:<15.8f} {p[2]:<15.8f}"
-            for s, p in zip(symbols, geom.per_atom.positions)
-        ]
-        section["coord"] = {"*": coord}
+        # insert coordinates
+        _, body = geom.per_atom.to_string()
+        coord_list = body.split("\n")[:-1]
+        section["coord"] = {"*": coord_list}
+
+        # insert cell
         cell = {}
         for i, vector in enumerate(["A", "B", "C"]):
             cell[vector] = "{} {} {}".format(*geom.cell[i])

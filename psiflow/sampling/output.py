@@ -100,7 +100,7 @@ def _parse_simulation_data(
 
     task_id = get_task_name_id(simulation_stdout)[-1]
     logger.info(f"Simulation [ID {task_id}]: {status}")
-    return status, data, temperature, state.order.pop("time")
+    return status, data, temperature, state.time
 
 
 parse_simulation_data = python_app(

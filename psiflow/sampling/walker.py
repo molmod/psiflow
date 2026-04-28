@@ -12,10 +12,9 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry, check_equality
+from psiflow.geometry import Geometry
+from psiflow.data.utils import check_equality
 from psiflow.hamiltonians import Hamiltonian, Zero, combine_hamiltonians
-
-# from psiflow.order_parameters import OrderParameter
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils.apps import copy_app_future
 
@@ -186,7 +185,7 @@ get_minimum_energy_states = python_app(
 def quench(walkers: list[Walker], dataset: Dataset) -> None:
     """Assign the lowest energy geometry in dataset to every walker"""
     hamiltonians = combine_hamiltonians([w.hamiltonian for w in walkers])
-    energies = [h.compute(dataset, "energy") for h in hamiltonians.hamiltonians]
+    energies = [h.compute(dataset).energy for h in hamiltonians.hamiltonians]
     coefficients = [
         hamiltonians.get_coefficients(walker.hamiltonian * 1.0) for walker in walkers
     ]

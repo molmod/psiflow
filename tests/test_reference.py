@@ -5,7 +5,7 @@ from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry, NullState
+from psiflow.geometry import Geometry, MISSING
 from psiflow.reference import CP2K, GPAW, ORCA, create_orca_input
 from psiflow.reference.reference import Status
 from psiflow.reference.cp2k_ import (
@@ -198,23 +198,19 @@ def test_cp2k_parse_output():
 def test_cp2k_success(simple_cp2k_input, geom_h2_p):
     reference = CP2K(simple_cp2k_input)
 
-    future = reference.evaluate(geom_h2_p)
-    future_null = reference.evaluate(NullState)
+    future = reference(geom_h2_p)
     assert isinstance(future, AppFuture)
     geom_out = future.result()
-    geom_null = future_null.result()
 
     ref_energy = -1.167407360449355 * Ha
     ref_forces = np.array([[-0.00968014, 0.0, 0.0], [0.00967947, 0.0, 0.0]]) * Ha / Bohr
-    assert geom_out != NullState
     assert geom_out.energy is not None
     assert not np.any(np.isnan(geom_out.per_atom.forces))
     assert np.allclose(ref_energy, geom_out.energy)
     assert np.allclose(ref_forces, geom_out.per_atom.forces, atol=1e-5)
-    assert geom_null == NullState  # check whether NullState evaluates to NullState
 
     # check number of mpi processes
-    stdout, _ = get_task_logs(geom_out.order["task_id"])
+    stdout, _ = get_task_logs(geom_out.metadata["task_id"])
     lines = stdout.read_text().split("\n")
     for line in lines:
         if "Total number of message passing processes" in line:
@@ -295,12 +291,12 @@ def test_cp2k_failure(geom_h2_p):
 &END FORCE_EVAL
 """  # incorrect input file
     reference = CP2K(cp2k_input)
-    future = reference.evaluate(geom_h2_p)
+    future = reference(geom_h2_p)
     assert isinstance(future, AppFuture)
     geom_out = future.result()
-    assert geom_out.energy is None
-    assert np.all(np.isnan(geom_out.per_atom.forces))
-    stdout, _ = get_task_logs(geom_out.order["task_id"])
+    assert geom_out.energy is MISSING
+    assert geom_out.per_atom.forces is MISSING
+    stdout, _ = get_task_logs(geom_out.metadata["task_id"])
     assert "ABORT" in stdout.read_text()  # verify error is captured
 
 
@@ -311,25 +307,34 @@ def test_cp2k_memory(simple_cp2k_input):
         positions=np.random.uniform(0, 20, size=(4000, 3)),
         cell=20 * np.eye(3),  # box way too large
     )
-    energy, forces = reference.compute(geometry)
-    energy, forces = energy.result(), forces.result()
-    assert np.all(np.isnan(energy))
+    geom_fail = reference(geometry).result()
+    assert geom_fail.energy is MISSING
+    assert geom_fail.per_atom.forces is MISSING
+    assert geom_fail.metadata["status"] == Status.FAILED.name
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
 def test_cp2k_timeout(simple_cp2k_input, geom_h2_p):
+    definition = psiflow.context().definitions["CP2K"]
+    runtime = definition.max_runtime
+    definition.max_runtime = 1  # seconds
+
     reference = CP2K(simple_cp2k_input)
     geom_h2_p.cell = 20 * np.eye(3)  # box way too large
-    energy, forces = reference.compute(Dataset([geom_h2_p]))
-    energy, forces = energy.result(), forces.result()
-    assert np.all(np.isnan(energy))
+
+    geom_fail = reference(geom_h2_p).result()
+    assert geom_fail.energy is MISSING
+    assert geom_fail.per_atom.forces is MISSING
+    assert geom_fail.metadata["status"] == Status.FAILED.name
+
+    definition.max_runtime = runtime  # restore value
 
 
 def test_cp2k_energy(simple_cp2k_input, geom_h2_p):
     reference = CP2K(simple_cp2k_input, outputs=("energy",))
-    geom_out = reference.evaluate(geom_h2_p).result()
+    geom_out = reference(geom_h2_p).result()
     assert geom_out.energy is not None
-    assert np.all(np.isnan(geom_out.per_atom.forces))
+    assert geom_out.per_atom.forces is MISSING
 
 
 @pytest.mark.filterwarnings("ignore:Original input file not found")
@@ -337,6 +342,7 @@ def test_cp2k_atomic_energies(simple_cp2k_input):
     # use energy-only because why not
     reference = CP2K(simple_cp2k_input, outputs=("energy",))
     energy = reference.compute_atomic_energy("H", box_size=4)
+    print(energy.result())
     assert abs(energy.result() - (-13.6)) < 1  # reasonably close to exact value
 
 
@@ -380,27 +386,30 @@ def test_cp2k_posthf(geom_h2_p):
 &END FORCE_EVAL
 """
     reference = CP2K(cp2k_input_str, outputs=("energy",))
-    assert reference.evaluate(geom_h2_p).result().energy is not None
+    assert reference(geom_h2_p).result().energy is not MISSING
 
 
-def test_gpaw_single(dataset_h2):
+def test_gpaw(dataset_h2):
+    # basic functionality
     parameters = dict(mode="fd", nbands=0, xc="LDA", h=0.3, minimal_box_multiple=2)
     gpaw = GPAW(parameters)
     future_in = dataset_h2[0]
-    future_out = gpaw.evaluate(future_in)
-    future_energy = gpaw.compute(dataset_h2[:1])[0]
+    future_out = gpaw(future_in)
+    dataset_out = gpaw.evaluate(dataset_h2[:2])
     future_energy_zr = gpaw.compute_atomic_energy("Zr", box_size=9)
-    gpaw = GPAW({"askdfj": "asdfk"})  # invalid input
-    future_fail = gpaw.evaluate(future_in)
+
+    # invalid input
+    gpaw = GPAW({"askdfj": "asdfk"})
+    future_fail = gpaw(future_in)
 
     geom_in, geom_out = future_in.result(), future_out.result()
-    energy, energy_zr = future_energy.result(), future_energy_zr.result()
-
-    assert geom_out.energy is not None and geom_out.energy < 0.0
+    geoms_out = dataset_out.geometries().result()
+    assert geom_out.energy is not MISSING and geom_out.energy < 0.0
     assert np.allclose(geom_out.per_atom.positions, geom_in.per_atom.positions)
-    assert np.allclose(geom_out.energy, energy)
-    assert energy_zr == 0.0
-    assert future_fail.result().energy is None
+    assert future_energy_zr.result() == 0.0
+    for geom in geoms_out:
+        assert geom.energy is not MISSING and geom.energy < 0.0
+    assert future_fail.result().energy is MISSING
 
 
 # TODO: enable once we have an ORCA container

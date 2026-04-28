@@ -1,6 +1,5 @@
 """
 Structure optimisation through ASE
-TODO: do we need to check for very large forces?
 """
 
 import os
@@ -169,9 +168,10 @@ def main(args: SimpleNamespace):
         Path(args.output_xyz).touch()
         return
 
-    atoms.set_constraint()  # usually noop
     if not any(atoms.pbc):
-        atoms.cell = None  # remove meaningless cell
+        # remove meaningless cell and stress
+        atoms.cell = None
+        atoms.calc.results.pop("stress", None)
     ase.io.write(FILE_OUT, atoms, format="extxyz")
 
     shutil.copy(FILE_OUT, args.output_xyz)

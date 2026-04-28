@@ -3,7 +3,7 @@ from parsl.data_provider.files import File
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import new_nullstate
+# from psiflow.geometry import new_nullstate
 from psiflow.hamiltonians import EinsteinCrystal
 from psiflow.learning import Learning, evaluate_outputs
 from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
