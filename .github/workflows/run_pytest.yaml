@@ -36,7 +36,7 @@ jobs:
           pip install --no-cache-dir git+https://github.com/i-pi/i-pi.git@v3.0.0-beta4
           pip install torch==2.5.1
           pip install git+https://github.com/acesuit/MACE.git@v0.3.5
-          apptainer exec oras://ghcr.io/molmod/cp2k:2024.1 ls
+          apptainer exec docker://cp2k/cp2k:2025.2_mpich_x86_64_psmp ls
           apptainer exec oras://ghcr.io/molmod/gpaw:24.1 ls
       - name: Checkout specific commit
         uses: actions/checkout@v4

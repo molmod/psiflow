@@ -246,7 +246,7 @@ class ExecutionDefinition:
             )
 
         if self.executor_type == "workqueue":
-            # WQ-specific checks
+            # WQ-specific checks  TODO: what about multinode?
             ensure(
                 self.kwargs["gpus_per_task"] <= resources["gpus"],
                 self.kwargs["cores_per_task"] <= resources["cores"],
@@ -541,19 +541,10 @@ class ModelTraining(ExecutionDefinition):
                 "ModelTraining is configured for CPU operation. Is this what you want?"
             )
 
-        # if self.multigpu:
-        #     # TODO: why? Think this might be a multinode thing - which I do not care about
-        #     message = (
-        #         "the max_training_time keyword does not work "
-        #         "in combination with multi-gpu training. Adjust "
-        #         "the maximum number of epochs to control the "
-        #         "duration of training"
-        #     )
-        #     assert self.max_runtime is None, message
-
-    def train_command(self, initialize: bool = False):
-        command = "psiflow-mace-train"
-        return self.wrap_in_timeout(command)
+    @property
+    def multi_gpu(self) -> bool:
+        # only for WQ
+        return (self.spec or {}).get("gpus", 0) > 1
 
     def wq_resources(self, *args, **kwargs) -> dict:
         if self.spec is None:

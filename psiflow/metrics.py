@@ -14,7 +14,7 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian
-from psiflow.models import Model
+# from psiflow.models import Model
 from psiflow.sampling import SimulationOutput
 from psiflow.utils.apps import log_message
 # from psiflow.utils.apps import combine_futures, log_message, setup_logger
