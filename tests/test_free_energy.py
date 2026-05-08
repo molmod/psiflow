@@ -14,19 +14,10 @@ from psiflow.sampling.ase import optimize
 
 def test_integration_simple(dataset):
     dataset = dataset[:10]
-    einstein = EinsteinCrystal(dataset[1], force_constant=2)
-    geometry = optimize(
-        dataset[3],
-        einstein,
-        mode="fix_cell",
-        f_max=1e-4,
-    )
-    hessian = compute_harmonic(
-        geometry,
-        einstein,
-        pos_shift=5e-4,
-    )
-    harmonic = Harmonic(geometry, hessian)
+    einstein = EinsteinCrystal.from_geometry(dataset[1], force_constant=2)
+    geometry = optimize(dataset[3], einstein, mode="fix_cell", f_max=1e-4)
+    hessian = compute_harmonic(geometry, einstein, pos_shift=5e-4)
+    harmonic = Harmonic.from_geometry(geometry, hessian)
 
     integration = Integration(
         harmonic,
@@ -34,10 +25,7 @@ def test_integration_simple(dataset):
         delta_hamiltonian=(-0.1) * harmonic,
         delta_coefficients=np.array([0.0, 0.5, 1.0]),
     )
-    walkers = integration.create_walkers(
-        dataset,
-        initialize_by="quench",
-    )
+    walkers = integration.create_walkers(dataset, initialize_by="quench")
     for walker in walkers:
         assert check_equality(walker.start, dataset[1]).result()
 
@@ -80,21 +68,16 @@ def test_integration_simple(dataset):
 
 
 def test_integration_temperature(dataset):
-    einstein = EinsteinCrystal(dataset[0], force_constant=1)
+    einstein = EinsteinCrystal.from_geometry(dataset[0], force_constant=1)
     integration = Integration(
-        hamiltonian=einstein,
-        temperatures=[300, 400],
-        pressure=0.0,
+        hamiltonian=einstein, temperatures=[300, 400], pressure=0.0
     )
     integration.create_walkers(dataset[:3])
     integration.sample(steps=10, step=1)
     integration.compute_gradients()
     gradient0 = integration.states[0].gradients["temperature"]
 
-    integration = Integration(
-        hamiltonian=einstein,
-        temperatures=[300, 400],
-    )
+    integration = Integration(hamiltonian=einstein, temperatures=[300, 400])
     integration.create_walkers(dataset[:3])
     integration.sample(steps=10, step=1)
     integration.compute_gradients()
@@ -105,22 +88,19 @@ def test_integration_temperature(dataset):
 def test_phonons(dataset):
     reference = dataset[2].result()
     constant = 10
-    einstein = EinsteinCrystal(reference, force_constant=constant)
+    einstein = EinsteinCrystal.from_geometry(reference, force_constant=constant)
 
-    hessian = compute_harmonic(
-        reference,
-        einstein,
-        asr="none",  # einstein == translationally VARIANT
-    )
+    # einstein == translationally VARIANT
+    hessian = compute_harmonic(reference, einstein, asr="none")
     assert np.allclose(
         hessian.result(), constant * np.eye(3 * len(reference)), rtol=1e-4
     )
 
 
-def test_dihydrogen(dataset_h2):
+def test_dihydrogen(dataset_h2, mace_foundation):
     geometry = dataset_h2[0].result()
     geometry.cell = 20 * np.eye(3)
-    hamiltonian = MACEHamiltonian.mace_mp0("small")
+    hamiltonian = MACEHamiltonian(external=mace_foundation)
     optimized = optimize(
         geometry,
         hamiltonian,

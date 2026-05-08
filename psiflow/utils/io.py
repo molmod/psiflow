@@ -1,10 +1,15 @@
 import json
 import xml.etree.ElementTree as ET
 from typing import Any
+from collections.abc import Sequence
 
 import numpy as np
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
+
+from psiflow.serialization import JSONEncoder
+
+# TODO: check which of these methods is actively used
 
 
 def _save_yaml(
@@ -93,30 +98,18 @@ save_metrics = python_app(_save_metrics, executors=["default_threads"])
 
 
 def _dump_json(
-    inputs: list = [],
-    outputs: list = [],
+    inputs: Sequence = (),
+    outputs: Sequence = (),
     **kwargs,
-) -> None:
-    def convert_to_list(array):
-        if not type(array) is np.ndarray:
-            if type(array) is np.floating:
-                return float(array)
-            return array
-        as_list = []
-        for item in array:
-            as_list.append(convert_to_list(item))
-        return as_list
-
-    assert len(outputs) == 1
-    for name in list(kwargs.keys()):
-        value = kwargs[name]
-        if type(value) is np.ndarray:
-            value = convert_to_list(value)
-        elif type(value) is np.floating:
-            value = float(value)
-        kwargs[name] = value
+) -> str:
+    assert len(outputs) <= 1
+    json_str = json.dumps(kwargs, cls=JSONEncoder)
+    if len(outputs) == 0:
+        return json_str
     with open(outputs[0], "w") as f:
-        f.write(json.dumps(kwargs))
+        f.write(json_str)
+    return json_str
+
 
 
 dump_json = python_app(_dump_json, executors=["default_threads"])

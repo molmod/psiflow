@@ -15,7 +15,7 @@ from psiflow.data import Dataset
 from psiflow.geometry import Geometry, NullState, assign_identifier
 from psiflow.hamiltonians import Hamiltonian, Zero
 from psiflow.metrics import Metrics
-from psiflow.models import Model
+# from psiflow.models import Model
 from psiflow.reference import Reference
 from psiflow.sampling import SimulationOutput, Walker, sample
 from psiflow.utils.apps import boolean_or, isnan

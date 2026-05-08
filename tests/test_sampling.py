@@ -6,8 +6,7 @@ from ase.units import Bohr
 
 import psiflow
 from psiflow.geometry import check_equality
-from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian
-from psiflow.models import MACE
+from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, MACEHamiltonian
 from psiflow.sampling.optimize import (
     optimize as optimize_ipi,
     optimize_dataset as optimize_dataset_ipi,
@@ -32,6 +31,8 @@ from psiflow.sampling.output import Status
 
 
 def test_walkers(dataset):
+    future = dataset[0]
+
     mtd0 = Metadynamics("METAD: FILE=bla")  # dummy
     mtd1 = Metadynamics("METAD: FILE=bla")  # dummy
     assert not (mtd0 == mtd1)
@@ -42,19 +43,19 @@ CV: DISTANCE ATOMS=1,2 NOPBC
 RESTRAINT ARG=CV AT=1 KAPPA=1
 """
     plumed = PlumedHamiltonian(plumed_str)
-    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    einstein_ = EinsteinCrystal(dataset[0], force_constant=0.2)
-    walker = Walker(dataset[0], einstein, temperature=300, metadynamics=mtd0)
+    einstein = EinsteinCrystal.from_geometry(future, force_constant=0.1)
+    einstein_ = EinsteinCrystal.from_geometry(future, force_constant=0.2)
+    walker = Walker(future, einstein, temperature=300, metadynamics=mtd0)
     assert walker.ensemble == Ensemble.NVT
     assert not walker.pimd
 
     walkers = [
         walker,
-        Walker(dataset[0], 0.5 * einstein_, nbeads=4, metadynamics=mtd1),
-        Walker(dataset[0], einstein + plumed, nbeads=4),
-        Walker(dataset[0], einstein, pressure=0, temperature=300, metadynamics=mtd1),
-        Walker(dataset[0], einstein_, pressure=100, temperature=600, metadynamics=mtd1),
-        Walker(dataset[0], einstein, temperature=600, metadynamics=mtd1),
+        Walker(future, 0.5 * einstein_, nbeads=4, metadynamics=mtd1),
+        Walker(future, einstein + plumed, nbeads=4),
+        Walker(future, einstein, pressure=0, temperature=300, metadynamics=mtd1),
+        Walker(future, einstein_, pressure=100, temperature=600, metadynamics=mtd1),
+        Walker(future, einstein, temperature=600, metadynamics=mtd1),
     ]
 
     # NVT
@@ -126,14 +127,15 @@ def test_parse_checkpoint(checkpoint):
     )
 
 
-def test_sample(dataset, mace_config):
+def test_sample(dataset, mace_foundation):
+    future = dataset[0]
     plumed_str = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: DISTANCE ATOMS=1,2 NOPBC
 RESTRAINT ARG=CV AT=1 KAPPA=1
 """
     plumed = PlumedHamiltonian(plumed_str)
-    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
+    einstein = EinsteinCrystal.from_geometry(future, force_constant=0.1)
 
     plumed_str = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
@@ -143,14 +145,14 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     metadynamics = Metadynamics(plumed_str)
     walkers = [
         Walker(
-            start=dataset[0],
+            start=future,
             temperature=300,
             metadynamics=metadynamics,
             hamiltonian=0.9 * plumed + einstein,
         ),
-        Walker(start=dataset[0], temperature=600, hamiltonian=einstein),
-        Walker(start=dataset[0], temperature=600, hamiltonian=einstein),
-        Walker(start=dataset[0], temperature=600, hamiltonian=einstein),
+        Walker(start=future, temperature=600, hamiltonian=einstein),
+        Walker(start=future, temperature=450, hamiltonian=einstein),
+        Walker(start=future, temperature=600, hamiltonian=einstein),
     ]
     outputs = sample(walkers[:2], steps=50, step=5)
     [o1] = sample(walkers[2:3], steps=20, step=2, start=10, keep_trajectory=False)
@@ -225,23 +227,19 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
     assert output.temperature is not None
     assert np.abs(output.temperature.result() - 200 < 200)  # what?
 
-    model = MACE(**mace_config)
-    model.initialize(dataset[:3])
-    hamiltonian = model.create_hamiltonian()
-    walker = Walker(start=dataset[0], temperature=600, hamiltonian=hamiltonian)
+    # minitest MACE
+    hamiltonian = MACEHamiltonian(mace_foundation)
+    walker = Walker(start=future, temperature=600, hamiltonian=hamiltonian)
     walker.state = dataset[1]
     [output] = sample(
         [walker],
         steps=10,
-        observables=["kinetic_md{electronvolt}"],
         checkpoint_step=1,
         fix_com=True,  # otherwise temperature won't match
     )
-    assert np.allclose(
-        hamiltonian.compute(dataset, "energy").result()[0],
-        output["potential{electronvolt}"].result()[0],
-        atol=1e-3,
-    )
+    energy = hamiltonian.compute(dataset[1], "energy")
+    energy_ = output["potential{electronvolt}"]
+    assert np.allclose(energy.result()[0], energy_.result()[0], atol=1e-5)
     assert np.allclose(output.time.result(), 10 * 0.5 / 1000)
     temp0 = output.temperature.result()
     temp1 = output["temperature{kelvin}"].result()[-1]
@@ -264,12 +262,13 @@ PRINT ARG=CV
 
 
 def test_ensembles(dataset, dataset_h2):
-    einstein = EinsteinCrystal(dataset[0], force_constant=1e-1)
-    walker_nve = Walker(dataset[0], einstein, temperature=None)
-    walker_nvt = Walker(dataset[0], einstein, temperature=300)
-    walker_npt = Walker(dataset[0], einstein, temperature=300, pressure=0)
-    walker_nvst = Walker(dataset[0], einstein, temperature=300, volume_constrained=True)
-    einstein_h2 = EinsteinCrystal(dataset_h2[3], force_constant=1e-1)
+    future = dataset[0]
+    einstein = EinsteinCrystal.from_geometry(future, force_constant=1e-1)
+    walker_nve = Walker(future, einstein, temperature=None)
+    walker_nvt = Walker(future, einstein, temperature=300)
+    walker_npt = Walker(future, einstein, temperature=300, pressure=0)
+    walker_nvst = Walker(future, einstein, temperature=300, volume_constrained=True)
+    einstein_h2 = EinsteinCrystal.from_geometry(dataset_h2[3], force_constant=1e-1)
     walker_h2 = Walker(dataset_h2[0], einstein_h2)
     walkers = [walker_nve, walker_nvt, walker_npt, walker_nvst, walker_h2]
 
@@ -314,7 +313,7 @@ def test_ensembles(dataset, dataset_h2):
 def test_output_status(dataset):
     """"""
     geom = dataset[0].result()
-    einstein = EinsteinCrystal(geom, force_constant=0.1)
+    einstein = EinsteinCrystal.from_geometry(geom, force_constant=0.1)
     walker = Walker(start=geom, hamiltonian=einstein)
     walker_boom = Walker(start=geom, hamiltonian=einstein, timestep=1e25, pressure=0)
 
@@ -339,13 +338,14 @@ def test_output_status(dataset):
 
 
 def test_reset(dataset):
-    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    walker = Walker(start=dataset[0], temperature=300, hamiltonian=einstein)
-    walker.state = dataset[1]
+    future1, future2 = dataset[0], dataset[1]
+    einstein = EinsteinCrystal.from_geometry(future1, force_constant=0.1)
+    walker = Walker(start=future1, temperature=300, hamiltonian=einstein)
+    walker.state = future2
     assert not walker.is_reset().result()
     assert not check_equality(walker.start, walker.state).result()
-    assert check_equality(walker.start, dataset[0]).result()
-    assert check_equality(walker.state, dataset[1]).result()
+    assert check_equality(walker.start, future1).result()
+    assert check_equality(walker.state, future2).result()
 
     walker.conditional_reset(False)
     assert not walker.is_reset().result()
@@ -357,8 +357,8 @@ def test_reset(dataset):
 
 def test_quench(dataset):
     dataset = dataset[:20]
-    einstein0 = EinsteinCrystal(dataset[3], force_constant=0.1)
-    einstein1 = EinsteinCrystal(dataset[11], force_constant=0.1)
+    einstein0 = EinsteinCrystal.from_geometry(dataset[3], force_constant=0.1)
+    einstein1 = EinsteinCrystal.from_geometry(dataset[11], force_constant=0.1)
     walkers = Walker(start=dataset[0], hamiltonian=einstein0).multiply(10)
     walkers[2].hamiltonian = einstein1
     quench(walkers, dataset)
@@ -382,8 +382,9 @@ def test_randomize(dataset):
 
 
 def test_rex(dataset):
-    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
-    walker = Walker(dataset[0], hamiltonian=einstein, temperature=600)
+    future = dataset[0]
+    einstein = EinsteinCrystal.from_geometry(future, force_constant=0.1)
+    walker = Walker(future, hamiltonian=einstein, temperature=600)
     walkers = walker.multiply(2)
     replica_exchange(walkers, trial_frequency=2)
     assert walkers[0].coupling.nwalkers == len(walkers)
@@ -396,7 +397,7 @@ def test_rex(dataset):
     assert len(swaps) > 0  # at least some successful swaps
     assert np.allclose(swaps[0, 1:], np.array([1, 0]))  # 0, 1 --> 1, 0
 
-    walkers += Walker(dataset[0], hamiltonian=10 * einstein).multiply(2)
+    walkers += Walker(future, hamiltonian=10 * einstein).multiply(2)
     with pytest.raises(AssertionError):
         replica_exchange(walkers)
     assert len(partition(walkers)) == 3
@@ -407,7 +408,8 @@ def test_rex(dataset):
 
 
 def test_walker_serialization(dataset, tmp_path):
-    einstein = EinsteinCrystal(dataset[0], force_constant=0.1)
+    future = dataset[0]
+    einstein = EinsteinCrystal.from_geometry(future, force_constant=0.1)
     plumed_str = """
 UNITS LENGTH=A ENERGY=kj/mol TIME=fs
 CV: VOLUME
@@ -416,7 +418,7 @@ FLUSH STRIDE=1
 """
     metadynamics = Metadynamics(plumed_str)
     walkers = Walker(
-        dataset[0], hamiltonian=einstein, temperature=300, metadynamics=metadynamics
+        future, hamiltonian=einstein, temperature=300, metadynamics=metadynamics
     ).multiply(3)
     for i, walker in enumerate(walkers):
         walker.hamiltonian *= 1 / (1 + i)
@@ -443,7 +445,7 @@ FLUSH STRIDE=1
 
 
 def test_optimize_ipi(dataset):
-    einstein = EinsteinCrystal(dataset[2], force_constant=10)
+    einstein = EinsteinCrystal.from_geometry(dataset[2], force_constant=10)
 
     # i-PI optimizer's curvature guess fails in optimum --> don't start in dataset[2]
     future, future_traj = optimize_ipi(
@@ -465,7 +467,7 @@ def test_optimize_ipi(dataset):
 def test_optimize_ase(dataset):
     # TODO: test applied_pressure?
 
-    einstein = EinsteinCrystal(dataset[2], force_constant=10)
+    einstein = EinsteinCrystal.from_geometry(dataset[2], force_constant=10)
     future = optimize_ase(dataset[0], einstein, mode="fix_cell", f_max=1e-4)
     optimized = optimize_dataset_ase(
         dataset[3:5], einstein, mode="fix_cell", f_max=1e-4

@@ -1,16 +1,16 @@
 import json
 import os
-import warnings
 import tempfile
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Optional, Type, Union, get_type_hints
+from typing import Optional, Type, Union, Any
+from collections.abc import Sequence
 
-import ase
 import numpy as np
-import typeguard
 from ase import Atoms
-from ase.data import atomic_masses, chemical_symbols
+from ase.calculators.calculator import Calculator
+from ase.data import atomic_masses
 from ase.units import fs, kJ, mol, nm
 from ase.stress import voigt_6_to_full_3x3_stress
 
@@ -34,10 +34,8 @@ def format_output(
     return {"energy": energy, "forces": forces, "stress": stress, 'extras': extras}
 
 
-@typeguard.typechecked
-@dataclass
 class Function:
-    outputs: ClassVar[tuple]
+    outputs: tuple = ("energy", "forces", "stress")
 
     def __call__(
         self,
@@ -50,13 +48,10 @@ class Function:
         geometries: list[Geometry],
     ) -> dict[str, float | np.ndarray]:
         """Evaluate multiple geometries and merge data into single arrays"""
-        value, grad_pos, grad_cell = create_outputs(
-            self.outputs,
-            geometries,
-        )
+        value, grad_pos, grad_cell = create_outputs(self.outputs, geometries)
         extras = {}
         for i, geometry in enumerate(geometries):
-            if geometry == NullState:
+            if geometry == NullState:  # TODO: remove
                 continue
             out = self(geometry)
             value[i] = out["energy"]
@@ -70,14 +65,8 @@ class Function:
         return {"energy": value, "forces": grad_pos, "stress": grad_cell, "extras": extras}
 
 
-@dataclass
-class EnergyFunction(Function):
-    outputs: ClassVar[tuple[str, ...]] = ("energy", "forces", "stress")
-
-
-@typeguard.typechecked
-@dataclass
-class EinsteinCrystalFunction(EnergyFunction):
+@dataclass(frozen=True)
+class EinsteinCrystalFunction(Function):
     force_constant: float
     centers: np.ndarray
     volume: float = 0.0
@@ -96,23 +85,23 @@ class EinsteinCrystalFunction(EnergyFunction):
         return format_output(geometry, energy, grad_pos, grad_cell)
 
 
-@typeguard.typechecked
-@dataclass
-class PlumedFunction(EnergyFunction):
+@dataclass(frozen=True)
+class PlumedFunction(Function):
     plumed_input: str
     plumed_extras: Optional[list[str]] = None
     external: Optional[Union[str, Path]] = None
+    plumed_instances: dict[tuple, "plumed.Plumed"] = field(default_factory=dict)
 
     def __post_init__(self):
-        self.plumed_instances = {}
+        if self.external is not None:
+            assert self.external in self.plumed_input
 
     def __call__(
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        plumed_input = self.plumed_input
-        if self.external is not None:
-            assert self.external in plumed_input
+        if not geometry.periodic and "VOLUME" in self.plumed_input:
+            raise ValueError("VOLUME CV only supported for periodic structures")
 
         key = self._geometry_to_key(geometry)
         if key not in self.plumed_instances:
@@ -133,7 +122,7 @@ class PlumedFunction(EnergyFunction):
             plumed_.cmd("setRestart", True)
             plumed_.cmd("setNatoms", len(geometry))
             plumed_.cmd("init")
-            for line in plumed_input.split("\n"):
+            for line in self.plumed_input.split("\n"):
                 plumed_.cmd("readInputLine", line)
 
             self.plumed_data = {}
@@ -189,9 +178,8 @@ class PlumedFunction(EnergyFunction):
         return tuple([geometry.periodic]) + tuple(geometry.per_atom.numbers)
 
 
-@typeguard.typechecked
-@dataclass
-class ZeroFunction(EnergyFunction):
+@dataclass(frozen=True)
+class ZeroFunction(Function):
     def __call__(
         self,
         geometry: Geometry,
@@ -199,9 +187,8 @@ class ZeroFunction(EnergyFunction):
         return format_output(geometry, 0)
 
 
-@typeguard.typechecked
-@dataclass
-class HarmonicFunction(EnergyFunction):
+@dataclass(frozen=True)
+class HarmonicFunction(Function):
     positions: np.ndarray
     hessian: np.ndarray
     energy: Optional[float] = None
@@ -218,110 +205,56 @@ class HarmonicFunction(EnergyFunction):
         return format_output(geometry, energy, (-1.0) * grad.reshape(-1, 3))
 
 
-@typeguard.typechecked
-@dataclass
-class MACEFunction(EnergyFunction):
-    model_path: str
+@dataclass(frozen=True)
+class MACEFunction(Function):
+    # TODO: why are some arguments separated and others 'calc_kwargs'?
+    model_path: str | Path
     ncores: int
     device: str
     dtype: str
-    atomic_energies: dict[str, float]
+    calc_kwargs: dict = field(default_factory=dict)
     env_vars: Optional[dict[str, str]] = None
 
-    def __post_init__(self):
-        import logging
-        import os
+    calc: Calculator = field(init=False)
 
+    def __post_init__(self):
         # import environment variables before any nontrivial imports
         if self.env_vars is not None:
             for key, value in self.env_vars.items():
                 os.environ[key] = value
 
         import torch
-        from mace.tools import torch_tools, utils
+        from mace.calculators.mace import MACECalculator
 
-        torch_tools.set_default_dtype(self.dtype)
-        if self.device == "gpu":  # when it's not a specific GPU, use any
-            self.device = "cuda"
-        self.device = torch_tools.init_device(self.device)
+        # MACE uses the root logger..
+        logging.getLogger("").setLevel(logging.INFO)
 
         torch.set_num_threads(self.ncores)
-        model = torch.load(f=self.model_path, map_location="cpu")
-        if self.dtype == "float64":
-            model = model.double()
-        else:
-            model = model.float()
-        model = model.to(self.device)
-        model.eval()
-        self.model = model
-        self.r_max = float(self.model.r_max)
-        self.z_table = utils.AtomicNumberTable(
-            [int(z) for z in self.model.atomic_numbers]
+        calc = MACECalculator(
+            model_paths=self.model_path,
+            device=self.device,
+            default_dtype=self.dtype,
+            **self.calc_kwargs,
         )
-
-        # remove unwanted streamhandler added by MACE / torch!
-        logging.getLogger("").removeHandler(logging.getLogger("").handlers[0])
-
-    def get_atomic_energy(self, geometry):
-        total = 0
-        numbers, counts = np.unique(geometry.per_atom.numbers, return_counts=True)
-        for idx, number in enumerate(numbers):
-            symbol = chemical_symbols[number]
-            try:
-                total += counts[idx] * self.atomic_energies[symbol]
-            except KeyError:
-                warnings.warn(
-                    f'(MACEFunction) No atomic energy entry for symbol "{symbol}". Are you sure?'
-                )
-        return total
+        object.__setattr__(self, "calc", calc)  # frozen dataclass instance
 
     def __call__(
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        from mace import data
-        from mace.tools.torch_geometric.batch import Batch
-
-        # TODO: is this call necessary?
-        # torch_tools.set_default_dtype(self.dtype)
-
-        energy, forces, stress = (
-            0.0,
-            np.zeros(shape=(len(geometry), 3)),
-            np.zeros(shape=(3, 3)),
-        )
-
-        # compute offset if possible
-        if self.atomic_energies:
-            energy += self.get_atomic_energy(geometry)
-
-        cell = np.copy(geometry.cell) if geometry.periodic else None
-        atoms = Atoms(
-            positions=geometry.per_atom.positions,
-            numbers=geometry.per_atom.numbers,
-            cell=cell,
-            pbc=geometry.periodic,
-        )
-        config = data.config_from_atoms(atoms)
-        data = data.AtomicData.from_config(
-            config, z_table=self.z_table, cutoff=self.r_max
-        )
-        batch = Batch.from_data_list([data]).to(device=self.device)
-        out = self.model(batch.to_dict(), compute_stress=cell is not None)
-        energy += out["energy"].detach().cpu().item()
-        forces += out["forces"].detach().cpu().numpy()
-        if cell is not None:
-            stress += out["stress"].detach().cpu().numpy().squeeze()
-        return format_output(geometry, energy, forces, stress)
+        atoms = geometry_to_atoms(geometry)
+        self.calc.calculate(atoms)
+        return format_output(geometry, **self.calc.results)
 
 
-@typeguard.typechecked
-@dataclass
-class DispersionFunction(EnergyFunction):
+@dataclass(frozen=True)
+class DispersionFunction(Function):
     method: str
     damping: str = "d3bj"
     params_tweaks: Optional[dict[str, float]] = None
     num_threads: int = 1
+
+    calc: Calculator = field(init=False)
 
     def __post_init__(self):
         # OMP_NUM_THREADS for parallel evaluation does not work..
@@ -331,20 +264,16 @@ class DispersionFunction(EnergyFunction):
 
         from dftd3.ase import DFTD3
 
-        self.calc = DFTD3(
+        calc = DFTD3(
             method=self.method, damping=self.damping, params_tweaks=self.params_tweaks
         )
+        object.__setattr__(self, "calc", calc)  # frozen dataclass instance
 
     def __call__(
         self,
         geometry: Geometry,
     ) -> dict[str, float | np.ndarray]:
-        atoms = ase.Atoms(  # TODO: geometry.to_atoms?
-            numbers=geometry.per_atom.numbers,
-            positions=geometry.per_atom.positions,
-            cell=geometry.cell,
-            pbc=geometry.periodic,
-        )
+        atoms = geometry_to_atoms(geometry)
         self.calc.calculate(atoms)
         return format_output(geometry, **self.calc.results)
 
@@ -352,12 +281,17 @@ class DispersionFunction(EnergyFunction):
 def _apply(
     arg: Union[Geometry, list[Geometry], None],
     outputs_: tuple[str, ...],
-    inputs: list = [],
-    function_cls: Optional[Type[Function]] = None,
+    function_cls: Type[Function],
+    wait_for: Any = None,
+    inputs: Sequence = (),
     parsl_resource_specification: dict = {},
     **parameters,
 ) -> Optional[list[np.ndarray]]:
     from psiflow.data.utils import _read_frames
+
+    # TODO: why pass geoms through arg or inputs?
+    #  should we not have a single keyword for input structures?
+    #  or at least reserve inputs for arbitrary futures (to wait on)?
 
     assert function_cls is not None
     if arg is None:
@@ -373,26 +307,32 @@ def _apply(
 
 
 def function_from_json(path: Union[str, Path], **kwargs) -> Function:
+    from psiflow.serialization import deserialize_hook
+
     functions = [
         EinsteinCrystalFunction,
         HarmonicFunction,
         MACEFunction,
         PlumedFunction,
         DispersionFunction,
-        None,
     ]
     with open(path, "r") as f:
-        data = json.loads(f.read())
-    assert "function_name" in data
-    for function_cls in functions:
-        if data["function_name"] == function_cls.__name__:
-            break
-    data.pop("function_name")
-    for name, type_hint in get_type_hints(function_cls).items():
-        if type_hint is np.ndarray:
-            data[name] = np.array(data[name])
+        data = json.loads(f.read(), object_hook=deserialize_hook)
+    function_name = data.pop("function_name")
+    function_cls = {f.__name__: f for f in functions}[function_name]
+
     for key, value in kwargs.items():
         if key in data:
             data[key] = value
     function = function_cls(**data)
     return function
+
+
+def geometry_to_atoms(geom: Geometry) -> Atoms:
+    """Only structural information"""
+    return Atoms(
+        positions=geom.per_atom.positions,
+        numbers=geom.per_atom.numbers,
+        cell=np.copy(geom.cell) if geom.periodic else None,
+        pbc=geom.periodic,
+    )

@@ -9,7 +9,7 @@ from parsl.data_provider.files import File
 
 
 def get_attribute(obj: Any, *attribute_names: str) -> Any:
-    # TODO: not an app
+    # uses Parsl lifted operators in case obj is a Future
     for name in attribute_names:
         obj = getattr(obj, name)
     return obj

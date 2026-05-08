@@ -1,14 +1,15 @@
-import urllib
+import logging
 from functools import partial
 import re
 from pathlib import Path
-from typing import Optional, Union, Callable, Sequence
+from typing import Optional, Union, Callable, Sequence, Any, ClassVar
+from dataclasses import dataclass, field
 
 import numpy as np
 from parsl.app.app import python_app
 from parsl.app.futures import DataFuture
 from parsl.data_provider.files import File
-from parsl.dataflow.futures import AppFuture
+from parsl.dataflow.futures import AppFuture, Future
 
 import psiflow
 from psiflow.data import Computable, Dataset, aggregate_multiple, compute
@@ -23,8 +24,15 @@ from psiflow.functions import (
 )
 from psiflow.geometry import Geometry
 from psiflow.utils._plumed import remove_comments_printflush
-from psiflow.utils.apps import copy_app_future, get_attribute
+from psiflow.utils.apps import get_attribute
 from psiflow.utils.io import dump_json
+
+
+# TODO: comparison logic in __eq__ only works for hamiltonians without futures
+# TODO: dataclasses automatically generate __eq__
+
+
+logger = logging.getLogger(__name__)  # logging per module
 
 
 apply_threads = python_app(_apply, executors=["default_threads"])
@@ -32,11 +40,11 @@ apply_htex = python_app(_apply, executors=["default_htex"])
 apply_modelevaluation = python_app(_apply, executors=["ModelEvaluation"])
 
 
+# TODO: why have the Computable class?
 class Hamiltonian(Computable):
-    outputs: tuple = ("energy", "forces", "stress")
     batch_size = 1000
-    app: Callable
-    function_name: str
+    outputs: ClassVar[tuple] = ("energy", "forces", "stress")
+    function_name: ClassVar[str]
 
     def compute(
         self,
@@ -50,7 +58,7 @@ class Hamiltonian(Computable):
             batch_size = self.__class__.batch_size
         return compute(arg, self.get_app(), outputs_=outputs, batch_size=batch_size)
 
-    def __eq__(self, hamiltonian: "Hamiltonian") -> bool:
+    def __eq__(self, other: "Hamiltonian") -> bool:
         raise NotImplementedError
 
     def __mul__(self, a: float) -> "MixtureHamiltonian":
@@ -79,6 +87,7 @@ class Hamiltonian(Computable):
         ).outputs[0]
 
     def parameters(self) -> dict:
+        """Return function parameters"""
         raise NotImplementedError
 
     def get_app(self) -> Callable:
@@ -211,8 +220,9 @@ class MixtureHamiltonian(Hamiltonian):
 
 
 @psiflow.register_serializable
+@dataclass
 class Zero(Hamiltonian):
-    function_name: str = "ZeroFunction"
+    function_name: ClassVar[str] = "ZeroFunction"
 
     def __init__(self):
         pass
@@ -221,9 +231,7 @@ class Zero(Hamiltonian):
         return partial(apply_threads, function_cls=ZeroFunction)
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        if type(hamiltonian) is Zero:
-            return True
-        return False
+        return True if isinstance(hamiltonian, Zero) else False
 
     def __mul__(self, a: float) -> "Zero":
         return Zero()
@@ -236,17 +244,12 @@ class Zero(Hamiltonian):
 
 
 @psiflow.register_serializable
+@dataclass
 class EinsteinCrystal(Hamiltonian):
-    # TODO: logic not consistent depending on Geometry | AppFuture
-    reference_geometry: Geometry | AppFuture
-    force_constant: float
-    function_name: str = "EinsteinCrystalFunction"
-
-    def __init__(self, geometry: Union[Geometry, AppFuture], force_constant: float):
-        super().__init__()
-        self.reference_geometry = copy_app_future(geometry)
-        self.force_constant = force_constant
-        self.external = None  # needed
+    force_constant: float | AppFuture
+    centers: np.ndarray | AppFuture
+    volume: float | AppFuture
+    function_name: ClassVar[str] = "EinsteinCrystalFunction"
 
     def get_app(self) -> Callable:
         return partial(
@@ -256,21 +259,34 @@ class EinsteinCrystal(Hamiltonian):
     def parameters(self) -> dict:
         return {
             "force_constant": self.force_constant,
-            "centers": get_attribute(self.reference_geometry, "per_atom", "positions"),
-            "volume": get_attribute(self.reference_geometry, "volume"),
+            "centers": self.centers,
+            "volume": self.volume,
         }
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if self is other:
+            return True  # identity check
         if (
-            not isinstance(hamiltonian, EinsteinCrystal)
-            or not np.allclose(self.force_constant, hamiltonian.force_constant)
-            or self.reference_geometry != hamiltonian.reference_geometry
+            not isinstance(other, EinsteinCrystal)
+            or not attrs_equal(self.force_constant, other.force_constant)
+            or not attrs_equal(self.centers, other.centers)
+            or not attrs_equal(self.volume, other.volume)
         ):
             return False
         return True
 
+    @classmethod
+    def from_geometry(
+        cls, geometry: Geometry | AppFuture, force_constant: float | AppFuture
+    ):
+        # TODO: this is not immutable?
+        centers = get_attribute(geometry, "per_atom", "positions")
+        volume = get_attribute(geometry, "volume")
+        return cls(force_constant, centers, volume)
+
 
 @psiflow.register_serializable
+@dataclass
 class PlumedHamiltonian(Hamiltonian):
     plumed_input: str  # TODO: or future?
     external: Optional[psiflow._DataFuture]
@@ -291,40 +307,59 @@ class PlumedHamiltonian(Hamiltonian):
         if external is not None:
             assert external.filepath in self.plumed_input
         self.external = external
+    plumed_input: str | AppFuture
+    external: Optional[psiflow._DataFuture] = None
+    function_name: ClassVar[str] = "PlumedFunction"
+
+    def __post_init__(self):
+        self._prepare_input()
+        if isinstance(ext := self.external, (str, Path)):
+            ext = File(ext)
+        if ext is not None:
+            assert ext.filepath in self.plumed_input
+        self.external = ext
+
+    def _prepare_input(self) -> None:
+        if isinstance(inp := self.plumed_input, Future):
+            app = python_app(remove_comments_printflush, executors=["default_threads"])
+            inp = app(inp)
+        else:
+            inp = remove_comments_printflush(inp)
+        self.plumed_input = inp
 
     def get_app(self) -> Callable:
-        return partial(apply_htex, function_cls=PlumedFunction, **self.parameters())
+        return partial(
+            apply_htex,
+            function_cls=PlumedFunction,
+            wait_for=self.external,
+            **self.parameters(),
+        )
 
     def parameters(self) -> dict:
         if self.external is not None:  # ensure parameters depends on self.external
             external = copy_app_future(self.external.filepath, inputs=[self.external])
         else:
             external = None
-        return {"plumed_input": self.plumed_input, "plumed_extras": self.plumed_extras, "external": external}
+        path = self.external.filepath if self.external is not None else None
+        return {"plumed_input": self.plumed_input, "plumed_extras": self.plumed_extras, "external": path}
 
     def __eq__(self, other: Hamiltonian) -> bool:
-        if (
-            not isinstance(other, PlumedHamiltonian)
-            or self.plumed_input != other.plumed_input
+        if self is other:
+            return True  # identity check
+        if not isinstance(other, PlumedHamiltonian) or not attrs_equal(
+            self.plumed_input, other.plumed_input
         ):
             return False
         return True
 
 
 @psiflow.register_serializable
+@dataclass
 class Harmonic(Hamiltonian):
-    reference_geometry: Geometry | AppFuture
     hessian: np.ndarray | AppFuture
-    function_name: str = "HarmonicFunction"
-
-    def __init__(
-        self,
-        reference_geometry: Geometry | AppFuture,
-        hessian: np.ndarray | AppFuture,
-    ):
-        # TODO: why not copy_app_future(geometry) like others?
-        self.reference_geometry = reference_geometry
-        self.hessian = hessian
+    positions: np.ndarray | AppFuture
+    energy: np.ndarray | AppFuture
+    function_name: ClassVar[str] = "HarmonicFunction"
 
     def get_app(self) -> Callable:
         return partial(
@@ -332,42 +367,40 @@ class Harmonic(Hamiltonian):
         )
 
     def parameters(self) -> dict:
-        positions = get_attribute(self.reference_geometry, "per_atom", "positions")
-        energy = get_attribute(self.reference_geometry, "energy")
         return {
-            "positions": positions,
-            "energy": energy,
+            "positions": self.positions,
+            "energy": self.energy,
             "hessian": self.hessian,
         }
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        if type(hamiltonian) is not Harmonic:
-            return False
-        hamiltonian: Harmonic
-        if hamiltonian.reference_geometry != self.reference_geometry:
-            return False
-
-        # TODO: why this check? Is it not always an ndarray?
-        # slightly different check for numpy arrays
-        is_array0 = type(hamiltonian.hessian) is np.ndarray
-        is_array1 = type(self.hessian) is np.ndarray
-        if is_array0 and is_array1:
-            equal = np.allclose(hamiltonian.hessian, self.hessian)
-        else:
-            equal = hamiltonian.hessian == self.hessian
-        if not equal:
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if self is other:
+            return True  # identity check
+        if (
+            not isinstance(other, Harmonic)
+            or not attrs_equal(self.hessian, other.hessian)
+            or not attrs_equal(self.positions, other.positions)
+            or not attrs_equal(self.energy, other.energy)
+        ):
             return False
         return True
 
+    @classmethod
+    def from_geometry(
+        cls, geometry: Geometry | AppFuture, hessian: np.ndarray | AppFuture
+    ):
+        # TODO: this is not immutable?
+        positions = get_attribute(geometry, "per_atom", "positions")
+        energy = get_attribute(geometry, "energy")
+        return cls(hessian, positions, energy)
+
 
 @psiflow.register_serializable
+@dataclass
 class D3Hamiltonian(Hamiltonian):
-    method: str
-    damping: str
-    function_name: str = "DispersionFunction"
-
-    def __init__(self, method: str, damping: str = "d3bj"):
-        self.method, self.damping = method, damping
+    method: str | AppFuture
+    damping: str | AppFuture = "d3bj"
+    function_name: ClassVar[str] = "DispersionFunction"
 
     def get_app(self) -> Callable:
         # execution-side parameters of function are not included in self.parameters()
@@ -385,99 +418,101 @@ class D3Hamiltonian(Hamiltonian):
     def parameters(self) -> dict:
         return {"method": self.method, "damping": self.damping}
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if self is other:
+            return True  # identity check
         if (
-            not isinstance(hamiltonian, D3Hamiltonian)
-            or self.method != hamiltonian.method
-            or self.damping != hamiltonian.damping
+            not isinstance(other, D3Hamiltonian)
+            or not attrs_equal(self.method, other.method)
+            or not attrs_equal(self.damping, other.damping)
         ):
             return False
         return True
 
 
 @psiflow.register_serializable
+@dataclass
 class MACEHamiltonian(Hamiltonian):
-    external: psiflow._DataFuture
-    atomic_energies: dict[str, float]
-    function_name: str = "MACEFunction"
+    external: psiflow._DataFuture | str | Path
+    kwargs: dict = field(default_factory=dict)
+    function_name: ClassVar[str] = "MACEFunction"
 
-    def __init__(
-        self,
-        external: Union[Path, str, psiflow._DataFuture],
-        atomic_energies: dict[str, float],
-    ):
-        self.atomic_energies = atomic_energies
-        if type(external) in [str, Path]:
-            self.external = File(external)
-        else:
-            self.external = external
+    def __post_init__(self):
+        if isinstance(ext := self.external, (str, Path)):
+            ext = File(ext)
+            self.external = ext
+
+    def update_kwargs(self, **kwargs: Any) -> None:
+        """Specify kwargs for MACECalculator (enable_cueq, head, ..)"""
+        self.kwargs |= kwargs
 
     def get_app(self) -> Callable:
         # execution-side parameters of function are not included in self.parameters()
         evaluation = psiflow.context().definitions["ModelEvaluation"]
-        resources = evaluation.wq_resources(1)
         return partial(
             apply_modelevaluation,
             function_cls=MACEFunction,
-            parsl_resource_specification=resources,
-            **self.parameters(),
+            wait_for=self.external,
+            parsl_resource_specification=evaluation.wq_resources(1),
+            **self.parameters(include_env=True),
         )
 
-    def parameters(self) -> dict:
-        # TODO: Why is the future copy needed? Can we not pass the File/DataFuture directly?
-        model_path = copy_app_future(self.external.filepath, inputs=[self.external])
+    def parameters(self, include_env: bool = False) -> dict:
+        # TODO: in i-Pi MD, 'ncores', 'dtype', 'device' should be set by the sampling module
+        #  (most of them are overwritten in the driver right now)
         evaluation = psiflow.context().definitions["ModelEvaluation"]
-        return {
-            "model_path": model_path,
-            "atomic_energies": self.atomic_energies,
+        data = {
+            "model_path": self.external.filepath,
             "ncores": evaluation.cores_per_task,
             "dtype": "float32",
-            "device": "gpu" if evaluation.use_gpu else "cpu",
-            "env_vars": evaluation.env_vars,
+            "device": "cuda" if evaluation.use_gpu else "cpu",
+            "calc_kwargs": self.kwargs,
         }
+        if include_env:  # python apps need to set env_vars
+            data["env_vars"] = evaluation.env_vars
+        return data
 
-    def __eq__(self, hamiltonian: Hamiltonian) -> bool:
-        if type(hamiltonian) is not MACEHamiltonian:
+    def __eq__(self, other: Hamiltonian) -> bool:
+        if self is other:
+            return True  # identity check
+        if (
+            not isinstance(other, MACEHamiltonian)
+            or not attrs_equal(self.external.filepath, other.external.filepath)
+            or not attrs_equal(self.kwargs, other.kwargs)
+        ):
             return False
-        hamiltonian: MACEHamiltonian
-        if self.external.filepath != hamiltonian.external.filepath:
-            return False
-        if len(self.atomic_energies) != len(hamiltonian.atomic_energies):
-            return False
-        for symbol, energy in self.atomic_energies.items():
-            if not np.allclose(
-                energy,
-                hamiltonian.atomic_energies[symbol],
-            ):
-                return False
         return True
 
-    # TODO: the methods below are outdated..
-
     @classmethod
-    def mace_mp0(cls, size: str = "small") -> "MACEHamiltonian":
-        urls = dict(
-            small="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-10-mace-128-L0_energy_epoch-249.model",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
-            large="https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0/2023-12-03-mace-128-L1_epoch-199.model",
-        )
-        assert size in urls
-        parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
-        urllib.request.urlretrieve(
-            urls[size],
-            parsl_file.filepath,
-        )
-        return cls(parsl_file, {})
+    def from_foundation(cls, name: Optional[str] = None, url: Optional[str] = None):
+        # see mace.calculators.foundation_models
+        import urllib.request
+        from psiflow.models.mace import mace_mp_urls
 
-    @classmethod
-    def mace_cc(cls) -> "MACEHamiltonian":
-        url = "https://github.com/molmod/psiflow/raw/main/examples/data/ani500k_cc_cpu.model"
-        parsl_file = psiflow.context().new_file("mace_mp_", ".pth")
-        urllib.request.urlretrieve(
-            url,
-            parsl_file.filepath,
-        )
-        return cls(parsl_file, {})
+        if name is not None:
+            url = mace_mp_urls.get(name)
+        file = psiflow.context().new_file("mace_foundation_", ".model")
+        logger.info(f"Downloading MACE foundation model from {url}")
+        _, http_msg = urllib.request.urlretrieve(url, file)
+        return cls(external=file)
 
 
 def combine_hamiltonians(hamiltonians: list[Hamiltonian]) -> MixtureHamiltonian:
     return sum(hamiltonians, start=Zero())  # mostly for type hinting
+
+
+def attrs_equal(attr1: Any, attr2: Any) -> bool:
+
+    # check for futures
+    future1 = isinstance(attr1, Future)
+    future2 = isinstance(attr2, Future)
+    if future1 and future2:
+        return attr1 == attr2  # has to be the same object
+    elif future1 != future2:
+        return False  # xor
+
+    elif isinstance(attr1, (np.ndarray, float)):
+        return np.allclose(attr1, attr2)
+    elif isinstance(attr1, (dict, str)):
+        return attr1 == attr2
+    return False

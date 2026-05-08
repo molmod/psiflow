@@ -9,7 +9,6 @@ import numpy as np
 from parsl.app.app import bash_app
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture, DataFuture
-from sympy import print_glsl
 
 import psiflow
 from psiflow.data import Dataset
