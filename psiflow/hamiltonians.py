@@ -1,5 +1,6 @@
 import logging
 from functools import partial
+import re
 from pathlib import Path
 from typing import Optional, Union, Callable, Sequence, Any, ClassVar
 from dataclasses import dataclass, field
@@ -287,6 +288,25 @@ class EinsteinCrystal(Hamiltonian):
 @psiflow.register_serializable
 @dataclass
 class PlumedHamiltonian(Hamiltonian):
+    plumed_input: str  # TODO: or future?
+    external: Optional[psiflow._DataFuture]
+    function_name: str = "PlumedFunction"
+
+    def __init__(
+        self,
+        plumed_input: str,
+        external: Union[None, str, Path, File, DataFuture] = None,
+    ):
+        super().__init__()
+
+        match = re.search(r'^\s*PRINT\s+.*\bARG=(\S+)', plumed_input, re.MULTILINE)  # parse plumed quantities from input file
+        self.plumed_extras = match.group(1).split(",") if match else []
+        self.plumed_input = remove_comments_printflush(plumed_input)
+        if type(external) in [str, Path]:
+            external = File(str(external))
+        if external is not None:
+            assert external.filepath in self.plumed_input
+        self.external = external
     plumed_input: str | AppFuture
     external: Optional[psiflow._DataFuture] = None
     function_name: ClassVar[str] = "PlumedFunction"
@@ -316,8 +336,12 @@ class PlumedHamiltonian(Hamiltonian):
         )
 
     def parameters(self) -> dict:
+        if self.external is not None:  # ensure parameters depends on self.external
+            external = copy_app_future(self.external.filepath, inputs=[self.external])
+        else:
+            external = None
         path = self.external.filepath if self.external is not None else None
-        return {"plumed_input": self.plumed_input, "external": path}
+        return {"plumed_input": self.plumed_input, "plumed_extras": self.plumed_extras, "external": path}
 
     def __eq__(self, other: Hamiltonian) -> bool:
         if self is other:
