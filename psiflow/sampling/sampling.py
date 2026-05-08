@@ -291,6 +291,7 @@ def setup_output(
     components: list[HamiltonianComponent],
     observables: Optional[list[str]],
     step: Optional[int],
+    step_properties: Optional[int],
     keep_trajectory: bool,
     checkpoint_step: int,
 ) -> tuple[ET.Element, list]:
@@ -308,9 +309,8 @@ def setup_output(
         full_list.append("ensemble_bias{electronvolt}")
     observables = list(set(full_list))
 
-    if step is None:
-        # TODO: this logic should be elsewhere
-        step = checkpoint_step
+    step = step or step_properties or checkpoint_step # TODO: this logic should be elsewhere
+    step_properties = step_properties or step
 
     output = ET.Element("output", prefix="output")
     checkpoint = ET.Element(
@@ -333,7 +333,7 @@ def setup_output(
     properties = ET.Element(
         "properties",
         filename="properties",
-        stride=str(step),
+        stride=str(step_properties),
     )
     properties.text = create_xml_list(observables)
     output.append(properties)
@@ -346,12 +346,12 @@ def setup_output(
         extras = ",".join(list(set(extras_list)))
         extras_element = ET.Element(
             "trajectory",
-            filename=f"extras",
-            stride=str(step),
+            filename="extras",
+            stride=str(step_properties),
             extra_type=extras,
             bead="0",
         )
-        extras_element.text = f" extras_bias "
+        extras_element.text = " extras "
         output.append(extras_element)
     return output, observables
 
@@ -526,6 +526,7 @@ def _sample(
     walkers: list[Walker],
     steps: int,
     step: Optional[int] = None,
+    step_properties: Optional[int] = None,
     start: int = 0,
     keep_trajectory: bool = True,
     max_force: Optional[float] = None,
@@ -573,6 +574,7 @@ def _sample(
         hamiltonian_components,  # for potential components
         observables,
         step,
+        step_properties,
         keep_trajectory,
         checkpoint_step,
     )
@@ -683,6 +685,7 @@ def sample(
     walkers: list[Walker],
     steps: int,
     step: Optional[int] = None,
+    step_properties: Optional[int] = None,
     start: int = 0,
     keep_trajectory: bool = True,
     max_force: Optional[float] = None,
@@ -706,6 +709,7 @@ def sample(
             _walkers,
             steps,
             step=step,
+            step_properties=step_properties,
             start=start,
             keep_trajectory=keep_trajectory,
             max_force=max_force,
