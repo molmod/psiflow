@@ -117,7 +117,7 @@ class PlumedFunction(Function):
         # input system
         plumed_ = self.plumed_instances[key]
         plumed_.cmd("setStep", 0)
-        masses = np.array([atomic_masses[n] for n in geometry.per_atom.numbers])
+        masses = np.array([atomic_masses[n] for n in geometry.numbers])
         plumed_.cmd("setMasses", masses)
         copied_positions = geometry.per_atom.positions.astype(np.float64, copy=True)
         plumed_.cmd("setPositions", copied_positions)
