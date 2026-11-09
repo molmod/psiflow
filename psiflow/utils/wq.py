@@ -1,4 +1,5 @@
 # TODO: this probably does not work in a nested way
+#  or when join apps submit tasks at some point in the future (after exiting the context)
 
 import logging
 

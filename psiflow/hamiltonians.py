@@ -11,7 +11,15 @@ from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture, Future
 
 import psiflow
-from psiflow.data import Computable, Dataset, aggregate_multiple, compute
+from psiflow.data import Dataset
+from psiflow.compute import (
+    aggregate_results,
+    compute,
+    _apply,
+    ComputeInput,
+    ComputeResult,
+    insert_results,
+)
 from psiflow.functions import (
     EinsteinCrystalFunction,
     HarmonicFunction,
@@ -19,17 +27,11 @@ from psiflow.functions import (
     PlumedFunction,
     ZeroFunction,
     DispersionFunction,
-    _apply,
 )
 from psiflow.geometry import Geometry
 from psiflow.utils._plumed import remove_comments_printflush
 from psiflow.utils.apps import get_attribute
 from psiflow.utils.io import dump_json
-
-
-# TODO: comparison logic in __eq__ only works for hamiltonians without futures
-# TODO: dataclasses automatically generate __eq__
-
 
 logger = logging.getLogger(__name__)  # logging per module
 
@@ -39,23 +41,20 @@ apply_htex = python_app(_apply, executors=["default_htex"])
 apply_modelevaluation = python_app(_apply, executors=["ModelEvaluation"])
 
 
-# TODO: why have the Computable class?
-class Hamiltonian(Computable):
-    batch_size = 1000
+class Hamiltonian:
     outputs: ClassVar[tuple] = ("energy", "forces", "stress")
     function_name: ClassVar[str]
 
-    def compute(
-        self,
-        arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
-        *outputs: Optional[str],
-        batch_size: Optional[int] = -1,  # if -1: take class default TODO: why?
-    ) -> Union[list[AppFuture], AppFuture]:
-        if len(outputs) == 0:
-            outputs = tuple(self.__class__.outputs)
-        if batch_size == -1:
-            batch_size = self.__class__.batch_size
-        return compute(arg, self.get_app(), outputs_=outputs, batch_size=batch_size)
+    def compute(self, arg: ComputeInput, batch_size: int = 1000) -> AppFuture:
+        """Evaluate hamiltonian function on input data and return ComputeResult"""
+        return compute(arg, [self.get_app()], batch_size=batch_size)
+
+    def evaluate(self, arg: Dataset, batch_size: int = 1000) -> Dataset:
+        """Return new dataset labelled with hamiltonian function"""
+        geoms = arg.geometries()
+        result = self.compute(geoms, batch_size)
+        future = insert_results(geoms, result)
+        return Dataset(future)
 
     def __eq__(self, other: "Hamiltonian") -> bool:
         raise NotImplementedError
@@ -107,25 +106,12 @@ class MixtureHamiltonian(Hamiltonian):
         self.hamiltonians = list(hamiltonians)
         self.coefficients = list(coefficients)
 
-    def compute(  # override compute for efficient batching
-        self,
-        arg: Union[Dataset, AppFuture[list], list, AppFuture, Geometry],
-        outputs: Union[str, list[str], None] = None,
-        batch_size: Optional[int] = None,
-    ) -> Union[list[AppFuture], AppFuture]:
-        if outputs is None:
-            outputs = list(self.__class__.outputs)
+    def compute(self, arg: ComputeInput, batch_size: int = 1000) -> AppFuture:
         apply_apps = [h.get_app() for h in self.hamiltonians]
         reduce_func = partial(
-            aggregate_multiple, coefficients=np.array(self.coefficients)
+            aggregate_results, coefficients=np.array(self.coefficients)
         )
-        return compute(
-            arg,
-            *apply_apps,
-            outputs_=outputs,
-            reduce_func=reduce_func,
-            batch_size=batch_size,
-        )
+        return compute(arg, apply_apps, reduce_func=reduce_func, batch_size=batch_size)
 
     def __eq__(self, hamiltonian: Hamiltonian) -> bool:
         if type(hamiltonian) is not MixtureHamiltonian:
@@ -223,9 +209,6 @@ class MixtureHamiltonian(Hamiltonian):
 class Zero(Hamiltonian):
     function_name: ClassVar[str] = "ZeroFunction"
 
-    def __init__(self):
-        pass
-
     def get_app(self) -> Callable:
         return partial(apply_threads, function_cls=ZeroFunction)
 
@@ -311,7 +294,7 @@ class PlumedHamiltonian(Hamiltonian):
         return partial(
             apply_htex,
             function_cls=PlumedFunction,
-            wait_for=self.external,
+            inputs=[self.external],
             **self.parameters(),
         )
 
@@ -428,7 +411,7 @@ class MACEHamiltonian(Hamiltonian):
         return partial(
             apply_modelevaluation,
             function_cls=MACEFunction,
-            wait_for=self.external,
+            inputs=[self.external],
             parsl_resource_specification=evaluation.wq_resources(1),
             **self.parameters(include_env=True),
         )

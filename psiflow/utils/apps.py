@@ -1,6 +1,7 @@
 import shutil
 import textwrap
 from typing import Any, Union
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -38,8 +39,8 @@ compute_sum = python_app(_compute_sum, executors=["default_threads"])
 
 def _copy_data_future(
     pass_on_exist: bool = False,
-    inputs: list[File] = [],
-    outputs: list[File] = [],
+    inputs: Sequence[File] = (),
+    outputs: Sequence[File] = ()
 ) -> None:
     assert len(inputs) == 1
     assert len(outputs) == 1
@@ -49,7 +50,6 @@ def _copy_data_future(
         shutil.copyfile(inputs[0], outputs[0])
     else:  # no need to copy empty file
         pass
-    return
 
 
 copy_data_future = python_app(_copy_data_future, executors=["default_threads"])

@@ -386,7 +386,8 @@ def _update_logs(
     inputs: list = [],
     outputs: list = [],
 ):
-    from psiflow.data.utils import _compute_rmse, _extract_quantities, _read_frames
+    from psiflow.data.utils import _extract_quantities, _read_frames
+    from psiflow.compute import _compute_rmse
     from psiflow.utils.io import _load_metrics, _save_metrics
 
     data0 = _read_frames(inputs=[inputs[1]])

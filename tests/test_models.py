@@ -4,7 +4,7 @@ import numpy as np
 from parsl.app.futures import DataFuture
 
 import psiflow
-from psiflow.data import compute_rmse
+from psiflow.compute import compare_arrays
 from psiflow.hamiltonians import MACEHamiltonian
 from psiflow.models import MACE
 from psiflow.models.mace import KEY_ATOMIC_ENERGIES, KEY_ITERATION, MODEL_DIRS
@@ -59,19 +59,16 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     validation = dataset[-5:]
     path = tmp_path / "mace"
     model = MACE.create(path, mace_config)
+    [data] = validation.get(key)
 
     model.train(training, validation)
     hamiltonian = model.create_hamiltonian()
-    rmse0 = compute_rmse(
-        validation.get(key),
-        validation.evaluate(hamiltonian).get(key),
-    )
+    validation0 = hamiltonian.evaluate(validation)
+    [data0] = validation0.get(key)
     future_train = model.train(training, validation)
     hamiltonian = model.create_hamiltonian()
-    rmse1 = compute_rmse(
-        validation.get(key),
-        validation.evaluate(hamiltonian).get(key),
-    )
+    validation1 = hamiltonian.evaluate(validation)
+    [data1] = validation1.get(key)
 
     future_train.result()  # wait for second training run
     with pytest.raises(AssertionError):
@@ -81,25 +78,25 @@ def test_mace_train(gpu, mace_config, dataset, tmp_path):
     # train from load
     model_ = MACE.load(path)
     hamiltonian = model_.create_hamiltonian()
-    rmse2 = compute_rmse(
-        validation.get(key),
-        validation.evaluate(hamiltonian).get(key),
-    )
+    validation2 = hamiltonian.evaluate(validation)
+    [data2] = validation2.get(key)
     model_.train(training, validation)
     hamiltonian = model_.create_hamiltonian()
-    rmse3 = compute_rmse(
-        validation.get(key),
-        validation.evaluate(hamiltonian).get(key),
-    )
+    validation3 = hamiltonian.evaluate(validation)
+    [data3] = validation3.get(key)
 
-    print(rmse0.result())
-    print(rmse1.result())
-    print(rmse2.result())
-    print(rmse3.result())
+    rmse0 = compare_arrays(data, data0).result()
+    rmse1 = compare_arrays(data, data1).result()
+    rmse2 = compare_arrays(data, data2).result()
+    rmse3 = compare_arrays(data, data3).result()
 
-    assert rmse0.result() > rmse1.result()
-    assert np.isclose(rmse1.result(), rmse2.result())
-    assert rmse2.result() > rmse3.result()
+    print(rmse0)
+    print(rmse1)
+    print(rmse2)
+    print(rmse3)
+    assert rmse0 > rmse1
+    assert np.isclose(rmse1, rmse2)
+    assert rmse2 > rmse3
 
 
 def test_mace_hamiltonian(dataset, mace_foundation):
@@ -114,8 +111,11 @@ def test_mace_hamiltonian(dataset, mace_foundation):
     assert hamiltonian1 == hamiltonian2
     hamiltonian2.update_kwargs(enable_cueq=True)
 
-    e0 = hamiltonian0.compute(dataset, "energy")
-    e1 = hamiltonian1.compute(dataset, "energy")
-    e2 = hamiltonian2.compute(dataset, "energy")
-    assert np.allclose(e0.result(), e1.result())
-    assert np.allclose(e0.result(), e2.result())
+    out0 = hamiltonian0.compute(dataset)
+    out1 = hamiltonian1.compute(dataset)
+    out2 = hamiltonian2.compute(dataset)
+    out0, out1, out2 = out0.result(), out1.result(), out2.result()
+    for key in out0.keys:
+        # single precision
+        assert np.allclose(out0.get(key), out1.get(key), atol=1e-6)
+        assert np.allclose(out0.get(key), out2.get(key), atol=1e-6)

@@ -1,15 +1,16 @@
 import numpy as np
 from ase.units import _c, kB, second
 
+import psiflow
 from psiflow.free_energy import (
     Integration,
     compute_frequencies,
     compute_harmonic,
     harmonic_free_energy,
 )
-from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, Harmonic, MACEHamiltonian
 from psiflow.sampling.ase import optimize
+from psiflow.data.utils import check_equality
 
 
 def test_integration_simple(dataset):
@@ -39,7 +40,7 @@ def test_integration_simple(dataset):
 
         # manual computation of delta gradient
         delta = -0.1 * harmonic
-        energies = delta.compute(integration.outputs[i].trajectory, "energy")
+        energies = delta.compute(integration.outputs[i].trajectory).energy
         assert np.allclose(
             state.gradients["delta"].result(),
             np.mean(energies.result()) / (kB * state.temperature),

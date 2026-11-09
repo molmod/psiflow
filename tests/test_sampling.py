@@ -5,7 +5,6 @@ import pytest
 from ase.units import Bohr
 
 import psiflow
-from psiflow.geometry import check_equality
 from psiflow.hamiltonians import EinsteinCrystal, PlumedHamiltonian, MACEHamiltonian
 from psiflow.sampling.optimize import (
     optimize as optimize_ipi,
@@ -28,6 +27,8 @@ from psiflow.sampling.walker import (
     Ensemble,
 )
 from psiflow.sampling.output import Status
+
+from psiflow.data.utils import check_equality
 
 
 def test_walkers(dataset):
@@ -120,11 +121,9 @@ def test_parse_checkpoint(checkpoint):
     file = psiflow.context().new_file("input_", ".xml")
     Path(file.filepath).write_text(checkpoint)
     states = parse_checkpoint(file.filepath)
-    assert "time" in states[0].order
-    assert np.allclose(
-        states[0].cell,
-        np.array([[1, 0.0, 0], [0.1, 2, 0], [0, 0, 3]]) * Bohr,
-    )
+    cell = np.array([[1, 0.0, 0], [0.1, 2, 0], [0, 0, 3]]) * Bohr
+    assert hasattr(states[0], "time")
+    assert np.allclose(states[0].cell, cell)
 
 
 def test_sample(dataset, mace_foundation):
@@ -143,13 +142,9 @@ CV: DISTANCE ATOMS=1,2 NOPBC
 METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
 """
     metadynamics = Metadynamics(plumed_str)
+    mixture = 0.9 * plumed + einstein
     walkers = [
-        Walker(
-            start=future,
-            temperature=300,
-            metadynamics=metadynamics,
-            hamiltonian=0.9 * plumed + einstein,
-        ),
+        Walker(start=future, metadynamics=metadynamics, hamiltonian=mixture),
         Walker(start=future, temperature=600, hamiltonian=einstein),
         Walker(start=future, temperature=450, hamiltonian=einstein),
         Walker(start=future, temperature=600, hamiltonian=einstein),
@@ -182,11 +177,11 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         outputs[1]["potential{electronvolt}"].result(),
     ]
     energies_ = [
-        (0.9 * plumed + einstein).compute(outputs[0].trajectory, "energy"),
-        einstein.compute(outputs[1].trajectory, "energy"),
+        mixture.compute(outputs[0].trajectory).result().energy,
+        einstein.compute(outputs[1].trajectory).result().energy,
     ]
-    assert len(energies[0]) == len(energies_[0].result())
-    assert np.allclose(energies[0], energies_[0].result())
+    assert len(energies[0]) == len(energies_[0])
+    assert np.allclose(energies[0], energies_[0])
     time = outputs[0]["time{picosecond}"].result()
     assert np.allclose(time, np.arange(0, 51, 5) * 5e-4)
 
@@ -237,7 +232,7 @@ METAD ARG=CV PACE=5 SIGMA=0.05 HEIGHT=5
         checkpoint_step=1,
         fix_com=True,  # otherwise temperature won't match
     )
-    energy = hamiltonian.compute(dataset[1], "energy")
+    energy = hamiltonian.compute(dataset[1]).energy
     energy_ = output["potential{electronvolt}"]
     assert np.allclose(energy.result()[0], energy_.result()[0], atol=1e-5)
     assert np.allclose(output.time.result(), 10 * 0.5 / 1000)

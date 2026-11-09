@@ -8,13 +8,14 @@ from typing import Optional, Union
 import numpy as np
 import typeguard
 from parsl.app.app import python_app
-from parsl.dataflow.futures import AppFuture
+from parsl.dataflow.futures import AppFuture, Future
 
 import psiflow
 from psiflow.data import Dataset
-from psiflow.geometry import Geometry, NullState, assign_identifier
+from psiflow.geometry import Geometry#, NullState, assign_identifier
 from psiflow.hamiltonians import Hamiltonian, Zero
 from psiflow.metrics import Metrics
+from psiflow.models import MACE
 # from psiflow.models import Model
 from psiflow.reference import Reference
 from psiflow.sampling import SimulationOutput, Walker, sample
@@ -24,6 +25,24 @@ from psiflow.utils.apps import boolean_or, isnan
 logger = logging.getLogger(__name__)  # logging per module
 
 
+# TODO: reset_model method to remove existing MLP + train/val split
+# TODO: some plugin for data discarding + walker reset
+# TODO: some plugin for data selection / uncertainty thing
+# TODO: some plugin for wandb
+# TODO: add_data method after init?
+# TODO: clean_data method to throw away ridiculous structures
+# TODO: remove psiflow.wait calls -- but still have blocking functionality
+
+# TODO: PASSIVE LEARNING
+#  1. walk MD + store structures + track which structure belongs to which walker
+#  2. some data selection / cleanup step
+#  3. reference single point + hamiltonian eval
+#  4. compare geometries + filter + discard + keep track of walkers to reset
+#  5. update train/val and retrain
+
+
+
+# TODO: remove -> merge into one app
 @typeguard.typechecked
 def _compute_error(
     state0: Geometry,
@@ -45,7 +64,7 @@ def _compute_error(
 
 compute_error = python_app(_compute_error, executors=["default_threads"])
 
-
+# TODO: remove -> merge into one app
 @typeguard.typechecked
 def _exceeds_error(
     errors: np.ndarray,
@@ -56,7 +75,7 @@ def _exceeds_error(
 
 exceeds_error = python_app(_exceeds_error, executors=["default_threads"])
 
-
+# TODO: remove -> merge into one app
 @typeguard.typechecked
 def evaluate_outputs(
     outputs: list[SimulationOutput],
@@ -99,18 +118,24 @@ def evaluate_outputs(
     return identifier, data, resets
 
 
-@typeguard.typechecked
-# @psiflow.serializable
+class Thresholds:
+    """Container for hyperparams"""
+    pass
+
+@psiflow.register_serializable
 class Learning:
+    root: Path
+    model: MACE
     reference: Reference
-    path_output: str
-    identifier: Union[AppFuture, int]
     train_valid_split: float
-    error_thresholds_for_reset: list[Optional[float]]
-    error_thresholds_for_discard: list[Optional[float]]
-    metrics: Metrics
+    identifier: Union[AppFuture, int]
+    error_tresholds: Optional[Thresholds]
+    # error_thresholds_for_reset: list[Optional[float]]
+    # error_thresholds_for_discard: list[Optional[float]]
+    # metrics: Metrics
     iteration: int
-    data: Dataset
+    wait_for: Future
+    # data: Dataset
 
     def __init__(
         self,
@@ -123,6 +148,8 @@ class Learning:
         wandb_project: Optional[str] = None,
         initial_data: Optional[Dataset] = None,
     ):
+        # TODO: accept model argument
+        # TODO: differentiate between fresh start <> restart
         self.reference = reference
         self.path_output = str(path_output)
         Path(self.path_output).mkdir(exist_ok=True, parents=True)
@@ -145,6 +172,7 @@ class Learning:
         self.iteration = -1
 
     def update(self, learning: Learning) -> None:
+        # TODO: does this make sense?
         assert self.path_output == learning.path_output
         self.train_valid_split = learning.train_valid_split
         self.error_thresholds_for_reset = learning.error_thresholds_for_reset
@@ -156,6 +184,7 @@ class Learning:
         self.iteration = learning.iteration
 
     def skip(self, name: str) -> bool:
+        # TODO: upon restart, should we not immediately find how far we got and what the next action should be?
         if not (Path(self.path_output) / name).exists():
             return False
         else:  # check that the iteration has completed, or delete
@@ -168,6 +197,7 @@ class Learning:
                 return True
 
     def save(self, name: str, model: Model, walkers: list[Walker]) -> None:
+        # TODO: fully revamp this method
         model.save(Path(self.path_output) / name)
         self.data.save(Path(self.path_output) / name / "data.xyz")
 
@@ -216,6 +246,7 @@ class Learning:
         steps: int,
         **sampling_kwargs,
     ) -> tuple[Model, list[Walker]]:
+        # TODO: remove model argument + return only walkers
         self.iteration += 1
         name = "{}_{}".format(self.iteration, "passive_learning")
         if self.skip(name):
@@ -231,6 +262,9 @@ class Learning:
                 step = steps
             nevaluations = steps // step
             for _i in range(nevaluations):
+                # TODO: splits into multiple simulations and does data evaluation + validation in steps
+                #  -- do not think we want this.. The instruction is to collect multiple geometries per walker
+                #  -- because we should handle all data validation in one go (errors / uncertainty ...)
                 outputs = sample(
                     walkers,
                     steps=step,
@@ -238,8 +272,10 @@ class Learning:
                     **sampling_kwargs,
                 )
                 # only apply thresholds to forces, not to energies since large offset can exist
+                # TODO: give users the choice?
                 threshold_reset = [None, self.error_thresholds_for_reset[1]]
                 threshold_discard = [None, self.error_thresholds_for_discard[1]]
+                # TODO: do single point evaluations here
                 identifier, data, _ = evaluate_outputs(  # ignore resets
                     outputs,
                     hamiltonian,
@@ -252,6 +288,7 @@ class Learning:
                 self.identifier = identifier
                 self.data += data  # automatically sorted based on identifier
 
+            # TODO: keep consistent train/val splits and do not reset model
             train, valid = self.data.split(self.train_valid_split)  # also shuffles
             model.reset()
             model.initialize(train)

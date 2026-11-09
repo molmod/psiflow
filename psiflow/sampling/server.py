@@ -46,7 +46,7 @@ def parse_checkpoint(file_xml: str | Path) -> list[Geometry]:
         # get current internal system time
         ensemble_data = sys.ensemble.fetch()
         time = ensemble_data.time * (_hbar / (_e * Ha)) * 1e12
-        geometry.order["time"], geometry.order["name"] = time, name
+        geometry.time, geometry.name = time, name
         geometries.append(geometry)
 
     return geometries
@@ -63,8 +63,6 @@ def insert_addresses(input_xml: ET.Element) -> None:
             address.text = str(Path.cwd() / address.text.strip())
 
 
-
-
 def wait_for_clients(input_xml, timeout: int = 60) -> None:
     """Make sure clients have initialised successfully"""
 
@@ -72,7 +70,7 @@ def wait_for_clients(input_xml, timeout: int = 60) -> None:
     sockets = []
     xml_str = ET.tostring(input_xml, encoding="unicode")
     for line in xml_str.splitlines():
-        if 'address' in line:
+        if "address" in line:
             sockets.append(line.split(">")[1].split("<")[0])
 
     for _ in range(timeout):
@@ -116,7 +114,7 @@ def run(start_xyz: str, input_xml: str):
 
 
 def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
-    from psiflow.data.utils import _write_frames
+    from psiflow.data.file import _write_frames
 
     print("Starting cleanup")
     with open(INPUT_XML, "r") as f:
@@ -129,7 +127,7 @@ def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
     states = parse_checkpoint("output.checkpoint")
     for state in states:
         if np.allclose(state.cell, NONPERIODIC_CELL):
-            state.cell[:] = 0.0
+            state.cell = None
     _write_frames(*states, outputs=[output_xyz])
     print("Moved checkpoint geometries")
 
@@ -140,7 +138,7 @@ def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
         out = subprocess.run(
             "i-pi-remdsort input.xml", shell=True, capture_output=True, text=True
         )
-        assert out.returncode == 0  # TODO: what if it isn't?
+        assert out.returncode == 0
         print("REMDSORT")
 
     output_props = _.split(",") if (_ := output_props) else []
