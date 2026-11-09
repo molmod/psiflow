@@ -1,0 +1,32 @@
+name: Test Suite
+run-name: pytest-CI psiflow
+on: [push, pull_request]
+
+jobs:
+  run-tests:
+      runs-on: ubuntu-24.04
+      needs: setup-environment
+      steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Re-engage Apptainer
+        uses: eWaterCycle/setup-apptainer@v3
+        with:
+          apptainer-version: 1.5.4
+
+      - name: Re-engage Micromamba
+        uses: mamba-org/setup-micromamba@v3
+        with:
+          environment-name: 'test-env'
+          generate-run-shell: true
+          cache-environment: true
+
+      - name: Run test suite
+        shell: micromamba-shell {0}
+        env:
+          WANDB_API_KEY: secrets.WANDB_API_KEY
+          WANDB_MODE: offline                        # disables WandB server calls
+        run: |
+          pytest --skip-gpu 
