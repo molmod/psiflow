@@ -1,27 +1,97 @@
 name: Test Suite
-run-name: pytest-CI psiflow
+
 on: [push, pull_request]
 
 jobs:
   run-tests:
       runs-on: ubuntu-24.04
-      needs: setup-environment
       steps:
 
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      - name: Re-engage Apptainer
+      # --------------------------------------------------
+      # Apptainer
+      # --------------------------------------------------
+
+      - name: Setup Apptainer
         uses: eWaterCycle/setup-apptainer@v3
         with:
           apptainer-version: 1.5.4
 
-      - name: Re-engage Micromamba
+      - name: Restore Apptainer cache
+        uses: actions/cache/restore@v4
+        id: apptainer-cache
+        with:
+          path: ~/.apptainer/cache
+          key: apptainer-v1-${{ runner.os }}
+
+      - name: Download Container Images
+        env:
+          APPTAINER_CACHEDIR: ~/.apptainer/cache
+        run: |
+          apptainer pull docker://cp2k/cp2k:2025.2_mpich_x86_64_psmp
+          apptainer pull oras://ghcr.io/molmod/gpaw:24.1
+
+      - name: Save Apptainer cache
+        if: steps.apptainer-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.apptainer/cache
+          key: apptainer-v1-${{ runner.os }}-cp2k-2025.2-gpaw-24.1
+
+      # --------------------------------------------------
+      # Python environment
+      # --------------------------------------------------
+
+      - name: Setup Micromamba
         uses: mamba-org/setup-micromamba@v3
         with:
-          environment-name: 'test-env'
+          micromamba-version: '2.10.0-0'
+          environment-name: test-env
           generate-run-shell: true
+          create-args: >-
+            python=3.12
+            pip
+            ndcctools==7.16.5
+            plumed
+            simple-dftd3
+            dftd3-python
+            -c conda-forge
+          init-shell: bash
           cache-environment: true
+          cache-environment-key: micromamba-v1-${{ hashFiles('pyproject.toml') }}
+
+      - name: Install pip Dependencies
+        shell: micromamba-shell {0}
+        run: |
+          which pip
+          pip install --no-cache-dir torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install --no-cache-dir git+https://github.com/acesuit/mace.git@v0.3.17
+          pip install --no-cache-dir .[dev] plumed cp2k-input-tools==0.9.3
+
+          # make PLUMED visible to the py-plumed interface
+          PLUMED_KERNEL="$CONDA_PREFIX/lib/libplumedKernel.so"
+          echo "{\"env_vars\": {\"PLUMED_KERNEL\": \"$PLUMED_KERNEL\"}}" >> "$CONDA_PREFIX/conda-meta/state"
+
+      # --------------------------------------------------
+      # Tests
+      # --------------------------------------------------
+
+      - name: Verify environment
+        shell: micromamba-shell {0}
+        run: |
+          echo "--- PLUMED setup ---"
+          command -v plumed
+          plumed info --long-version
+          plumed info --configuration
+          echo "--- PLUMED setup ---"
+
+          echo "--- PYTHON setup ---"
+          pip list
+          work_queue_worker --version
+          python -c "import work_queue; import torch; import mace; import ipi; import plumed"
+          echo "--- PYTHON setup ---"
 
       - name: Run test suite
         shell: micromamba-shell {0}
