@@ -40,12 +40,16 @@ jobs:
         run: |
           which pip
           pip install --no-cache-dir \
-          torch==2.15.0 --index-url https://download.pytorch.org/whl/cu132 \
-          https://github.com/acesuit/mace.git@v0.3.17 \
-          https://github.com/i-pi/i-pi.git@v3.3.1 \
-          plumed
+          torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu \
+          git+https://github.com/acesuit/mace.git@v0.3.17 \
+          git+https://github.com/i-pi/i-pi.git@v3.3.1 \
+          git+https://github.com/cp2k/cp2k-input-tools.git@v0.9.3 \
+          plumed \
+          .[dev]
 
-          pip install .[dev]
+          # make PLUMED visible to the py-plumed interface
+          PLUMED_KERNEL="$CONDA_PREFIX/lib/libplumedKernel.so"
+          echo "{\"env_vars\": {\"PLUMED_KERNEL\": \"$PLUMED_KERNEL\"}}" >> "$CONDA_PREFIX/conda-meta/state"
       # cache container images
       - uses: actions/cache@v4
         with:
@@ -64,4 +68,5 @@ jobs:
           WANDB_MODE: offline                        # disables WandB server calls
         run: |
           pip list
+          plumed info --long-version
           pytest --skip-gpu 
