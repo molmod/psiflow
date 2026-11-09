@@ -42,8 +42,8 @@ jobs:
           pip install --no-cache-dir torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
           pip install --no-cache-dir \
           git+https://github.com/acesuit/mace.git@v0.3.17 \
-          git+https://github.com/i-pi/i-pi.git@v3.3.1 \
-          pip install .[dev] plumed cp2k-input-tools==0.9.3
+          git+https://github.com/i-pi/i-pi.git@v3.3.1
+          pip install --no-cache-dir .[dev] plumed cp2k-input-tools==0.9.3
 
           # make PLUMED visible to the py-plumed interface
           PLUMED_KERNEL="$CONDA_PREFIX/lib/libplumedKernel.so"
