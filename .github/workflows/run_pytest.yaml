@@ -39,13 +39,11 @@ jobs:
         shell: micromamba-shell {0}
         run: |
           which pip
+          pip install --no-cache-dir torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
           pip install --no-cache-dir \
-          torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu \
           git+https://github.com/acesuit/mace.git@v0.3.17 \
           git+https://github.com/i-pi/i-pi.git@v3.3.1 \
-          git+https://github.com/cp2k/cp2k-input-tools.git@v0.9.3 \
-          plumed \
-          .[dev]
+          pip install .[dev] plumed cp2k-input-tools==0.9.3
 
           # make PLUMED visible to the py-plumed interface
           PLUMED_KERNEL="$CONDA_PREFIX/lib/libplumedKernel.so"
@@ -68,5 +66,5 @@ jobs:
           WANDB_MODE: offline                        # disables WandB server calls
         run: |
           pip list
-          plumed info --long-version
+          plumed info --configuration
           pytest --skip-gpu 
