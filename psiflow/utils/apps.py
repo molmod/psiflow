@@ -75,7 +75,7 @@ def create_bash_template(tmpdir_root: str, keep_tmpdirs: bool) -> str:
     tmpdir=$(mktemp -d -p {tmpdir_root} "psiflow-tmp.XXXXXXXXXX")
     cd $tmpdir; echo "tmpdir: $PWD"
     {{env}}
-    printenv
+    # printenv
 
     # Actual app definition goes here
     {{commands}}

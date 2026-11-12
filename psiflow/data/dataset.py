@@ -116,7 +116,7 @@ class Dataset:
         """
         return read_frames(self.extxyz)
 
-    def __add__(self, dataset: Dataset) -> Self:
+    def __add__(self, dataset: "Dataset") -> Self:
         """
         Concatenate two datasets.
         """

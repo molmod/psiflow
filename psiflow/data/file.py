@@ -3,8 +3,8 @@ import shutil
 import subprocess
 from pathlib import Path
 from functools import partial
-from typing import Optional, Generator, TypeAlias, Any, Callable
-from collections.abc import Sequence
+from typing import Optional, TypeAlias, Any, Callable
+from collections.abc import Sequence, Iterator
 
 import numpy as np
 from ase.data import chemical_symbols
@@ -23,7 +23,7 @@ from psiflow.data.utils import (
 FileLike: TypeAlias = str | Path | File
 
 
-def iter_read_frames(file: FileLike) -> Generator[list[str]]:
+def iter_read_frames(file: FileLike) -> Iterator[list[str]]:
     """Yields text data to instantiate geometries"""
     frame_regex = re.compile(r"^\d+$")
     with open(file, "r") as f:

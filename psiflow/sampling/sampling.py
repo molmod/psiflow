@@ -370,7 +370,7 @@ def validate_sampling_args(
 
     if checkpoint_step is None or checkpoint_step > steps:
         # always save at least a few checkpoints
-        checkpoint_step = min(step, steps // 10 + 1, 2000)
+        checkpoint_step = min(step, steps // 10, 2000)
 
     # start is applied on subsampled quantities because i-Pi always writes from time step 0
     start = start // step

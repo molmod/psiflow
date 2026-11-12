@@ -119,7 +119,7 @@ class Learning:
     def root(self) -> Path:
         return self.model.root
 
-    def add_error_thresholds(self, thresholds: Thresholds) -> None:
+    def add_thresholds(self, thresholds: Thresholds) -> None:
         self.thresholds = thresholds
 
     def add_post_metrics(self, metrics: Metrics) -> None:
