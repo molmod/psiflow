@@ -7,8 +7,11 @@ micromamba activate $ENV_NAME
 # install workqueue
 micromamba install ndcctools -c conda-forge
 
-# install psiflow
+# install psiflow as a local editable package
 pip install -e psiflow[dev]
+
+# install psiflow from github
+pip install git+https://github.com/pdobbelaere/psiflow.git@learning
 
 # install PyTorch and MACE -- CUDA
 pip install torch==2.15.0 --index-url https://download.pytorch.org/whl/cu132
