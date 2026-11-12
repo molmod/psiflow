@@ -12,11 +12,11 @@ requires-python = ">=3.11"
 dependencies = [
     "ase>=3.23.0",
     "pyyaml>=6.0",
-    "parsl==2026.04.27",
+    "parsl==2026.11.09",
     "tabulate",
     "psutil",
-#    "cp2k-input-tools @ git+https://github.com/cp2k/cp2k-input-tools.git@3b9929735dcb3c8c0620a548b1fe20efecbad077",  # need 2024.1
-    "ipi @ git+https://github.com/i-pi/i-pi.git@v3.1.10",
+    "ipi @ git+https://github.com/i-pi/i-pi.git@v3.3.1",
+    "cp2k-input-tools==0.9.3"
     ]
 
 
