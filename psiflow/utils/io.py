@@ -1,17 +1,17 @@
 import json
 import xml.etree.ElementTree as ET
 from typing import Any
-from collections.abc import Sequence
+from pathlib import Path
 
 import numpy as np
+import yaml
 from parsl.app.app import python_app
 from parsl.data_provider.files import File
 
 from psiflow.serialization import JSONEncoder
 
-# TODO: check which of these methods is actively used
 
-
+# TODO: never used but useful
 def _save_yaml(
     input_dict: dict,
     outputs: list[File] = [],
@@ -42,9 +42,15 @@ def _save_yaml(
 save_yaml = python_app(_save_yaml, executors=["default_threads"])
 
 
+@python_app(executors=["default_threads"])
+def read_yaml(file: str | Path | File) -> dict:
+    with open(file, "r") as f:
+        config_dict = yaml.load(f, Loader=yaml.FullLoader)
+    return config_dict
+
+
 def _save_xml(
-    element: ET.Element,
-    outputs: list = [],
+    element: ET.Element, outputs: list = []
 ) -> None:
     tree = ET.ElementTree(element)
     ET.indent(tree, "  ")
@@ -54,52 +60,21 @@ def _save_xml(
 save_xml = python_app(_save_xml, executors=["default_threads"])
 
 
-def _load_numpy(inputs: list[File] = [], **kwargs) -> np.ndarray:
-    return np.loadtxt(inputs[0], **kwargs)
+@python_app(executors=["default_threads"])
+def load_numpy_txt(file: str | Path | File, **kwargs) -> np.ndarray:
+    return np.loadtxt(file, **kwargs)
 
 
-load_numpy = python_app(_load_numpy, executors=["default_threads"])
-
-
-def _read_yaml(inputs: list[File] = []) -> dict:
-    import yaml
-
-    with open(inputs[0], "r") as f:
-        config_dict = yaml.load(f, Loader=yaml.FullLoader)
-    return config_dict
-
-
-read_yaml = python_app(_read_yaml, executors=["default_threads"])
-
-
-def _save_txt(data: str, outputs: list[File] = []) -> None:
+@python_app(executors=["default_threads"])
+def save_txt(data: str, outputs: list[File] = []) -> None:
+    assert len(outputs) == 1
     with open(outputs[0], "w") as f:
         f.write(data)
 
 
-save_txt = python_app(_save_txt, executors=["default_threads"])
-
-
-def _load_metrics(inputs: list = []) -> np.recarray:
-    # TODO: stop using recarrays
-    return np.load(inputs[0], allow_pickle=True)
-
-
-load_metrics = python_app(_load_metrics, executors=["default_threads"])
-
-
-def _save_metrics(data: np.recarray, outputs: list = []) -> None:
-    # TODO: stop using recarrays
-    with open(outputs[0], "wb") as f:
-        data.dump(f)
-
-
-save_metrics = python_app(_save_metrics, executors=["default_threads"])
-
-
 def _dump_json(
-    inputs: Sequence = (),
-    outputs: Sequence = (),
+    inputs: list = [],
+    outputs: list = [],
     **kwargs,
 ) -> str:
     assert len(outputs) <= 1
@@ -111,19 +86,15 @@ def _dump_json(
     return json_str
 
 
-
 dump_json = python_app(_dump_json, executors=["default_threads"])
 
 
-def _save_npz(
+@python_app(executors=["default_threads"])
+def save_npz(
     data: dict[str, np.ndarray], outputs: list[File], **kwargs: np.ndarray
 ) -> None:
-    """"""
     assert len(outputs) == 1
     np.savez(outputs[0].filepath, **(data | kwargs))
-
-
-save_npz = python_app(_save_npz, executors=["default_threads"])
 
 
 def _load_npz(file_in: File) -> dict[str, Any]:

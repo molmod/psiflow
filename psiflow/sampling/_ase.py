@@ -22,12 +22,18 @@ from ase.filters import FrechetCellFilter
 
 from psiflow.geometry import Geometry
 from psiflow.functions import function_from_json, Function
-from psiflow.sampling.utils import TimeoutException, timeout_handler
-
 
 ALLOWED_MODES: tuple[str, ...] = ("full", "fix_volume", "fix_shape", "fix_cell")
 FILE_OUT: str = "out.xyz"
 FILE_TRAJ: str = "out.traj"
+
+
+class TimeoutException(Exception):
+    pass
+
+
+def timeout_handler(signum, frame):
+    raise TimeoutException
 
 
 class FunctionCalculator(Calculator):

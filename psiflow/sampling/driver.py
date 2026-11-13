@@ -2,8 +2,11 @@
 Updated version of the Psiflow driver included in i-Pi
 """
 
-import numpy as np
+import os
+import time
 
+import numpy as np
+from ase.data import chemical_symbols
 from ipi.pes.dummy import Dummy_driver
 from ipi.utils.units import unit_to_internal, unit_to_user
 from ipi.utils.messages import warning
@@ -12,7 +15,6 @@ try:
     from ase.io import read
     from psiflow.geometry import Geometry
     from psiflow.functions import function_from_json, Function
-    from psiflow.sampling.utils import initialise_driver, check_output
 except ImportError as e:
     message = (
         "Could not find the Psiflow driver dependencies, "
@@ -54,7 +56,7 @@ class Psiflow_driver(Dummy_driver):
     def check_parameters(self):
         self.geometry = Geometry.from_atoms(read(self.template))
         self.function = function_from_json(self.hamiltonian, **self.kwargs)
-        initialise_driver(self)
+        self.initialise()
 
     def compute_structure(self, cell, pos):
         pos = unit_to_user("length", "angstrom", pos)
@@ -64,7 +66,7 @@ class Psiflow_driver(Dummy_driver):
             self.geometry.cell[:] = cell
 
         outputs = self.function(self.geometry)
-        check_output(self, outputs)
+        self.check_output(outputs)
 
         # converts to internal quantities
         energy = outputs["energy"]
@@ -84,3 +86,42 @@ class Psiflow_driver(Dummy_driver):
         extras = ""
 
         return pot_ipi, force_ipi, vir_ipi, extras
+
+    def initialise(self):
+        """"""
+        function = self.function
+        name = function.__class__.__name__
+        affinity = os.sched_getaffinity(os.getpid())
+        t0 = time.time()
+        for _ in range(10):
+            function(self.geometry)  # torch warm-up before simulation
+        t1 = time.time()
+        msg = [
+            "- Psiflow -",
+            f"Initialising driver for {name} with options {self.kwargs}",
+            f"CPU affinity [PID {os.getpid()}]: {affinity}",
+            f"Time for 10 evaluations: {t1 - t0:.3f}",
+            "- - - - - -",
+        ]
+        print("\n".join(msg))
+
+    def check_output(self, data: dict) -> None:
+        if max_force := self.kwargs.get("max_force"):
+            check_forces(data["forces"], self.geometry, max_force)
+
+
+class ForceMagnitudeException(Exception):
+    pass
+
+
+def check_forces(forces: np.ndarray, geometry: Geometry, max_force: float):
+    exceeded = np.linalg.norm(forces, axis=1) > max_force
+    if not np.sum(exceeded):
+        return
+    indices = np.arange(len(geometry))[exceeded]
+    numbers = geometry.numbers[exceeded]
+    symbols = [chemical_symbols[n] for n in numbers]
+    raise ForceMagnitudeException(
+        "\nforce exceeded {} eV/A for atoms {}"
+        " with chemical elements {}\n".format(max_force, indices, symbols)
+    )

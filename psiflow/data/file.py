@@ -3,8 +3,8 @@ import shutil
 import subprocess
 from pathlib import Path
 from functools import partial
-from typing import Optional, Generator, TypeAlias, Any, Callable
-from collections.abc import Sequence
+from typing import Optional, TypeAlias, Any, Callable
+from collections.abc import Sequence, Iterator
 
 import numpy as np
 from ase.data import chemical_symbols
@@ -20,11 +20,10 @@ from psiflow.data.utils import (
     assign_ids,
 )
 
-
 FileLike: TypeAlias = str | Path | File
 
 
-def iter_read_frames(file: FileLike) -> Generator[list[str]]:
+def iter_read_frames(file: FileLike) -> Iterator[list[str]]:
     """Yields text data to instantiate geometries"""
     frame_regex = re.compile(r"^\d+$")
     with open(file, "r") as f:
@@ -35,7 +34,7 @@ def iter_read_frames(file: FileLike) -> Generator[list[str]]:
 
 
 def _write_frames(
-    *states: Geometry | list[Geometry], outputs: Sequence[File] = ()
+    *states: Geometry | Sequence[Geometry], outputs: list[File] = []
 ) -> None:
     """
     Write Geometry instances to a file.
@@ -48,7 +47,7 @@ def _write_frames(
     assert len(outputs) == 1
     data = []
     for d in states:
-        if isinstance(d, list):
+        if isinstance(d, Sequence):
             data.extend(d)
         else:
             data.append(d)
@@ -93,7 +92,7 @@ def _read_frames(
     return [data[i] for i in indices]
 
 
-def _join_frames(inputs: Sequence[File] = (), outputs: Sequence[File] = ()) -> None:
+def _join_frames(inputs: list[File] = [], outputs: list[File] = []) -> None:
     """
     Join multiple frame files into a single file.
 
@@ -133,7 +132,7 @@ def _get_elements(*files: File) -> set[str]:
 
 
 def _split_frames(
-    file: FileLike, fraction: float, shuffle: bool, outputs: Sequence[File] = ()
+    file: FileLike, fraction: float, shuffle: bool, outputs: list[File] = []
 ) -> None:
     """Split into training and validation sets"""
     assert len(outputs) == 2
@@ -165,7 +164,7 @@ def _read_write_wrapper(
     execute: Callable,  # Parsl throws if this is named 'func'
     file: FileLike,
     *args: Any,
-    outputs: Sequence[File] = (),
+    outputs: list[File] = [],
     **kwargs: Any,
 ) -> None:
     """

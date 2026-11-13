@@ -14,7 +14,6 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry
 from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero
-from psiflow.sampling.walker import Walker
 from psiflow.utils.io import save_npz
 from psiflow.utils.parse import get_task_name_id
 
@@ -93,7 +92,7 @@ def _parse_simulation_data(
         values, _ = read_output(file_props.filepath)
         data = {k: values[split_units(k)[0]][start:] for k in observables}
         temperature = data["temperature{kelvin}"][-1]
-    except IndexError as e:
+    except IndexError:
         # nothing was written
         data = {k: np.array([]) for k in observables}
         temperature = np.nan
@@ -151,7 +150,6 @@ add_contributions = python_app(_add_contributions, executors=["default_threads"]
 @dataclass
 class SimulationOutput:
     task_id: str
-    walker: Walker
     status: Status | AppFuture
     state: Geometry | AppFuture
     data: AppFuture
@@ -182,12 +180,8 @@ class SimulationOutput:
             self._data[key] = self.data[key]
         return self._data[key]
 
-    def update_walker(self):
-        # TODO: when do we want to reset?
-        self.walker.state = self.state
-
-    def log_status(self):
-        log_status(
+    def log_status(self) -> AppFuture:
+        return log_status(
             self.task_id,
             self.status,
             self.observables,
@@ -207,7 +201,7 @@ class SimulationOutput:
         f_hamiltonian = MixtureHamiltonian(
             [comp.hamiltonian for comp in f_comps], [1] * len(f_comps)
         )
-        coefficients = f_hamiltonian.get_coefficients(1.0 * hamiltonian)
+        coefficients = f_hamiltonian.get_coefficients(hamiltonian * 1.0)
         if coefficients is None:
             raise ValueError(
                 f"Provided hamiltonian is not fully in i-Pi forces. "
@@ -225,8 +219,7 @@ class SimulationOutput:
     @classmethod
     def from_md(
         cls,
-        walker: Walker,
-        state: AppFuture[Geometry],
+        state: AppFuture,  # Geometry
         observables: list[str],
         hamiltonian_components: list[HamiltonianComponent],
         start: int,
@@ -247,7 +240,6 @@ class SimulationOutput:
                 trajectory = trajectory[start:]
         return cls(
             get_task_name_id(output_log)[-1],
-            walker,
             status,
             state,
             data,

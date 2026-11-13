@@ -2,6 +2,7 @@ import logging
 import os
 
 
+# TODO: not used anywhere?
 def try_manual_plumed_linking() -> str:
     if "PLUMED_KERNEL" not in os.environ.keys():
         # try linking manually

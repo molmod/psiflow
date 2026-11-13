@@ -15,7 +15,6 @@ from ipi.engine.simulation import Simulation
 from ipi.utils.softexit import softexit
 
 from psiflow.geometry import Geometry
-from psiflow.sampling.utils import create_xml_list
 
 INPUT_XML = "input.xml"
 NONPERIODIC_CELL = 1000 * np.eye(3)
@@ -40,7 +39,11 @@ def parse_checkpoint(file_xml: str | Path) -> list[Geometry]:
         natoms, nbeads = beads.natoms, beads.nbeads  # average over beads
         positions = np.asarray(beads.q).reshape(nbeads, natoms, 3).mean(axis=0)
         numbers = np.array([atomic_numbers[s] for s in beads.names])
-        cell = np.asarray(sys.cell.fetch().h).T  # transpose to undo i-Pi convention
+        try:
+            cell = np.asarray(sys.cell.fetch().h).T  # transpose to undo i-Pi convention
+        except ValueError:
+            # cell matrix must be upper triangular (for i-Pi)
+            cell = sys.cell.value.reshape(3, 3).T
         geometry = Geometry.from_data(numbers, positions * Bohr, cell * Bohr)
 
         # get current internal system time
@@ -63,7 +66,7 @@ def insert_addresses(input_xml: ET.Element) -> None:
             address.text = str(Path.cwd() / address.text.strip())
 
 
-def wait_for_clients(input_xml, timeout: int = 60) -> None:
+def wait_for_clients(input_xml, timeout: int = 300) -> None:
     """Make sure clients have initialised successfully"""
 
     # find sockets opened by server
@@ -116,6 +119,9 @@ def run(start_xyz: str, input_xml: str):
 def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
     from psiflow.data.file import _write_frames
 
+    # TODO: i-pi-trimsim to make output consistent with checkpoint?
+    #  see https://github.com/i-pi/i-pi/issues/534
+
     print("Starting cleanup")
     with open(INPUT_XML, "r") as f:
         content = f.read()
@@ -159,7 +165,7 @@ def cleanup(output_xyz: str, output_props: str, output_trajs: str) -> None:
     assert len(states) == len(output_trajs)
     for idx, file in enumerate(output_trajs):
         file_src = next(Path.cwd().glob(f"{prefix}*{idx}*.trajectory*.extxyz"))
-        atoms = read(file_src, ":")
+        atoms = read(file_src, ":", format="extxyz")
         periodic = states[idx].periodic
         for at in atoms:
             if not periodic:  # load and replace cell

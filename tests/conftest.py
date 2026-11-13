@@ -12,7 +12,6 @@ from ase.calculators.emt import EMT
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry
-from psiflow.models import MACE
 from psiflow.hamiltonians import MACEHamiltonian
 
 
@@ -32,6 +31,7 @@ def pytest_addoption(parser):
 
 @pytest.fixture(scope="session")
 def gpu(request):
+    # TODO: not used correctly atm
     if request.config.getoption("--skip-gpu"):
         pytest.skip("skipping tests which require GPU")
 
@@ -66,62 +66,33 @@ def mace_config() -> dict:
         #
         batch_size=1,  # MACE crashes if it is larger than dataset size
         max_num_epochs=10,
-        energy_weight=100,  # make sure energy RMSE drops from first epoch
-        forces_weight=10
+        energy_weight=10,
+        forces_weight=1,
     )
 
 
-def generate_emt_cu_data(nstates, amplitude, supercell=None) -> list[ase.Atoms]:
-    if supercell is None:
-        supercell = np.eye(3)
+def generate_emt_cu_data(
+    nstates: int, amplitude: float, supercell: np.ndarray = np.eye(3)
+) -> list[ase.Atoms]:
     atoms = make_supercell(bulk("Cu", "fcc", a=3.6, cubic=True), supercell)
-    atoms.calc = EMT()
-    pos = atoms.get_positions()
-    box = atoms.get_cell()
+    atoms.numbers[0] = 1  # make heterogeneous to test per_element functions
     atoms_list = []
     for _ in range(nstates):
-        atoms.set_positions(
-            pos + np.random.uniform(-amplitude, amplitude, size=(len(atoms), 3))
-        )
-        atoms.set_cell(box + np.random.uniform(-amplitude, amplitude, size=(3, 3)))
-        _atoms = atoms.copy()
-        _atoms.calc = None
-        _atoms.info["energy"] = atoms.get_potential_energy()
-        _atoms.info["stress"] = atoms.get_stress(voigt=False)
-        _atoms.arrays["forces"] = atoms.get_forces()
-        # make content heterogeneous to test per_element functions
-        _atoms.numbers[0] = 1
-        _atoms.symbols[0] = "H"
-        atoms_list.append(_atoms)
+        # perturb structures
+        at = atoms.copy()
+        at.calc = EMT()
+        at.positions += np.random.uniform(-amplitude, amplitude, size=(len(atoms), 3))
+        at.cell += np.random.uniform(-amplitude, amplitude, size=(3, 3))
+        atoms_list.append(at)
     return atoms_list
 
 
-@pytest.fixture  # TODO: do we need to regenerate this every test?
+@pytest.fixture(scope="session")
 def dataset(context) -> Dataset:
     data = generate_emt_cu_data(20, 0.2)
     data += generate_emt_cu_data(5, 0.15, supercell=np.diag([1, 2, 1]))
     data_ = [Geometry.from_atoms(atoms) for atoms in data]
     return Dataset(data_).align_axes()
-
-
-# @pytest.fixture(scope="session")
-# def mace_model(tmp_path_factory, mace_config):
-#     path = tmp_path_factory.mktemp("mace")
-#     model = MACEModel(path, mace_config)
-#     # manually recreate dataset with 'session' scope
-#     data = generate_emt_cu_data(20, 0.2)
-#     data_ = [Geometry.from_atoms(atoms) for atoms in data]
-#     dataset = Dataset(data_)
-#     # add additional state to initialize other atomic numbers
-#     geometry = Geometry.from_data(
-#         numbers=np.array(2 * [101]),
-#         positions=np.array([[0, 0, 0], [2, 0, 0]]),
-#         cell=None,
-#     )
-#     geometry.energy = -1.0
-#     geometry.per_atom.forces[:] = np.random.uniform(size=(2, 3))
-#     model.initialize(dataset[:5] + Dataset([geometry]))
-#     return model
 
 
 @pytest.fixture(scope="session")
@@ -130,10 +101,10 @@ def mace_foundation() -> Path:
     return hamiltonian.external.filepath
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def dataset_h2(context):
     h2 = Atoms(numbers=[1, 1], positions=[[0, 0, 0], [0.74, 0, 0]], pbc=False)
-    data = [h2.copy() for i in range(20)]
+    data = [h2.copy() for _ in range(20)]
     for atoms in data:
         atoms.positions += np.random.uniform(-0.05, 0.05, size=(2, 3))
     return Dataset([Geometry.from_atoms(a) for a in data])

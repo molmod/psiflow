@@ -6,7 +6,7 @@ from parsl.dataflow.futures import AppFuture
 import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry, MISSING
-from psiflow.reference import CP2K, GPAW, ORCA, create_orca_input
+from psiflow.reference import CP2K, GPAW, ORCA, create_orca_input, ReferenceDummy
 from psiflow.reference.reference import Status
 from psiflow.reference.cp2k_ import (
     dict_to_str,
@@ -410,6 +410,28 @@ def test_gpaw(dataset_h2):
     for geom in geoms_out:
         assert geom.energy is not MISSING and geom.energy < 0.0
     assert future_fail.result().energy is MISSING
+
+
+def test_dummy(dataset_h2):
+    # check all basic functionality
+    data_in = dataset_h2[:3]
+
+    dummy = ReferenceDummy(outputs=("energy",))
+    data_out = dummy.evaluate(data_in)
+    for geom in data_out.geometries().result():
+        print(geom.energy)
+        assert geom.energy is not MISSING
+        assert geom.per_atom.forces is MISSING
+
+    dummy = ReferenceDummy()
+    data_out = dummy.evaluate(data_in)
+    for geom in data_out.geometries().result():
+        print(geom.energy)
+        assert geom.energy is not MISSING
+        assert geom.per_atom.forces is not MISSING
+
+    future = dummy.compute_atomic_energy("H")
+    assert isinstance(future.result(), float)
 
 
 # TODO: enable once we have an ORCA container

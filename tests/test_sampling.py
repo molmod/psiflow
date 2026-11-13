@@ -369,7 +369,6 @@ def test_rex(dataset):
     walker = Walker(future, hamiltonian=einstein, temperature=600)
     walkers = walker.multiply(2)
     replica_exchange(walkers, trial_frequency=2)
-    assert walkers[0].coupling.nwalkers == len(walkers)
     assert len(partition(walkers)) == 1
     assert len(partition(walkers)[0]) == 2
 

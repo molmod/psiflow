@@ -2,7 +2,7 @@ import io
 import pickle
 import copy
 from pathlib import Path
-from typing import Optional, Any, Final
+from typing import Optional, Any, Final, Self
 
 import ase.calculators.calculator
 import numpy as np
@@ -68,7 +68,7 @@ class PerAtom:
             value = value.reshape(-1, 1)  # 1D arrays
         super().__setattr__(name, value)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name) -> Any:
         # only runs if the attribute isn't found normally
         if name == "forces":
             return MISSING  # forces should always be accessible
@@ -88,7 +88,7 @@ class PerAtom:
             k: v for k, v in vars(self).items() if k not in ("numbers", "positions")
         }
 
-    def reset(self):
+    def reset(self) -> None:
         """Wipes optional fields"""
         for attr in self.attributes():
             delattr(self, attr)
@@ -132,7 +132,7 @@ class PerAtom:
         return header, txt
 
     @classmethod
-    def from_string(cls, s: str, props: Optional[str] = None):
+    def from_string(cls, s: str, props: Optional[str] = None) -> Self:
         """Reverses to_string"""
         props = (props or "species:S:1:pos:R:3") + ":"
         dtype_map = {"R": "f8", "S": "i8"}
@@ -210,7 +210,7 @@ class Geometry:
 
         super().__setattr__(name, value)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name) -> Any:
         # only runs if the attribute isn't found normally
         if name in ("energy", "stress"):
             return MISSING  # should always be accessible
@@ -245,7 +245,7 @@ class Geometry:
         transform_lower_triangular(positions, cell, reorder=False)
         reduce_box_vectors(cell)
 
-    def copy(self) -> Geometry:
+    def copy(self) -> Self:
         """Create a deep copy of the Geometry instance"""
         return pickle.loads(pickle.dumps(self))
 
@@ -298,7 +298,7 @@ class Geometry:
         return len(self.per_atom)
 
     @classmethod
-    def from_string(cls, s: str) -> Geometry:
+    def from_string(cls, s: str) -> Self:
         """Create a Geometry instance from a string representation in extended XYZ format"""
         n_atoms, header, body = s.strip().split("\n", 2)
         data = key_val_str_to_dict(header)
@@ -313,7 +313,7 @@ class Geometry:
         return Geometry(per_atom, **data)
 
     @classmethod
-    def load(cls, path_xyz: Path | str) -> "Geometry":
+    def load(cls, path_xyz: Path | str) -> Self:
         """Load a Geometry instance from an XYZ file"""
         path_xyz = psiflow.resolve_and_check(Path(path_xyz))
         content = path_xyz.read_text()
@@ -322,13 +322,13 @@ class Geometry:
     @classmethod
     def from_data(
         cls, numbers: np.ndarray, positions: np.ndarray, cell: Optional[np.ndarray]
-    ) -> Geometry:
+    ) -> Self:
         """Create a Geometry instance from atomic numbers, positions, and cell data"""
         per_atom = PerAtom(numbers.copy(), positions.copy())
         return Geometry(per_atom, cell=copy.copy(cell))
 
     @classmethod
-    def from_atoms(cls, atoms: Atoms) -> Geometry:
+    def from_atoms(cls, atoms: Atoms) -> Self:
         """Create a Geometry instance from an ASE Atoms object"""
         per_atom = PerAtom(**atoms.arrays)
         data = atoms.info
@@ -350,7 +350,7 @@ class Geometry:
         return not self.cell is None
 
     @property
-    def per_atom_energy(self) -> float | MISSING:
+    def per_atom_energy(self) -> float | MissingType:
         """Calculate the per-atom energy"""
         if self.energy is MISSING:
             return MISSING

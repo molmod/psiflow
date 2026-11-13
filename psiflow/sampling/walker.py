@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
-from typing import Optional, Union, Callable
+from typing import Optional, Union, Callable, Self, Protocol
+from collections.abc import Sequence
 from enum import Enum
 from dataclasses import dataclass, field
 from copy import deepcopy
@@ -14,13 +15,16 @@ import psiflow
 from psiflow.data import Dataset
 from psiflow.geometry import Geometry
 from psiflow.data.utils import check_equality
-from psiflow.hamiltonians import Hamiltonian, Zero, combine_hamiltonians
+from psiflow.hamiltonians import Hamiltonian, Zero, make_mixture
 from psiflow.sampling.metadynamics import Metadynamics
 from psiflow.utils.apps import copy_app_future
 
 
-class Coupling:
-    pass
+# TODO: what do we need this for?
+class Coupling(Protocol):
+    swapfile: psiflow._DataFuture
+
+    def get_smotion(self, has_metad: bool) -> ET.Element: ...
 
 
 class Ensemble(Enum):
@@ -107,19 +111,19 @@ class Walker:
         elif isinstance(m, np.ndarray) and len(m) != len(self.start):
             raise ValueError("Supplied masses do not match number of atoms")
 
-    def reset(self):
+    def reset(self) -> None:
         self.state = conditional_reset(self.state, self.start, True, None)
 
     def conditional_reset(
         self, flag: bool | None = None, condition: Callable | None = None, *args
-    ):
+    ) -> None:
         assert (flag is None) != (condition is None)  # xor
         self.state = conditional_reset(self.state, self.start, flag, condition, *args)
 
     def is_reset(self) -> AppFuture:
         return check_equality(self.start, self.state)
 
-    def multiply(self, nreplicas: int) -> list["Walker"]:
+    def multiply(self, nreplicas: int) -> list[Self]:
         if self.coupling is not None:
             raise ValueError("Cannot multiply walkers after they are coupled")
         walkers = []
@@ -148,18 +152,26 @@ class Walker:
             return Ensemble.NPT
 
 
-def partition(walkers: list[Walker]) -> list[list[int]]:
-    indices = []
-    for i, walker in enumerate(walkers):
-        found = False
-        if walker.coupling is not None:
-            for group in indices:
-                if walker.coupling == walkers[group[0]].coupling:
-                    assert not found
-                    group.append(i)
-                    found = True
-        if not found:
-            indices.append([i])
+def partition(walkers: Sequence[Walker]) -> list[list[int]]:
+    """Returns lists of indices grouping walkers coupled by replica exchange"""
+    couplings = []
+    for w in walkers:
+        if w.coupling is not None and not w.coupling in couplings:
+            couplings.append(w.coupling)
+
+    if not couplings:  # no walkers are coupled
+        return [[i] for i, _ in enumerate(walkers)]
+
+    grouped, individual = [[] for _ in couplings], []
+    for i, w in enumerate(walkers):
+        if w.coupling is None:
+            individual.append([i])
+        else:
+            j = couplings.index(w.coupling)
+            grouped[j].append(i)
+
+    indices = grouped + individual
+    assert len(sum(indices, [])) == len(walkers)
     return indices
 
 
@@ -184,10 +196,10 @@ get_minimum_energy_states = python_app(
 
 def quench(walkers: list[Walker], dataset: Dataset) -> None:
     """Assign the lowest energy geometry in dataset to every walker"""
-    hamiltonians = combine_hamiltonians([w.hamiltonian for w in walkers])
-    energies = [h.compute(dataset).energy for h in hamiltonians.hamiltonians]
+    mixture = make_mixture([w.hamiltonian for w in walkers])
+    energies = [h.compute(dataset).energy for h in mixture.hamiltonians]
     coefficients = [
-        hamiltonians.get_coefficients(walker.hamiltonian * 1.0) for walker in walkers
+        mixture.get_coefficients(walker.hamiltonian * 1.0) for walker in walkers
     ]
     indices = get_minimum_energy_states(np.array(coefficients), *energies)
     geometries = dataset.geometries()
@@ -213,50 +225,31 @@ def randomize(walkers: list[Walker], dataset: Dataset) -> None:
         walker.reset()
 
 
-def validate_coupling(walkers: list[Walker]):
-    couplings = []
-    counts = []
-    for walker in walkers:
-        coupling = walker.coupling
-        if coupling is None:
-            continue
-        if coupling not in couplings:
-            couplings.append(couplings)
-            counts.append(1)
-        else:
-            index = couplings.index(coupling)
-            counts[index] += 1
-    for i, coupling in enumerate(couplings):
-        assert coupling.nwalkers == counts[i]
-
-
 @psiflow.register_serializable
 class ReplicaExchange(Coupling):
     trial_frequency: int
     rescale_kinetic: bool
-    nwalkers: int
     swapfile: psiflow._DataFuture
 
-    def __init__(
-        self,
-        trial_frequency: int,
-        rescale_kinetic: bool,
-        nwalkers: int,  # purely for safety!
-    ) -> None:
+    def __init__(self, trial_frequency: int, rescale_kinetic: bool) -> None:
         self.trial_frequency = trial_frequency
         self.rescale_kinetic = rescale_kinetic
         self.swapfile = psiflow.context().new_file("swap_", ".txt")
-        self.nwalkers = nwalkers
 
-    def __eq__(self, other: Optional["ReplicaExchange"]) -> bool:
+    def __eq__(self, other: Optional[Self]) -> bool:
+        if other is self:
+            return True
         if other is None:
             return False
-        trial = self.trial_frequency == other.trial_frequency
-        rescale = self.rescale_kinetic == other.rescale_kinetic
-        swapfile = self.swapfile.filepath == other.swapfile.filepath
-        return trial and rescale and swapfile
+        if (
+            self.trial_frequency == other.trial_frequency
+            and self.rescale_kinetic == other.rescale_kinetic
+            and self.swapfile.filepath == other.swapfile.filepath
+        ):
+            return True
+        return False
 
-    def inputs(self) -> list[Union[DataFuture, File]]:
+    def inputs(self) -> list[psiflow._DataFuture]:
         return [self.swapfile]
 
     def get_smotion(self, has_metad: bool) -> ET.Element:
@@ -280,20 +273,18 @@ class ReplicaExchange(Coupling):
             smotion.append(remd)
         return smotion
 
-    def update(self, result: AppFuture):
+    def update(self, result: AppFuture) -> None:
         self.swapfile = result.outputs[-1]
 
-    def copy_command(self):
+    def copy_command(self) -> str:
         return "cp output.replica_exchange {}".format(self.swapfile.filepath)
 
 
 def replica_exchange(
-    walkers: list[Walker],
-    trial_frequency: int = 50,
-    rescale_kinetic: bool = True,
+    walkers: list[Walker], trial_frequency: int = 50, rescale_kinetic: bool = True
 ) -> None:
     for w in walkers:
         assert w.coupling is None
-    rex = ReplicaExchange(trial_frequency, rescale_kinetic, len(walkers))
+    rex = ReplicaExchange(trial_frequency, rescale_kinetic)
     for walker in walkers:
         walker.coupling = rex

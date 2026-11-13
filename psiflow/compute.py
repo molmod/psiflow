@@ -1,14 +1,13 @@
-from pathlib import Path
-from typing import Callable, ClassVar, Optional, Union, Type, Any, TypeAlias
+from typing import Callable, Optional, Union, Type, Any, TypeAlias
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
 from parsl.app.app import join_app, python_app
-from parsl.dataflow.futures import AppFuture, DataFuture
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
-from psiflow.geometry import Geometry, PER_ATOM_FIELDS, DEFAULT_PROPERTIES, MISSING
+from psiflow.geometry import Geometry
 from psiflow.data import Dataset
 from psiflow.data.utils import insert
 from psiflow.functions import Function
@@ -74,7 +73,7 @@ class ComputeResult:
 def _apply(
     states: Sequence[Geometry],
     function_cls: Type[Function],
-    inputs: Sequence = (),
+    inputs: list = [],
     parsl_resource_specification: dict = {},
     **parameters,
 ) -> ComputeResult:

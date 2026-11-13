@@ -5,19 +5,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "psiflow"
-version = "4.0.5"
+version = "4.0.6"
 description = "Library for developing interatomic potentials"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "ase>=3.23.0",
     "pyyaml>=6.0",
-#    "numpy>=1.22.3, <2",
-    "parsl==2026.02.23",
-    "prettytable",  # TODO: what is this used for?
+    "parsl==2026.11.09",
+    "tabulate",
     "psutil",
-#    "cp2k-input-tools @ git+https://github.com/cp2k/cp2k-input-tools.git@3b9929735dcb3c8c0620a548b1fe20efecbad077",  # need 2024.1
-    "ipi @ git+https://github.com/i-pi/i-pi.git@v3.1.10",
+    "ipi @ git+https://github.com/i-pi/i-pi.git@v3.3.1",
+    "cp2k-input-tools==0.9.3"
     ]
 
 

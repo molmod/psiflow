@@ -49,10 +49,10 @@ class Metadynamics:
         return copy_app_future(self.plumed_input(), inputs=[self.external])
 
     def wait_for(self, result: AppFuture) -> None:
-        # TODO: what does this do?
-        self.external = copy_app_future(
-            0,
-            inputs=[result, self.external],
+        # refresh external future to wait on result
+        self.external = copy_data_future(
+            self.external,
+            inputs=[result],
             outputs=[File(self.external.filepath)],
         ).outputs[0]
 
@@ -66,7 +66,7 @@ class Metadynamics:
 
     def copy(self) -> "Metadynamics":
         new_external = copy_data_future(
-            inputs=[self.external],
+            self.external,
             outputs=[psiflow.context().new_file("hills_", ".txt")],
         ).outputs[0]
         mtd = Metadynamics(

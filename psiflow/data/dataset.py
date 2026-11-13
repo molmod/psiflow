@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Self
 
 from parsl.data_provider.files import File
 from parsl.dataflow.futures import AppFuture, DataFuture
@@ -48,6 +48,8 @@ class Dataset:
         Args:
             states: List of Geometry instances or AppFutures representing geometries.
         """
+        assert (states is None) != (extxyz is None)  # xor
+
         if extxyz is not None:  # takes precedence over states
             self.extxyz = extxyz
             return
@@ -66,7 +68,7 @@ class Dataset:
         """
         return count_frames(self.extxyz)
 
-    def shuffle(self) -> "Dataset":
+    def shuffle(self) -> Self:
         """
         Shuffle the order of structures in the dataset.
         """
@@ -76,7 +78,7 @@ class Dataset:
 
     def __getitem__(
         self, index: int | slice | list[int] | AppFuture
-    ) -> Dataset | AppFuture:
+    ) -> Self | AppFuture:
         """
         Get a subset of the dataset or a single structure.
 
@@ -102,7 +104,7 @@ class Dataset:
             DataFuture: Future representing the file to which will be saved.
         """
         path = psiflow.resolve_and_check(Path(path))
-        future = copy_data_future(inputs=[self.extxyz], outputs=[File(path)])
+        future = copy_data_future(self.extxyz, outputs=[File(path)])
         return future.outputs[0]
 
     def geometries(self) -> AppFuture:
@@ -114,7 +116,7 @@ class Dataset:
         """
         return read_frames(self.extxyz)
 
-    def __add__(self, dataset: Dataset) -> Dataset:
+    def __add__(self, dataset: "Dataset") -> Self:
         """
         Concatenate two datasets.
         """
@@ -122,7 +124,7 @@ class Dataset:
         future = join_frames(inputs=[self.extxyz, dataset.extxyz], outputs=[file])
         return Dataset(extxyz=future.outputs[0])
 
-    def subtract_offset(self, **atomic_energies: float | AppFuture) -> Dataset:
+    def subtract_offset(self, **atomic_energies: float | AppFuture) -> Self:
         """
         Subtract atomic energy offsets from the dataset.
         """
@@ -133,7 +135,7 @@ class Dataset:
         )
         return Dataset(extxyz=future.outputs[0])
 
-    def add_offset(self, **atomic_energies) -> Dataset:
+    def add_offset(self, **atomic_energies) -> Self:
         """
         Add atomic energy offsets to the dataset.
         """
@@ -153,7 +155,7 @@ class Dataset:
         """
         return get_elements(self.extxyz)
 
-    def reset(self) -> Dataset:
+    def reset(self) -> Self:
         """
         Reset all structures in the dataset.
         """
@@ -161,7 +163,7 @@ class Dataset:
         future = reset_frames(self.extxyz, outputs=[file])
         return Dataset(extxyz=future.outputs[0])
 
-    def clean(self) -> Dataset:
+    def clean(self) -> Self:
         """
         Clean all structures in the dataset.
         """
@@ -195,7 +197,7 @@ class Dataset:
         )
         return tuple(future_dict[q] for q in quantities)
 
-    def filter(self, quantity: str) -> Dataset:
+    def filter(self, quantity: str) -> Self:
         """
         Filter the dataset based on a specified quantity.
         """
@@ -204,7 +206,7 @@ class Dataset:
         future = filter_frames(self.extxyz, quantity, outputs=[file])
         return Dataset(extxyz=future.outputs[0])
 
-    def align_axes(self) -> Dataset:
+    def align_axes(self) -> Self:
         """
         Adopt a canonical orientation for all (periodic) structures in the dataset.
         """
@@ -212,7 +214,7 @@ class Dataset:
         future = align_axes(self.extxyz, outputs=[file])
         return Dataset(extxyz=future.outputs[0])
 
-    def split(self, fraction: float, shuffle: bool = True) -> tuple[Dataset, Dataset]:
+    def split(self, fraction: float, shuffle: bool = True) -> tuple[Self, Self]:
         """
         Split the dataset into training and validation sets.
 
@@ -249,7 +251,7 @@ class Dataset:
         return future_id
 
     @classmethod
-    def load(cls, path_xyz: Union[Path, str]) -> Dataset:
+    def load(cls, path_xyz: Union[Path, str]) -> Self:
         """
         Load a dataset from a file.
         """

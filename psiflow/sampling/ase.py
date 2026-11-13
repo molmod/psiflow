@@ -110,7 +110,7 @@ def optimize(
         max_steps=steps,
         keep_trajectory=keep_trajectory,
     )
-    file_config = context.new_file("input_", ".json")
+    file_config = context.new_file("ase_", ".json")
     _dump_json(outputs=[file_config], **config)
 
     inputs = [File(script), file_config, input_geometry, *input_forces]

@@ -55,7 +55,7 @@ deserialize = python_app(_deserialize, executors=["default_threads"])
 def _serialize_object(
     obj: Any,
     copy_to: Optional[Path],
-    outputs: Sequence[File],
+    outputs: list[File],
 ) -> str:
     """Serialize a psiflow object. It should not contain any futures."""
     try:
@@ -90,6 +90,8 @@ class JSONEncoder(json.JSONEncoder):
                 return {CLS_KEY: "Geometry", "data": obj.to_string()}
             case np.ndarray():
                 return {CLS_KEY: "Array", "data": obj.tolist()}
+            case np.generic():
+                return obj.item()  # cast to builtin type
             case _ if name in SERIALIZABLE_CLS:  # class instances
                 return {CLS_KEY: name} | vars(obj)
             case _ if obj in SERIALIZABLE_CLS.values():  # classes

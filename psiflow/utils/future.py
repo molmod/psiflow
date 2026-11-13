@@ -1,7 +1,5 @@
 import copy
-from functools import partial
 from typing import Any, Callable
-from collections.abc import Sequence
 
 from parsl import File, python_app
 from parsl.dataflow.futures import AppFuture, Future
@@ -46,7 +44,7 @@ def extract_futures(obj: Any) -> list[AppFuture]:
 
 
 @python_app(executors=['default_threads'])
-def resolve_futures(obj: Any, inputs: Sequence = ()) -> Any:
+def resolve_futures(obj: Any, inputs: list = []) -> Any:
     """Replace every nested future with its result. This is blocking, so make sure they are finished."""
 
     def resolve(obj: Any) -> Any:

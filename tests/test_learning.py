@@ -1,294 +1,229 @@
 import numpy as np
-from parsl.data_provider.files import File
 
 import psiflow
-from psiflow.data import Dataset
-# from psiflow.geometry import new_nullstate
+from psiflow.data import read_frames
 from psiflow.hamiltonians import EinsteinCrystal
-from psiflow.learning import Learning, evaluate_outputs
-from psiflow.metrics import Metrics, _create_table, parse_walker_log, reconstruct_dtypes
 from psiflow.reference import ReferenceDummy
-from psiflow.sampling import SimulationOutput, Walker
-# from psiflow.utils.apps import combine_futures  # use pack instead
-from psiflow.utils.io import _load_metrics, _save_metrics, load_metrics, save_metrics
+from psiflow.sampling import Walker
+from psiflow.sampling.output import Status
+from psiflow.models import MACE
+from psiflow.learning import (
+    Learning,
+    FILE_MODEL,
+    FILE_SAMPLE,
+    FILE_REFERENCE,
+    FILE_DATA,
+    FILE_TRAIN,
+    FILE_VAL,
+    FILE_RECORDS,
+    check_learning_iteration,
+    collect_geometries,
+    compare_geometries,
+    analyze_outputs,
+    ErrorThresholds,
+)
+from psiflow.utils.apps import pack
 
 
-def test_load_save_metrics(tmp_path):
-    dtypes = [
-        ("a", np.float_, (2,)),
-        ("b", np.bool_),
-        ("c", np.int_),
-        ("d", np.unicode_, 4),
-    ]
-    dtype = np.dtype(dtypes)
-    data = np.recarray(2, dtype=np.dtype(dtypes))
-    data.d[0] = "asdf"
-    data.d[1] = "f"
-    data.b[0] = True
-    data.a[0, :] = np.array([0.2, 0.3])
-    data.a[1, :] = np.array([0.0, 0.0])
-    data.c[0] = 1002
+def test_learning_thresholds(tmp_path, dataset):
+    """"""
+    geom = dataset[0]
+    mace = MACE(tmp_path, {})
+    reference = ReferenceDummy()
+    learning = Learning(mace, reference)
+    walkers = Walker(geom).multiply(10)
+    hamiltonian = EinsteinCrystal.from_geometry(geom, 1)
 
-    reconstructed = reconstruct_dtypes(dtype)
-    for a, b in zip(dtypes, reconstructed):
-        assert a == b
+    # manually perform part of the learning loop
+    execute = learning._next_iteration("passive_learning")
+    data, outputs = learning._sample(hamiltonian, walkers, steps=10)
+    geoms_ref = reference.evaluate(data).geometries()
+    geoms_mod = hamiltonian.evaluate(data).geometries()
 
-    path = tmp_path / "test.numpy"
-    _save_metrics(
-        data,
-        outputs=[File(str(path))],
-    )
-    assert path.exists()
-    data = _load_metrics(inputs=[File(str(path))])
-    assert data.d[0] == "asdf"
-    assert data.d[1] == "f"
-    assert data.b[0]
-    assert not data.b[1]
-    assert np.allclose(data.a[0], np.array([0.2, 0.3]))
-    assert np.allclose(data.a[1], 0.0)
-    assert data.c[0] == 1002
-    assert data.dtype.names == ("a", "b", "c", "d")
+    # no resets or discards
+    future = compare_geometries(geoms_ref, geoms_mod, None)
+    data, records = future.result()
+    assert len(data) == len(records) == 10
+    assert not any(r.reset or r.discard for r in records)
 
+    # force failed single-points
+    geoms = geoms_ref.result()
+    geoms[0].reset()
+    geoms[5].reset()
+    future = compare_geometries(geoms, geoms_mod, None)
+    data, records = future.result()
+    assert len(data) == 8
+    assert len(records) == 10
+    assert records[0].reset == records[0].discard == True
+    assert records[5].reset == records[5].discard == True
+    assert sum(r.reset or r.discard for r in records) == 2
 
-def test_metrics(dataset_h2):
-    data = dataset_h2[:10]
-    data.assign_identifiers(8)
-    states = [data[i] for i in range(data.length().result())]
-    states[4].result().energy = None
-    states[3].result().identifier = None
-    states[8].result().phase = "asldfkjasldfkjsadflkj"
-    states[4].result().delta = 1.0
-    states[3].result().order["test"] = 4.0
-    states[4].result().order["test"] = 3.0
-    states[5].result().order["a"] = 1.0
-    states[7] = new_nullstate()
-    states[1].result().logprob = np.array([-1.0, 1.0])
+    # check error thresholds -- only resets
+    thresholds = ErrorThresholds(0, np.inf, 0, np.inf)
+    future = compare_geometries(geoms, geoms_mod, thresholds)
+    data, records = future.result()
+    assert len(data) == 8
+    assert len(records) == 10
+    assert all(r.reset for r in records)
+    assert sum(r.discard for r in records) == 2
 
-    errors = [np.random.uniform(0, 1, size=2) for i in range(len(states))]
-    statuses = [0] * 10
-    temperatures = [400] * 10
-    times = [3.0] * 10
-    resets = [False] * 10
-    resets[7] = True
-
-    data = parse_walker_log(
-        combine_futures(inputs=statuses),
-        combine_futures(inputs=temperatures),
-        combine_futures(inputs=times),
-        combine_futures(inputs=errors),
-        combine_futures(inputs=states),
-        combine_futures(inputs=resets),
-    ).result()
-    assert len(data) == 10
-    assert np.allclose(data.walker_index, np.arange(10))
-    assert data.phase[8] == states[8].result().phase
-    assert data.identifier[3] == -1
-    assert data.identifier[4] == 8 + 4  # assigned before 3rd state set to none
-    assert data.delta[4] == 1.0
-    assert np.allclose(data.logprob[1], np.array([-1.0, 1.0]))
-    assert np.allclose(data.test[3], 4.0)
-    assert np.allclose(data.test[4], 3.0)
-    assert np.allclose(data.a[5], 1.0)
-
-    s = _create_table(data)
-    assert "asldfkjasldfkjsadflkj" in s
-
-    # convert to outputs
-    outputs = []
-    for i in range(10):
-        output = SimulationOutput([])
-        output.status = statuses[i]
-        output.temperature = temperatures[i]
-        output.state = states[i]
-        output.time = times[i]
-        outputs.append(output)
-
-    metrics = Metrics()
-
-    metrics.log_walkers(
-        outputs,
-        errors,
-        states,
-        resets,
-    )
-    data = load_metrics(inputs=[metrics.metrics]).result()
-    assert np.allclose(data.identifier, np.sort(data.identifier))
-    assert len(data) == 10 - 2  # 2 states either NullState or with None / -1 identifier
-    assert np.all(np.isnan(data.e_rmse[:, 1]))
-
-    einstein = EinsteinCrystal(dataset_h2[3], force_constant=1)
-    labeled = Dataset(states).evaluate(einstein).filter("identifier")
-    einstein = EinsteinCrystal(dataset_h2[4], force_constant=1)  # different
-    metrics.update(labeled, einstein)
-    data_ = load_metrics(inputs=[metrics.metrics]).result()
-    e_rmse = data_.e_rmse
-    assert np.allclose(data.e_rmse[data.identifier != -1][:, 0], e_rmse[:, 1])
-    assert np.all(~np.isnan(e_rmse[:, 0]))
-
-    # do it twice
-    metrics.log_walkers(
-        outputs,
-        errors,
-        states,
-        resets,
-    )
-    double_identifier = np.concatenate(
-        (data.identifier, data.identifier),
-        axis=0,
-        dtype=np.int_,
-    )
-    data = load_metrics(inputs=[metrics.metrics]).result()
-    assert np.allclose(data.identifier, double_identifier)
-    # walker indices 3 and 7 should not end up in data
-    walker_indices = np.concatenate((np.array([0, 1, 2, 4, 5, 6, 8, 9]),) * 2)
-    assert np.allclose(
-        data.walker_index,
-        walker_indices,
-    )
+    # check error thresholds -- only discards
+    thresholds = ErrorThresholds(np.inf, 0, np.inf, 0)
+    future = compare_geometries(geoms, geoms_mod, thresholds)
+    data, records = future.result()
+    assert len(data) == 0
+    assert len(records) == 10
+    assert sum(r.reset for r in records) == 2
+    assert all(r.discard for r in records)
 
 
-def test_evaluate_outputs(dataset):
-    einstein = EinsteinCrystal(dataset[0], force_constant=2)
-    data = dataset.reset()
-    outputs = [SimulationOutput(["some", "fields"]) for i in range(10)]
-    for i, output in enumerate(outputs):
-        output.state = data[i]
-        output.status = 0
+def test_learning_reset(tmp_path, dataset):
+    """"""
+    mace = MACE(tmp_path, {})
+    reference = ReferenceDummy()
+    learning = Learning(mace, reference, initial_data=dataset + dataset)
 
-    outputs[3].state = new_nullstate()
-    outputs[7].status = 2  # should be null state
+    learning.wait_for.result()
+    train = collect_geometries(learning.root, FILE_TRAIN).result()
+    val = collect_geometries(learning.root, FILE_VAL).result()
 
-    identifier = 3
-    identifier, data, resets = evaluate_outputs(
-        outputs,
-        einstein,
-        ReferenceDummy(),
-        identifier=identifier,
-        error_thresholds_for_reset=[None, None],  # never reset
-        error_thresholds_for_discard=[None, None],
-        metrics=Metrics(),
-    )
-    assert identifier.result() == 3 + len(outputs) - 2
-    assert data.length().result() == len(outputs) - 2
-    assert data.filter("forces").length().result() == len(outputs) - 2
+    learning._reset_training()
+    learning.wait_for.result()
+    train_ = collect_geometries(learning.root, FILE_TRAIN).result()
+    val_ = collect_geometries(learning.root, FILE_VAL).result()
 
-    assert not all([r.result() for r in resets])
-
-    identifier, data, resets = evaluate_outputs(
-        outputs,
-        einstein,
-        ReferenceDummy(),
-        identifier=identifier,
-        error_thresholds_for_reset=[0.0, 0.0],
-        error_thresholds_for_discard=[0.0, 0.0],
-        metrics=Metrics(),
-    )
-    assert all([r.result() for r in resets])
+    assert len(train) == len(train_)
+    assert len(val) == len(val_)
+    assert train != train_
+    assert val != val_
 
 
-def test_wandb():
-    dtypes = [
-        ("e_rmse", np.float_, (2,)),
-        ("f_rmse", np.float_, (2,)),
-        ("reset", np.bool_),
-        ("identifier", np.int_),
-        ("phase", np.unicode_, 8),
-        ("some_cv", np.float_),
-    ]
-    data = np.recarray(4, dtype=np.dtype(dtypes))
+def test_learning_analyze(tmp_path, dataset):
+    """"""
+    geom = dataset[0]
+    mace = MACE(tmp_path, {})
+    reference = ReferenceDummy()
+    learning = Learning(mace, reference)
+    walkers = Walker(geom).multiply(10)
+    hamiltonian = EinsteinCrystal.from_geometry(geom, 1)
 
-    data.identifier[:] = np.arange(4)
-    data.some_cv[:] = np.arange(4)
-    data.some_cv[2] = np.nan
-    data.phase[1] = "asdfa"
-    data.reset[1] = True
+    # manually perform part of the learning loop
+    execute = learning._next_iteration("passive_learning")
+    data, outputs = learning._sample(hamiltonian, walkers, steps=10)
+    records = learning._evaluate(data, hamiltonian)
+    records = records.result()
+    statuses = pack(*[o.status for o in outputs]).result()
+    temperature = pack(*[o.temperature for o in outputs]).result()
+    time = pack(*[o.time for o in outputs]).result()
 
-    data.e_rmse[:] = np.random.uniform(0, 2, size=(4, 2))
-    data.f_rmse[:] = np.random.uniform(0, 2, size=(4, 2))
-    metrics_future = save_metrics(
-        data,
-        outputs=[psiflow.context().new_file("metrics_", ".numpy")],
-    ).outputs[0]
+    # no resets
+    future = analyze_outputs(records, statuses, temperature, time)
+    walker_records, reset_mask = future.result()
+    assert len(walker_records) == len(reset_mask) == 10
+    assert not any(r.reset for r in walker_records)
+    assert not any(reset_mask)
 
-    metrics = Metrics("test_group", "test_project", metrics_future)
-    metrics.to_wandb()
+    # force some resets
+    records[0].reset = records[-1].reset = True
+    future = analyze_outputs(records, statuses, temperature, time)
+    walker_records, reset_mask = future.result()
+    assert len(walker_records) == len(reset_mask) == 10
+    assert reset_mask[0] == reset_mask[-1] == True
+    assert sum(r.reset for r in walker_records) == 2
 
-    serialized = psiflow.serialize(metrics).result()
-    metrics = psiflow.deserialize(serialized)
+    # force more resets -- timeout is fine
+    statuses = list(statuses)
+    statuses[1:4] = [Status.TIMEOUT, Status.EXPLODED, Status.FORCE_EXCEEDED]
+    future = analyze_outputs(records, statuses, temperature, time)
+    walker_records, reset_mask = future.result()
+    assert len(walker_records) == len(reset_mask) == 10
+    assert all(reset_mask[i] for i in (0, 2, 3, -1))
+    assert sum(r.reset for r in walker_records) == 4
 
-    data_ = load_metrics(inputs=[metrics.metrics]).result()
-    assert np.allclose(data.e_rmse, data_.e_rmse)
-    assert np.allclose(data.some_cv, data_.some_cv, equal_nan=True)
-    psiflow.wait()
 
+def test_learning_workflow(tmp_path, gpu, mace_config, dataset):
+    """"""
+    geom = dataset[0]
+    n = 5
+    hamiltonian = EinsteinCrystal.from_geometry(geom, 1)
+    mace = MACE(tmp_path, mace_config)
+    walkers = Walker(geom).multiply(n)
+    walkers[1].temperature = 200
+    walkers[2].timestep = 1
 
-def test_learning_workflow(tmp_path, gpu, mace_model, dataset):
-    learning = Learning(
-        ReferenceDummy(),
-        tmp_path / "output",
-        error_thresholds_for_reset=[None, None],
-        error_thresholds_for_discard=[None, None],
-    )
-    assert "reference" in learning._serial
-    assert "metrics" in learning._serial
+    # check basic functionality
+    learning = Learning(mace, ReferenceDummy(), initial_data=dataset)
+    identifier = learning.identifier.result()
     assert learning.iteration == -1
-    assert learning.identifier == 0
-    assert not learning.skip("-1_passive_learning")
+    assert learning.workdir is None
+    assert identifier == dataset.length().result()
 
-    data = psiflow.serialize(learning).result()
-    learning_ = psiflow.deserialize(data)
-    learning.update(learning_)
-
-    walkers = [
-        Walker(dataset[0], EinsteinCrystal(dataset[1], 1.0)),
-        Walker(dataset[0], EinsteinCrystal(dataset[5], 1.0)),
-        Walker(dataset[1], EinsteinCrystal(dataset[2], 1000)),
-    ]
-    mace_model, walkers = learning.active_learning(
-        mace_model,
-        walkers,
-        steps=5,
-        max_force=10,
-    )
-    # assumes no resets happen because of error thresholds!
+    walkers = learning.passive_learning(hamiltonian, walkers, 20)
     assert learning.iteration == 0
-    assert not walkers[0].is_reset().result()
-    assert walkers[2].is_reset().result()
+    assert learning.workdir == learning.root / "0_passive_learning"
+    assert learning.identifier.result() == identifier + n
+    assert learning.model.iteration == 1  # init + train
+
+    walkers = learning.active_learning(walkers, 20)
+    assert learning.iteration == 1
+    assert learning.workdir == learning.root / "1_active_learning"
+    assert learning.identifier.result() == identifier + 2 * n
+    assert learning.model.iteration == 2
+
+    psiflow.wait()
+    assert not any([w.is_reset().result() for w in walkers])
+
+    # check restart
+    learning = Learning(mace, ReferenceDummy(), initial_data=dataset)
+    assert learning.identifier == identifier + 2 * n
+    assert mace.model_future.filepath == str(
+        learning.root / "1_active_learning" / FILE_MODEL
+    )
+
+    # existing iterations should be skipped
+    walkers_ = learning.passive_learning(hamiltonian, walkers, 20)
+    walkers_ = learning.active_learning(walkers, 20)
+    assert learning.wait_for is None
+    assert learning.iteration == 1
+    assert learning.workdir == learning.root / "1_active_learning"
+    assert learning.model.iteration == 2
+    for w, w_ in zip(walkers, walkers_):
+        # skipped iterations should consistently return walkers
+        variables = vars(w).copy()
+        variables_ = vars(w_).copy()
+        start, start_ = variables.pop("start"), variables_.pop("start")
+        assert start.result() == start_
+        state, state_ = variables.pop("state"), variables_.pop("state")
+        assert state.result() == state_
+        assert variables == variables_
+
+    walkers_ = learning.active_learning(walkers_, 20, reset_training=True)
+    assert learning.iteration == 2
+    assert learning.workdir == learning.root / "2_active_learning"
+    assert learning.identifier.result() == identifier + 3 * n
+    assert learning.model.iteration == 4  # init + train
+
     psiflow.wait()
 
-    metrics = load_metrics(inputs=[learning.metrics.metrics]).result()
-    assert len(metrics) == 2  # NullStates for status not in [0, 1]
-    assert np.allclose(
-        metrics.identifier,
-        np.array([0, 1], dtype=np.int_),
-    )
-    assert np.allclose(
-        metrics.walker_index,
-        np.array([0, 1], dtype=np.int_),
-    )
-    assert not np.any(np.isnan(metrics.e_rmse[:, 1]))  # should have been updated
-    assert not np.any(np.isnan(metrics.f_rmse[:, 1]))
+    # check contents of output directories
+    history = learning._get_learning_history()
+    for i, name in history.items():
+        assert check_learning_iteration(learning.root / name)  # all files exist?
 
-    assert learning.skip("0_active_learning")
-    model_, walkers_ = learning.load("0_active_learning")
-    for w, w_ in zip(walkers, walkers_):
-        assert (
-            w.state.result() == w_.state
-        )  # no result call necessary after deserialize
-        assert np.allclose(
-            w.hamiltonian.compute(w.state, "energy").result(),
-            w_.hamiltonian.compute(w_.state, "energy").result(),
-        )
+    # inspect final iteration -- no discarded geometries
+    workdir = learning.workdir
+    geoms_sample = read_frames(workdir / FILE_SAMPLE).result()
+    geoms_ref = read_frames(workdir / FILE_REFERENCE).result()
+    geoms_data = read_frames(workdir / FILE_DATA).result()
+    assert len(geoms_sample) == len(geoms_ref) == len(geoms_data) == n
+    text = (workdir / FILE_RECORDS).read_text()
+    records_dict = psiflow.deserialize(text).result()
+    assert len(records_dict["records"]) == n
+    assert len(records_dict["walker_records"]) == n
 
-    mace_model, walkers = learning.active_learning(
-        model_,
-        walkers_,
-        steps=5,
-        max_force=10,
-    )
-    metrics = load_metrics(inputs=[learning.metrics.metrics]).result()
-    assert len(metrics) == 4
-    assert np.allclose(
-        metrics.identifier,
-        np.array([0, 1, 2, 3], dtype=np.int_),
-    )
+    # check all training data
+    geoms = collect_geometries(learning.root, "*data.xyz").result()
+    train = collect_geometries(learning.root, FILE_TRAIN).result()
+    val = collect_geometries(learning.root, FILE_VAL).result()
+    assert len(geoms) == dataset.length().result() + 3 * n
+    assert len(geoms) == len(train) + len(val)

@@ -290,7 +290,7 @@ class ExecutionDefinition:
             "PYTHONUNBUFFERED": "TRUE",
             "OMP_PROC_BIND": "FALSE",
             "OMP_WAIT_POLICY": "PASSIVE",
-            "OMP_DISPLAY_ENV": "VERBOSE",  # verbose OMP log
+            # "OMP_DISPLAY_ENV": "VERBOSE",  # verbose OMP log
         }
         if self.executor_type == "threadpool":
             default_env_vars |= {"OMP_NUM_THREADS": f"{self.cores_per_task}"}
@@ -376,6 +376,7 @@ class ExecutionDefinition:
             prepend = self.container.launch_command()
             worker_executable = f"{prepend} {worker_executable}"
 
+        # TODO: 'init_command' options to setup task environment etc.?
         executor = WorkQueueExecutor(
             label=self.name,
             working_dir=str(path / self.name),

@@ -1,6 +1,7 @@
 import math
 import subprocess
 
+# TODO: think this should go
 
 def get_partitions():
     scontrol_output = subprocess.check_output(

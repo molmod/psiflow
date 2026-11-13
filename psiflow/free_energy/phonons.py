@@ -19,7 +19,7 @@ from psiflow.sampling.sampling import (
 )
 from psiflow.sampling.optimize import setup_forces
 from psiflow.utils.apps import multiply
-from psiflow.utils.io import load_numpy, save_xml
+from psiflow.utils.io import load_numpy_txt, save_xml
 from psiflow.utils.parse import format_env_vars
 
 
@@ -174,4 +174,4 @@ def compute_harmonic(
         outputs=[context.new_file("hess_", ".txt")],
         parsl_resource_specification=definition.wq_resources(1),
     )
-    return multiply(load_numpy(inputs=[result.outputs[0]]), Ha / Bohr**2)
+    return multiply(load_numpy_txt(result.outputs[0]), Ha / Bohr**2)

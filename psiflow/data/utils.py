@@ -136,10 +136,11 @@ def assign_ids(
     Assign unique identifiers to Geometry instances, starting at provided identifier.
     """
     # TODO: when would we want to supply the starting identifier?
+    # TODO: why would this return states?
     if identifier is None:
         # find largest existing value and add one
         ids = extract(states, ["identifier"])["identifier"]
-        identifier = max([i for i in ids if i is not MISSING], default=0) + 1
+        identifier = max([i for i in ids if i is not MISSING], default=-1) + 1
 
     for geom in states:
         if hasattr(geom, "identifier"):

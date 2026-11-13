@@ -1,19 +1,21 @@
 import math
+import warnings
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from itertools import cycle
-from typing import Optional, Union, Iterable
+from typing import Optional, Union
+from collections.abc import Iterable, Sequence
 
 import parsl
 import numpy as np
 from parsl.app.app import bash_app
 from parsl.data_provider.files import File
-from parsl.dataflow.futures import AppFuture, DataFuture
+from parsl.dataflow.futures import AppFuture
 
 import psiflow
 from psiflow.data import Dataset
 from psiflow.data.file import read_frames
-from psiflow.hamiltonians import Hamiltonian, MixtureHamiltonian, Zero, MACEHamiltonian
+from psiflow.hamiltonians import Zero, MACEHamiltonian, make_mixture
 from psiflow.sampling.output import (
     DEFAULT_OBSERVABLES,
     SimulationOutput,
@@ -21,10 +23,14 @@ from psiflow.sampling.output import (
     HamiltonianComponent,
 )
 from psiflow.utils.parse import format_env_vars
-from psiflow.sampling.utils import create_xml_list
 from psiflow.sampling.walker import Coupling, Walker, partition, Ensemble
 from psiflow.utils.io import _save_xml
 from psiflow.sampling.driver import __file__ as PATH_DRIVER
+
+
+def create_xml_list(items: list[str]) -> str:
+    """Pure helper"""
+    return " [ {} ] ".format(", ".join(items))
 
 
 @dataclass
@@ -56,8 +62,7 @@ class EnsembleTable:
 def template(
     walkers: list[Walker],
 ) -> tuple[list[HamiltonianComponent], EnsembleTable, list[AppFuture]]:
-    # multiply by 1.0 to ensure result is Mixture in case len(walkers) == 1
-    total_hamiltonian = 1.0 * sum([w.hamiltonian for w in walkers], start=Zero())
+    total_hamiltonian = make_mixture([w.hamiltonian for w in walkers])
     assert not total_hamiltonian == Zero()
 
     # construct the table of potential / ensemble / bias weights for every system instance
@@ -132,46 +137,42 @@ def setup_motion(walker: Walker, fix_com: bool) -> ET.Element:
         mode = "npt"
     else:
         raise ValueError("invalid walker {}".format(walker))
-    dynamics = ET.Element("dynamics", mode=mode)
-    timestep_element = ET.Element("timestep", units="femtosecond")
-    timestep_element.text = str(walker.timestep)
-    dynamics.append(timestep_element)
 
     # thermostat
+    xml_thermo = ""
     if ensemble != Ensemble.NVE:
-        xml_thermo = """
-        <thermostat mode="{mode}">
-            <tau units="femtosecond">{tau_thermo}</tau>
+        mode_thermo = "pile_g" if walker.pimd else "langevin"
+        xml_thermo = f"""
+        <thermostat mode="{mode_thermo}">
+            <tau units="femtosecond">{walker.tau_thermostat}</tau>
         </thermostat>
-        """.format(
-            mode=("pile_g" if walker.pimd else "langevin"),
-            tau_thermo=walker.tau_thermostat,
-        )
-        dynamics.append(ET.fromstring(xml_thermo))
+        """
 
     # barostat - never use pile_g here!
+    xml_baro = ""
     if ensemble in (Ensemble.NPT, Ensemble.NVST):
-        xml_baro = """
+        xml_baro = f"""
         <barostat mode="flexible">
-            <tau units="femtosecond">{tau_baro}</tau>
-            <vol_constraint> {vol_constraint} </vol_constraint>
+            <tau units="femtosecond">{walker.tau_barostat}</tau>
+            <vol_constraint> {ensemble == Ensemble.NVST} </vol_constraint>
             <thermostat mode="langevin">
-                <tau units="femtosecond">{tau_thermo}</tau>
+                <tau units="femtosecond">{walker.tau_thermostat}</tau>
             </thermostat>
         </barostat>
-        """.format(
-            tau_baro=walker.tau_barostat,
-            tau_thermo=walker.tau_thermostat,
-            vol_constraint=(ensemble == Ensemble.NVST),
-        )
-        dynamics.append(ET.fromstring(xml_baro))
+        """
 
-    motion = ET.Element("motion", mode="dynamics")
-    motion.append(dynamics)
-    fixcom = ET.Element("fixcom")
-    fixcom.text = " {} ".format(fix_com)
-    motion.append(fixcom)  # ensure kinetic_md ~ temperature
-    return motion
+    # fix_com ensures kinetic_md ~ temperature
+    motion = f"""
+    <motion mode="dynamics">
+        <dynamics mode="{mode}">
+            <timestep units="femtosecond">{walker.timestep}</timestep>
+            {xml_thermo}
+            {xml_baro}
+        </dynamics>
+        <fixcom> {fix_com} </fixcom>
+    </motion>
+    """
+    return ET.fromstring(motion)
 
 
 def setup_ensemble(
@@ -306,35 +307,22 @@ def setup_output(
         full_list.append("ensemble_bias{electronvolt}")
     observables = list(set(full_list))
 
-    if step is None:
-        # TODO: this logic should be elsewhere
-        step = checkpoint_step
-
-    output = ET.Element("output", prefix="output")
-    checkpoint = ET.Element(
-        "checkpoint",
-        filename="checkpoint",
-        stride=str(checkpoint_step),
-        overwrite="True",
-    )
-    output.append(checkpoint)
+    traj = ""
     if keep_trajectory:
-        trajectory = ET.Element(
-            "trajectory",
-            filename="trajectory",
-            stride=str(step),
-            format="ase",
-            bead="0",
-        )
-        trajectory.text = r" positions "
-        output.append(trajectory)
-    properties = ET.Element(
-        "properties",
-        filename="properties",
-        stride=str(step),
-    )
-    properties.text = create_xml_list(observables)
-    output.append(properties)
+        traj = f"""
+        <trajectory filename="trajectory" stride="{step}" format="ase" bead="0"> positions </trajectory>
+        """
+
+    # the order of trajectory/properties is not arbitrary
+    # see https://github.com/i-pi/i-pi/issues/534
+    output_xml = f"""
+    <output prefix="output">
+        <checkpoint filename="checkpoint" stride="{checkpoint_step}" overwrite="True" />
+        {traj}
+        <properties filename="properties" stride="{step}">{create_xml_list(observables)}</properties>
+    </output>
+    """
+    output = ET.fromstring(output_xml)
     return output, observables
 
 
@@ -360,6 +348,34 @@ def setup_smotion(
         else:  # overwrite dummy smotion
             smotion = smotion_metad
     return smotion
+
+
+def validate_sampling_args(
+    steps: int,
+    step: Optional[int],
+    checkpoint_step: Optional[int],
+    start: int,
+    keep_trajectory: bool,
+) -> tuple[int, int, int, int, bool]:
+    """"""
+    if step is None:
+        # only store the final snapshot
+        keep_trajectory = False
+        start = 0
+        step = steps
+    elif step > steps:
+        msg = f"Sampling frequency ({step} steps) is larger than simulation ({steps} steps). Limiting.."
+        warnings.warn(msg)
+        step = steps
+
+    if checkpoint_step is None or checkpoint_step > steps:
+        # always save at least a few checkpoints
+        checkpoint_step = min(step, steps // 10, 2000)
+
+    # start is applied on subsampled quantities because i-Pi always writes from time step 0
+    start = start // step
+
+    return steps, step, checkpoint_step, start, keep_trajectory
 
 
 def define_clients_n_kwargs(
@@ -521,6 +537,10 @@ def _sample(
     if motion_defaults is not None:
         raise NotImplementedError
 
+    steps, step, checkpoint_step, start, keep_trajectory = validate_sampling_args(
+        steps, step, checkpoint_step, start, keep_trajectory
+    )
+
     # generate i-Pi input XML
     hamiltonian_components, ensemble_table, plumed_list = template(walkers)
     coupling = walkers[0].coupling
@@ -536,20 +556,6 @@ def _sample(
     )
     smotion = setup_smotion(coupling, plumed_list)
 
-    # TODO: validate all arguments together + consistently
-    # make sure at least one checkpoint is being written
-    if checkpoint_step is None:  # default to every 5% of simulation progress
-        if step is None:
-            checkpoint_step = math.ceil(steps / 20)
-        else:
-            checkpoint_step = step
-    else:
-        if steps < checkpoint_step:  # technically a user error
-            checkpoint_step = steps
-    if step is not None:
-        start = math.floor(start / step)  # start is applied on subsampled quantities
-    if step is None:
-        keep_trajectory = False
     # TODO: check whether observables are valid?
     output, observables = setup_output(
         hamiltonian_components,  # for potential components
@@ -642,7 +648,6 @@ def _sample(
         if walker.metadynamics is not None:
             walker.metadynamics.wait_for(result)
         output = SimulationOutput.from_md(
-            walker,
             final_states[idx],
             observables,
             hamiltonian_components,  # order is important
@@ -652,7 +657,8 @@ def _sample(
             result.stdout,
             result.stderr,
         )
-        output.update_walker()
+        # TODO: when would we want to reset the walker?
+        walker.state = output.state
         simulation_outputs.append(output)
 
     if coupling is not None:
@@ -662,7 +668,7 @@ def _sample(
 
 
 def sample(
-    walkers: list[Walker],
+    walkers: Sequence[Walker],
     steps: int,
     step: Optional[int] = None,
     start: int = 0,
@@ -679,10 +685,7 @@ def sample(
     indices = partition(walkers)
     outputs = [None] * len(walkers)
     for i, group in enumerate(indices):
-        if not use_unique_seeds:
-            seed = prng_seed
-        else:
-            seed = prng_seed + i
+        seed = prng_seed + i if use_unique_seeds else prng_seed
         _walkers = [walkers[index] for index in group]
         _outputs = _sample(
             _walkers,

@@ -1,6 +1,6 @@
-import copy
 import io
 import warnings
+import pickle
 from typing import Optional
 from collections.abc import Sequence
 
@@ -116,7 +116,7 @@ class CP2K(Reference):
         return super().compute_atomic_energy(element, box_size)
 
     def get_single_atom_references(self, element: str) -> dict[int, Reference]:
-        input_dict = copy.deepcopy(self.input_dict)
+        input_dict = self._get_input_copy()
         input_section = input_dict["force_eval"]["dft"]
         input_section |= {"uks": "TRUE", "charge": 0, "multiplicity": "{mult}"}
         input_section["xc"].pop("vdw_potential", None)  # no dispersion
@@ -144,8 +144,8 @@ class CP2K(Reference):
             warnings.warn(msg)
             return False, None
 
-        section = self.input_dict["force_eval"]["subsys"]
-        section_copy = copy.deepcopy(section)
+        input_dict = self._get_input_copy()
+        section = input_dict["force_eval"]["subsys"]
         section.pop("topology", None)  # remove topology section
 
         # insert coordinates
@@ -160,10 +160,13 @@ class CP2K(Reference):
         section["cell"] = cell
 
         with open(file := psiflow.context().new_file("cp2k_", ".inp"), "w") as f:
-            f.write(dict_to_str(self.input_dict))
+            f.write(dict_to_str(input_dict))
 
-        self.input_dict["force_eval"]["subsys"] = section_copy  # revert changes
         return True, File(file)
 
     def parse_output(self, stdout: str) -> dict:
         return parse_output(stdout, self.outputs)
+
+    def _get_input_copy(self) -> dict:
+        # clone the input dict to avoid race conditions with other threads
+        return pickle.loads(pickle.dumps(self.input_dict))

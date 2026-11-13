@@ -1,7 +1,7 @@
 import shutil
 import textwrap
-from typing import Any, Union
-from collections.abc import Sequence
+from copy import deepcopy
+from typing import Any, Union, Callable
 from pathlib import Path
 
 import numpy as np
@@ -16,63 +16,49 @@ def get_attribute(obj: Any, *attribute_names: str) -> Any:
     return obj
 
 
-def _boolean_or(*args: Union[bool, np.bool_]) -> bool:
-    return any(args)
-
-
-boolean_or = python_app(_boolean_or, executors=["default_threads"])
-
-
-def _multiply(a, b):
+@python_app(executors=["default_threads"])
+def multiply(a, b) -> float:
     return a * b
 
 
-multiply = python_app(_multiply, executors=["default_threads"])
-
-
-def _compute_sum(a, b):
+@python_app(executors=["default_threads"])
+def compute_sum(a, b) -> float:
     return np.add(a, b)
 
 
-compute_sum = python_app(_compute_sum, executors=["default_threads"])
-
-
-def _copy_data_future(
+@python_app(executors=["default_threads"])
+def copy_data_future(
+    file: str | Path | File,
     pass_on_exist: bool = False,
-    inputs: Sequence[File] = (),
-    outputs: Sequence[File] = ()
+    inputs: list = [],
+    outputs: list[File] = []
 ) -> None:
-    assert len(inputs) == 1
+    """Copy file to new location once all input futures complete"""
     assert len(outputs) == 1
-    if Path(outputs[0]).is_file() and pass_on_exist:
-        pass
-    elif Path(inputs[0]).is_file():
-        shutil.copyfile(inputs[0], outputs[0])
-    else:  # no need to copy empty file
-        pass
+    file = Path(file)
+    file_out = Path(outputs[0])
+    if file == file_out:
+        return  # no copy needed
+    if file_out.is_file() and pass_on_exist:
+        return
+    if not file.is_file():
+        return  # no need to copy empty file
+
+    shutil.copyfile(file, file_out)
 
 
-copy_data_future = python_app(_copy_data_future, executors=["default_threads"])
-
-
-def _copy_app_future(future: Any, inputs: list = [], outputs: list = []) -> Any:
-    # inputs/outputs to enforce additional dependencies
-    from copy import deepcopy
-
+@python_app(executors=["default_threads"])
+def copy_app_future(future: Any, inputs: list = []) -> Any:
+    """Return a deepcopy once all input futures complete"""
     return deepcopy(future)
 
 
-copy_app_future = python_app(_copy_app_future, executors=["default_threads"])
-
-
-def _log_message(logger, message, *futures):
+@python_app(executors=["default_threads"])
+def log_message(logging_func: Callable, message: str, *futures, inputs: list = []) -> None:
+    """Delay a logging call until all futures complete"""
     if len(futures) > 0:
-        logger.info(message.format(*futures))
-    else:
-        logger.info(message)
-
-
-log_message = python_app(_log_message, executors=["default_threads"])
+        message = message.format(*futures)
+    logging_func(message)
 
 
 @python_app(executors=["default_threads"])
@@ -81,28 +67,15 @@ def pack(*args: Any) -> tuple[Any]:
     return args
 
 
-def _concatenate(*arrays: np.ndarray) -> np.ndarray:
-    return np.concatenate(arrays)
-
-
-concatenate = python_app(_concatenate, executors=["default_threads"])
-
-
-def _isnan(a: Union[float, np.ndarray]) -> bool:
-    return bool(np.any(np.isnan(a)))
-
-
-isnan = python_app(_isnan, executors=["default_threads"])
-
-
 def create_bash_template(tmpdir_root: str, keep_tmpdirs: bool) -> str:
     """Create general wrapper for all bash apps. The exitcode ensures that every app completes successfully."""
+    # TODO: does not belong here
     template = f"""
     # Create and move into new tmpdir for app execution
     tmpdir=$(mktemp -d -p {tmpdir_root} "psiflow-tmp.XXXXXXXXXX")
     cd $tmpdir; echo "tmpdir: $PWD"
     {{env}}
-    printenv
+    # printenv
 
     # Actual app definition goes here
     {{commands}}
@@ -112,4 +85,3 @@ def create_bash_template(tmpdir_root: str, keep_tmpdirs: bool) -> str:
     exit 0
     """
     return textwrap.dedent(template)
-
