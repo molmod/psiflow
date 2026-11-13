@@ -362,12 +362,7 @@ class Learning:
                 logger.warning(msg)
             return False
 
-        log_message(
-            logger.info,
-            f"Executing learning iteration '{name}'",
-            inputs=[self.wait_for],
-        )
-        self.workdir.mkdir()
+        self.wait_for = make_workdir(self.workdir, self.wait_for)
         return True
 
     def _load_walkers(self) -> list[Walker]:
@@ -512,6 +507,12 @@ def post_process(
     metrics: Metrics, root: Path, workdir: Path, inputs: list = []
 ) -> None:
     metrics(root, workdir)
+
+
+@python_app(executors=["default_threads"])
+def make_workdir(path: Path, wait_for: Any = None) -> None:
+    logger.info(f"Executing learning iteration '{path.name}'")
+    path.mkdir()
 
 
 @psiflow.register_serializable
